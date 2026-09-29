@@ -1,0 +1,73 @@
+name: Deploy migrations
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-migrations
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Skip the push that CREATES main, which is the template generation itself.
+    # At that moment the production database does not exist yet: the
+    # standardization dashboard is still creating it, and writes
+    # PRODUCTION_DATABASE_URL into this environment minutes later. There is
+    # nothing to deploy to, so failing here reports a problem that is not one,
+    # and every new project was being born with a red X on main.
+    #
+    # Skipping is safe because `prisma migrate deploy` is cumulative: the first
+    # real push to main applies this migration and every later one.
+    #
+    # Deliberately keyed on `created`, which means "this push made the branch",
+    # and NOT on whether the secret is empty. Those are different facts, and
+    # conflating them is the trap: skipping on an empty secret would turn a
+    # genuinely misconfigured project green forever. A missing secret on any
+    # later push is real, and stays loud. See the guard step below.
+    if: github.event_name == 'workflow_dispatch' || !github.event.created
+    environment: production-database
+    env:
+      # Session-pooler URL (port 5432), not the transaction pooler (6543)
+      # — migrate deploy holds an advisory lock across statements that
+      # transaction-mode pgbouncer can't sustain. DIRECT_URL is set to the
+      # same value: the schema declares directUrl = env("DIRECT_URL")
+      # unconditionally, so Prisma's schema validation fails without it
+      # regardless of whether this specific command reads it (see ci.yml's
+      # migrations job for the same note) — and since PRODUCTION_DATABASE_URL
+      # is already the session-pooler connection, there's no second URL to
+      # provide.
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+    steps:
+      # Fails, rather than skipping, because reaching this line means the branch
+      # already existed and the secret should have been written long ago.
+      # Prisma's own error for the empty case is
+      # `P1012 ... DIRECT_URL resolved to an empty string`, which names neither
+      # the secret nor who was supposed to set it.
+      - name: Require a database URL
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::PRODUCTION_DATABASE_URL is empty in the production-database environment. It is written by the standardization dashboard when a project is provisioned."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile # postinstall runs `prisma generate`
+      - name: Apply migrations to production
+        run: pnpm exec prisma migrate deploy
+      # prisma/run-once.sql: the current one-off, applied once per database and
+      # recorded in _run_once_sql so it never repeats (docs/rules/migrations.md).
+      # After the migrations so it can use what they just created, before the
+      # drift check so it cannot smuggle in schema the Prisma files don't
+      # declare. Picks up DIRECT_URL/DATABASE_URL from the job env above.
+      - name: Apply run-once SQL to production
+        run: node scripts/run-once-sql.mjs
+      - name: Verify zero drift against the live database
+        run: pnpm exec prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema --exit-code

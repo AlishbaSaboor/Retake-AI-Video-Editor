@@ -1,0 +1,21 @@
+// The base User model. One .prisma file per domain area (e.g. authz.prisma,
+// flags.prisma), all under prisma/schema/. Prisma reads every *.prisma file in
+// the folder as one combined schema.
+//
+// User.id is NOT @default — per docs/rules/auth.md, this template's convention
+// is that User.id IS the Supabase auth user's uuid, set explicitly when the row
+// is first created (provisionUser, from an auth webhook or on first sign-in),
+// never generated app-side. @db.Uuid matches AdminMember.userId @db.Uuid
+// (prisma/schema/authz.prisma) so the FK types agree.
+//
+// users is user-scoped, so its create migration ENABLEs ROW LEVEL SECURITY
+// (no policy, no FORCE) — see docs/rules/authorization.md.
+model User {
+	id          String       @id @db.Uuid
+	email       String       @unique
+	createdAt   DateTime     @default(now()) @db.Timestamptz(6)
+	updatedAt   DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
+	adminMember AdminMember?
+
+	@@map("users")
+}
