@@ -1,0 +1,76 @@
+@import 'tailwindcss';
+
+/* Tailwind v4 is CSS-first — no tailwind.config.js. Static tokens (nothing
+   that needs to change with color scheme) live directly in @theme, which
+   both declares them as real CSS variables and generates the matching
+   Tailwind utilities (e.g. --radius-lg below gives you `rounded-lg`). */
+@theme {
+	--font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--radius-sm: 6px;
+	--radius: 10px;
+	--radius-lg: 16px;
+}
+
+/* Color tokens DO need to change with color scheme, so they're declared on
+   :root (swappable at runtime) and re-exposed to Tailwind via `@theme
+   inline` below — `inline` tells Tailwind to reference these variables
+   live rather than inlining today's computed value at build time. See
+   DESIGN.md for the full token table and naming rationale. */
+:root {
+	--bg: #fafafa;
+	--surface: #ffffff;
+	--surface-hover: #f0f1f3;
+	--border: #e5e7eb;
+	--border-strong: #cbd2db;
+	--text: #16181d;
+	--text-muted: #5b6472;
+	--text-faint: #8891a0;
+	--accent: #2454b8;
+	--accent-hover: #1c4292;
+	--accent-ink: #ffffff;
+	--success: #1a7f4b;
+	--warning: #a5580a;
+	--danger: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg: #101215;
+		--surface: #17191d;
+		--surface-hover: #202329;
+		--border: #2a2d33;
+		--border-strong: #3a3e46;
+		--text: #f2f3f5;
+		--text-muted: #a6adba;
+		--text-faint: #767d8a;
+		--accent: #5b8fe0;
+		--accent-hover: #7ba3e6;
+		--accent-ink: #0b1220;
+		--success: #35c37f;
+		--warning: #e2a03f;
+		--danger: #e5675f;
+	}
+}
+
+@theme inline {
+	--color-bg: var(--bg);
+	--color-surface: var(--surface);
+	--color-surface-hover: var(--surface-hover);
+	--color-border: var(--border);
+	--color-border-strong: var(--border-strong);
+	--color-text: var(--text);
+	--color-text-muted: var(--text-muted);
+	--color-text-faint: var(--text-faint);
+	--color-accent: var(--accent);
+	--color-accent-hover: var(--accent-hover);
+	--color-accent-ink: var(--accent-ink);
+	--color-success: var(--success);
+	--color-warning: var(--warning);
+	--color-danger: var(--danger);
+}
+
+body {
+	background-color: var(--bg);
+	color: var(--text);
+	font-family: var(--font-sans);
+}

@@ -1,0 +1,6 @@
+# Session transcripts are generated verbatim records — never reformat them.
+# They're tracked on purpose (see CLAUDE.md), so .gitignore doesn't cover them.
+# One directory per agent that writes a committed transcript: Claude Code and
+# Codex (see docs/rules/secrets.md).
+.claude-logs/
+.codex-logs/

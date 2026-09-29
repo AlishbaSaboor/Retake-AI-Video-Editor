@@ -1,0 +1,35 @@
+name: Claude PR review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # `secrets` isn't a valid context in `if:` at the job OR step level
+      # (only `env`/`vars`/`steps` are) — this step converts the secret's
+      # presence into a step output so later steps can gate on it cleanly,
+      # instead of the job visibly failing every PR until the secret is set.
+      - name: Check for ANTHROPIC_API_KEY
+        id: check
+        env:
+          HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        run: echo "enabled=$HAS_KEY" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.enabled == 'true'
+      - uses: anthropics/claude-code-action@v1
+        if: steps.check.outputs.enabled == 'true'
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this PR for correctness bugs, security issues, and compliance
+            with this repo's CLAUDE.md and AGENTS.md rules — especially the
+            migration workflow rule (never hand-edit prisma/schema/migrations/)
+            and the Server/Client Component boundary rules in AGENTS.md.

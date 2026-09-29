@@ -1,0 +1,29 @@
+// Admin RBAC schema (docs/rules/authorization.md). Staff-ness is a SEPARATE
+// table, not a column on User — the presence of an active AdminMember row is
+// what makes someone staff. Creators/brands/end-users never get a row and the
+// admin console is closed to them.
+//
+// Illustrative — adapt roles to your admin team. Roles are ordered, nested
+// supersets: read_only ⊂ support ⊂ admin ⊂ super_admin. super_admin is the
+// wildcard (auto-holds future permissions); admin is everything-except-dangerous.
+enum AdminRole {
+	super_admin
+	admin
+	support
+	read_only
+}
+
+// admin_members is user-scoped, so its create migration ENABLEs ROW LEVEL
+// SECURITY (no policy, no FORCE) — see docs/rules/authorization.md.
+model AdminMember {
+	userId           String    @id @db.Uuid
+	role             AdminRole @default(read_only)
+	permissionGrants String[]
+	isActive         Boolean   @default(true)
+	grantedById      String?   @db.Uuid
+	createdAt        DateTime  @default(now()) @db.Timestamptz(6)
+	updatedAt        DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+	user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+	@@map("admin_members")
+}

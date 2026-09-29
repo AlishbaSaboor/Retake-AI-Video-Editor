@@ -1,0 +1,64 @@
+// The per-repo AI spend ledger: one row per completed provider call, written
+// by src/server/lib/ai-usage/ and read by nothing in this app. MOAD queries
+// this table directly, read-only, through the Supabase Management API. That
+// makes the column contract below a cross-repo API: every project stores the
+// same units in the same shape, so a rename here is a breaking change for
+// the dashboard even though nothing in this repo imports it.
+// See docs/rules/ai-usage.md.
+//
+// Delete this file and src/server/lib/ai-usage/ if the project makes no AI
+// calls — an empty table nobody writes to is worse than no table, because
+// MOAD reports it as a project at zero spend rather than one that opted out.
+model AiUsage {
+	id        BigInt   @id @default(autoincrement())
+	// `timestamptz`, not Prisma's default `timestamp`. MOAD sums across repos
+	// that may not sit in one region, and a zone that was never stored cannot
+	// be recovered later.
+	createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+	provider    String
+	// The OpenRouter slug (`anthropic/claude-opus-5`), not the provider's own
+	// model id. A provider serves the same model under different ids depending
+	// on whether the call named a dated or a floating alias, so the slug is the
+	// only form that reads as one model in every repo — which is what this
+	// column gets grouped on.
+	//
+	// Holds the provider's raw id instead when the model is unmapped. Those are
+	// the rows with a NULL cost, and the raw id is what someone needs in order
+	// to find the slug and add it to models.ts.
+	model       String
+	// standard | fast | batch. `batch` is a separate, half-price entry
+	// upstream (`<slug>:batch`), not a modifier; `fast` prices identically to
+	// standard everywhere today.
+	serviceTier String @default("standard") @map("service_tier")
+	// Required, not optional — an unattributed row can't answer the only
+	// question this table exists for, which is what the spend went on.
+	feature     String
+
+	inputTokens      Int @default(0) @map("input_tokens")
+	outputTokens     Int @default(0) @map("output_tokens")
+	cacheWriteTokens Int @default(0) @map("cache_write_tokens")
+	cacheReadTokens  Int @default(0) @map("cache_read_tokens")
+
+	// Priced at write time from the rates in pricing.ts, in millionths of a
+	// USD so sums stay exact and no float ever touches a money total. NULL,
+	// never 0, when the model is missing from models.ts — a zero would sum
+	// cleanly into the total and under-report forever without anyone noticing.
+	costMicroUsd BigInt? @map("cost_micro_usd")
+
+	// ok | error | refusal
+	status    String
+	latencyMs Int?    @map("latency_ms")
+	// The provider's own request id, for disputes.
+	requestId String? @map("request_id")
+	// Ids only, same rule as analytics properties: brand_id, campaign_id,
+	// user_id. Never a prompt, a completion, or anything a human typed. MOAD
+	// reads this table with raw SQL, so this column is not hidden behind an
+	// aggregate the way it used to be — the rule is the only thing keeping it
+	// safe.
+	meta      Json?
+
+	@@index([createdAt])
+	@@index([provider, model])
+	@@map("ai_usage")
+}

@@ -1,0 +1,20 @@
+// The ledger behind prisma/run-once.sql: one row per version of that file
+// this database has applied, keyed by the SHA-256 of its executable content.
+// Written only by scripts/run-once-sql.mjs, in the same transaction as the
+// SQL it records, and read by nothing in the app — query it to see which
+// one-offs have run here and when. See docs/rules/migrations.md, "Run-once
+// SQL".
+//
+// Infrastructure, not user data, but RLS is enabled anyway (its own
+// hand-written migration, right after the generated one) because the rule
+// is every table with no exemptions — and it costs nothing, since the
+// runner connects as the table owner, which RLS never gates.
+model RunOnceSql {
+	hash      String   @id
+	// The file as it was applied, comments included: the record of what
+	// actually ran here, independent of what git later replaced it with.
+	sql       String
+	appliedAt DateTime @default(now()) @map("applied_at") @db.Timestamptz(6)
+
+	@@map("_run_once_sql")
+}
