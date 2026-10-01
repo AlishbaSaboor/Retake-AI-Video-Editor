@@ -36,7 +36,11 @@ gets a working example instead of this paragraph.
 import { generateContent } from '@/server/ai/google'
 
 const response = await generateContent(
-	{ feature: 'parse_edit_command', model: 'gemini-3.8-flash', meta: { project_id: projectId } },
+	{
+		feature: 'parse_edit_command',
+		model: 'gemini-3.5-flash-lite',
+		meta: { project_id: projectId }
+	},
 	{ contents: command }
 )
 ```

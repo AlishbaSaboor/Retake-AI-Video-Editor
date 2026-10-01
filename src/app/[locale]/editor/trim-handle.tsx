@@ -49,7 +49,7 @@ export function TrimHandle({
 			aria-valuemax={durationSeconds}
 			aria-valuenow={seconds}
 			aria-valuetext={formatTimecode(seconds)}
-			className="bg-accent focus-visible:outline-accent absolute top-9 h-14 w-2 -translate-x-1/2 cursor-ew-resize touch-none rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+			className="bg-accent focus-visible:outline-accent absolute top-9 flex h-16 w-3 -translate-x-1/2 cursor-ew-resize touch-none items-center justify-center rounded shadow-md transition-[filter] hover:brightness-125 focus-visible:outline-2 focus-visible:outline-offset-2"
 			style={{ left: timeToPercent(seconds, durationSeconds) }}
 			onPointerDown={(event) => {
 				event.currentTarget.setPointerCapture(event.pointerId)
@@ -59,6 +59,8 @@ export function TrimHandle({
 				onChange(edge, timeAtPointer(event.clientX))
 			}}
 			onKeyDown={handleKeyDown}
-		/>
+		>
+			<span aria-hidden className="h-4 w-0.5 rounded-full bg-white/70" />
+		</div>
 	)
 }

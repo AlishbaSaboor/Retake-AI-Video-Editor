@@ -32,7 +32,10 @@ const AI_SDK_IMPORTS = {
 		'@google/genai',
 		'@google/genai/**',
 		'@google/generative-ai',
-		'ai',
+		// Anchored: these are gitignore-style patterns, and a bare 'ai' matches
+		// an `ai` segment anywhere — including '@/server/ai/<provider>', the
+		// wrapper feature code is meant to import.
+		'/ai',
 		'@ai-sdk/**'
 	],
 	message:

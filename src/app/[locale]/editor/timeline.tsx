@@ -2,7 +2,7 @@
 
 import { useRef } from 'react'
 import { useTranslations } from 'next-intl'
-import { VideoIcon } from '@/components/ui/icons'
+import { TimelineIcon } from '@/components/ui/icons'
 import {
 	clampTime,
 	formatTimecode,
@@ -71,8 +71,11 @@ export function Timeline({
 	}
 
 	return (
-		<section className="border-border bg-surface rounded-lg border p-4">
-			<h2 className="text-text-muted mb-3 text-sm font-medium">{t('label')}</h2>
+		<section className="border-border bg-surface rounded-2xl border p-4 shadow-xl">
+			<div className="border-border mb-2 flex items-center gap-1.5 border-b pb-3">
+				<TimelineIcon className="text-accent" />
+				<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
+			</div>
 			{hasClip ? (
 				// The handles sit beside the scrubber rather than inside it, so
 				// dragging one trims without also seeking.
@@ -96,38 +99,41 @@ export function Timeline({
 						}}
 						onKeyDown={handleKeyDown}
 					>
-						<div className="border-border relative h-6 overflow-hidden border-b">
+						<div className="border-border relative h-6 overflow-hidden border-b font-mono">
 							{rulerTicks(durationSeconds).map((tick) => (
 								<span
 									key={tick}
-									className="border-border-strong text-text-faint absolute top-0 h-full border-l pl-1 text-xs tabular-nums"
+									className="border-border-strong text-text-faint absolute top-0 h-full border-l pl-1 text-xs"
 									style={{ left: timeToPercent(tick, durationSeconds) }}
 								>
 									{formatTimecode(tick)}
 								</span>
 							))}
 						</div>
-						<div className="border-border relative my-3 h-14 rounded border border-dashed">
+						<div className="border-border-strong bg-surface-inset relative my-3 h-16 rounded-lg border-2 border-dashed">
 							<div
-								className="border-border-strong bg-surface-hover text-text absolute inset-y-0 flex items-center gap-2 overflow-hidden rounded border px-3 text-sm"
+								className="border-accent/60 from-surface via-surface-hover to-surface absolute inset-y-1 flex items-center gap-2 overflow-hidden rounded-md border bg-linear-to-r px-4 shadow-lg"
 								style={{
 									left: timeToPercent(trim.startSeconds, durationSeconds),
 									right: `calc(100% - ${timeToPercent(trim.endSeconds, durationSeconds)})`
 								}}
 								title={t('clipLabel', { name: clipName, duration: formatTimecode(trimmedSeconds) })}
 							>
-								<VideoIcon className="text-text-muted shrink-0" />
-								<span className="truncate">{clipName}</span>
-								<span className="text-text-muted ml-auto shrink-0 tabular-nums">
+								<span className="text-text truncate text-xs font-semibold tracking-tight">
+									{clipName}
+								</span>
+								<span className="text-accent-secondary ml-auto shrink-0 rounded border border-white/10 bg-black/60 px-2 py-0.5 font-mono text-xs">
 									{formatTimecode(trimmedSeconds)}
 								</span>
 							</div>
 						</div>
 						<div
 							aria-hidden
-							className="bg-accent pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2"
+							className="bg-accent shadow-accent-glow pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2 shadow-lg"
 							style={{ left: timeToPercent(currentTimeSeconds, durationSeconds) }}
-						/>
+						>
+							<div className="bg-accent absolute -top-1.5 left-1/2 size-3 -translate-x-1/2 rotate-45 rounded-sm" />
+						</div>
 					</div>
 					<TrimHandle
 						edge="start"

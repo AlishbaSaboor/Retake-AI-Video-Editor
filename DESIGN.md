@@ -42,6 +42,9 @@ component that uses it. This template ships a neutral starter set:
 | `--bg`                                     | near-white               | page background                                                 |
 | `--surface`                                | white                    | card/panel background, one step off `--bg`                      |
 | `--surface-hover`                          | light gray               | hover state for interactive surfaces                            |
+| `--surface-inset`                          | —                        | recessed area inside a card (e.g. the timeline track)           |
+| `--accent-secondary`                       | —                        | second brand hue, for small highlights (badges, gradients)      |
+| `--accent-glow`                            | —                        | translucent accent for glows and focus rings                    |
 | `--border`                                 | light gray, low contrast | default hairline border                                         |
 | `--border-strong`                          | medium gray              | hover/focus-adjacent border                                     |
 | `--text`                                   | near-black               | primary text                                                    |
@@ -53,12 +56,12 @@ component that uses it. This template ships a neutral starter set:
 | `--success` / `--warning` / `--danger`     | green / amber / red      | status-only, never used decoratively                            |
 | `--radius-sm` / `--radius` / `--radius-lg` | 6px / 10px / 16px        | never hardcode a `border-radius` outside these                  |
 
-Every token above has a dark-mode pair, swapped automatically via
-`prefers-color-scheme` — see `globals.css`. If this project wants a
-user-facing toggle instead of (or in addition to) following the OS
-preference, switch the dark block's selector from
-`@media (prefers-color-scheme: dark)` to `.dark &` / `:root.dark` and add a
-small class-toggling script; don't rebuild the token set to do it.
+**Retake is dark-only.** The starter values above were the template's light
+set; Retake replaced them with the editor mockup's dark palette (obsidian
+surfaces, indigo `--accent`, cyan `--accent-secondary`) and dropped the
+template's `prefers-color-scheme` swap — see `globals.css` for the live
+values. Adding a light theme later means reintroducing a second value set
+(e.g. under `:root.light`), not renaming tokens.
 
 ## 3. Component conventions
 

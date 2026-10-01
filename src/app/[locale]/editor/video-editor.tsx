@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { ReplaceIcon } from '@/components/ui/icons'
 import { toast } from '@/lib/toast'
+import { CommandBar } from './command-bar'
 import { Timeline } from './timeline'
 import {
 	clampToTrim,
@@ -120,18 +121,21 @@ export function VideoEditor() {
 		setCurrentTimeSeconds(target)
 	}
 
-	// Pauses on the moved edge so the preview shows the new cut frame.
-	function handleTrimChange(edge: TrimEdge, seconds: number) {
-		const next = moveTrimEdge(range, edge, seconds, durationSeconds)
-		const previewAt = edge === 'start' ? next.startSeconds : next.endSeconds
+	// Sets a new trim and pauses on the given frame so the preview shows the
+	// cut. Not through seek(): that clamps to the range from before this change.
+	function applyTrim(next: TrimRange, previewAt: number) {
 		setTrim(next)
-		// Not through seek(): that clamps to the range from before this move.
 		const element = videoRef.current
 		if (element) {
 			element.pause()
 			element.currentTime = previewAt
 		}
 		setCurrentTimeSeconds(previewAt)
+	}
+
+	function handleTrimChange(edge: TrimEdge, seconds: number) {
+		const next = moveTrimEdge(range, edge, seconds, durationSeconds)
+		applyTrim(next, edge === 'start' ? next.startSeconds : next.endSeconds)
 	}
 
 	// Keeps the native controls inside the trim too: scrubbing past an edge
@@ -153,9 +157,9 @@ export function VideoEditor() {
 	}
 
 	return (
-		<div className="flex flex-col gap-6">
+		<div className="flex flex-col gap-4">
 			{video ? (
-				<div className="flex flex-col gap-3">
+				<div className="flex flex-col gap-4">
 					<div className="flex items-center justify-between gap-4">
 						<p className="text-text truncate text-sm font-medium">{video.name}</p>
 						<Button
@@ -171,27 +175,35 @@ export function VideoEditor() {
 							</label>
 						</Button>
 					</div>
-					<video
-						key={video.url}
-						ref={videoRef}
-						src={video.url}
-						controls
-						playsInline
-						className="aspect-video w-full rounded-lg bg-black"
-						onLoadedMetadata={(event) => handleLoadedMetadata(event.currentTarget)}
-						onDurationChange={(event) => handleDurationChange(event.currentTarget)}
-						onTimeUpdate={(event) => handleTimeUpdate(event.currentTarget)}
-						onPlay={(event) => handlePlay(event.currentTarget)}
-						onPause={() => setIsPlaying(false)}
-						onError={() => {
-							toast({
-								variant: 'destructive',
-								title: t('unplayable.title'),
-								description: t('unplayable.description', { name: video.name })
-							})
-							setVideo(null)
-						}}
-					/>
+					{hasDuration && (
+						<CommandBar
+							durationSeconds={durationSeconds}
+							onTrim={(next) => applyTrim(next, next.startSeconds)}
+						/>
+					)}
+					<div className="border-border mx-auto w-full max-w-3xl overflow-hidden rounded-2xl border bg-black shadow-2xl">
+						<video
+							key={video.url}
+							ref={videoRef}
+							src={video.url}
+							controls
+							playsInline
+							className="block aspect-video w-full bg-black"
+							onLoadedMetadata={(event) => handleLoadedMetadata(event.currentTarget)}
+							onDurationChange={(event) => handleDurationChange(event.currentTarget)}
+							onTimeUpdate={(event) => handleTimeUpdate(event.currentTarget)}
+							onPlay={(event) => handlePlay(event.currentTarget)}
+							onPause={() => setIsPlaying(false)}
+							onError={() => {
+								toast({
+									variant: 'destructive',
+									title: t('unplayable.title'),
+									description: t('unplayable.description', { name: video.name })
+								})
+								setVideo(null)
+							}}
+						/>
+					</div>
 				</div>
 			) : (
 				<UploadDropzone onFile={loadFile} />

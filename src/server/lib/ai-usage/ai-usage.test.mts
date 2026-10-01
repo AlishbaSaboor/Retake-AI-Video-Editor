@@ -39,13 +39,16 @@ const NO_TOKENS = {
 // --- the model map ---------------------------------------------------------
 
 test('maps a known model and leaves an unknown one unpriced', () => {
-	assert.equal(openRouterSlug('gemini-3.8-flash'), 'google/gemini-3.8-flash')
+	assert.equal(openRouterSlug('gemini-3.5-flash-lite'), 'google/gemini-3.5-flash-lite')
 	assert.equal(openRouterSlug('gemini-9-flash-20290101'), null)
 })
 
 test('batch is a separate upstream entry, fast is not', () => {
-	assert.equal(openRouterSlug('gemini-3.8-flash', 'batch'), 'google/gemini-3.8-flash:batch')
-	assert.equal(openRouterSlug('gemini-3.8-flash', 'fast'), 'google/gemini-3.8-flash')
+	assert.equal(
+		openRouterSlug('gemini-3.5-flash-lite', 'batch'),
+		'google/gemini-3.5-flash-lite:batch'
+	)
+	assert.equal(openRouterSlug('gemini-3.5-flash-lite', 'fast'), 'google/gemini-3.5-flash-lite')
 })
 
 // --- pricing ---------------------------------------------------------------
@@ -100,12 +103,12 @@ test('an override leaves the rates it does not declare alone', () => {
 test('google extraction reads the served model, request id and status', () => {
 	const extracted = extractUsage('google', {
 		responseId: 'resp-0',
-		modelVersion: 'gemini-3.8-flash',
+		modelVersion: 'gemini-3.5-flash-lite',
 		candidates: [{ finishReason: 'STOP' }],
 		usageMetadata: { promptTokenCount: 1000, candidatesTokenCount: 500 }
 	})
 	assert.deepEqual(extracted, {
-		model: 'gemini-3.8-flash',
+		model: 'gemini-3.5-flash-lite',
 		requestId: 'resp-0',
 		status: 'ok',
 		tokens: { inputTokens: 1000, outputTokens: 500, cacheWriteTokens: 0, cacheReadTokens: 0 }
@@ -115,7 +118,7 @@ test('google extraction reads the served model, request id and status', () => {
 test('google cachedContentTokenCount is subtracted out of the prompt count', () => {
 	const extracted = extractUsage('google', {
 		responseId: 'resp-1',
-		modelVersion: 'gemini-3.8-flash',
+		modelVersion: 'gemini-3.5-flash-lite',
 		usageMetadata: {
 			promptTokenCount: 11_000,
 			candidatesTokenCount: 500,
@@ -131,7 +134,7 @@ test('google cachedContentTokenCount is subtracted out of the prompt count', () 
 test('google thinking tokens are billed as output, so they land in the output count', () => {
 	const extracted = extractUsage('google', {
 		responseId: 'resp-2',
-		modelVersion: 'gemini-3.8-flash',
+		modelVersion: 'gemini-3.5-flash-lite',
 		usageMetadata: {
 			promptTokenCount: 1000,
 			candidatesTokenCount: 500,
@@ -165,26 +168,26 @@ test('an unrecognised response shape yields no usage rather than throwing', () =
 
 const SPEC: AiCallSpec = {
 	provider: 'google',
-	model: 'gemini-3.8-flash',
+	model: 'gemini-3.5-flash-lite',
 	feature: 'parse_edit_command'
 }
 
 test('the model that served the call wins over the model that was asked for', () => {
 	const row = buildRow(
-		{ ...SPEC, model: 'gemini-3.8-flash' },
+		{ ...SPEC, model: 'gemini-3.5-flash-lite' },
 		{
-			modelVersion: 'gemini-3.8-flash-001',
+			modelVersion: 'gemini-3.5-flash-lite-001',
 			usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 }
 		},
 		{ status: 'ok', latencyMs: 12 }
 	)
-	assert.equal(row.model, 'gemini-3.8-flash-001')
+	assert.equal(row.model, 'gemini-3.5-flash-lite-001')
 })
 
 test('a failed call still produces a row, with the requested model and no tokens', () => {
 	const row = buildRow(SPEC, undefined, { status: 'error', latencyMs: 12 })
 	assert.equal(row.status, 'error')
-	assert.equal(row.model, 'gemini-3.8-flash')
+	assert.equal(row.model, 'gemini-3.5-flash-lite')
 	assert.deepEqual(
 		{
 			inputTokens: row.inputTokens,

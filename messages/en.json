@@ -9,7 +9,8 @@
 		"dropzone": {
 			"title": "Drop a video here, or click to choose one",
 			"hint": "MP4, WebM or MOV. It stays on your computer — nothing is uploaded yet.",
-			"inputLabel": "Choose a video file"
+			"inputLabel": "Choose a video file",
+			"browse": "Browse files"
 		},
 		"notAVideo": {
 			"title": "That file isn't a video",
@@ -20,6 +21,20 @@
 			"description": "{name} may use a format or codec your browser doesn't support. Try an MP4 (H.264) or WebM file."
 		},
 		"replace": "Replace video",
+		"command": {
+			"label": "Edit command",
+			"placeholder": "Try \"cut from 2 seconds to 5 seconds\"",
+			"submit": "Apply",
+			"failed": "Couldn't run that command",
+			"unsupported": {
+				"title": "Can't do that yet",
+				"description": "Right now commands can trim the clip, like \"cut from 2 to 5 seconds\" or \"cut from 3 seconds to the end\"."
+			},
+			"out_of_range": {
+				"title": "That range isn't in this clip",
+				"description": "Pick a start before the end, both within 0:00–{duration}."
+			}
+		},
 		"timeline": {
 			"label": "Timeline",
 			"scrubberLabel": "Playhead position",

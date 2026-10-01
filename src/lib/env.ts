@@ -42,6 +42,10 @@ const envSchema = z.object({
 
 	NEXT_PUBLIC_DEFAULT_LOCALE: z.string().default('en'),
 
+	// Gemini, read only by src/server/ai/google.ts. Optional so the app boots
+	// without it; an AI call made without it fails on its own.
+	GEMINI_API_KEY: z.string().optional(),
+
 	// Required by cron routes only; an unset secret must not break unrelated pages.
 	CRON_SECRET: z.string().optional(),
 
