@@ -23,6 +23,8 @@
 		"timeline": {
 			"label": "Timeline",
 			"scrubberLabel": "Playhead position",
+			"trimStartLabel": "Trim start",
+			"trimEndLabel": "Trim end",
 			"empty": "Your timeline appears here once a video loads.",
 			"clipLabel": "{name}, {duration}"
 		}

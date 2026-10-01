@@ -2,7 +2,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
 	clampTime,
+	clampToTrim,
 	formatTimecode,
+	moveTrimEdge,
 	isKnownDuration,
 	rulerTicks,
 	timeToPercent
@@ -40,6 +42,31 @@ test('seeks are clamped to the clip', () => {
 	assert.equal(clampTime(-1, 10), 0)
 	assert.equal(clampTime(11, 10), 10)
 	assert.equal(clampTime(4, 10), 4)
+})
+
+test('trim edges move within the source and never cross', () => {
+	const full = { startSeconds: 0, endSeconds: 10 }
+	assert.deepEqual(moveTrimEdge(full, 'start', 3, 10), { startSeconds: 3, endSeconds: 10 })
+	assert.deepEqual(moveTrimEdge(full, 'end', 7, 10), { startSeconds: 0, endSeconds: 7 })
+	// Out of bounds clamps to the source.
+	assert.equal(moveTrimEdge(full, 'start', -2, 10).startSeconds, 0)
+	assert.equal(moveTrimEdge(full, 'end', 99, 10).endSeconds, 10)
+	// Dragged past the other handle, an edge stops just short of it.
+	const narrow = { startSeconds: 4, endSeconds: 6 }
+	assert.equal(moveTrimEdge(narrow, 'start', 8, 10).startSeconds, 5.9)
+	assert.equal(moveTrimEdge(narrow, 'end', 1, 10).endSeconds, 4.1)
+})
+
+test('trimming is reversible: dragging an edge back restores the footage', () => {
+	const trimmed = moveTrimEdge({ startSeconds: 0, endSeconds: 10 }, 'start', 6, 10)
+	assert.deepEqual(moveTrimEdge(trimmed, 'start', 0, 10), { startSeconds: 0, endSeconds: 10 })
+})
+
+test('times are clamped into the trimmed range', () => {
+	const range = { startSeconds: 2, endSeconds: 5 }
+	assert.equal(clampToTrim(1, range), 2)
+	assert.equal(clampToTrim(9, range), 5)
+	assert.equal(clampToTrim(3, range), 3)
 })
 
 test('positions are percentages of the duration, clamped', () => {
