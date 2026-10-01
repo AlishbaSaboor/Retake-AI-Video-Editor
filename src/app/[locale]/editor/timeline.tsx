@@ -12,6 +12,7 @@ import {
 	type TrimEdge,
 	type TrimRange
 } from './timeline-scale'
+import { keptSeconds, type Cut } from './cleanup'
 import type { FillerWord } from './filler-words'
 import type { Silence } from './take-audio'
 import { TimelineFlag } from './timeline-flag'
@@ -31,6 +32,8 @@ type TimelineProps = {
 	silences: Silence[]
 	/** Filler words found in the transcript, flagged the same way. */
 	fillerWords: FillerWord[]
+	/** Ranges removed by clean-up, shown struck out on the track. */
+	cuts: Cut[]
 	onSeek: (seconds: number) => void
 	onTrimChange: (edge: TrimEdge, seconds: number) => void
 }
@@ -49,13 +52,14 @@ export function Timeline({
 	trim,
 	silences,
 	fillerWords,
+	cuts,
 	onSeek,
 	onTrimChange
 }: TimelineProps) {
 	const t = useTranslations('Editor.timeline')
 	const trackRef = useRef<HTMLDivElement>(null)
 	const hasClip = clipName !== null && isKnownDuration(durationSeconds)
-	const trimmedSeconds = trim.endSeconds - trim.startSeconds
+	const trimmedSeconds = keptSeconds({ trim, cuts })
 
 	function timeAtPointer(clientX: number): number {
 		const track = trackRef.current
@@ -150,6 +154,17 @@ export function Timeline({
 									{formatTimecode(trimmedSeconds)}
 								</span>
 							</div>
+							{cuts.map((cut) => (
+								<div
+									key={`cut-${cut.startSeconds}`}
+									aria-hidden
+									className="bg-bg/85 border-danger/60 pointer-events-none absolute inset-y-0 z-10 border-x-2 border-dashed"
+									style={{
+										left: timeToPercent(cut.startSeconds, durationSeconds),
+										right: `calc(100% - ${timeToPercent(cut.endSeconds, durationSeconds)})`
+									}}
+								/>
+							))}
 							{silences.map((silence) => (
 								<div
 									key={silence.startSeconds}
