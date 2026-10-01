@@ -39,13 +39,13 @@ const NO_TOKENS = {
 // --- the model map ---------------------------------------------------------
 
 test('maps a known model and leaves an unknown one unpriced', () => {
-	assert.equal(openRouterSlug('claude-opus-5'), 'anthropic/claude-opus-5')
-	assert.equal(openRouterSlug('claude-opus-6-20270101'), null)
+	assert.equal(openRouterSlug('gemini-3.8-flash'), 'google/gemini-3.8-flash')
+	assert.equal(openRouterSlug('gemini-9-flash-20290101'), null)
 })
 
 test('batch is a separate upstream entry, fast is not', () => {
-	assert.equal(openRouterSlug('claude-opus-5', 'batch'), 'anthropic/claude-opus-5:batch')
-	assert.equal(openRouterSlug('claude-opus-5', 'fast'), 'anthropic/claude-opus-5')
+	assert.equal(openRouterSlug('gemini-3.8-flash', 'batch'), 'google/gemini-3.8-flash:batch')
+	assert.equal(openRouterSlug('gemini-3.8-flash', 'fast'), 'google/gemini-3.8-flash')
 })
 
 // --- pricing ---------------------------------------------------------------
@@ -97,48 +97,22 @@ test('an override leaves the rates it does not declare alone', () => {
 
 // --- provider response extraction ------------------------------------------
 
-test('anthropic input_tokens excludes cache, so nothing is subtracted', () => {
-	const extracted = extractUsage('anthropic', {
-		id: 'msg_01abc',
-		model: 'claude-opus-5',
-		stop_reason: 'end_turn',
-		usage: {
-			input_tokens: 1000,
-			output_tokens: 500,
-			cache_creation_input_tokens: 200,
-			cache_read_input_tokens: 10_000
-		}
+test('google extraction reads the served model, request id and status', () => {
+	const extracted = extractUsage('google', {
+		responseId: 'resp-0',
+		modelVersion: 'gemini-3.8-flash',
+		candidates: [{ finishReason: 'STOP' }],
+		usageMetadata: { promptTokenCount: 1000, candidatesTokenCount: 500 }
 	})
 	assert.deepEqual(extracted, {
-		model: 'claude-opus-5',
-		requestId: 'msg_01abc',
+		model: 'gemini-3.8-flash',
+		requestId: 'resp-0',
 		status: 'ok',
-		tokens: {
-			inputTokens: 1000,
-			outputTokens: 500,
-			cacheWriteTokens: 200,
-			cacheReadTokens: 10_000
-		}
+		tokens: { inputTokens: 1000, outputTokens: 500, cacheWriteTokens: 0, cacheReadTokens: 0 }
 	})
 })
 
-test('openai prompt_tokens includes cache, so cached tokens are subtracted out', () => {
-	const extracted = extractUsage('openai', {
-		id: 'chatcmpl-1',
-		model: 'gpt-5.4',
-		usage: {
-			prompt_tokens: 11_000,
-			completion_tokens: 500,
-			prompt_tokens_details: { cached_tokens: 10_000 }
-		}
-	})
-	// The trap: billing 11,000 fresh input tokens here would double-count
-	// every cache hit and inflate the reported spend on the cheapest calls.
-	assert.equal(extracted?.tokens.inputTokens, 1000)
-	assert.equal(extracted?.tokens.cacheReadTokens, 10_000)
-})
-
-test('google cachedContentTokenCount is subtracted out of the prompt count too', () => {
+test('google cachedContentTokenCount is subtracted out of the prompt count', () => {
 	const extracted = extractUsage('google', {
 		responseId: 'resp-1',
 		modelVersion: 'gemini-3.8-flash',
@@ -148,6 +122,8 @@ test('google cachedContentTokenCount is subtracted out of the prompt count too',
 			cachedContentTokenCount: 10_000
 		}
 	})
+	// The trap: billing 11,000 fresh input tokens here would double-count
+	// every cache hit and inflate the reported spend on the cheapest calls.
 	assert.equal(extracted?.tokens.inputTokens, 1000)
 	assert.equal(extracted?.tokens.cacheReadTokens, 10_000)
 })
@@ -171,45 +147,44 @@ test('google thinking tokens are billed as output, so they land in the output co
 })
 
 test('a refusal is recorded as a refusal, not as a plain success', () => {
-	const anthropic = extractUsage('anthropic', {
-		stop_reason: 'refusal',
-		usage: { input_tokens: 10, output_tokens: 0 }
-	})
-	assert.equal(anthropic?.status, 'refusal')
-
-	const openai = extractUsage('openai', {
-		choices: [{ finish_reason: 'content_filter' }],
-		usage: { prompt_tokens: 10, completion_tokens: 0 }
-	})
-	assert.equal(openai?.status, 'refusal')
+	for (const finishReason of ['SAFETY', 'PROHIBITED_CONTENT']) {
+		const extracted = extractUsage('google', {
+			candidates: [{ finishReason }],
+			usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 0 }
+		})
+		assert.equal(extracted?.status, 'refusal', finishReason)
+	}
 })
 
 test('an unrecognised response shape yields no usage rather than throwing', () => {
-	assert.equal(extractUsage('anthropic', { unexpected: true }), undefined)
-	assert.equal(extractUsage('openai', null), undefined)
+	assert.equal(extractUsage('google', { unexpected: true }), undefined)
+	assert.equal(extractUsage('google', null), undefined)
 })
 
 // --- row building ----------------------------------------------------------
 
 const SPEC: AiCallSpec = {
-	provider: 'anthropic',
-	model: 'claude-opus-5',
-	feature: 'offer_copy'
+	provider: 'google',
+	model: 'gemini-3.8-flash',
+	feature: 'parse_edit_command'
 }
 
 test('the model that served the call wins over the model that was asked for', () => {
 	const row = buildRow(
-		{ ...SPEC, model: 'claude-opus-5' },
-		{ model: 'claude-opus-5-20260723', usage: { input_tokens: 1, output_tokens: 1 } },
+		{ ...SPEC, model: 'gemini-3.8-flash' },
+		{
+			modelVersion: 'gemini-3.8-flash-001',
+			usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 }
+		},
 		{ status: 'ok', latencyMs: 12 }
 	)
-	assert.equal(row.model, 'claude-opus-5-20260723')
+	assert.equal(row.model, 'gemini-3.8-flash-001')
 })
 
 test('a failed call still produces a row, with the requested model and no tokens', () => {
 	const row = buildRow(SPEC, undefined, { status: 'error', latencyMs: 12 })
 	assert.equal(row.status, 'error')
-	assert.equal(row.model, 'claude-opus-5')
+	assert.equal(row.model, 'gemini-3.8-flash')
 	assert.deepEqual(
 		{
 			inputTokens: row.inputTokens,

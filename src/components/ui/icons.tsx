@@ -19,6 +19,7 @@
 // import path if you stay on phosphor.
 import {
 	ArrowRight,
+	ArrowsClockwise,
 	ArrowSquareOut,
 	Calendar,
 	CaretDown,
@@ -31,6 +32,7 @@ import {
 	Copy,
 	DotsThreeVertical,
 	DownloadSimple,
+	FilmStrip,
 	FunnelSimple,
 	Gear,
 	Info,
@@ -41,6 +43,7 @@ import {
 	Plus,
 	SignOut,
 	Trash,
+	UploadSimple,
 	User,
 	Warning,
 	X
@@ -110,12 +113,15 @@ export const MenuIcon = (props: IconProps) => <Glyph source={List} {...props} />
 export const MinusIcon = (props: IconProps) => <Glyph source={Minus} {...props} />
 export const MoreIcon = (props: IconProps) => <Glyph source={DotsThreeVertical} {...props} />
 export const PlusIcon = (props: IconProps) => <Glyph source={Plus} {...props} />
+export const ReplaceIcon = (props: IconProps) => <Glyph source={ArrowsClockwise} {...props} />
 export const SearchIcon = (props: IconProps) => <Glyph source={MagnifyingGlass} {...props} />
 export const SettingsIcon = (props: IconProps) => <Glyph source={Gear} {...props} />
 export const SignOutIcon = (props: IconProps) => <Glyph source={SignOut} {...props} />
 export const SuccessIcon = (props: IconProps) => <Glyph source={CheckCircle} {...props} />
 export const TrashIcon = (props: IconProps) => <Glyph source={Trash} {...props} />
+export const UploadIcon = (props: IconProps) => <Glyph source={UploadSimple} {...props} />
 export const UserIcon = (props: IconProps) => <Glyph source={User} {...props} />
+export const VideoIcon = (props: IconProps) => <Glyph source={FilmStrip} {...props} />
 
 // The spinner is the one icon that carries its own behaviour — every call
 // site was animating it by hand, so it does it here instead. `motion-reduce`

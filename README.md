@@ -1,27 +1,10 @@
-# 8x web template
+# Retake
 
-The standardized starting point for every new 8x web project — dashboards,
-marketing sites, brand portals, internal tools. Synthesized from an audit
-of 8x-core, 8x-brands, 8x-marketing, 8x-payout, and the legacy 8x repo:
-every convention here was either already proven in at least one of those
-repos, or is a deliberate fix for a real problem found in one of them (see
-`AGENTS.md`/`docs/rules/` for the specifics and citations).
-
-**This is a living template, not a finished product.** It gets copied, not
-imported — a new project generated from it owns its copy outright and is
-expected to diverge. Improvements that would help every future project
-belong back here; project-specific choices don't.
-
-## What you get out of the box
-
-- A Next.js 16 app that actually builds, lints, typechecks, and passes a
-  real Playwright e2e test — this isn't a scaffold that's never been run.
-- A resolved answer to the org's biggest unsettled debate (how migrations
-  work) instead of another repo doing it a fifth different way.
-- Auth, observability, and i18n wired in and working, not just listed as
-  dependencies.
-- Twelve topic-scoped rule files an AI coding agent (or a new engineer) can
-  actually follow, instead of one CLAUDE.md nobody reads end to end.
+An AI video editor for fixing the flaws in an existing recording instead of
+re-shooting it — re-record one bad sentence and splice it back in, trim a
+stumble, cut a tangent. Every edit can be made either by typing a
+plain-English command or by hand on a manual timeline. Basic motion
+graphics (logos, watermarks, title cards) sit on top of the same timeline.
 
 ## Stack
 
@@ -40,7 +23,7 @@ belong back here; project-specific choices don't.
 ## Project structure
 
 ```
-8x-web-template/
+retake/
 ├── .claude/skills/          Claude Code skills — see "Skills" below
 ├── .claude-logs/            tracked (not gitignored) — AI session transcripts ship with the branch
 ├── .github/workflows/       ci.yml, deploy-migrations.yml, claude-code-review.yml
@@ -70,19 +53,6 @@ belong back here; project-specific choices don't.
 ├── DESIGN.md                  design-token/component conventions
 └── .env.example               every variable explained inline
 ```
-
-## Getting a new project from this template
-
-Use GitHub's **template repository** feature — `gh repo create <new-name>
---template 8xsocial/8x-web-template`, or the "Use this template" button on
-the repo page. That produces one fresh commit with no connection to this
-repo's history.
-
-Don't fork it (forks are for contributing back via PRs, which will never
-happen between an independent project and this template) and don't just
-`git clone` + repoint `origin` (that drags this template's own scaffolding
-history into the new project forever). Once you have the new repo, run the
-`template-setup` skill — see below.
 
 ## Setup
 
@@ -203,24 +173,19 @@ Never run a manual production deploy command — CI/CD handles it (see
   auto-deploy-on-push and the org's tag-gated release pattern (see
   `docs/rules/deployment.md`) — don't inherit one silently.
 
-## Before you start replacing things
+## Still open
 
-1. Run the `template-setup` skill first — it renames the placeholders
-   above for you and asks the questions that shape what else you'll need.
-2. Read `AGENTS.md`, `DESIGN.md`, and `docs/rules/*.md` — the migration
-   workflow, the Server/Client Component rules, and the token conventions
-   are not optional style preferences, they're enforced in CI (or, where
-   noted, by `local-review`'s manual pass).
-3. Delete `prisma/schema/example.prisma` once you've written real models,
-   and `e2e/smoke.spec.ts` once real e2e coverage exists.
-4. Confirm the auth decision `template-setup` made, and decide on state
-   management beyond the TanStack Query default and whichever
-   i18n/Tailwind-major/Prisma-major open decisions apply to this project.
-5. Set up GitHub and Vercel per the Deployment section above before
-   merging your first PR — without `MIGRATIONS_TOKEN` specifically, the
+1. `prisma/schema/example.prisma` holds the real `User` model despite its
+   name — move it into a properly named file (e.g. `user.prisma`) once the
+   project's own models land; don't delete it.
+2. Delete `e2e/smoke.spec.ts` once real e2e coverage exists.
+3. Decide on state management beyond the TanStack Query default (a
+   timeline editor may justify a client store — decide when it does), and
+   the Prisma 6 → 7 upgrade.
+4. Set up GitHub and Vercel per the Deployment section above before
+   merging the first PR — without `MIGRATIONS_TOKEN` specifically, the
    CI-generated migration commit's own run sits in `action_required`
-   waiting for manual approval (the migration still lands, but a green PR
-   can be a false signal until that's set up).
+   waiting for manual approval.
 
 ## Scripts
 

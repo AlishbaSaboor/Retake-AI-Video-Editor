@@ -162,7 +162,7 @@ test('logging lint boundaries survive each dependency-specific exemption', async
 	for (const filePath of [
 		'src/lib/env.ts',
 		'src/components/ui/icons.tsx',
-		'src/server/ai/anthropic.ts',
+		'src/server/ai/google.ts',
 		'src/server/db/client.ts',
 		'src/lib/supabase/server.ts',
 		'src/proxy.ts',
