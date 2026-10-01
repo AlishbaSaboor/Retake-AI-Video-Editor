@@ -12,6 +12,8 @@ import {
 	type TrimEdge,
 	type TrimRange
 } from './timeline-scale'
+import { SilencePin } from './silence-pin'
+import type { Silence } from './take-audio'
 import { TrimHandle } from './trim-handle'
 
 // Arrow keys nudge the playhead by a second; Shift+arrow jumps five.
@@ -24,6 +26,8 @@ type TimelineProps = {
 	durationSeconds: number
 	currentTimeSeconds: number
 	trim: TrimRange
+	/** Detected silences, flagged on the track; empty until analysed. */
+	silences: Silence[]
 	onSeek: (seconds: number) => void
 	onTrimChange: (edge: TrimEdge, seconds: number) => void
 }
@@ -32,13 +36,15 @@ type TimelineProps = {
  * One track holding the loaded clip, a time ruler, and a playhead. Click or
  * drag anywhere on it to scrub; it's also a keyboard-operable slider. The
  * dashed outline is the whole source file and the bar inside it is the
- * trimmed clip, with a handle on each edge.
+ * trimmed clip, with a handle on each edge. Silences are shaded amber, with
+ * a pin above each one that jumps to it.
  */
 export function Timeline({
 	clipName,
 	durationSeconds,
 	currentTimeSeconds,
 	trim,
+	silences,
 	onSeek,
 	onTrimChange
 }: TimelineProps) {
@@ -75,6 +81,11 @@ export function Timeline({
 			<div className="border-border mb-2 flex items-center gap-1.5 border-b pb-3">
 				<TimelineIcon className="text-accent" />
 				<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
+				{hasClip && silences.length > 0 && (
+					<span className="border-warning/20 bg-warning/10 text-warning ml-auto rounded border px-2 py-0.5 text-xs">
+						{t('silenceCount', { count: silences.length })}
+					</span>
+				)}
 			</div>
 			{hasClip ? (
 				// The handles sit beside the scrubber rather than inside it, so
@@ -126,6 +137,17 @@ export function Timeline({
 									{formatTimecode(trimmedSeconds)}
 								</span>
 							</div>
+							{silences.map((silence) => (
+								<div
+									key={silence.startSeconds}
+									aria-hidden
+									className="bg-warning/15 pointer-events-none absolute inset-y-0"
+									style={{
+										left: timeToPercent(silence.startSeconds, durationSeconds),
+										right: `calc(100% - ${timeToPercent(silence.endSeconds, durationSeconds)})`
+									}}
+								/>
+							))}
 						</div>
 						<div
 							aria-hidden
@@ -151,6 +173,14 @@ export function Timeline({
 						timeAtPointer={timeAtPointer}
 						onChange={onTrimChange}
 					/>
+					{silences.map((silence) => (
+						<SilencePin
+							key={silence.startSeconds}
+							silence={silence}
+							durationSeconds={durationSeconds}
+							onJump={onSeek}
+						/>
+					))}
 				</div>
 			) : (
 				<p className="text-text-faint py-8 text-center text-sm">{t('empty')}</p>

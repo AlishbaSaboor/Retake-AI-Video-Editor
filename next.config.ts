@@ -13,6 +13,15 @@ const nextConfig: NextConfig = {
 	// silent perf regression in prod.
 	reactCompiler: {
 		panicThreshold: 'all_errors'
+	},
+	experimental: {
+		serverActions: {
+			// The transcript action receives a take's audio: up to 5 minutes of
+			// 16 kHz mono WAV (~9.6 MB), base64-encoded (~12.8 MB). The 1 MB
+			// default would reject anything over ~30 seconds. Keep in step with
+			// MAX_TRANSCRIBE_SECONDS in src/app/[locale]/editor/take-audio.ts.
+			bodySizeLimit: '14mb'
+		}
 	}
 }
 

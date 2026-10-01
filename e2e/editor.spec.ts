@@ -7,30 +7,61 @@ const RECORDING_SECONDS = 3
 // also exactly the awkward case: no duration header, so the browser reports
 // Infinity until the editor forces a scan. Returned as bytes for
 // setInputFiles, which drives the real <input type="file">.
-async function recordTestVideo(page: Page): Promise<Buffer> {
-	const bytes = await page.evaluate(async (seconds) => {
-		const canvas = Object.assign(document.createElement('canvas'), { width: 320, height: 180 })
-		const context = canvas.getContext('2d')
-		if (!context) throw new Error('no 2d context')
-		const recorder = new MediaRecorder(canvas.captureStream(30), { mimeType: 'video/webm' })
-		const chunks: Blob[] = []
-		recorder.ondataavailable = (event) => chunks.push(event.data)
-		const stopped = new Promise((resolve) => (recorder.onstop = resolve))
-		const startedAt = performance.now()
-		const draw = setInterval(() => {
-			const elapsed = (performance.now() - startedAt) / 1000
-			context.fillStyle = '#112233'
-			context.fillRect(0, 0, 320, 180)
-			context.fillStyle = '#ee6633'
-			context.fillRect(20 + elapsed * 80, 60, 60, 60)
-		}, 1000 / 30)
-		recorder.start(100)
-		await new Promise((resolve) => setTimeout(resolve, seconds * 1000))
-		recorder.stop()
-		await stopped
-		clearInterval(draw)
-		return [...new Uint8Array(await new Blob(chunks).arrayBuffer())]
-	}, RECORDING_SECONDS)
+//
+// With a tone schedule — [seconds, toneOn] pieces laid end to end — the clip
+// also gets an audio track: a 440 Hz tone, switched on and off on cue, so
+// silences land at known times.
+async function recordTestVideo(
+	page: Page,
+	toneSchedule?: Array<[number, boolean]>
+): Promise<Buffer> {
+	const seconds = toneSchedule
+		? toneSchedule.reduce((total, [length]) => total + length, 0)
+		: RECORDING_SECONDS
+	const bytes = await page.evaluate(
+		async ({ seconds, toneSchedule }) => {
+			const canvas = Object.assign(document.createElement('canvas'), { width: 320, height: 180 })
+			const context = canvas.getContext('2d')
+			if (!context) throw new Error('no 2d context')
+			const stream = canvas.captureStream(30)
+			if (toneSchedule) {
+				const audio = new AudioContext()
+				await audio.resume()
+				const destination = audio.createMediaStreamDestination()
+				const oscillator = audio.createOscillator()
+				const gain = audio.createGain()
+				oscillator.connect(gain).connect(destination)
+				let at = audio.currentTime
+				for (const [length, on] of toneSchedule) {
+					gain.gain.setValueAtTime(on ? 0.5 : 0, at)
+					at += length
+				}
+				oscillator.start()
+				for (const track of destination.stream.getAudioTracks()) stream.addTrack(track)
+			}
+			const recorder = new MediaRecorder(stream, {
+				mimeType: toneSchedule ? 'video/webm;codecs=vp8,opus' : 'video/webm'
+			})
+			const chunks: Blob[] = []
+			recorder.ondataavailable = (event) => chunks.push(event.data)
+			const stopped = new Promise((resolve) => (recorder.onstop = resolve))
+			const startedAt = performance.now()
+			const draw = setInterval(() => {
+				const elapsed = (performance.now() - startedAt) / 1000
+				context.fillStyle = '#112233'
+				context.fillRect(0, 0, 320, 180)
+				context.fillStyle = '#ee6633'
+				context.fillRect(20 + elapsed * 80, 60, 60, 60)
+			}, 1000 / 30)
+			recorder.start(100)
+			await new Promise((resolve) => setTimeout(resolve, seconds * 1000))
+			recorder.stop()
+			await stopped
+			clearInterval(draw)
+			return [...new Uint8Array(await new Blob(chunks).arrayBuffer())]
+		},
+		{ seconds, toneSchedule }
+	)
 	return Buffer.from(bytes)
 }
 
@@ -117,6 +148,31 @@ test('dragging a trim handle trims the clip, previews the cut, and can be undone
 	await page.mouse.move(track.x - 20, handleY, { steps: 5 })
 	await page.mouse.up()
 	await expect(startHandle).toHaveAttribute('aria-valuenow', '0')
+})
+
+test('long silences are flagged on the timeline and jump there when clicked', async ({ page }) => {
+	// The transcript is a real Gemini call; block Server Action requests so
+	// the suite never spends quota. Silences are measured in the browser and
+	// don't need it.
+	await page.route('**/editor', (route) =>
+		route.request().headers()['next-action'] ? route.abort() : route.continue()
+	)
+	await page.goto('/editor')
+	const video = await recordTestVideo(page, [
+		[1, true],
+		[7.5, false],
+		[1.5, true]
+	])
+	await page
+		.getByLabel('Choose a video file')
+		.setInputFiles({ name: 'take-with-pause.webm', mimeType: 'video/webm', buffer: video })
+
+	await expect(page.getByText('1 silence', { exact: true })).toBeVisible({ timeout: 30_000 })
+	// ~1s to ~8.5s; recorder start-up can shift both edges by a fraction.
+	const pin = page.getByRole('button', { name: /^Silence from 0:0[01] to 0:0[89]/ })
+	await expect(pin).toBeVisible()
+	await pin.click()
+	await expect.poll(() => playheadSeconds(page)).toBeCloseTo(1, 0)
 })
 
 test('a file that is not a video is rejected with a message', async ({ page }) => {
