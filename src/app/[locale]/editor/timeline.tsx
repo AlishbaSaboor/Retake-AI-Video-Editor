@@ -12,8 +12,9 @@ import {
 	type TrimEdge,
 	type TrimRange
 } from './timeline-scale'
-import { SilencePin } from './silence-pin'
+import type { FillerWord } from './filler-words'
 import type { Silence } from './take-audio'
+import { TimelineFlag } from './timeline-flag'
 import { TrimHandle } from './trim-handle'
 
 // Arrow keys nudge the playhead by a second; Shift+arrow jumps five.
@@ -28,6 +29,8 @@ type TimelineProps = {
 	trim: TrimRange
 	/** Detected silences, flagged on the track; empty until analysed. */
 	silences: Silence[]
+	/** Filler words found in the transcript, flagged the same way. */
+	fillerWords: FillerWord[]
 	onSeek: (seconds: number) => void
 	onTrimChange: (edge: TrimEdge, seconds: number) => void
 }
@@ -37,7 +40,7 @@ type TimelineProps = {
  * drag anywhere on it to scrub; it's also a keyboard-operable slider. The
  * dashed outline is the whole source file and the bar inside it is the
  * trimmed clip, with a handle on each edge. Silences are shaded amber, with
- * a pin above each one that jumps to it.
+ * a flag above each one that jumps to it; filler words get their own flags.
  */
 export function Timeline({
 	clipName,
@@ -45,6 +48,7 @@ export function Timeline({
 	currentTimeSeconds,
 	trim,
 	silences,
+	fillerWords,
 	onSeek,
 	onTrimChange
 }: TimelineProps) {
@@ -81,10 +85,19 @@ export function Timeline({
 			<div className="border-border mb-2 flex items-center gap-1.5 border-b pb-3">
 				<TimelineIcon className="text-accent" />
 				<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
-				{hasClip && silences.length > 0 && (
-					<span className="border-warning/20 bg-warning/10 text-warning ml-auto rounded border px-2 py-0.5 text-xs">
-						{t('silenceCount', { count: silences.length })}
-					</span>
+				{hasClip && (silences.length > 0 || fillerWords.length > 0) && (
+					<div className="ml-auto flex items-center gap-2 text-xs">
+						{silences.length > 0 && (
+							<span className="border-warning/20 bg-warning/10 text-warning rounded border px-2 py-0.5">
+								{t('silenceCount', { count: silences.length })}
+							</span>
+						)}
+						{fillerWords.length > 0 && (
+							<span className="border-filler/20 bg-filler/10 text-filler rounded border px-2 py-0.5">
+								{t('fillerCount', { count: fillerWords.length })}
+							</span>
+						)}
+					</div>
 				)}
 			</div>
 			{hasClip ? (
@@ -174,10 +187,28 @@ export function Timeline({
 						onChange={onTrimChange}
 					/>
 					{silences.map((silence) => (
-						<SilencePin
-							key={silence.startSeconds}
-							silence={silence}
+						<TimelineFlag
+							key={`silence-${silence.startSeconds}`}
+							kind="silence"
+							atSeconds={silence.startSeconds}
 							durationSeconds={durationSeconds}
+							label={t('silencePinLabel', {
+								start: formatTimecode(silence.startSeconds),
+								end: formatTimecode(silence.endSeconds)
+							})}
+							onJump={onSeek}
+						/>
+					))}
+					{fillerWords.map((filler, index) => (
+						<TimelineFlag
+							key={`filler-${index}`}
+							kind="filler"
+							atSeconds={filler.atSeconds}
+							durationSeconds={durationSeconds}
+							label={t('fillerPinLabel', {
+								word: filler.word,
+								at: formatTimecode(filler.atSeconds)
+							})}
 							onJump={onSeek}
 						/>
 					))}

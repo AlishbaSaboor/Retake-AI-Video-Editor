@@ -54,6 +54,7 @@ component that uses it. This template ships a neutral starter set:
 | `--accent-hover`                           | darker blue              | accent hover state                                              |
 | `--accent-ink`                             | white                    | text/icon color placed on top of an `--accent` surface          |
 | `--success` / `--warning` / `--danger`     | green / amber / red      | status-only, never used decoratively                            |
+| `--filler`                                 | —                        | filler-word flags on the timeline (silences use `--warning`)    |
 | `--radius-sm` / `--radius` / `--radius-lg` | 6px / 10px / 16px        | never hardcode a `border-radius` outside these                  |
 
 **Retake is dark-only.** The starter values above were the template's light

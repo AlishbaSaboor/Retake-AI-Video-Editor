@@ -217,6 +217,7 @@ export function VideoEditor() {
 				currentTimeSeconds={currentTimeSeconds}
 				trim={range}
 				silences={analysis.silences}
+				fillerWords={analysis.fillerWords}
 				onSeek={seek}
 				onTrimChange={handleTrimChange}
 			/>

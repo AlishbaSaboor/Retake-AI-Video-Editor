@@ -76,6 +76,31 @@ async function openEditorWithVideo(page: Page): Promise<void> {
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible()
 }
 
+/**
+ * Answers the transcript Server Action with a canned transcript, so filler
+ * detection can be tested without Gemini. The request is still sent to the
+ * real server — with its audio emptied, which fails input validation before
+ * any AI call — so the reply comes back in this build's real Server Action
+ * format, and only the result inside it is swapped for the canned one.
+ */
+async function mockTranscript(page: Page, segments: unknown[]): Promise<void> {
+	await page.route(
+		(url) => url.pathname.endsWith('/editor'),
+		async (route) => {
+			const request = route.request()
+			if (!request.headers()['next-action']) return route.continue()
+			const response = await route.fetch({
+				postData: (request.postData() ?? '').replace(/"audioBase64":"[^"]*"/, '"audioBase64":""')
+			})
+			const body = (await response.text()).replace(
+				/\{"ok":false[^\n]*\}/,
+				JSON.stringify({ ok: true, data: { segments } })
+			)
+			await route.fulfill({ response, body })
+		}
+	)
+}
+
 async function playheadSeconds(page: Page): Promise<number> {
 	return page.locator('video').evaluate((video: HTMLVideoElement) => video.currentTime)
 }
@@ -173,6 +198,33 @@ test('long silences are flagged on the timeline and jump there when clicked', as
 	await expect(pin).toBeVisible()
 	await pin.click()
 	await expect.poll(() => playheadSeconds(page)).toBeCloseTo(1, 0)
+})
+
+test('filler words in the transcript are flagged apart from silences and jump there', async ({
+	page
+}) => {
+	// 32 characters over 0-3s: "um" sits at 4/32 (~0.4s), the filler
+	// "like" at 17/32 (~1.6s). "I like it" is a verb and must not be flagged.
+	await mockTranscript(page, [
+		{ startSeconds: 0, endSeconds: 3, text: 'So, um, this is, like, the take.' },
+		{ startSeconds: 3, endSeconds: 4, text: 'I like it.' }
+	])
+	await page.goto('/editor')
+	const video = await recordTestVideo(page, [[4, true]])
+	await page
+		.getByLabel('Choose a video file')
+		.setInputFiles({ name: 'take-with-fillers.webm', mimeType: 'video/webm', buffer: video })
+
+	await expect(page.getByText('So, um, this is, like, the take.')).toBeVisible({ timeout: 30_000 })
+	await expect(page.getByText('2 filler words', { exact: true })).toBeVisible()
+	await expect(page.getByRole('button', { name: /^Filler word/ })).toHaveCount(2)
+	await expect(page.getByRole('button', { name: /^Silence from/ })).toHaveCount(0)
+	await expect(
+		page.getByRole('button', { name: 'Filler word "um" at 0:00. Jump there' })
+	).toBeVisible()
+
+	await page.getByRole('button', { name: 'Filler word "like" at 0:01. Jump there' }).click()
+	await expect.poll(() => playheadSeconds(page)).toBeCloseTo((17 / 32) * 3, 1)
 })
 
 test('a file that is not a video is rejected with a message', async ({ page }) => {

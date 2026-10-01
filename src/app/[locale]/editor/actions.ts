@@ -72,6 +72,8 @@ export const parseEditCommand = validatedAction({
 
 const TRANSCRIBE_INSTRUCTION = [
 	'Transcribe the speech in this audio, verbatim, in the language spoken.',
+	'Keep filler words exactly as spoken ("um", "uh", "like") — do not clean up the speech —',
+	'and set each filler off with commas ("it was, like, huge", "so, um, we start").',
 	'Split it into segments of about one sentence, each with its start and end time',
 	'in seconds from the start of the audio. Transcribe speech only — no descriptions',
 	'of music, noise or silence. If there is no speech, return an empty segments array.'

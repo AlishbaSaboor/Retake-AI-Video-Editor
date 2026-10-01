@@ -26,6 +26,7 @@ import {
 	CaretLeft,
 	CaretRight,
 	CaretUp,
+	ChatCircleDots,
 	Check,
 	CheckCircle,
 	CircleNotch,
@@ -110,6 +111,7 @@ export const CopyIcon = (props: IconProps) => <Glyph source={Copy} {...props} />
 export const DownloadIcon = (props: IconProps) => <Glyph source={DownloadSimple} {...props} />
 export const EditIcon = (props: IconProps) => <Glyph source={PencilSimple} {...props} />
 export const ExternalLinkIcon = (props: IconProps) => <Glyph source={ArrowSquareOut} {...props} />
+export const FillerWordIcon = (props: IconProps) => <Glyph source={ChatCircleDots} {...props} />
 export const FilterIcon = (props: IconProps) => <Glyph source={FunnelSimple} {...props} />
 export const InfoIcon = (props: IconProps) => <Glyph source={Info} {...props} />
 export const MenuIcon = (props: IconProps) => <Glyph source={List} {...props} />
