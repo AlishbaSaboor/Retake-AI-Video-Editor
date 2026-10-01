@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { transcribeTake } from './actions'
+import { detectFillerWords, type FillerWord } from './filler-words'
 import {
 	ANALYSIS_SAMPLE_RATE,
 	decodeTakeAudio,
@@ -23,10 +24,12 @@ export type TranscriptState =
 	| { status: 'failed'; error: string }
 
 const NO_SILENCES: Silence[] = []
+const NO_FILLER_WORDS: FillerWord[] = []
 
 /**
  * Analyses a take as soon as it's loaded: silences are measured locally from
- * the decoded audio, then the same audio goes to Gemini for a transcript.
+ * the decoded audio, then the same audio goes to Gemini for a transcript,
+ * which filler words are then found in — no second AI call.
  * Both are keyed by the take's object URL, so replacing the video starts
  * over and nothing is re-run for the same take.
  */
@@ -74,5 +77,9 @@ export function useTakeAnalysis(video: { file: File; url: string } | null) {
 						? { status: 'failed', error: transcript.error.message }
 						: { status: 'ready', transcript: transcript.data }
 
-	return { silences: audio.data?.silences ?? NO_SILENCES, transcript: transcriptState }
+	return {
+		silences: audio.data?.silences ?? NO_SILENCES,
+		fillerWords: transcript.data ? detectFillerWords(transcript.data) : NO_FILLER_WORDS,
+		transcript: transcriptState
+	}
 }

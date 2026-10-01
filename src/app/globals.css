@@ -39,6 +39,7 @@
 	--success: #35c37f;
 	--warning: #e2a03f;
 	--danger: #e5675f;
+	--filler: #c084fc;
 }
 
 @theme inline {
@@ -59,6 +60,7 @@
 	--color-success: var(--success);
 	--color-warning: var(--warning);
 	--color-danger: var(--danger);
+	--color-filler: var(--filler);
 }
 
 body {

@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next'
 import createNextIntlPlugin from 'next-intl/plugin'
 import { withSentryConfig } from '@sentry/nextjs'
+import { TRANSCRIBE_REQUEST_LIMIT_BYTES } from './src/app/[locale]/editor/take-audio'
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
 
@@ -15,13 +16,16 @@ const nextConfig: NextConfig = {
 		panicThreshold: 'all_errors'
 	},
 	experimental: {
+		// The transcript action receives a take's audio: up to 5 minutes of
+		// 16 kHz mono WAV, base64-encoded (~12.8 MB). Both limits below sit in
+		// its path and both default too low — 1 MB for Server Actions, 10 MB
+		// for the proxy's body buffer (src/proxy.ts runs on /editor), which
+		// truncates silently rather than rejecting. One constant drives both,
+		// derived from MAX_TRANSCRIBE_SECONDS, so they can't drift apart.
 		serverActions: {
-			// The transcript action receives a take's audio: up to 5 minutes of
-			// 16 kHz mono WAV (~9.6 MB), base64-encoded (~12.8 MB). The 1 MB
-			// default would reject anything over ~30 seconds. Keep in step with
-			// MAX_TRANSCRIBE_SECONDS in src/app/[locale]/editor/take-audio.ts.
-			bodySizeLimit: '14mb'
-		}
+			bodySizeLimit: TRANSCRIBE_REQUEST_LIMIT_BYTES
+		},
+		proxyClientMaxBodySize: TRANSCRIBE_REQUEST_LIMIT_BYTES
 	}
 }
 

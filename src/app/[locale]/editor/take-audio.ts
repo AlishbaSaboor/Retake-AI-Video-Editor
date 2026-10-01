@@ -24,6 +24,16 @@ export const MAX_AUDIO_BASE64_LENGTH =
 		(WAV_HEADER_BYTES + MAX_TRANSCRIBE_SECONDS * ANALYSIS_SAMPLE_RATE * BYTES_PER_SAMPLE) / 3
 	)
 
+/**
+ * Request size the transcript action must be allowed: the longest audio
+ * plus headroom for the action's own encoding. next.config.ts applies it to
+ * BOTH limits a request to /editor passes through — the Server Action body
+ * limit and the proxy's body buffer. The proxy one is easy to miss: it
+ * silently keeps only the first 10 MB by default, so a take over ~4 minutes
+ * arrived cut off mid-string and failed as an unterminated-JSON error.
+ */
+export const TRANSCRIBE_REQUEST_LIMIT_BYTES = MAX_AUDIO_BASE64_LENGTH + 1024 * 1024
+
 export type Silence = { startSeconds: number; endSeconds: number }
 
 // Loudness is measured over 50 ms windows; anything under -40 dBFS counts as

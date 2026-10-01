@@ -50,6 +50,8 @@
 			"trimEndLabel": "Trim end",
 			"silenceCount": "{count, plural, one {# silence} other {# silences}}",
 			"silencePinLabel": "Silence from {start} to {end}. Jump there",
+			"fillerCount": "{count, plural, one {# filler word} other {# filler words}}",
+			"fillerPinLabel": "Filler word \"{word}\" at {at}. Jump there",
 			"empty": "Your timeline appears here once a video loads.",
 			"clipLabel": "{name}, {duration}"
 		}
