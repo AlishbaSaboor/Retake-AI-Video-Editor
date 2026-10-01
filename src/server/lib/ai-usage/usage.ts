@@ -30,6 +30,9 @@ import type { AiCallStatus, AiProvider } from './models'
 //
 // Google is the only one of the three needing work here, which is why it is
 // the one that gets missed.
+//
+// Only Google's extractor is live — Retake calls no other provider. The table
+// above stays so whoever adds one writes its extractor against it.
 
 export type ExtractedUsage = {
 	model?: string
@@ -44,29 +47,6 @@ const count = z
 	.number()
 	.nullish()
 	.transform((value) => value ?? 0)
-
-const anthropicResponse = z.object({
-	id: z.string().optional(),
-	model: z.string().optional(),
-	stop_reason: z.string().nullish(),
-	usage: z.object({
-		input_tokens: count,
-		output_tokens: count,
-		cache_creation_input_tokens: count,
-		cache_read_input_tokens: count
-	})
-})
-
-const openaiResponse = z.object({
-	id: z.string().optional(),
-	model: z.string().optional(),
-	choices: z.array(z.object({ finish_reason: z.string().nullish() })).optional(),
-	usage: z.object({
-		prompt_tokens: count,
-		completion_tokens: count,
-		prompt_tokens_details: z.object({ cached_tokens: count }).optional()
-	})
-})
 
 const googleResponse = z.object({
 	responseId: z.string().optional(),
@@ -87,43 +67,6 @@ function nonNegative(value: number): number {
 }
 
 const EXTRACTORS: Record<AiProvider, UsageExtractor> = {
-	anthropic: (response) => {
-		const parsed = anthropicResponse.safeParse(response)
-		if (!parsed.success) return undefined
-		const { id, model, stop_reason: stopReason, usage } = parsed.data
-		return {
-			model,
-			requestId: id,
-			status: stopReason === 'refusal' ? 'refusal' : 'ok',
-			tokens: {
-				inputTokens: usage.input_tokens,
-				outputTokens: usage.output_tokens,
-				cacheWriteTokens: usage.cache_creation_input_tokens,
-				cacheReadTokens: usage.cache_read_input_tokens
-			}
-		}
-	},
-
-	openai: (response) => {
-		const parsed = openaiResponse.safeParse(response)
-		if (!parsed.success) return undefined
-		const { id, model, choices, usage } = parsed.data
-		const cached = usage.prompt_tokens_details?.cached_tokens ?? 0
-		return {
-			model,
-			requestId: id,
-			status: choices?.[0]?.finish_reason === 'content_filter' ? 'refusal' : 'ok',
-			tokens: {
-				inputTokens: nonNegative(usage.prompt_tokens - cached),
-				outputTokens: usage.completion_tokens,
-				// OpenAI does not bill for writing a cache entry, so there is
-				// no write figure to record — not a gap, an absence.
-				cacheWriteTokens: 0,
-				cacheReadTokens: cached
-			}
-		}
-	},
-
 	google: (response) => {
 		const parsed = googleResponse.safeParse(response)
 		if (!parsed.success) return undefined

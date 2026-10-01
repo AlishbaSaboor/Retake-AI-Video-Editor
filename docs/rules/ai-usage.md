@@ -23,7 +23,8 @@ sitting at zero spend instead of a project that opted out.
 
 **`src/server/ai/<provider>.ts` owns the SDK.** It is the only file allowed
 to import a provider package, and the only file that calls `trackAiCall`.
-`src/server/ai/anthropic.ts` is the reference pattern for this layer: read it
+`src/server/ai/google.ts` is the reference pattern for this layer (the
+template's `anthropic.ts`, adapted — Retake calls Google only): read it
 before adding a provider, copy its shape as well as its file, and keep it
 around even before an SDK is installed, so the next person setting one up
 gets a working example instead of this paragraph.
@@ -32,11 +33,11 @@ gets a working example instead of this paragraph.
 `trackAiCall`:
 
 ```ts
-import { createMessage } from '@/server/ai/anthropic'
+import { generateContent } from '@/server/ai/google'
 
-const message = await createMessage(
-	{ feature: 'offer_copy', model: 'claude-opus-5', meta: { brand_id: brandId } },
-	{ max_tokens: 1024, messages: [{ role: 'user', content: prompt }] }
+const response = await generateContent(
+	{ feature: 'parse_edit_command', model: 'gemini-3.8-flash', meta: { project_id: projectId } },
+	{ contents: command }
 )
 ```
 

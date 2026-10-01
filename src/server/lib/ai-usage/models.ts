@@ -2,17 +2,18 @@
 // is the one place a new model gets registered; AGENTS.md's "Adding a model
 // or a new AI call" section is the checklist that points here.
 //
-// Nothing below is derived, on purpose. The two id schemes disagree on word
-// order and separators — Anthropic serves `claude-haiku-4-5-20251001`,
-// OpenRouter calls the same model `anthropic/claude-haiku-4.5` and its
-// canonical slug `anthropic/claude-4.5-haiku-20251001` — and a normalizer
+// Nothing below is derived, on purpose. Provider and OpenRouter id schemes
+// disagree on word order and separators — Anthropic serves
+// `claude-haiku-4-5-20251001`, OpenRouter calls the same model
+// `anthropic/claude-haiku-4.5` and its canonical slug
+// `anthropic/claude-4.5-haiku-20251001` — and a normalizer
 // clever enough to bridge that is also clever enough to resolve a new model
 // to the wrong row and mis-price it in silence. An explicit map fails
 // loudly instead: an unmapped model prices as NULL, never 0, so every such
 // row is one `where cost_micro_usd is null` away from being counted on the
 // dashboard.
 
-export const AI_PROVIDERS = ['anthropic', 'openai', 'google'] as const
+export const AI_PROVIDERS = ['google'] as const
 export type AiProvider = (typeof AI_PROVIDERS)[number]
 
 export const SERVICE_TIERS = ['standard', 'fast', 'batch'] as const
@@ -35,12 +36,10 @@ export type AiCallStatus = (typeof AI_CALL_STATUSES)[number]
 // behind the `output_modalities` query string pricing.ts sends — see the
 // OPENROUTER_MODELS_URL comment there before concluding a slug doesn't
 // exist.
+//
+// Retake calls Gemini 3.8 Flash only: it takes audio and video natively, so
+// one model covers transcription, footage analysis and edit commands.
 export const OPENROUTER_SLUGS = {
-	'claude-opus-5': 'anthropic/claude-opus-5',
-	'claude-sonnet-5': 'anthropic/claude-sonnet-5',
-	'claude-haiku-4-5-20251001': 'anthropic/claude-haiku-4.5',
-	'gpt-5.4': 'openai/gpt-5.4',
-	'gpt-5.4-mini': 'openai/gpt-5.4-mini',
 	'gemini-3.8-flash': 'google/gemini-3.8-flash'
 } satisfies Record<string, string>
 

@@ -21,9 +21,9 @@ const reportedModels = new Set<string>()
  * Wrap a provider call so its token usage lands in `ai_usage`.
  *
  * ```ts
- * const message = await trackAiCall(
- *   { provider: 'anthropic', model: 'claude-opus-5', feature: 'offer_copy' },
- *   () => anthropic.messages.create({ model: 'claude-opus-5', ... })
+ * const response = await trackAiCall(
+ *   { provider: 'google', model: 'gemini-3.8-flash', feature: 'edit_command' },
+ *   () => ai.models.generateContent({ model: 'gemini-3.8-flash', ... })
  * )
  * ```
  *

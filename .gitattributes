@@ -1,0 +1,5 @@
+# Check out every text file with LF, on every OS. Without this, a Windows
+# clone with core.autocrlf=true gets CRLF working files, and Prettier
+# (endOfLine: lf) flags every one of them in `pnpm format:check`. Git
+# auto-detects binaries, which are left byte-for-byte untouched.
+* text=auto eol=lf
