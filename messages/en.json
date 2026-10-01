@@ -21,6 +21,14 @@
 			"description": "{name} may use a format or codec your browser doesn't support. Try an MP4 (H.264) or WebM file."
 		},
 		"replace": "Replace video",
+		"transcript": {
+			"title": "Transcript",
+			"analyzing": "Listening to the audio…",
+			"transcribing": "Transcribing…",
+			"no_audio": "This video has no audio track to transcribe.",
+			"too_long": "Transcripts work on clips up to 5 minutes for now. Silences are still flagged on the timeline.",
+			"empty": "No speech detected."
+		},
 		"command": {
 			"label": "Edit command",
 			"placeholder": "Try \"cut from 2 seconds to 5 seconds\"",
@@ -40,6 +48,8 @@
 			"scrubberLabel": "Playhead position",
 			"trimStartLabel": "Trim start",
 			"trimEndLabel": "Trim end",
+			"silenceCount": "{count, plural, one {# silence} other {# silences}}",
+			"silencePinLabel": "Silence from {start} to {end}. Jump there",
 			"empty": "Your timeline appears here once a video loads.",
 			"clipLabel": "{name}, {duration}"
 		}

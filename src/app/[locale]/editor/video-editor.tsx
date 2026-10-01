@@ -14,10 +14,12 @@ import {
 	type TrimEdge,
 	type TrimRange
 } from './timeline-scale'
+import { TranscriptPanel } from './transcript-panel'
 import { UploadDropzone } from './upload-dropzone'
+import { useTakeAnalysis } from './use-take-analysis'
 import { VideoFileInput } from './video-file-input'
 
-type LoadedVideo = { url: string; name: string }
+type LoadedVideo = { file: File; url: string; name: string }
 
 // Pressing play this close to the out-point counts as "at the end" and
 // restarts from the in-point, rather than playing a frame and stopping.
@@ -47,6 +49,7 @@ export function VideoEditor() {
 	const hasDuration = isKnownDuration(durationSeconds)
 	const range: TrimRange = trim ?? { startSeconds: 0, endSeconds: durationSeconds }
 	const trimEnd = hasDuration ? range.endSeconds : Infinity
+	const analysis = useTakeAnalysis(video)
 
 	const videoUrl = video?.url
 	// An object URL pins the whole file in memory until it's revoked, so each
@@ -88,7 +91,7 @@ export function VideoEditor() {
 		}
 		isProbingDurationRef.current = false
 		setTrim(null)
-		setVideo({ url: URL.createObjectURL(file), name: file.name })
+		setVideo({ file, url: URL.createObjectURL(file), name: file.name })
 		setDurationSeconds(0)
 		setCurrentTimeSeconds(0)
 		setIsPlaying(false)
@@ -213,9 +216,11 @@ export function VideoEditor() {
 				durationSeconds={durationSeconds}
 				currentTimeSeconds={currentTimeSeconds}
 				trim={range}
+				silences={analysis.silences}
 				onSeek={seek}
 				onTrimChange={handleTrimChange}
 			/>
+			{video && <TranscriptPanel state={analysis.transcript} onSeek={seek} />}
 		</div>
 	)
 }
