@@ -37,10 +37,11 @@ export type AiCallStatus = (typeof AI_CALL_STATUSES)[number]
 // OPENROUTER_MODELS_URL comment there before concluding a slug doesn't
 // exist.
 //
-// Retake calls Gemini 3.8 Flash only: it takes audio and video natively, so
-// one model covers transcription, footage analysis and edit commands.
+// Retake calls Gemini 3.5 Flash-Lite only: it takes audio and video
+// natively, so one model covers transcription, footage analysis and edit
+// commands, and it's available on the Gemini API's free tier.
 export const OPENROUTER_SLUGS = {
-	'gemini-3.8-flash': 'google/gemini-3.8-flash'
+	'gemini-3.5-flash-lite': 'google/gemini-3.5-flash-lite'
 } satisfies Record<string, string>
 
 // The model ids a call site is allowed to ask for. `satisfies` above keeps

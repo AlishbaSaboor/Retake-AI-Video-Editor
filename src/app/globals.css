@@ -11,51 +11,41 @@
 	--radius-lg: 16px;
 }
 
-/* Color tokens DO need to change with color scheme, so they're declared on
-   :root (swappable at runtime) and re-exposed to Tailwind via `@theme
-   inline` below — `inline` tells Tailwind to reference these variables
-   live rather than inlining today's computed value at build time. See
-   DESIGN.md for the full token table and naming rationale. */
-:root {
-	--bg: #fafafa;
-	--surface: #ffffff;
-	--surface-hover: #f0f1f3;
-	--border: #e5e7eb;
-	--border-strong: #cbd2db;
-	--text: #16181d;
-	--text-muted: #5b6472;
-	--text-faint: #8891a0;
-	--accent: #2454b8;
-	--accent-hover: #1c4292;
-	--accent-ink: #ffffff;
-	--success: #1a7f4b;
-	--warning: #a5580a;
-	--danger: #b3261e;
-}
+/* Color tokens are declared on :root (swappable at runtime) and re-exposed
+   to Tailwind via `@theme inline` below — `inline` tells Tailwind to
+   reference these variables live rather than inlining today's computed
+   value at build time. See DESIGN.md for the full token table.
 
-@media (prefers-color-scheme: dark) {
-	:root {
-		--bg: #101215;
-		--surface: #17191d;
-		--surface-hover: #202329;
-		--border: #2a2d33;
-		--border-strong: #3a3e46;
-		--text: #f2f3f5;
-		--text-muted: #a6adba;
-		--text-faint: #767d8a;
-		--accent: #5b8fe0;
-		--accent-hover: #7ba3e6;
-		--accent-ink: #0b1220;
-		--success: #35c37f;
-		--warning: #e2a03f;
-		--danger: #e5675f;
-	}
+   Retake is dark-only — a video editor is judged against footage, and the
+   design (editor mockup: obsidian surfaces, indigo accent, cyan secondary)
+   has no light variant. `color-scheme` makes native UI (video controls,
+   scrollbars, form fields) render dark to match. */
+:root {
+	color-scheme: dark;
+	--bg: #0b0d13;
+	--surface: #1b1f2e;
+	--surface-hover: #22273a;
+	--surface-inset: #141722;
+	--border: #272d40;
+	--border-strong: #3b4360;
+	--text: #f3f4f6;
+	--text-muted: #94a3b8;
+	--text-faint: #64748b;
+	--accent: #6366f1;
+	--accent-hover: #818cf8;
+	--accent-ink: #ffffff;
+	--accent-secondary: #06b6d4;
+	--accent-glow: rgb(99 102 241 / 0.35);
+	--success: #35c37f;
+	--warning: #e2a03f;
+	--danger: #e5675f;
 }
 
 @theme inline {
 	--color-bg: var(--bg);
 	--color-surface: var(--surface);
 	--color-surface-hover: var(--surface-hover);
+	--color-surface-inset: var(--surface-inset);
 	--color-border: var(--border);
 	--color-border-strong: var(--border-strong);
 	--color-text: var(--text);
@@ -64,6 +54,8 @@
 	--color-accent: var(--accent);
 	--color-accent-hover: var(--accent-hover);
 	--color-accent-ink: var(--accent-ink);
+	--color-accent-secondary: var(--accent-secondary);
+	--color-accent-glow: var(--accent-glow);
 	--color-success: var(--success);
 	--color-warning: var(--warning);
 	--color-danger: var(--danger);

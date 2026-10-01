@@ -1,4 +1,10 @@
 import 'server-only'
+import {
+	GoogleGenAI,
+	type GenerateContentParameters,
+	type GenerateContentResponse
+} from '@google/genai'
+import { env } from '@/lib/env'
 import { trackAiCall } from '@/server/lib/ai-usage/sink'
 import type { TrackedModel } from '@/server/lib/ai-usage/models'
 import type { AiUsageMeta } from '@/server/lib/ai-usage/track'
@@ -14,43 +20,14 @@ import type { AiUsageMeta } from '@/server/lib/ai-usage/track'
 // Keep wrappers to the methods actually in use. Streaming, file uploads for
 // long videos, and batch each get a wrapper here the day a feature needs one.
 
-// ---------------------------------------------------------------------------
-// PLACEHOLDER. Delete this whole block and replace it with:
-//
-//   import { GoogleGenAI } from '@google/genai'
-//   const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY })
-//
-// after `pnpm add @google/genai`, adding GEMINI_API_KEY to .env.example and
-// src/lib/env.ts in the same pass. Nothing below the block changes. It is
-// deliberately narrower than the real client — the real one is a superset,
-// so the swap only ever widens what's available.
-type Part = { text: string } | { inlineData: { mimeType: string; data: string } }
-
-type GenerateContentParams = {
-	model: string
-	contents: string | Array<{ role: 'user' | 'model'; parts: Part[] }>
-	config?: { systemInstruction?: string; temperature?: number; maxOutputTokens?: number }
+// Created on first use rather than at import: a missing key should fail the
+// AI call that needs it, not every page whose module graph reaches this file.
+let client: GoogleGenAI | undefined
+function gemini(): GoogleGenAI {
+	if (!env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not set')
+	client ??= new GoogleGenAI({ apiKey: env.GEMINI_API_KEY })
+	return client
 }
-
-type GenerateContentResponse = {
-	responseId?: string
-	modelVersion?: string
-	text?: string
-	candidates?: Array<{ finishReason?: string }>
-	usageMetadata?: {
-		promptTokenCount?: number
-		candidatesTokenCount?: number
-		cachedContentTokenCount?: number
-		thoughtsTokenCount?: number
-	}
-}
-
-declare const ai: {
-	models: {
-		generateContent(params: GenerateContentParams): Promise<GenerateContentResponse>
-	}
-}
-// --------------------------------------------------------------------------
 
 /**
  * What the spend is for. `feature` is the axis every cost question gets asked
@@ -73,7 +50,7 @@ export type AiContext = {
  *
  * ```ts
  * const response = await generateContent(
- *   { feature: 'parse_edit_command', model: 'gemini-3.8-flash', meta: { project_id: projectId } },
+ *   { feature: 'parse_edit_command', model: 'gemini-3.5-flash-lite', meta: { project_id: projectId } },
  *   { contents: command }
  * )
  * ```
@@ -84,9 +61,9 @@ export type AiContext = {
  */
 export function generateContent(
 	context: AiContext,
-	params: Omit<GenerateContentParams, 'model'>
+	params: Omit<GenerateContentParameters, 'model'>
 ): Promise<GenerateContentResponse> {
 	return trackAiCall({ provider: 'google', ...context }, () =>
-		ai.models.generateContent({ ...params, model: context.model })
+		gemini().models.generateContent({ ...params, model: context.model })
 	)
 }

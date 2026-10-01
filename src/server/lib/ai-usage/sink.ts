@@ -22,8 +22,8 @@ const reportedModels = new Set<string>()
  *
  * ```ts
  * const response = await trackAiCall(
- *   { provider: 'google', model: 'gemini-3.8-flash', feature: 'edit_command' },
- *   () => ai.models.generateContent({ model: 'gemini-3.8-flash', ... })
+ *   { provider: 'google', model: 'gemini-3.5-flash-lite', feature: 'edit_command' },
+ *   () => ai.models.generateContent({ model: 'gemini-3.5-flash-lite', ... })
  * )
  * ```
  *

@@ -29,6 +29,8 @@ import {
 	Check,
 	CheckCircle,
 	CircleNotch,
+	Clock,
+	CloudArrowUp,
 	Copy,
 	DotsThreeVertical,
 	DownloadSimple,
@@ -36,6 +38,7 @@ import {
 	FunnelSimple,
 	Gear,
 	Info,
+	Lightning,
 	List,
 	MagnifyingGlass,
 	Minus,
@@ -43,7 +46,6 @@ import {
 	Plus,
 	SignOut,
 	Trash,
-	UploadSimple,
 	User,
 	Warning,
 	X
@@ -94,6 +96,7 @@ function Glyph({ source: Source, size = DEFAULT_SIZE, className }: IconProps & {
 //
 // Add an icon when a component actually needs it; don't mirror the
 // provider's whole catalog here. Keep the list alphabetical.
+export const AiIcon = (props: IconProps) => <Glyph source={Lightning} {...props} />
 export const AlertIcon = (props: IconProps) => <Glyph source={Warning} {...props} />
 export const ArrowRightIcon = (props: IconProps) => <Glyph source={ArrowRight} {...props} />
 export const CalendarIcon = (props: IconProps) => <Glyph source={Calendar} {...props} />
@@ -118,8 +121,9 @@ export const SearchIcon = (props: IconProps) => <Glyph source={MagnifyingGlass} 
 export const SettingsIcon = (props: IconProps) => <Glyph source={Gear} {...props} />
 export const SignOutIcon = (props: IconProps) => <Glyph source={SignOut} {...props} />
 export const SuccessIcon = (props: IconProps) => <Glyph source={CheckCircle} {...props} />
+export const TimelineIcon = (props: IconProps) => <Glyph source={Clock} {...props} />
 export const TrashIcon = (props: IconProps) => <Glyph source={Trash} {...props} />
-export const UploadIcon = (props: IconProps) => <Glyph source={UploadSimple} {...props} />
+export const UploadIcon = (props: IconProps) => <Glyph source={CloudArrowUp} {...props} />
 export const UserIcon = (props: IconProps) => <Glyph source={User} {...props} />
 export const VideoIcon = (props: IconProps) => <Glyph source={FilmStrip} {...props} />
 
