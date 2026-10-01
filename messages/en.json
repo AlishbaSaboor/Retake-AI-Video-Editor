@@ -21,6 +21,16 @@
 			"description": "{name} may use a format or codec your browser doesn't support. Try an MP4 (H.264) or WebM file."
 		},
 		"replace": "Replace video",
+		"cleanup": {
+			"button": "Clean up recording",
+			"hint": "Removes the flagged silences in one step.",
+			"nothing": "No flagged silences to remove.",
+			"estimate": "This will remove approximately {seconds, plural, one {# second} other {# seconds}}.",
+			"fillersKept": "Filler words stay: their timing is estimated, so cutting them could clip the words around them.",
+			"apply": "Remove silences",
+			"cancel": "Cancel",
+			"undo": "Undo clean-up"
+		},
 		"transcript": {
 			"title": "Transcript",
 			"analyzing": "Listening to the audio…",

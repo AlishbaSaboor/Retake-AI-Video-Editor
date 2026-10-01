@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { ReplaceIcon } from '@/components/ui/icons'
 import { toast } from '@/lib/toast'
+import { keptSeconds, planCleanup, skipCuts, type Cut, type Edit } from './cleanup'
+import { CleanupBar } from './cleanup-bar'
 import { CommandBar } from './command-bar'
 import { Timeline } from './timeline'
 import {
@@ -50,6 +52,14 @@ export function VideoEditor() {
 	const range: TrimRange = trim ?? { startSeconds: 0, endSeconds: durationSeconds }
 	const trimEnd = hasDuration ? range.endSeconds : Infinity
 	const analysis = useTakeAnalysis(video)
+	// Source ranges playback skips, from "Clean up recording". Like trim, a
+	// cut never touches the file; `undoEdit` is the edit from just before
+	// the last clean-up, restored in one step by Undo.
+	const [cuts, setCuts] = useState<Cut[]>([])
+	const [undoEdit, setUndoEdit] = useState<Edit | null>(null)
+	const edit: Edit = { trim: range, cuts }
+	const cleanupPlan = planCleanup(edit, analysis.silences, durationSeconds)
+	const removableSeconds = keptSeconds(edit) - keptSeconds(cleanupPlan)
 
 	const videoUrl = video?.url
 	// An object URL pins the whole file in memory until it's revoked, so each
@@ -61,13 +71,16 @@ export function VideoEditor() {
 
 	// `timeupdate` only fires a few times a second, which makes the playhead
 	// stutter. While playing, follow the video every animation frame instead —
-	// which is also where playback stops at the trim's out-point.
+	// which is also where playback jumps over cuts and stops at the trim's
+	// out-point.
 	useEffect(() => {
 		if (!isPlaying) return
 		let frame = 0
 		const follow = () => {
 			const element = videoRef.current
 			if (element) {
+				const pastCut = skipCuts(element.currentTime, cuts)
+				if (pastCut !== element.currentTime) element.currentTime = pastCut
 				if (element.currentTime >= trimEnd) {
 					element.pause()
 					element.currentTime = trimEnd
@@ -78,7 +91,7 @@ export function VideoEditor() {
 		}
 		frame = requestAnimationFrame(follow)
 		return () => cancelAnimationFrame(frame)
-	}, [isPlaying, trimEnd])
+	}, [isPlaying, trimEnd, cuts])
 
 	function loadFile(file: File) {
 		if (!file.type.startsWith('video/')) {
@@ -91,6 +104,8 @@ export function VideoEditor() {
 		}
 		isProbingDurationRef.current = false
 		setTrim(null)
+		setCuts([])
+		setUndoEdit(null)
 		setVideo({ file, url: URL.createObjectURL(file), name: file.name })
 		setDurationSeconds(0)
 		setCurrentTimeSeconds(0)
@@ -119,7 +134,7 @@ export function VideoEditor() {
 	function seek(seconds: number) {
 		const element = videoRef.current
 		if (!element) return
-		const target = clampToTrim(seconds, range)
+		const target = skipCuts(clampToTrim(seconds, range), cuts)
 		element.currentTime = target
 		setCurrentTimeSeconds(target)
 	}
@@ -136,18 +151,32 @@ export function VideoEditor() {
 		setCurrentTimeSeconds(previewAt)
 	}
 
+	function applyCleanup() {
+		setUndoEdit(edit)
+		setCuts(cleanupPlan.cuts)
+		applyTrim(cleanupPlan.trim, cleanupPlan.trim.startSeconds)
+	}
+
+	function undoCleanup() {
+		if (!undoEdit) return
+		setCuts(undoEdit.cuts)
+		applyTrim(undoEdit.trim, undoEdit.trim.startSeconds)
+		setUndoEdit(null)
+	}
+
 	function handleTrimChange(edge: TrimEdge, seconds: number) {
 		const next = moveTrimEdge(range, edge, seconds, durationSeconds)
 		applyTrim(next, edge === 'start' ? next.startSeconds : next.endSeconds)
 	}
 
-	// Keeps the native controls inside the trim too: scrubbing past an edge
-	// snaps back to it, and pressing play at the out-point starts over.
+	// Keeps the native controls inside the edit too: scrubbing past a trim
+	// edge snaps back to it, landing in a cut skips past it, and pressing play
+	// at the out-point starts over.
 	function handleTimeUpdate(element: HTMLVideoElement) {
 		if (isProbingDurationRef.current) return
 		if (hasDuration) {
-			const clamped = clampToTrim(element.currentTime, range)
-			if (clamped !== element.currentTime) element.currentTime = clamped
+			const allowed = skipCuts(clampToTrim(element.currentTime, range), cuts)
+			if (allowed !== element.currentTime) element.currentTime = allowed
 		}
 		setCurrentTimeSeconds(element.currentTime)
 	}
@@ -211,11 +240,20 @@ export function VideoEditor() {
 			) : (
 				<UploadDropzone onFile={loadFile} />
 			)}
+			{video && hasDuration && (
+				<CleanupBar
+					removableSeconds={removableSeconds}
+					canUndo={undoEdit !== null}
+					onApply={applyCleanup}
+					onUndo={undoCleanup}
+				/>
+			)}
 			<Timeline
 				clipName={video?.name ?? null}
 				durationSeconds={durationSeconds}
 				currentTimeSeconds={currentTimeSeconds}
 				trim={range}
+				cuts={cuts}
 				silences={analysis.silences}
 				fillerWords={analysis.fillerWords}
 				onSeek={seek}

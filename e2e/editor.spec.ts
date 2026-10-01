@@ -227,6 +227,60 @@ test('filler words in the transcript are flagged apart from silences and jump th
 	await expect.poll(() => playheadSeconds(page)).toBeCloseTo((17 / 32) * 3, 1)
 })
 
+test('clean-up removes flagged silences after an estimate, and undo restores them', async ({
+	page
+}) => {
+	await page.route('**/editor', (route) =>
+		route.request().headers()['next-action'] ? route.abort() : route.continue()
+	)
+	await page.goto('/editor')
+	// Tone, an 8 s silence, tone: the silence (~1-9 s) is interior, so it
+	// becomes a cut of ~1.3-8.7 s — 0.3 s of padding kept at each edge.
+	const video = await recordTestVideo(page, [
+		[1, true],
+		[8, false],
+		[1.5, true]
+	])
+	await page
+		.getByLabel('Choose a video file')
+		.setInputFiles({ name: 'take-to-clean.webm', mimeType: 'video/webm', buffer: video })
+	await expect(page.getByText('1 silence', { exact: true })).toBeVisible({ timeout: 30_000 })
+
+	const scrubber = page.getByRole('slider', { name: 'Playhead position' })
+	const seekToMiddle = async () => {
+		await scrubber.scrollIntoViewIfNeeded()
+		const box = await scrubber.boundingBox()
+		if (!box) throw new Error('scrubber has no layout box')
+		await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+	}
+
+	await page.getByRole('button', { name: 'Clean up recording' }).click()
+	await expect(page.getByText(/This will remove approximately [78] seconds\./)).toBeVisible()
+	await page.getByRole('button', { name: 'Remove silences' }).click()
+
+	// The middle of the clip (~5 s) is inside the cut: seeking there lands
+	// just after it, at ~8.7 s.
+	await seekToMiddle()
+	await expect.poll(() => playheadSeconds(page)).toBeGreaterThan(8)
+
+	// Playback jumps the cut too: played from 0.5 s, it is past ~8.7 s
+	// within about a second of real time, not 8 seconds later.
+	await page.locator('video').evaluate(async (element: HTMLVideoElement) => {
+		element.muted = true
+		element.currentTime = 0.5
+		await element.play()
+	})
+	await expect.poll(() => playheadSeconds(page), { timeout: 4000 }).toBeGreaterThan(8.6)
+	await page.locator('video').evaluate((element: HTMLVideoElement) => element.pause())
+
+	// One-step undo brings the silence back: the middle is reachable again.
+	await page.getByRole('button', { name: 'Undo clean-up' }).click()
+	await expect(page.getByRole('button', { name: 'Undo clean-up' })).toHaveCount(0)
+	await seekToMiddle()
+	await expect.poll(() => playheadSeconds(page)).toBeLessThan(6.5)
+	await expect(page.getByRole('button', { name: 'Clean up recording' })).toBeEnabled()
+})
+
 test('a file that is not a video is rejected with a message', async ({ page }) => {
 	await page.goto('/editor')
 	await page.getByLabel('Choose a video file').setInputFiles({

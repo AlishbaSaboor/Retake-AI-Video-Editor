@@ -20,7 +20,9 @@
 import {
 	ArrowRight,
 	ArrowsClockwise,
+	ArrowUUpLeft,
 	ArrowSquareOut,
+	Broom,
 	Calendar,
 	CaretDown,
 	CaretLeft,
@@ -106,6 +108,7 @@ export const ChevronDownIcon = (props: IconProps) => <Glyph source={CaretDown} {
 export const ChevronLeftIcon = (props: IconProps) => <Glyph source={CaretLeft} {...props} />
 export const ChevronRightIcon = (props: IconProps) => <Glyph source={CaretRight} {...props} />
 export const ChevronUpIcon = (props: IconProps) => <Glyph source={CaretUp} {...props} />
+export const CleanupIcon = (props: IconProps) => <Glyph source={Broom} {...props} />
 export const CloseIcon = (props: IconProps) => <Glyph source={X} {...props} />
 export const CopyIcon = (props: IconProps) => <Glyph source={Copy} {...props} />
 export const DownloadIcon = (props: IconProps) => <Glyph source={DownloadSimple} {...props} />
@@ -125,6 +128,7 @@ export const SignOutIcon = (props: IconProps) => <Glyph source={SignOut} {...pro
 export const SuccessIcon = (props: IconProps) => <Glyph source={CheckCircle} {...props} />
 export const TimelineIcon = (props: IconProps) => <Glyph source={Clock} {...props} />
 export const TrashIcon = (props: IconProps) => <Glyph source={Trash} {...props} />
+export const UndoIcon = (props: IconProps) => <Glyph source={ArrowUUpLeft} {...props} />
 export const UploadIcon = (props: IconProps) => <Glyph source={CloudArrowUp} {...props} />
 export const UserIcon = (props: IconProps) => <Glyph source={User} {...props} />
 export const VideoIcon = (props: IconProps) => <Glyph source={FilmStrip} {...props} />
