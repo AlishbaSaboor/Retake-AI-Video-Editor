@@ -39,6 +39,45 @@ export function clampTime(seconds: number, durationSeconds: number): number {
 	return Math.min(Math.max(seconds, 0), durationSeconds)
 }
 
+/**
+ * The usable part of a clip, in source-file seconds. Trimming only moves
+ * these two numbers — the source is never cut — so any trim can be undone
+ * by dragging a handle back out.
+ */
+export type TrimRange = { startSeconds: number; endSeconds: number }
+export type TrimEdge = 'start' | 'end'
+
+// The shortest clip a trim can leave, so the two handles can never cross.
+const MIN_TRIM_SECONDS = 0.1
+
+/** Moves one edge of a trim, keeping it inside the source and short of the other edge. */
+export function moveTrimEdge(
+	range: TrimRange,
+	edge: TrimEdge,
+	seconds: number,
+	durationSeconds: number
+): TrimRange {
+	return edge === 'start'
+		? {
+				...range,
+				startSeconds: clampTime(
+					Math.min(seconds, range.endSeconds - MIN_TRIM_SECONDS),
+					durationSeconds
+				)
+			}
+		: {
+				...range,
+				endSeconds: clampTime(
+					Math.max(seconds, range.startSeconds + MIN_TRIM_SECONDS),
+					durationSeconds
+				)
+			}
+}
+
+export function clampToTrim(seconds: number, range: TrimRange): number {
+	return Math.min(Math.max(seconds, range.startSeconds), range.endSeconds)
+}
+
 /** A time's position along the timeline, as a CSS percentage. */
 export function timeToPercent(seconds: number, durationSeconds: number): string {
 	if (!isKnownDuration(durationSeconds)) return '0%'

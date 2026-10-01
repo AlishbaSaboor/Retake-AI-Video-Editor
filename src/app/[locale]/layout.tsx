@@ -24,7 +24,11 @@ export default async function LocaleLayout({
 	}
 
 	return (
-		<html lang={locale}>
+		// Browser extensions (Cap, Grammarly, ...) add attributes to <html>
+		// before React hydrates. This silences only attribute mismatches on
+		// this one element — not its children — so real hydration bugs in the
+		// app still surface.
+		<html lang={locale} suppressHydrationWarning>
 			<body>
 				<AnalyticsProvider />
 				<NextIntlClientProvider>

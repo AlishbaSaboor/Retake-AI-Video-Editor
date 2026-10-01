@@ -34,6 +34,17 @@ async function recordTestVideo(page: Page): Promise<Buffer> {
 	return Buffer.from(bytes)
 }
 
+/** Opens the editor with a freshly recorded test video loaded. */
+async function openEditorWithVideo(page: Page): Promise<void> {
+	await page.goto('/editor')
+	const video = await recordTestVideo(page)
+	await page
+		.getByLabel('Choose a video file')
+		.setInputFiles({ name: 'test-take.webm', mimeType: 'video/webm', buffer: video })
+	// Visible only once a real, finite duration has been resolved.
+	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible()
+}
+
 async function playheadSeconds(page: Page): Promise<number> {
 	return page.locator('video').evaluate((video: HTMLVideoElement) => video.currentTime)
 }
@@ -47,17 +58,9 @@ test('home links to the editor, which starts empty', async ({ page }) => {
 })
 
 test('a picked video plays in the editor and can be scrubbed on the timeline', async ({ page }) => {
-	await page.goto('/editor')
-	const video = await recordTestVideo(page)
-
-	await page
-		.getByLabel('Choose a video file')
-		.setInputFiles({ name: 'test-take.webm', mimeType: 'video/webm', buffer: video })
-
+	await openEditorWithVideo(page)
 	await expect(page.locator('video')).toBeVisible()
 	const scrubber = page.getByRole('slider', { name: 'Playhead position' })
-	// Visible only once a real, finite duration has been resolved.
-	await expect(scrubber).toBeVisible()
 	await expect(scrubber).toHaveAttribute('aria-valuemax', String(RECORDING_SECONDS))
 	await expect(page.getByText('test-take.webm').first()).toBeVisible()
 	// The duration probe must hand the playhead back at the start.
@@ -80,6 +83,40 @@ test('a picked video plays in the editor and can be scrubbed on the timeline', a
 	await expect(scrubber).toHaveAttribute('aria-valuenow', '0')
 	await page.keyboard.press('ArrowRight')
 	await expect.poll(() => playheadSeconds(page)).toBeCloseTo(1, 1)
+})
+
+test('dragging a trim handle trims the clip, previews the cut, and can be undone', async ({
+	page
+}) => {
+	await openEditorWithVideo(page)
+	const startHandle = page.getByRole('slider', { name: 'Trim start' })
+	const scrubber = page.getByRole('slider', { name: 'Playhead position' })
+	await startHandle.scrollIntoViewIfNeeded()
+	const track = await scrubber.boundingBox()
+	const handle = await startHandle.boundingBox()
+	if (!track || !handle) throw new Error('timeline has no layout box')
+	const handleY = handle.y + handle.height / 2
+
+	// Drag the start handle a third of the way in: about 1s of a 3s clip.
+	await page.mouse.move(handle.x + handle.width / 2, handleY)
+	await page.mouse.down()
+	await page.mouse.move(track.x + track.width / 3, handleY, { steps: 5 })
+	await page.mouse.up()
+	const trimStart = Number(await startHandle.getAttribute('aria-valuenow'))
+	expect(trimStart).toBeCloseTo(RECORDING_SECONDS / 3, 0)
+	// The preview jumped to the new cut frame with no separate apply step.
+	await expect.poll(() => playheadSeconds(page)).toBeCloseTo(trimStart, 1)
+
+	// Seeking into the trimmed-away footage snaps to the in-point.
+	await page.mouse.click(track.x + 5, track.y + 10)
+	await expect.poll(() => playheadSeconds(page)).toBeCloseTo(trimStart, 1)
+
+	// Non-destructive: dragging the handle back restores the whole clip.
+	await page.mouse.move(track.x + track.width / 3, handleY)
+	await page.mouse.down()
+	await page.mouse.move(track.x - 20, handleY, { steps: 5 })
+	await page.mouse.up()
+	await expect(startHandle).toHaveAttribute('aria-valuenow', '0')
 })
 
 test('a file that is not a video is rejected with a message', async ({ page }) => {

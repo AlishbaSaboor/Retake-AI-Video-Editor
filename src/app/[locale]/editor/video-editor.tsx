@@ -6,11 +6,21 @@ import { Button } from '@/components/ui/button'
 import { ReplaceIcon } from '@/components/ui/icons'
 import { toast } from '@/lib/toast'
 import { Timeline } from './timeline'
-import { isKnownDuration } from './timeline-scale'
+import {
+	clampToTrim,
+	isKnownDuration,
+	moveTrimEdge,
+	type TrimEdge,
+	type TrimRange
+} from './timeline-scale'
 import { UploadDropzone } from './upload-dropzone'
 import { VideoFileInput } from './video-file-input'
 
 type LoadedVideo = { url: string; name: string }
+
+// Pressing play this close to the out-point counts as "at the end" and
+// restarts from the in-point, rather than playing a frame and stopping.
+const END_TOLERANCE_SECONDS = 0.05
 
 /**
  * Pick a video, watch it, scrub it on the timeline. Everything here is local
@@ -31,6 +41,11 @@ export function VideoEditor() {
 	// durationchange then reports the real length and the playhead goes back
 	// to the start. True while that probe is in flight.
 	const isProbingDurationRef = useRef(false)
+	// Null until the user first drags a handle, meaning "the whole clip".
+	const [trim, setTrim] = useState<TrimRange | null>(null)
+	const hasDuration = isKnownDuration(durationSeconds)
+	const range: TrimRange = trim ?? { startSeconds: 0, endSeconds: durationSeconds }
+	const trimEnd = hasDuration ? range.endSeconds : Infinity
 
 	const videoUrl = video?.url
 	// An object URL pins the whole file in memory until it's revoked, so each
@@ -41,18 +56,25 @@ export function VideoEditor() {
 	}, [videoUrl])
 
 	// `timeupdate` only fires a few times a second, which makes the playhead
-	// stutter. While playing, follow the video every animation frame instead.
+	// stutter. While playing, follow the video every animation frame instead —
+	// which is also where playback stops at the trim's out-point.
 	useEffect(() => {
 		if (!isPlaying) return
 		let frame = 0
 		const follow = () => {
 			const element = videoRef.current
-			if (element) setCurrentTimeSeconds(element.currentTime)
+			if (element) {
+				if (element.currentTime >= trimEnd) {
+					element.pause()
+					element.currentTime = trimEnd
+				}
+				setCurrentTimeSeconds(element.currentTime)
+			}
 			frame = requestAnimationFrame(follow)
 		}
 		frame = requestAnimationFrame(follow)
 		return () => cancelAnimationFrame(frame)
-	}, [isPlaying])
+	}, [isPlaying, trimEnd])
 
 	function loadFile(file: File) {
 		if (!file.type.startsWith('video/')) {
@@ -64,6 +86,7 @@ export function VideoEditor() {
 			return
 		}
 		isProbingDurationRef.current = false
+		setTrim(null)
 		setVideo({ url: URL.createObjectURL(file), name: file.name })
 		setDurationSeconds(0)
 		setCurrentTimeSeconds(0)
@@ -92,8 +115,41 @@ export function VideoEditor() {
 	function seek(seconds: number) {
 		const element = videoRef.current
 		if (!element) return
-		element.currentTime = seconds
-		setCurrentTimeSeconds(seconds)
+		const target = clampToTrim(seconds, range)
+		element.currentTime = target
+		setCurrentTimeSeconds(target)
+	}
+
+	// Pauses on the moved edge so the preview shows the new cut frame.
+	function handleTrimChange(edge: TrimEdge, seconds: number) {
+		const next = moveTrimEdge(range, edge, seconds, durationSeconds)
+		const previewAt = edge === 'start' ? next.startSeconds : next.endSeconds
+		setTrim(next)
+		// Not through seek(): that clamps to the range from before this move.
+		const element = videoRef.current
+		if (element) {
+			element.pause()
+			element.currentTime = previewAt
+		}
+		setCurrentTimeSeconds(previewAt)
+	}
+
+	// Keeps the native controls inside the trim too: scrubbing past an edge
+	// snaps back to it, and pressing play at the out-point starts over.
+	function handleTimeUpdate(element: HTMLVideoElement) {
+		if (isProbingDurationRef.current) return
+		if (hasDuration) {
+			const clamped = clampToTrim(element.currentTime, range)
+			if (clamped !== element.currentTime) element.currentTime = clamped
+		}
+		setCurrentTimeSeconds(element.currentTime)
+	}
+
+	function handlePlay(element: HTMLVideoElement) {
+		setIsPlaying(true)
+		if (hasDuration && element.currentTime >= range.endSeconds - END_TOLERANCE_SECONDS) {
+			element.currentTime = range.startSeconds
+		}
 	}
 
 	return (
@@ -124,11 +180,8 @@ export function VideoEditor() {
 						className="aspect-video w-full rounded-lg bg-black"
 						onLoadedMetadata={(event) => handleLoadedMetadata(event.currentTarget)}
 						onDurationChange={(event) => handleDurationChange(event.currentTarget)}
-						onTimeUpdate={(event) => {
-							if (isProbingDurationRef.current) return
-							setCurrentTimeSeconds(event.currentTarget.currentTime)
-						}}
-						onPlay={() => setIsPlaying(true)}
+						onTimeUpdate={(event) => handleTimeUpdate(event.currentTarget)}
+						onPlay={(event) => handlePlay(event.currentTarget)}
 						onPause={() => setIsPlaying(false)}
 						onError={() => {
 							toast({
@@ -147,7 +200,9 @@ export function VideoEditor() {
 				clipName={video?.name ?? null}
 				durationSeconds={durationSeconds}
 				currentTimeSeconds={currentTimeSeconds}
+				trim={range}
 				onSeek={seek}
+				onTrimChange={handleTrimChange}
 			/>
 		</div>
 	)
