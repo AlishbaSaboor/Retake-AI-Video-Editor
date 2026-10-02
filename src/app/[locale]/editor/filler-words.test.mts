@@ -1,14 +1,22 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { detectFillerWords } from './filler-words'
+import { toTranscript } from './transcript'
 
-const words = (...texts: string[]) =>
-	detectFillerWords({
-		segments: texts.map((text, i) => ({ startSeconds: i * 10, endSeconds: i * 10 + 10, text }))
-	}).map((filler) => filler.word)
+/** A transcript from words spoken back to back, 0.5 s each. */
+const transcriptOf = (sentence: string) =>
+	toTranscript(
+		sentence.split(' ').map((punctuated_word, i) => ({
+			word: punctuated_word.toLowerCase().replace(/[^a-z'-]/g, ''),
+			punctuated_word,
+			start: i * 0.5,
+			end: i * 0.5 + 0.4
+		}))
+	)
+const fillersIn = (sentence: string) => detectFillerWords(transcriptOf(sentence)).map((f) => f.word)
 
 test('hesitation sounds are flagged, in any length or case', () => {
-	assert.deepEqual(words('Um, so I think, uh, we start. Ummm. UHH, erm, er.'), [
+	assert.deepEqual(fillersIn('Um, so I think, uh, we start. Ummm. UHH, erm, er.'), [
 		'um',
 		'uh',
 		'ummm',
@@ -19,37 +27,43 @@ test('hesitation sounds are flagged, in any length or case', () => {
 })
 
 test('real words that contain or resemble a hesitation are not', () => {
-	assert.deepEqual(words('The umbrella album was humming. I erred, err, hmm.'), [])
-	assert.deepEqual(words('Uh-huh, and um-hmm, both mean yes.'), [])
+	assert.deepEqual(fillersIn('The umbrella album was humming. I erred, err, hmm.'), [])
+	assert.deepEqual(fillersIn('Uh-huh, and um-hmm, both mean yes.'), [])
 })
 
 test('"like" is a filler only when set off by punctuation on both sides', () => {
-	assert.deepEqual(words('It was, like, huge.'), ['like'])
-	assert.deepEqual(words('Like, I really do not know.'), ['like'])
-	assert.deepEqual(words('Fine. Like, whatever.'), ['like'])
+	assert.deepEqual(fillersIn('It was, like, huge.'), ['like'])
+	assert.deepEqual(fillersIn('Like, I really do not know.'), ['like'])
+	assert.deepEqual(fillersIn('Fine. Like, whatever.'), ['like'])
 })
 
 test('"like" as a verb, preposition or "like I said" is normal speech', () => {
+	assert.deepEqual(fillersIn('I like this take.'), [])
+	assert.deepEqual(fillersIn('It looks like rain, honestly.'), [])
+	assert.deepEqual(fillersIn('Like I said, we go again.'), [])
+	assert.deepEqual(fillersIn('It was like really hard.'), [])
+})
+
+test('each filler carries the measured timing of its own word', () => {
+	const [filler] = detectFillerWords(transcriptOf('Okay so um we start.'))
+	assert.deepEqual(filler, { word: 'um', startSeconds: 1, endSeconds: 1.4 })
+})
+
+test('words are grouped into sentence lines for the transcript panel', () => {
+	const transcript = transcriptOf('So, um, we start. Then we stop! Done?')
 	assert.deepEqual(
-		words(
-			'I like this take.',
-			'It looks like rain, honestly.',
-			'Like I said, we go again.',
-			'Things like that, you know.'
-		),
-		[]
+		transcript.segments.map((s) => s.text),
+		['So, um, we start.', 'Then we stop!', 'Done?']
 	)
-})
-
-test('each filler is timed by its position within the segment', () => {
-	const [filler] = detectFillerWords({
-		segments: [{ startSeconds: 20, endSeconds: 30, text: 'Okay so this is, um, it.' }]
+	assert.deepEqual(transcript.segments[1], {
+		startSeconds: 2,
+		endSeconds: 3.4,
+		text: 'Then we stop!'
 	})
-	// "um" starts 17 characters into a 24-character segment that spans 20-30s.
-	assert.equal(filler?.word, 'um')
-	assert.ok(filler && Math.abs(filler.atSeconds - (20 + (17 / 24) * 10)) < 1e-9)
 })
 
-test('an empty transcript has no filler words', () => {
-	assert.deepEqual(detectFillerWords({ segments: [] }), [])
+test('an empty transcript has no filler words and no lines', () => {
+	const empty = toTranscript([])
+	assert.deepEqual(detectFillerWords(empty), [])
+	assert.deepEqual(empty.segments, [])
 })

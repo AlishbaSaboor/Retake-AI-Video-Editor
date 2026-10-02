@@ -2,11 +2,12 @@
 
 import { z } from 'zod'
 import { AppError } from '@/lib/errors/app-error'
+import { deepgramWords, transcribeAudio } from '@/server/ai/deepgram'
 import { generateContent } from '@/server/ai/google'
 import { validatedAction } from '@/server/actions/validated-action'
 import { EDIT_COMMAND_JSON_SCHEMA, editCommandSchema, type EditCommand } from './edit-command'
 import { MAX_AUDIO_BASE64_LENGTH } from './take-audio'
-import { TRANSCRIPT_JSON_SCHEMA, transcriptSchema, type Transcript } from './transcript'
+import { toTranscript, type Transcript } from './transcript'
 
 // A command is a sentence, not a document — this also caps what one request
 // can spend.
@@ -14,8 +15,8 @@ const MAX_COMMAND_LENGTH = 300
 
 const UNSUPPORTED: EditCommand = { action: 'unsupported', startSeconds: null, endSeconds: null }
 
-// Gemini answers 429 (rate-limited) or 503 (overloaded) under load — the
-// user's cue to retry, not a bug to report, so it's an AppError.
+// Gemini and Deepgram both answer 429 (rate-limited) or 503 (overloaded)
+// under load — the user's cue to retry, not a bug to report, so an AppError.
 const busyResponse = z.object({ status: z.union([z.literal(429), z.literal(503)]) })
 
 function rethrowAsBusy(error: unknown): never {
@@ -70,49 +71,20 @@ export const parseEditCommand = validatedAction({
 	}
 })
 
-const TRANSCRIBE_INSTRUCTION = [
-	'Transcribe the speech in this audio, verbatim, in the language spoken.',
-	'Keep filler words exactly as spoken ("um", "uh", "like") — do not clean up the speech —',
-	'and set each filler off with commas ("it was, like, huge", "so, um, we start").',
-	'Split it into segments of about one sentence, each with its start and end time',
-	'in seconds from the start of the audio. Transcribe speech only — no descriptions',
-	'of music, noise or silence. If there is no speech, return an empty segments array.'
-].join(' ')
-
 /**
- * Transcribes a take's audio (16 kHz mono WAV, base64) with Gemini. Unlike a
- * command, a malformed reply is an error here: an empty transcript would read
- * as "no speech", which is a claim about the footage we can't back up.
+ * Transcribes a take's audio (16 kHz mono WAV, base64) with Deepgram, which
+ * keeps filler words and times every word against the audio — the timing
+ * filler clean-up is built on. Malformed replies fail validation inside the
+ * wrapper and surface as an error, never as an empty "no speech" transcript.
  */
 export const transcribeTake = validatedAction({
 	input: z.object({ audioBase64: z.string().min(1).max(MAX_AUDIO_BASE64_LENGTH) }),
 	handler: async ({ audioBase64 }): Promise<Transcript> => {
-		const response = await generateContent(
-			{ feature: 'transcribe_take', model: 'gemini-3.5-flash-lite' },
-			{
-				contents: [
-					{
-						role: 'user',
-						parts: [{ inlineData: { mimeType: 'audio/wav', data: audioBase64 } }]
-					}
-				],
-				config: {
-					systemInstruction: TRANSCRIBE_INSTRUCTION,
-					responseMimeType: 'application/json',
-					responseJsonSchema: TRANSCRIPT_JSON_SCHEMA,
-					temperature: 0
-				}
-			}
+		const response = await transcribeAudio(
+			{ feature: 'transcribe_take', model: 'nova-3' },
+			Buffer.from(audioBase64, 'base64'),
+			'audio/wav'
 		).catch(rethrowAsBusy)
-		const unreadable = new AppError("Couldn't read the transcript. Try again.", { status: 502 })
-		let raw: unknown
-		try {
-			raw = JSON.parse(response.text ?? '')
-		} catch {
-			throw unreadable
-		}
-		const parsed = transcriptSchema.safeParse(raw)
-		if (!parsed.success) throw unreadable
-		return parsed.data
+		return toTranscript(deepgramWords(response))
 	}
 })

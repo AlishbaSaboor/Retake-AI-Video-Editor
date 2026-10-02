@@ -1,34 +1,48 @@
-import { z } from 'zod'
+// A take's transcript: every word with its measured timing (from Deepgram,
+// which keeps fillers like "um"), plus the same words grouped into
+// sentence-length lines for the transcript panel.
 
-// What Gemini returns for a take's audio: roughly sentence-length segments,
-// timed in seconds from the start of the clip.
-export const transcriptSchema = z.object({
-	segments: z.array(
-		z.object({
-			startSeconds: z.number().nonnegative(),
-			endSeconds: z.number().nonnegative(),
-			text: z.string()
-		})
-	)
-})
-export type Transcript = z.infer<typeof transcriptSchema>
+export type TranscriptWord = {
+	/** As spoken, with punctuation where the transcriber added it ("so,", "um,"). */
+	text: string
+	startSeconds: number
+	endSeconds: number
+}
 
-/** The same shape as JSON Schema, for Gemini's structured output. */
-export const TRANSCRIPT_JSON_SCHEMA = {
-	type: 'object',
-	properties: {
-		segments: {
-			type: 'array',
-			items: {
-				type: 'object',
-				properties: {
-					startSeconds: { type: 'number' },
-					endSeconds: { type: 'number' },
-					text: { type: 'string' }
-				},
-				required: ['startSeconds', 'endSeconds', 'text']
-			}
+export type TranscriptSegment = { startSeconds: number; endSeconds: number; text: string }
+
+export type Transcript = { segments: TranscriptSegment[]; words: TranscriptWord[] }
+
+/** The shape a transcriber's word list arrives in. */
+type TimedWord = { word: string; punctuated_word?: string; start: number; end: number }
+
+const SENTENCE_END = /[.?!]["')\]]*$/
+
+/** Builds a transcript from a word list, closing a line at each sentence end. */
+export function toTranscript(timedWords: TimedWord[]): Transcript {
+	const words: TranscriptWord[] = timedWords.map((w) => ({
+		text: w.punctuated_word ?? w.word,
+		startSeconds: w.start,
+		endSeconds: w.end
+	}))
+	const segments: TranscriptSegment[] = []
+	let line: TranscriptWord[] = []
+	const close = () => {
+		const first = line[0]
+		const last = line.at(-1)
+		if (first && last) {
+			segments.push({
+				startSeconds: first.startSeconds,
+				endSeconds: last.endSeconds,
+				text: line.map((w) => w.text).join(' ')
+			})
 		}
-	},
-	required: ['segments']
+		line = []
+	}
+	for (const word of words) {
+		line.push(word)
+		if (SENTENCE_END.test(word.text)) close()
+	}
+	close()
+	return { segments, words }
 }

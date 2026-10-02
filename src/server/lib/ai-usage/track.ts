@@ -18,6 +18,8 @@ export type AiUsageRow = TokenCounts & {
 	latencyMs: number
 	requestId?: string
 	meta?: AiUsageMeta
+	/** Audio billed, for per-minute providers; priced from this instead of tokens. */
+	audioSeconds?: number
 }
 
 // Ids, enums and booleans only — the same rule as an analytics property
@@ -73,6 +75,7 @@ export function buildRow(
 		latencyMs: outcome.latencyMs,
 		requestId: extracted?.requestId,
 		meta: spec.meta,
+		audioSeconds: extracted?.audioSeconds,
 		...(extracted?.tokens ?? NO_TOKENS)
 	}
 }

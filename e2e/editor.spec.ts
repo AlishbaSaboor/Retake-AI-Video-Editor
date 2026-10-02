@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { toTranscript } from '../src/app/[locale]/editor/transcript'
 
 const RECORDING_SECONDS = 3
 
@@ -72,18 +73,33 @@ async function openEditorWithVideo(page: Page): Promise<void> {
 	await page
 		.getByLabel('Choose a video file')
 		.setInputFiles({ name: 'test-take.webm', mimeType: 'video/webm', buffer: video })
-	// Visible only once a real, finite duration has been resolved.
-	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible()
+	// Visible only once a real, finite duration has been resolved. Same 30 s
+	// allowance as the other video waits: with the whole suite recording and
+	// decoding in parallel, a cold load can pass 5 s.
+	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
+		timeout: 30_000
+	})
 }
 
 /**
- * Answers the transcript Server Action with a canned transcript, so filler
- * detection can be tested without Gemini. The request is still sent to the
+ * Answers the transcript Server Action with a canned transcript — built from
+ * a word list by the app's own toTranscript — so fillers can be tested
+ * without a Deepgram call. The request is still sent to the
  * real server — with its audio emptied, which fails input validation before
  * any AI call — so the reply comes back in this build's real Server Action
  * format, and only the result inside it is swapped for the canned one.
  */
-async function mockTranscript(page: Page, segments: unknown[]): Promise<void> {
+type TimedWord = { word: string; punctuated_word: string; start: number; end: number }
+
+/** A timed word, as the transcriber returns it. */
+const w = (punctuated_word: string, start: number, end: number): TimedWord => ({
+	word: punctuated_word.toLowerCase().replace(/[^a-z'-]/g, ''),
+	punctuated_word,
+	start,
+	end
+})
+
+async function mockTranscript(page: Page, words: TimedWord[]): Promise<void> {
 	await page.route(
 		(url) => url.pathname.endsWith('/editor'),
 		async (route) => {
@@ -94,7 +110,7 @@ async function mockTranscript(page: Page, segments: unknown[]): Promise<void> {
 			})
 			const body = (await response.text()).replace(
 				/\{"ok":false[^\n]*\}/,
-				JSON.stringify({ ok: true, data: { segments } })
+				JSON.stringify({ ok: true, data: toTranscript(words) })
 			)
 			await route.fulfill({ response, body })
 		}
@@ -203,11 +219,20 @@ test('long silences are flagged on the timeline and jump there when clicked', as
 test('filler words in the transcript are flagged apart from silences and jump there', async ({
 	page
 }) => {
-	// 32 characters over 0-3s: "um" sits at 4/32 (~0.4s), the filler
-	// "like" at 17/32 (~1.6s). "I like it" is a verb and must not be flagged.
+	// "I like it" is a verb and must not be flagged. The audio is one
+	// unbroken tone — no gaps anywhere — so neither filler can be cut safely:
+	// both must be flagged for a manual cut, never auto-removed.
 	await mockTranscript(page, [
-		{ startSeconds: 0, endSeconds: 3, text: 'So, um, this is, like, the take.' },
-		{ startSeconds: 3, endSeconds: 4, text: 'I like it.' }
+		w('So,', 0, 0.3),
+		w('um,', 0.4, 0.6),
+		w('this', 0.7, 0.9),
+		w('is,', 1.0, 1.2),
+		w('like,', 1.5, 1.7),
+		w('the', 1.8, 2.0),
+		w('take.', 2.1, 2.6),
+		w('I', 3.0, 3.1),
+		w('like', 3.2, 3.4),
+		w('it.', 3.5, 3.8)
 	])
 	await page.goto('/editor')
 	const video = await recordTestVideo(page, [[4, true]])
@@ -219,12 +244,75 @@ test('filler words in the transcript are flagged apart from silences and jump th
 	await expect(page.getByText('2 filler words', { exact: true })).toBeVisible()
 	await expect(page.getByRole('button', { name: /^Filler word/ })).toHaveCount(2)
 	await expect(page.getByRole('button', { name: /^Silence from/ })).toHaveCount(0)
+	const review = page.getByRole('button', { name: /needs a manual cut/ })
+	await expect(review).toHaveCount(2)
 	await expect(
-		page.getByRole('button', { name: 'Filler word "um" at 0:00. Jump there' })
+		page.getByRole('button', { name: /^Filler word "um" at 0:00, needs a manual cut/ })
 	).toBeVisible()
 
-	await page.getByRole('button', { name: 'Filler word "like" at 0:01. Jump there' }).click()
-	await expect.poll(() => playheadSeconds(page)).toBeCloseTo((17 / 32) * 3, 1)
+	await page
+		.getByRole('button', { name: /^Filler word "like" at 0:01, needs a manual cut/ })
+		.click()
+	await expect.poll(() => playheadSeconds(page)).toBeCloseTo(1.5, 1)
+
+	// Nothing here is safe to remove automatically.
+	await expect(page.getByRole('button', { name: 'Clean up recording' })).toBeDisabled()
+})
+
+test('clean-up cuts a filler with clear gaps around it, keeps one without, and undo restores', async ({
+	page
+}) => {
+	// Tone with two 150 ms gaps around "um" (1.15-1.45 s), then unbroken tone
+	// through "so uh done": that "uh" runs straight into its neighbours.
+	await mockTranscript(page, [
+		w('Hello,', 0, 1.0),
+		w('um,', 1.15, 1.45),
+		w('world.', 1.6, 3.0),
+		w('So', 3.0, 3.4),
+		w('uh', 3.4, 3.7),
+		w('done.', 3.7, 4.5)
+	])
+	await page.goto('/editor')
+	const video = await recordTestVideo(page, [
+		[1, true],
+		[0.15, false],
+		[0.3, true],
+		[0.15, false],
+		[2.9, true]
+	])
+	await page
+		.getByLabel('Choose a video file')
+		.setInputFiles({ name: 'take-with-filler-gaps.webm', mimeType: 'video/webm', buffer: video })
+	await expect(page.getByText('2 filler words', { exact: true })).toBeVisible({ timeout: 30_000 })
+	await expect(page.getByRole('button', { name: /^Filler word "um" at 0:01. Jump/ })).toBeVisible()
+	await expect(
+		page.getByRole('button', { name: /^Filler word "uh" at 0:03, needs a manual cut/ })
+	).toBeVisible()
+
+	const scrubber = page.getByRole('slider', { name: 'Playhead position' })
+	const seekTo = async (seconds: number) => {
+		await scrubber.scrollIntoViewIfNeeded()
+		const box = await scrubber.boundingBox()
+		const duration = await page.locator('video').evaluate((v: HTMLVideoElement) => v.duration)
+		if (!box) throw new Error('scrubber has no layout box')
+		await page.mouse.click(box.x + (seconds / duration) * box.width, box.y + box.height / 2)
+	}
+
+	await page.getByRole('button', { name: 'Clean up recording' }).click()
+	await expect(page.getByText('(0 silences, 1 filler word)')).toBeVisible()
+	await expect(page.getByText(/^1 filler word runs straight into the next word/)).toBeVisible()
+	await page.getByRole('button', { name: 'Apply clean-up' }).click()
+
+	// Inside the cut "um": playback can't land there, it continues past it...
+	await seekTo(1.3)
+	await expect.poll(() => playheadSeconds(page)).toBeGreaterThan(1.4)
+	// ...while the "uh" with no gap was left alone, as were its neighbours.
+	await seekTo(3.55)
+	await expect.poll(() => playheadSeconds(page)).toBeCloseTo(3.55, 0)
+
+	await page.getByRole('button', { name: 'Undo clean-up' }).click()
+	await seekTo(1.3)
+	await expect.poll(() => playheadSeconds(page)).toBeLessThan(1.4)
 })
 
 test('clean-up removes flagged silences after an estimate, and undo restores them', async ({
@@ -256,7 +344,7 @@ test('clean-up removes flagged silences after an estimate, and undo restores the
 
 	await page.getByRole('button', { name: 'Clean up recording' }).click()
 	await expect(page.getByText(/This will remove approximately [78] seconds\./)).toBeVisible()
-	await page.getByRole('button', { name: 'Remove silences' }).click()
+	await page.getByRole('button', { name: 'Apply clean-up' }).click()
 
 	// The middle of the clip (~5 s) is inside the cut: seeking there lands
 	// just after it, at ~8.7 s.

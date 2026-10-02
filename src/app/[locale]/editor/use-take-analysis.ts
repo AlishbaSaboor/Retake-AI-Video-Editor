@@ -1,19 +1,24 @@
 import { useQuery } from '@tanstack/react-query'
 import { transcribeTake } from './actions'
-import { detectFillerWords, type FillerWord } from './filler-words'
+import { planFillerCut, type FillerPlan } from './filler-cuts'
+import { detectFillerWords } from './filler-words'
 import {
 	ANALYSIS_SAMPLE_RATE,
 	decodeTakeAudio,
 	detectSilences,
 	encodeWav,
+	measureLoudness,
 	MAX_TRANSCRIBE_SECONDS,
 	toBase64,
+	type Loudness,
 	type Silence
 } from './take-audio'
 import type { Transcript } from './transcript'
 
 type AudioAnalysis = {
 	silences: Silence[]
+	/** For placing filler cuts in the real gaps around each filler. */
+	loudness: Loudness
 	/** Null when the take is longer than MAX_TRANSCRIBE_SECONDS. */
 	audioBase64: string | null
 }
@@ -24,12 +29,13 @@ export type TranscriptState =
 	| { status: 'failed'; error: string }
 
 const NO_SILENCES: Silence[] = []
-const NO_FILLER_WORDS: FillerWord[] = []
+const NO_FILLER_PLANS: FillerPlan[] = []
 
 /**
  * Analyses a take as soon as it's loaded: silences are measured locally from
  * the decoded audio, then the same audio goes to Gemini for a transcript,
- * which filler words are then found in — no second AI call.
+ * which filler words are then found in — no second AI call — and each filler
+ * is placed against the audio's real gaps (cut) or left for review.
  * Both are keyed by the take's object URL, so replacing the video starts
  * over and nothing is re-run for the same take.
  */
@@ -43,6 +49,7 @@ export function useTakeAnalysis(video: { file: File; url: string } | null) {
 			const tooLong = samples.length / ANALYSIS_SAMPLE_RATE > MAX_TRANSCRIBE_SECONDS
 			return {
 				silences: detectSilences(samples, ANALYSIS_SAMPLE_RATE),
+				loudness: measureLoudness(samples, ANALYSIS_SAMPLE_RATE),
 				audioBase64: tooLong ? null : toBase64(encodeWav(samples, ANALYSIS_SAMPLE_RATE))
 			}
 		},
@@ -77,9 +84,13 @@ export function useTakeAnalysis(video: { file: File; url: string } | null) {
 						? { status: 'failed', error: transcript.error.message }
 						: { status: 'ready', transcript: transcript.data }
 
+	const loudness = audio.data?.loudness
 	return {
 		silences: audio.data?.silences ?? NO_SILENCES,
-		fillerWords: transcript.data ? detectFillerWords(transcript.data) : NO_FILLER_WORDS,
+		fillerPlans:
+			transcript.data && loudness
+				? detectFillerWords(transcript.data).map((filler) => planFillerCut(filler, loudness))
+				: NO_FILLER_PLANS,
 		transcript: transcriptState
 	}
 }

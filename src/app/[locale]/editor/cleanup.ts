@@ -1,16 +1,15 @@
 import type { Silence } from './take-audio'
 import { moveTrimEdge, type TrimRange } from './timeline-scale'
 
-// One-click clean-up: turns flagged silences into edits, using the same
+// One-click clean-up: turns flagged silences and filler words into edits, using the same
 // non-destructive model as manual trim. A silence touching an edge of the
 // clip moves that trim edge (through moveTrimEdge, like dragging a handle);
 // one in the middle becomes a cut — a source range playback skips. The file
 // itself is never changed, so undo is just restoring the previous edit.
 //
-// Filler words aren't cut: their times are estimated from transcript text,
-// typically within a second, and an "um" lasts a fraction of that — a cut
-// there would clip the words around it. Silences are measured from the
-// audio, so their edges are exact.
+// Filler words arrive already placed: filler-cuts.ts only produces a cut
+// for a filler bracketed by real gaps in the audio, inside those gaps. Here
+// they're just clipped to the trim and merged with the silence cuts.
 
 /** A source range that playback skips over. */
 export type Cut = { startSeconds: number; endSeconds: number }
@@ -53,11 +52,19 @@ export function mergeCuts(cuts: Cut[]): Cut[] {
 	return merged
 }
 
+/** What clean-up removes: measured silences, and filler cuts placed in their gaps. */
+export type Flagged = { silences: Silence[]; fillerCuts: Cut[] }
+
 /**
- * The edit after removing every silence from `current`. Silences outside
- * the trimmed clip are ignored; nothing outside a silence is ever removed.
+ * The edit after removing every flagged item from `current`. Anything
+ * outside the trimmed clip is ignored; nothing outside a silence or a
+ * filler cut is ever removed.
  */
-export function planCleanup(current: Edit, silences: Silence[], durationSeconds: number): Edit {
+export function planCleanup(
+	current: Edit,
+	{ silences, fillerCuts }: Flagged,
+	durationSeconds: number
+): Edit {
 	let trim = current.trim
 	const cuts = [...current.cuts]
 	const ordered = [...silences].sort((a, b) => a.startSeconds - b.startSeconds)
@@ -75,6 +82,11 @@ export function planCleanup(current: Edit, silences: Silence[], durationSeconds:
 				endSeconds: end - SILENCE_PADDING_SECONDS
 			})
 		}
+	}
+	for (const cut of fillerCuts) {
+		const start = Math.max(cut.startSeconds, trim.startSeconds)
+		const end = Math.min(cut.endSeconds, trim.endSeconds)
+		if (end > start) cuts.push({ startSeconds: start, endSeconds: end })
 	}
 	return { trim, cuts: mergeCuts(cuts) }
 }
