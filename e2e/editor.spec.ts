@@ -664,6 +664,60 @@ test('a selected run of adjacent clips merges into one, and merging a split undo
 	await expect(merge).toBeDisabled()
 })
 
+test('the original and edited takes can be compared without moving the playhead', async ({
+	page
+}) => {
+	await mockActions(page, {
+		words: [],
+		command: { action: 'trim', startSeconds: 1, endSeconds: 2 }
+	})
+	await openEditorWithVideo(page)
+	await page.getByLabel('Edit command').fill('keep 1 to 2 seconds')
+	await page.getByRole('button', { name: 'Run' }).click()
+	await page.getByRole('button', { name: 'Apply', exact: true }).click()
+	await expect(page.getByRole('slider', { name: 'Trim start' })).toHaveAttribute(
+		'aria-valuenow',
+		'1'
+	)
+	const compare = page.getByRole('group', { name: 'Compare with the original' })
+	const original = compare.getByRole('button', { name: 'Original' })
+	const edited = compare.getByRole('button', { name: 'Edited' })
+	await expect(edited).toHaveAttribute('aria-pressed', 'true')
+	const video = page.locator('video')
+	const play = () =>
+		video.evaluate(async (element: HTMLVideoElement) => {
+			element.muted = true
+			await element.play()
+		})
+	const paused = () => video.evaluate((element: HTMLVideoElement) => element.paused)
+
+	// The edit plays 1–2 s and stops at the trim's end.
+	await seekTo(page, 1.2)
+	await play()
+	await expect.poll(paused, { timeout: 5000 }).toBe(true)
+	const stoppedAt = await playheadSeconds(page)
+	expect(stoppedAt).toBeCloseTo(2, 0)
+	expect(stoppedAt).toBeLessThan(2.3)
+
+	// Switching to the original keeps the playhead exactly where it was, and
+	// from there the untouched take plays on past where the edit stopped.
+	await original.click()
+	await expect(original).toHaveAttribute('aria-pressed', 'true')
+	expect(await playheadSeconds(page)).toBe(stoppedAt)
+	await play()
+	await expect.poll(() => playheadSeconds(page), { timeout: 5000 }).toBeGreaterThan(2.4)
+	await video.evaluate((element: HTMLVideoElement) => element.pause())
+
+	// Before the trim's start, too: the original plays what the edit removed,
+	// and switching back to the edit doesn't move the playhead either.
+	await seekTo(page, 0.5)
+	const before = await playheadSeconds(page)
+	expect(before).toBeLessThan(1)
+	await edited.click()
+	await expect(edited).toHaveAttribute('aria-pressed', 'true')
+	expect(await playheadSeconds(page)).toBe(before)
+})
+
 test('a file that is not a video is rejected with a message', async ({ page }) => {
 	await page.goto('/editor')
 	await page.getByLabel('Choose a video file').setInputFiles({

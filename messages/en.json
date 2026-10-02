@@ -104,6 +104,11 @@
 			"fillerReviewPinLabel": "Filler word \"{word}\" at {at}, needs a manual cut (no clear pause around it). Open the cut editor",
 			"empty": "Your timeline appears here once a video loads.",
 			"clipLabel": "{name}, {duration}"
+		},
+		"compare": {
+			"label": "Compare with the original",
+			"edited": "Edited",
+			"original": "Original"
 		}
 	}
 }

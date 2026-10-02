@@ -8,6 +8,7 @@ import { toast } from '@/lib/toast'
 import { keptSeconds, mergeCuts, planCleanup, type Cut, type Edit } from './cleanup'
 import { CleanupBar } from './cleanup-bar'
 import { ClipStrip } from './clip-strip'
+import { CompareToggle } from './compare-toggle'
 import { CommandBar } from './command-bar'
 import { FillerCutEditor } from './filler-cut-editor'
 import { cutEditorWindow, initialCutRange, moveCutEdge, type FillerPlan } from './filler-cuts'
@@ -76,13 +77,18 @@ export function VideoEditor() {
 	const [cutEditor, setCutEditor] = useState<{ plan: FillerPlan; range: TrimRange } | null>(null)
 	const [preview, setPreview] = useState<{ withCut: boolean } | null>(null)
 	const cutWindow = cutEditor ? cutEditorWindow(cutEditor.plan.filler, durationSeconds) : null
+	// Before/after comparison: the untouched take, start to end. Both views
+	// play in source time, so switching leaves the playhead where it is.
+	const [showOriginal, setShowOriginal] = useState(false)
 	const segments =
 		preview && cutWindow && cutEditor
 			? playableSegments(wholeTake(durationSeconds), {
 					trim: cutWindow,
 					cuts: preview.withCut ? mergeCuts([...cuts, cutEditor.range]) : cuts
 				})
-			: playableSegments(sequence, edit)
+			: showOriginal
+				? [{ startSeconds: 0, endSeconds: durationSeconds }]
+				: playableSegments(sequence, edit)
 	const playback = useSequencePlayback(videoRef, segments, isPlaying, setCurrentTimeSeconds)
 
 	const videoUrl = video?.url
@@ -109,6 +115,7 @@ export function VideoEditor() {
 		setUndoEdit(null)
 		setCutEditor(null)
 		setPreview(null)
+		setShowOriginal(false)
 		setVideo({ file, url: URL.createObjectURL(file), name: file.name })
 		setDurationSeconds(0)
 		setCurrentTimeSeconds(0)
@@ -228,6 +235,9 @@ export function VideoEditor() {
 				<div className="flex flex-col gap-4">
 					<div className="flex items-center justify-between gap-4">
 						<p className="text-text truncate text-sm font-medium">{video.name}</p>
+						{hasDuration && (
+							<CompareToggle showOriginal={showOriginal} onChange={setShowOriginal} />
+						)}
 						<Button
 							asChild
 							variant="outline"
