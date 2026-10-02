@@ -85,7 +85,8 @@
 				"handTrim": "Trim by hand by dragging the timeline's handles",
 				"split": "Split a clip at the playhead with Split at playhead",
 				"reorder": "Reorder clips by dragging them in the Clips strip",
-				"merge": "Merge adjacent clips by selecting them and choosing Merge clips"
+				"merge": "Merge adjacent clips by selecting them and choosing Merge clips",
+				"export": "Export the edit as a video file with Export video"
 			},
 			"out_of_range": {
 				"title": "That range isn't in this clip.",
@@ -109,6 +110,21 @@
 			"label": "Compare with the original",
 			"edited": "Edited",
 			"original": "Original"
+		},
+		"export": {
+			"button": "Export video",
+			"hint": "Plays the edit through once to record it, so it takes as long as the edit runs. Keep this tab open and in front.",
+			"progress": "Exporting… {percent}%",
+			"cancel": "Cancel export",
+			"done": {
+				"title": "Export finished",
+				"description": "{name} is downloading."
+			},
+			"failed": "The export didn't finish.",
+			"unsupported": {
+				"title": "This browser can't export video.",
+				"description": "Try a current version of Chrome, Edge, Firefox or Safari."
+			}
 		}
 	}
 }
