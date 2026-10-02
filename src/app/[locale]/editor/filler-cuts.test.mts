@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { planFillerCut } from './filler-cuts'
+import { cutEditorWindow, initialCutRange, moveCutEdge, planFillerCut } from './filler-cuts'
 import { measureLoudness, type Loudness } from './take-audio'
 
 const RATE = 16_000
@@ -134,4 +134,36 @@ test('the gap threshold adapts to the recording, not a fixed level', () => {
 		[1, 'silent']
 	])
 	assert.ok(digital.gapThresholdDb < -100, String(digital.gapThresholdDb))
+})
+
+// --- manual cut editor -------------------------------------------------------
+
+test('the cut editor zooms to the filler plus a second either side, inside the clip', () => {
+	assert.deepEqual(cutEditorWindow(um(5, 5.3), 60), { startSeconds: 4, endSeconds: 6.3 })
+	assert.deepEqual(cutEditorWindow(um(0.2, 0.5), 60), { startSeconds: 0, endSeconds: 1.5 })
+	assert.deepEqual(cutEditorWindow(um(59.6, 59.9), 60), { startSeconds: 58.6, endSeconds: 60 })
+})
+
+test('the handles start on the gap-placed cut, or on the transcriber span when there is none', () => {
+	assert.deepEqual(
+		initialCutRange({ kind: 'cut', filler: um(1.1, 1.4), startSeconds: 1.05, endSeconds: 1.45 }),
+		{ startSeconds: 1.05, endSeconds: 1.45 }
+	)
+	assert.deepEqual(
+		initialCutRange({ kind: 'review', filler: um(3.4, 3.7), reason: 'no_gap_after' }),
+		{ startSeconds: 3.4, endSeconds: 3.7 }
+	)
+})
+
+test('a handle moves like a trim edge but never leaves the editor window or crosses the other', () => {
+	const window = { startSeconds: 2.4, endSeconds: 4.7 }
+	const range = { startSeconds: 3.4, endSeconds: 3.7 }
+	assert.deepEqual(moveCutEdge(range, 'start', 3.35, window), {
+		startSeconds: 3.35,
+		endSeconds: 3.7
+	})
+	assert.deepEqual(moveCutEdge(range, 'start', 0, window), { startSeconds: 2.4, endSeconds: 3.7 })
+	assert.deepEqual(moveCutEdge(range, 'end', 9, window), { startSeconds: 3.4, endSeconds: 4.7 })
+	// Dragged past the other handle, it stops short of it (the trim minimum).
+	assert.ok(moveCutEdge(range, 'start', 4, window).startSeconds < 3.7)
 })

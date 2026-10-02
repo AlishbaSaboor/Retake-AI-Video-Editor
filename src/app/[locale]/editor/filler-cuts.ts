@@ -1,5 +1,6 @@
 import type { FillerWord } from './filler-words'
 import type { Loudness } from './take-audio'
+import { moveTrimEdge, type TrimEdge, type TrimRange } from './timeline-scale'
 
 // Turns a filler the transcriber found into a cut that is safe to make, or
 // into "leave it for review". The transcriber's word timing is close but
@@ -102,4 +103,37 @@ export function planFillerCut(filler: FillerWord, loudness: Loudness): FillerPla
 			soundEnd + MAX_GAP_TRIM_SECONDS
 		)
 	}
+}
+
+// --- the manual cut editor ---------------------------------------------------
+// For fillers the gaps couldn't place (and any filler the user wants to
+// adjust): a zoomed window around the filler with two handles, set by ear.
+
+/** How much of the take either side of the filler the cut editor shows. */
+const EDITOR_CONTEXT_SECONDS = 1
+
+/** The span the cut editor zooms to: the filler plus context, inside the clip. */
+export function cutEditorWindow(filler: FillerWord, durationSeconds: number): TrimRange {
+	return {
+		startSeconds: Math.max(0, filler.startSeconds - EDITOR_CONTEXT_SECONDS),
+		endSeconds: Math.min(durationSeconds, filler.endSeconds + EDITOR_CONTEXT_SECONDS)
+	}
+}
+
+/** Where the handles start: the gap-placed cut if there is one, else the transcriber's span. */
+export function initialCutRange(plan: FillerPlan): TrimRange {
+	return plan.kind === 'cut'
+		? { startSeconds: plan.startSeconds, endSeconds: plan.endSeconds }
+		: { startSeconds: plan.filler.startSeconds, endSeconds: plan.filler.endSeconds }
+}
+
+/** Moves one edge of the manual cut, like a trim handle, kept inside the editor's window. */
+export function moveCutEdge(
+	range: TrimRange,
+	edge: TrimEdge,
+	seconds: number,
+	window: TrimRange
+): TrimRange {
+	const inWindow = Math.min(Math.max(seconds, window.startSeconds), window.endSeconds)
+	return moveTrimEdge(range, edge, inWindow, window.endSeconds)
 }

@@ -36,6 +36,8 @@ type TimelineProps = {
 	cuts: Cut[]
 	onSeek: (seconds: number) => void
 	onTrimChange: (edge: TrimEdge, seconds: number) => void
+	/** A filler flag was clicked: open its cut editor. */
+	onEditFiller: (plan: FillerPlan) => void
 }
 
 /**
@@ -54,7 +56,8 @@ export function Timeline({
 	fillerPlans,
 	cuts,
 	onSeek,
-	onTrimChange
+	onTrimChange,
+	onEditFiller
 }: TimelineProps) {
 	const t = useTranslations('Editor.timeline')
 	const trackRef = useRef<HTMLDivElement>(null)
@@ -224,7 +227,7 @@ export function Timeline({
 								word: plan.filler.word,
 								at: formatTimecode(plan.filler.startSeconds)
 							})}
-							onJump={onSeek}
+							onJump={() => onEditFiller(plan)}
 						/>
 					))}
 				</div>
