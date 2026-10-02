@@ -19,10 +19,12 @@ type GraphicsPanelProps = {
 	onPickLogo: (corner: Corner) => void
 	onCornerChange: (corner: Corner) => void
 	onRemoveWatermark: () => void
+	captionsOn: boolean
+	onCaptionsChange: (on: boolean) => void
 }
 
 /**
- * The title card and watermark, by hand. The title is a draft until Add or
+ * The title card, watermark and captions, by hand. The title is a draft until Add or
  * Update, so typing it is one change, not one per key; a corner, a logo or
  * a removal is one change at once. Times are in the edited video. Render
  * with a `key` that follows `title`, so an undo resets the draft.
@@ -33,7 +35,9 @@ export function GraphicsPanel({
 	onTitleChange,
 	onPickLogo,
 	onCornerChange,
-	onRemoveWatermark
+	onRemoveWatermark,
+	captionsOn,
+	onCaptionsChange
 }: GraphicsPanelProps) {
 	const t = useTranslations('Editor.graphics')
 	const id = useId()
@@ -48,6 +52,18 @@ export function GraphicsPanel({
 			className="border-border bg-surface flex flex-col gap-4 rounded-2xl border p-4 shadow-xl"
 		>
 			<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
+			<div className="flex flex-wrap items-center gap-3">
+				<Button
+					type="button"
+					size="sm"
+					variant={captionsOn ? 'secondary' : 'outline'}
+					aria-pressed={captionsOn}
+					onClick={() => onCaptionsChange(!captionsOn)}
+				>
+					{t('captions')}
+				</Button>
+				<span className="text-text-muted text-xs">{t('captionsHint')}</span>
+			</div>
 			<form
 				className="flex flex-wrap items-end gap-3"
 				onSubmit={(event) => {

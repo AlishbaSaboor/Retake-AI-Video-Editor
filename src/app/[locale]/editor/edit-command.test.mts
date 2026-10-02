@@ -87,6 +87,17 @@ test('a watermark command plans a corner, bottom-right when none is named', () =
 	)
 })
 
+test('captions on and off are plans of their own', () => {
+	assert.deepEqual(commandToPlan({ ...NONE, action: 'captions_on' }, 10, 10), {
+		ok: true,
+		plan: { kind: 'captions', on: true }
+	})
+	assert.deepEqual(commandToPlan({ ...NONE, action: 'captions_off' }, 10, 10), {
+		ok: true,
+		plan: { kind: 'captions', on: false }
+	})
+})
+
 test('a trim still plans exactly as before', () => {
 	assert.deepEqual(commandToPlan(trim(2, 5), 10, 10), {
 		ok: true,

@@ -44,6 +44,7 @@ function systemInstruction(durationSeconds: number): string {
 		'(the first 3 seconds: 0 and 3; null for an edge left open).',
 		'A watermark or logo in a corner is action "watermark" with corner one of',
 		'"top-left", "top-right", "bottom-left", "bottom-right", or null if none is named.',
+		'Turning captions (or subtitles) on or off is action "captions_on" or "captions_off".',
 		'Unused fields are null. Anything else — removing a middle section, other effects,',
 		'audio — is action "unsupported" with every other field null.'
 	].join(' ')
