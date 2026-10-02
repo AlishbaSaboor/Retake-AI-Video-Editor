@@ -16,7 +16,7 @@ export type Transcript = { segments: TranscriptSegment[]; words: TranscriptWord[
 /** The shape a transcriber's word list arrives in. */
 type TimedWord = { word: string; punctuated_word?: string; start: number; end: number }
 
-const SENTENCE_END = /[.?!]["')\]]*$/
+export const SENTENCE_END = /[.?!]["')\]]*$/
 
 /** Builds a transcript from a word list, closing a line at each sentence end. */
 export function toTranscript(timedWords: TimedWord[]): Transcript {

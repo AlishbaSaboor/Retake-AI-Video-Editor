@@ -9,6 +9,7 @@ import { keptSeconds, mergeCuts, planCleanup, type Cut, type Edit } from './clea
 import { CleanupBar } from './cleanup-bar'
 import { ClipStrip } from './clip-strip'
 import { CompareToggle } from './compare-toggle'
+import { editedCaptions } from './captions'
 import { CommandBar } from './command-bar'
 import type { CommandPlan } from './edit-command'
 import { isOriginalEdit, ORIGINAL_EDIT, type EditSnapshot } from './edit-snapshot'
@@ -108,14 +109,23 @@ export function VideoEditor() {
 	// The title card and watermark over the edited video (overlays.ts).
 	const [title, setTitle] = useState<TitleCard | null>(null)
 	const [watermark, setWatermark] = useState<Watermark | null>(null)
-	const overlays: Overlays = { title, watermark }
+	// Captions come from the transcript; whether they show is the edit's.
+	const [captionsOn, setCaptionsOn] = useState(false)
 	const logoInputRef = useRef<HTMLInputElement>(null)
 	const logoCornerRef = useRef<Corner>('bottom-right')
 	// Every edit records the snapshot from just before it, so Undo and Redo
 	// step through them (history.ts). A trim drag records once, at its first
 	// real move; each arrow-key nudge is a step of its own.
 	const [history, setHistory] = useState(emptyHistory<EditSnapshot>)
-	const snapshot: EditSnapshot = { trim, cuts, clips, replacements, title, watermark }
+	const snapshot: EditSnapshot = {
+		trim,
+		cuts,
+		clips,
+		replacements,
+		title,
+		watermark,
+		captionsOn
+	}
 	const trimDragRef = useRef<{ recorded: boolean } | null>(null)
 	// The filler cut editor: which filler is open and where its handles sit.
 	// A preview plays just the editor's window, straight through the source
@@ -145,6 +155,14 @@ export function VideoEditor() {
 	// its history or the export.
 	const [previewRate, setPreviewRate] = useState(1)
 	const editedSegments = playableSegments(sequence, edit, replacements)
+	const overlays: Overlays = {
+		title,
+		watermark,
+		captions:
+			captionsOn && analysis.transcript.status === 'ready'
+				? editedCaptions(analysis.transcript.transcript.words, editedSegments)
+				: []
+	}
 	const segments =
 		preview && cutWindow && cutEditor
 			? playableSegments(
@@ -205,6 +223,7 @@ export function VideoEditor() {
 		setReplacements([])
 		setTitle(null)
 		setWatermark(null)
+		setCaptionsOn(false)
 		setPicture(null)
 		setHistory(emptyHistory())
 		setCutEditor(null)
@@ -379,6 +398,7 @@ export function VideoEditor() {
 		setReplacements(step.restore.replacements)
 		setTitle(step.restore.title)
 		setWatermark(step.restore.watermark)
+		setCaptionsOn(step.restore.captionsOn)
 		applyTrim(step.restore.trim, step.restore.trim?.startSeconds ?? 0)
 	}
 
@@ -414,6 +434,12 @@ export function VideoEditor() {
 		setTitle(next)
 	}
 
+	function changeCaptions(on: boolean) {
+		if (on === captionsOn) return
+		recordEdit()
+		setCaptionsOn(on)
+	}
+
 	// The file picker opens straight from the click (Add logo, or Apply on a
 	// watermark command); the corner waits for the file.
 	function pickLogo(corner: Corner) {
@@ -447,6 +473,8 @@ export function VideoEditor() {
 			applyTrim(plan.range, plan.range.startSeconds)
 		} else if (plan.kind === 'title') {
 			changeTitle(plan.title)
+		} else if (plan.kind === 'captions') {
+			changeCaptions(plan.on)
 		} else if (watermark) {
 			moveWatermark(plan.corner)
 		} else {
@@ -617,6 +645,8 @@ export function VideoEditor() {
 							recordEdit()
 							setWatermark(null)
 						}}
+						captionsOn={captionsOn}
+						onCaptionsChange={changeCaptions}
 					/>
 					<input
 						ref={logoInputRef}

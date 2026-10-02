@@ -1,6 +1,7 @@
+import { captionAt, type Caption } from './captions'
 import { segmentSeconds, type Segment } from './sequence'
 
-// Motion graphics, v1: one title card and one watermark, laid over the
+// Motion graphics, v1: one title card, one watermark and captions, laid over the
 // edited video. Both are part of the edit (undoable, cleared by reset) and
 // timed in the edited video's own time — "the first 3 seconds" is the first
 // 3 seconds of the export, whatever was trimmed or moved. The export draws
@@ -16,7 +17,8 @@ export type TitleCard = { text: string; startSeconds: number; durationSeconds: n
 /** A PNG logo, as a data URL, kept in one corner for the whole video. */
 export type Watermark = { image: string; aspect: number; corner: Corner }
 
-export type Overlays = { title: TitleCard | null; watermark: Watermark | null }
+/** `captions` is empty when they're off. */
+export type Overlays = { title: TitleCard | null; watermark: Watermark | null; captions: Caption[] }
 
 /** The title's text height, as a fraction of the picture's height. */
 export const TITLE_FONT_FRACTION = 0.08
@@ -25,6 +27,13 @@ export const TITLE_BAND_SCALE = 2
 /** The widest the title's text may be, as a fraction of the picture's width. */
 const TITLE_MAX_WIDTH_FRACTION = 0.9
 export const TITLE_BAND_COLOR = 'rgba(0, 0, 0, 0.6)'
+/** Caption text height, and the gap below the last line, as fractions of the picture's height. */
+export const CAPTION_FONT_FRACTION = 0.06
+export const CAPTION_BOTTOM_FRACTION = 0.06
+/** Caption line spacing, as a multiple of the text height. */
+export const CAPTION_LINE_SCALE = 1.4
+/** Space either side of a caption line's text, as a multiple of the text height. */
+export const CAPTION_PADDING_SCALE = 0.3
 /** The watermark's width, and its distance from the edges, as fractions of the picture's width. */
 const WATERMARK_WIDTH_FRACTION = 0.15
 const WATERMARK_MARGIN_FRACTION = 0.03
@@ -108,7 +117,25 @@ export function drawOverlays(
 	logo: HTMLImageElement | null
 ) {
 	const { width, height } = context.canvas
-	const { title, watermark } = overlays
+	const { title, watermark, captions } = overlays
+	const caption = captionAt(captions, seconds)
+	if (caption) {
+		const fontPixels = Math.round(height * CAPTION_FONT_FRACTION)
+		const lineHeight = fontPixels * CAPTION_LINE_SCALE
+		const padding = fontPixels * CAPTION_PADDING_SCALE
+		context.font = `bold ${fontPixels}px sans-serif`
+		context.textAlign = 'center'
+		context.textBaseline = 'middle'
+		const bottom = height * (1 - CAPTION_BOTTOM_FRACTION)
+		for (const [index, line] of caption.lines.entries()) {
+			const middle = bottom - (caption.lines.length - index - 0.5) * lineHeight
+			const lineWidth = context.measureText(line).width + padding * 2
+			context.fillStyle = TITLE_BAND_COLOR
+			context.fillRect((width - lineWidth) / 2, middle - lineHeight / 2, lineWidth, lineHeight)
+			context.fillStyle = '#ffffff'
+			context.fillText(line, width / 2, middle)
+		}
+	}
 	if (title && titleShownAt(title, seconds)) {
 		const fontPixels = Math.round(height * TITLE_FONT_FRACTION)
 		const band = fontPixels * TITLE_BAND_SCALE

@@ -6,7 +6,14 @@ import { moveTrimEdge, type TrimRange } from './timeline-scale'
 // here, a branch in commandToPlan, and nothing else. A null edge means "the
 // clip's own start/end" ("cut from 3s to the end"). A title's times are in
 // the edited video; a trim's, in the source.
-const ACTIONS = ['trim', 'title', 'watermark', 'unsupported'] as const
+const ACTIONS = [
+	'trim',
+	'title',
+	'watermark',
+	'captions_on',
+	'captions_off',
+	'unsupported'
+] as const
 export const editCommandSchema = z.object({
 	action: z.enum(ACTIONS),
 	startSeconds: z.number().nullable(),
@@ -38,6 +45,7 @@ export type CommandPlan =
 	| { kind: 'trim'; range: TrimRange }
 	| { kind: 'title'; title: TitleCard }
 	| { kind: 'watermark'; corner: Corner }
+	| { kind: 'captions'; on: boolean }
 
 type Refusal = { ok: false; reason: 'unsupported' | 'out_of_range' }
 export type CommandOutcome = { ok: true; plan: CommandPlan } | Refusal
@@ -54,6 +62,9 @@ export function commandToPlan(
 	if (command.action === 'trim') {
 		const trimmed = commandToTrim(command, durationSeconds)
 		return trimmed.ok ? { ok: true, plan: { kind: 'trim', range: trimmed.range } } : trimmed
+	}
+	if (command.action === 'captions_on' || command.action === 'captions_off') {
+		return { ok: true, plan: { kind: 'captions', on: command.action === 'captions_on' } }
 	}
 	if (command.action === 'watermark') {
 		return { ok: true, plan: { kind: 'watermark', corner: command.corner ?? DEFAULT_CORNER } }

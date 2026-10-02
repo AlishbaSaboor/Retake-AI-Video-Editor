@@ -12,6 +12,7 @@ export type EditSnapshot<R = ReplacementTake> = {
 	replacements: R[]
 	title: TitleCard | null
 	watermark: Watermark | null
+	captionsOn: boolean
 }
 
 /** The edit right after upload: the whole take, untouched. */
@@ -21,7 +22,8 @@ export const ORIGINAL_EDIT: EditSnapshot = {
 	clips: null,
 	replacements: [],
 	title: null,
-	watermark: null
+	watermark: null,
+	captionsOn: false
 }
 
 /**
@@ -40,6 +42,7 @@ export function isOriginalEdit<R>(edit: EditSnapshot<R>, durationSeconds: number
 		edit.replacements.length === 0 &&
 		edit.title === null &&
 		edit.watermark === null &&
+		!edit.captionsOn &&
 		(edit.clips === null ||
 			(otherClips.length === 0 &&
 				otherRanges.length === 0 &&

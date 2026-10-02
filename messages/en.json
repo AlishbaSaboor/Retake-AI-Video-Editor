@@ -79,6 +79,8 @@
 				"title": "I'll show the title “{text}” from {start} to {end} of the edited video.",
 				"watermarkNew": "I'll put your logo in the {corner} corner for the whole video. Choose the PNG next.",
 				"watermarkMove": "I'll move the watermark to the {corner} corner.",
+				"captionsOn": "I'll turn captions on, from the transcript.",
+				"captionsOff": "I'll turn captions off.",
 				"apply": "Apply",
 				"cancel": "Cancel"
 			},
@@ -96,6 +98,7 @@
 				"trimToEnd": "Keep from a point to the end: “cut from 3 seconds to the end”",
 				"addTitle": "Add a title card: “add the title Welcome for the first 3 seconds”",
 				"addWatermark": "Add a logo watermark: “put my logo in the top-right corner”",
+				"captions": "Turn captions on or off: “turn captions on”",
 				"editorIntro": "In the editor itself, you can also:",
 				"cleanup": "Remove long silences and filler words with Clean up recording",
 				"fillerCut": "Cut a single filler word by clicking its flag on the timeline",
@@ -149,6 +152,8 @@
 			"addLogo": "Add logo (PNG)",
 			"replaceLogo": "Replace logo",
 			"removeWatermark": "Remove watermark",
+			"captions": "Captions",
+			"captionsHint": "From the transcript, over the bottom of the video.",
 			"logoInput": "Logo image",
 			"watermarkAlt": "Watermark",
 			"notAPng": {

@@ -19,7 +19,13 @@ type CommandReplyProps = {
 // What the editor can really do today, for the "I can't do that yet" reply.
 // Typed commands can trim and add graphics; the rest is listed as where to
 // find it, so the reply never implies a command that doesn't exist.
-const COMMAND_ABILITIES = ['trimRange', 'trimToEnd', 'addTitle', 'addWatermark'] as const
+const COMMAND_ABILITIES = [
+	'trimRange',
+	'trimToEnd',
+	'addTitle',
+	'addWatermark',
+	'captions'
+] as const
 const EDITOR_ABILITIES = [
 	'cleanup',
 	'fillerCut',
@@ -54,6 +60,8 @@ export function CommandReply({
 				end: formatTimecode(plan.title.startSeconds + plan.title.durationSeconds)
 			})
 		}
+		if (plan.kind === 'captions')
+			return plan.on ? t('confirm.captionsOn') : t('confirm.captionsOff')
 		if (plan.kind === 'watermark') {
 			const corner = t(`corners.${plan.corner}`)
 			return hasWatermark

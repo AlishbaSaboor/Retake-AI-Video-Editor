@@ -1,7 +1,12 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
+import { captionAt } from './captions'
 import {
+	CAPTION_BOTTOM_FRACTION,
+	CAPTION_FONT_FRACTION,
+	CAPTION_LINE_SCALE,
+	CAPTION_PADDING_SCALE,
 	fitInside,
 	TITLE_BAND_COLOR,
 	TITLE_BAND_SCALE,
@@ -23,14 +28,15 @@ type OverlayPreviewProps = {
 }
 
 /**
- * The title and watermark over the player, where the export draws them:
+ * The title, captions and watermark over the player, where the export draws them:
  * the same geometry, sized against the picture's own box (container query
  * units), so they scale with the player and skip its letterbox bars.
  */
 export function OverlayPreview({ overlays, editedSeconds, picture }: OverlayPreviewProps) {
 	const t = useTranslations('Editor.graphics')
 	const box = fitInside(picture.width / picture.height, FRAME_RATIO)
-	const { title, watermark } = overlays
+	const { title, watermark, captions } = overlays
+	const caption = captionAt(captions, editedSeconds)
 	const logo = watermark && watermarkRect(watermark, picture.width, picture.height)
 	return (
 		<div
@@ -51,6 +57,28 @@ export function OverlayPreview({ overlays, editedSeconds, picture }: OverlayPrev
 					}}
 				>
 					{title.text}
+				</div>
+			)}
+			{caption && (
+				<div
+					className="absolute inset-x-0 flex flex-col items-center font-sans font-bold text-white"
+					style={{
+						bottom: `${CAPTION_BOTTOM_FRACTION * PERCENT}cqh`,
+						fontSize: `${CAPTION_FONT_FRACTION * PERCENT}cqh`,
+						lineHeight: CAPTION_LINE_SCALE
+					}}
+				>
+					{caption.lines.map((line, index) => (
+						<span
+							key={index}
+							style={{
+								background: TITLE_BAND_COLOR,
+								padding: `0 ${CAPTION_PADDING_SCALE}em`
+							}}
+						>
+							{line}
+						</span>
+					))}
 				</div>
 			)}
 			{watermark && logo && (
