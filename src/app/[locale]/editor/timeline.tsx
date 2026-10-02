@@ -39,6 +39,7 @@ type TimelineProps = {
 	replacedSpans: SourceRange[]
 	onSeek: (seconds: number) => void
 	onTrimChange: (edge: TrimEdge, seconds: number) => void
+	onTrimDraggingChange: (dragging: boolean) => void
 	/** A filler flag was clicked: open its cut editor. */
 	onEditFiller: (plan: FillerPlan) => void
 }
@@ -61,6 +62,7 @@ export function Timeline({
 	replacedSpans,
 	onSeek,
 	onTrimChange,
+	onTrimDraggingChange,
 	onEditFiller
 }: TimelineProps) {
 	const t = useTranslations('Editor.timeline')
@@ -210,6 +212,7 @@ export function Timeline({
 						label={t('trimStartLabel')}
 						timeAtPointer={timeAtPointer}
 						onChange={onTrimChange}
+						onDraggingChange={onTrimDraggingChange}
 					/>
 					<TrimHandle
 						edge="end"
@@ -218,6 +221,7 @@ export function Timeline({
 						label={t('trimEndLabel')}
 						timeAtPointer={timeAtPointer}
 						onChange={onTrimChange}
+						onDraggingChange={onTrimDraggingChange}
 					/>
 					{silences.map((silence) => (
 						<TimelineFlag

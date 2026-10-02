@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { ReplaceIcon } from '@/components/ui/icons'
@@ -13,6 +13,7 @@ import { CommandBar } from './command-bar'
 import { ExportButton } from './export-button'
 import { FillerCutEditor } from './filler-cut-editor'
 import { cutEditorWindow, initialCutRange, moveCutEdge, type FillerPlan } from './filler-cuts'
+import { emptyHistory, record, redo, undo, type Step } from './history'
 import { previewWindow, reRecordBlocker, type ReplacementTake } from './re-record'
 import { ReRecordPanel } from './re-record-panel'
 import { planSentenceSplice, type SplicePlan } from './sentence-splice'
@@ -37,8 +38,13 @@ import { VideoFileInput } from './video-file-input'
 
 type LoadedVideo = { file: File; url: string; name: string }
 
-/** Everything Undo restores: what's removed, and what's re-recorded. */
-type UndoState = { edit: Edit; replacements: ReplacementTake[] }
+/** One step of Undo/Redo: what's trimmed, cut, arranged and re-recorded. */
+type EditSnapshot = {
+	trim: TrimRange | null
+	cuts: Cut[]
+	clips: Clip[] | null
+	replacements: ReplacementTake[]
+}
 
 const overlaps = (a: SourceRange, b: SourceRange) =>
 	a.startSeconds < b.endSeconds && a.endSeconds > b.startSeconds
@@ -68,11 +74,8 @@ export function VideoEditor() {
 	const range: TrimRange = trim ?? { startSeconds: 0, endSeconds: durationSeconds }
 	const analysis = useTakeAnalysis(video)
 	// Source ranges playback skips, from "Clean up recording". Like trim, a
-	// cut never touches the file; `undoState` is the edit (and re-recorded
-	// takes) from just before the last clean-up, filler cut or re-record,
-	// restored in one step by Undo.
+	// cut never touches the file.
 	const [cuts, setCuts] = useState<Cut[]>([])
-	const [undoState, setUndoState] = useState<UndoState | null>(null)
 	const edit: Edit = { trim: range, cuts }
 	// Re-recorded sentences, each heard over its span instead of the source.
 	const [replacements, setReplacements] = useState<ReplacementTake[]>([])
@@ -93,6 +96,12 @@ export function VideoEditor() {
 	// Null until the first split, meaning "the whole take as one clip".
 	const [clips, setClips] = useState<Clip[] | null>(null)
 	const sequence = clips ?? wholeTake(durationSeconds)
+	// Every edit records the snapshot from just before it, so Undo and Redo
+	// step through them (history.ts). A trim drag records once, at its first
+	// real move; each arrow-key nudge is a step of its own.
+	const [history, setHistory] = useState(emptyHistory<EditSnapshot>)
+	const snapshot: EditSnapshot = { trim, cuts, clips, replacements }
+	const trimDragRef = useRef<{ recorded: boolean } | null>(null)
 	// The filler cut editor: which filler is open and where its handles sit.
 	// A preview plays just the editor's window, straight through the source
 	// (clip order doesn't apply to it), with the pending cut skipped or not.
@@ -169,7 +178,7 @@ export function VideoEditor() {
 		setClips(null)
 		setCuts([])
 		setReplacements([])
-		setUndoState(null)
+		setHistory(emptyHistory())
 		setCutEditor(null)
 		setPreview(null)
 		setReRecord(null)
@@ -202,7 +211,7 @@ export function VideoEditor() {
 
 	// Sets a new trim and pauses on the given frame so the preview shows the
 	// cut. Not through seek(): that clamps to the range from before this change.
-	function applyTrim(next: TrimRange, previewAt: number) {
+	function applyTrim(next: TrimRange | null, previewAt: number) {
 		setTrim(next)
 		const element = videoRef.current
 		if (element) {
@@ -235,12 +244,10 @@ export function VideoEditor() {
 		element.play().catch(() => setPreview(null))
 	}
 
-	// One step on the same undo as clean-up: Undo restores the edit from
-	// just before this cut.
 	function applyFillerCut() {
 		if (!cutEditor) return
 		videoRef.current?.pause()
-		setUndoState({ edit, replacements })
+		recordEdit()
 		setCuts(mergeCuts([...cuts, cutEditor.range]))
 		setCutEditor(null)
 		setPreview(null)
@@ -281,13 +288,12 @@ export function VideoEditor() {
 		element.play().catch(() => setTakePreview(null))
 	}
 
-	// One step on the same undo as clean-up. A take for a sentence that
-	// already has one replaces it.
+	// A take for a sentence that already has one replaces it.
 	function applyReRecord() {
 		const take = reRecord?.take
 		if (!take) return
 		videoRef.current?.pause()
-		setUndoState({ edit, replacements })
+		recordEdit()
 		setReplacements([...otherReplacements, take])
 		setReRecord(null)
 		setTakePreview(null)
@@ -303,22 +309,65 @@ export function VideoEditor() {
 	// divides the clip under the playhead into two that can be rearranged.
 	function splitAtPlayhead() {
 		const next = splitClipAt(sequence, currentTimeSeconds, () => crypto.randomUUID(), replacements)
-		if (next) setClips(next)
+		if (next) arrangeClips(next)
+	}
+
+	// Reorder and merge hand back the same clips when nothing moves.
+	function arrangeClips(next: Clip[]) {
+		if (next === sequence) return
+		recordEdit()
+		setClips(next)
 	}
 
 	function applyCleanup() {
-		setUndoState({ edit, replacements })
+		recordEdit()
 		setCuts(cleanupPlan.cuts)
 		applyTrim(cleanupPlan.trim, cleanupPlan.trim.startSeconds)
 	}
 
-	function undo() {
-		if (!undoState) return
-		setCuts(undoState.edit.cuts)
-		setReplacements(undoState.replacements)
-		applyTrim(undoState.edit.trim, undoState.edit.trim.startSeconds)
-		setUndoState(null)
+	function recordEdit() {
+		setHistory(record(history, snapshot))
 	}
+
+	function undoEdit() {
+		const step = undo(history, snapshot)
+		if (step) restore(step)
+	}
+
+	function redoEdit() {
+		const step = redo(history, snapshot)
+		if (step) restore(step)
+	}
+
+	function restore(step: Step<EditSnapshot>) {
+		setHistory(step.history)
+		setCuts(step.restore.cuts)
+		setClips(step.restore.clips)
+		setReplacements(step.restore.replacements)
+		applyTrim(step.restore.trim, step.restore.trim?.startSeconds ?? 0)
+	}
+
+	// Ctrl/⌘+Z undoes; Ctrl/⌘+Shift+Z or Ctrl+Y redoes. Not while typing:
+	// there they're the text field's own undo.
+	const handleShortcut = useEffectEvent((event: KeyboardEvent) => {
+		if (!(event.ctrlKey || event.metaKey) || event.altKey) return
+		const target = event.target
+		if (
+			target instanceof HTMLElement &&
+			(target.isContentEditable || target.closest('input, textarea, select'))
+		)
+			return
+		const key = event.key.toLowerCase()
+		const action =
+			key === 'z' ? (event.shiftKey ? redoEdit : undoEdit) : key === 'y' ? redoEdit : null
+		if (!action) return
+		event.preventDefault()
+		action()
+	})
+	useEffect(() => {
+		window.addEventListener('keydown', handleShortcut)
+		return () => window.removeEventListener('keydown', handleShortcut)
+	}, [])
 
 	function stopPlaying() {
 		setIsPlaying(false)
@@ -328,6 +377,11 @@ export function VideoEditor() {
 
 	function handleTrimChange(edge: TrimEdge, seconds: number) {
 		const next = moveTrimEdge(range, edge, seconds, durationSeconds)
+		const changed = next.startSeconds !== range.startSeconds || next.endSeconds !== range.endSeconds
+		if (changed && !trimDragRef.current?.recorded) {
+			recordEdit()
+			if (trimDragRef.current) trimDragRef.current.recorded = true
+		}
 		applyTrim(next, edge === 'start' ? next.startSeconds : next.endSeconds)
 	}
 
@@ -376,7 +430,10 @@ export function VideoEditor() {
 					{hasDuration && (
 						<CommandBar
 							durationSeconds={durationSeconds}
-							onTrim={(next) => applyTrim(next, next.startSeconds)}
+							onTrim={(next) => {
+								recordEdit()
+								applyTrim(next, next.startSeconds)
+							}}
 						/>
 					)}
 					<div className="border-border mx-auto w-full max-w-3xl overflow-hidden rounded-2xl border bg-black shadow-2xl">
@@ -415,9 +472,11 @@ export function VideoEditor() {
 					silenceCount={analysis.silences.length}
 					fillerCutCount={fillerCuts.length}
 					fillerReviewCount={analysis.fillerPlans.length - fillerCuts.length}
-					canUndo={undoState !== null}
+					canUndo={history.past.length > 0}
+					canRedo={history.future.length > 0}
 					onApply={applyCleanup}
-					onUndo={undo}
+					onUndo={undoEdit}
+					onRedo={redoEdit}
 				/>
 			)}
 			<Timeline
@@ -431,6 +490,9 @@ export function VideoEditor() {
 				fillerPlans={analysis.fillerPlans}
 				onSeek={playback.seek}
 				onTrimChange={handleTrimChange}
+				onTrimDraggingChange={(dragging) => {
+					trimDragRef.current = dragging ? { recorded: false } : null
+				}}
 				onEditFiller={openCutEditor}
 			/>
 			{video && hasDuration && (
@@ -441,8 +503,8 @@ export function VideoEditor() {
 					currentTimeSeconds={currentTimeSeconds}
 					canSplit={canSplitAt(sequence, currentTimeSeconds, replacements)}
 					onSplit={splitAtPlayhead}
-					onMove={(from, to) => setClips(moveClip(sequence, from, to))}
-					onMerge={(from, to) => setClips(mergeClips(sequence, from, to))}
+					onMove={(from, to) => arrangeClips(moveClip(sequence, from, to))}
+					onMerge={(from, to) => arrangeClips(mergeClips(sequence, from, to))}
 				/>
 			)}
 			{cutEditor && cutWindow && analysis.loudness && (

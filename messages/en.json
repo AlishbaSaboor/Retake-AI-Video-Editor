@@ -30,7 +30,8 @@
 			"fillersForReview": "{count, plural, one {# filler word runs} other {# filler words run}} straight into the next word with no clear pause, so {count, plural, one {it stays} other {they stay}} flagged (outlined) for you to cut by hand.",
 			"apply": "Apply clean-up",
 			"cancel": "Cancel",
-			"undo": "Undo last change"
+			"undo": "Undo last change",
+			"redo": "Redo"
 		},
 		"fillerCut": {
 			"label": "Cut editor for \"{word}\"",

@@ -6,8 +6,12 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **Read this first: where things stand right now**
 >
-> - Branch `main`, in sync with `origin/main`. Updated 2026-10-02 (second
+> - Branch `main`, in sync with `origin/main`. Updated 2026-10-02 (third
 >   session of the day).
+> - **Full undo/redo** (section 3c): Undo and Redo buttons, Ctrl+Z and
+>   Ctrl+Shift+Z / Ctrl+Y, a 50-step history over trim, cuts, clips and
+>   re-recorded takes. Not committed yet at the time of writing; the user
+>   approves each commit.
 > - **Since then (`4574ee4`):** a live mic meter in the Record panel, a
 >   hint to pause before Stop, and a take cut off mid-speech is refused. The
 >   ±12 dB gain cap was confirmed as the cause of the level shortfall and
@@ -118,8 +122,9 @@ separate `chore(logs)` commit.
 | Splice in a pause that contains the transcriber's sentence edge                                   | `15cd03e` | 2 more unit tests: a stretched edge splices at the real speech; a pause merely near the edge is still not used (a mutation removing the rule fails the first). On real `Cap.mp4`: 11 of 30 sentences spliceable, was 6. Full e2e 17/17 twice.                                                                                                                                                                                                                                                                                                                                                        |
 | Re-record a sentence and splice the take in (audio-only v1)                                       | `e42ad94` | Unit tests for the take model (shorter take cuts the picture, longer holds it, reorder, cut inside a span, span not kept, split refused) and take prep (trim, Stop click, no speech, gain cap, blockers). e2e with a fake mic (`e2e/re-record.spec.ts`): blocked sentence shows its reason; Cancel and Undo restore; in the editor the video is silent under the take and holds its frame; the export has 880 Hz only where the takes are and 440 Hz elsewhere, length within 0.25 s (a mutation leaving the original sound on fails it). Real seams on `Cap.mp4`: section 3b. Full e2e 18/18 twice. |
 | Live mic meter while re-recording; refuse a take cut off mid-speech                               | `4574ee4` | Unit tests for the meter's dB scale and for `stoppedMidSpeech` (speech into the Stop guard caught; a pause, even with the Stop click in it, not). e2e: the meter rises from silence for the fake mic's tone (removing the meter fails it). Fake mic of continuous real speech: the panel refuses the take with the "still speaking" message and offers no Use new take. Full e2e 18/18 twice.                                                                                                                                                                                                        |
+| Full undo/redo: a 50-step history of every edit, Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y                   | (pending) | 5 unit tests (`history.test.mts`): undo then redo walks every step; a new edit after an undo clears the redo branch; the cap keeps the last 50 and drops the oldest; an undone take is redone as the same object, audio and all. e2e (`e2e/re-record.spec.ts`): re-record, trim, split, reorder, then undo all four and redo all four (button, Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y), checking the exact timeline and the exported length at every step; Ctrl+Z in the command bar doesn't touch the edit; a new edit ends the redo branch.                                                                  |
 
-**Current totals:** 187 unit tests (`src/**/*.test.mts`) and 18 e2e tests.
+**Current totals:** 192 unit tests (`src/**/*.test.mts`) and 19 e2e tests.
 Everything passes locally. On the meter commit the full e2e suite passed
 18/18 in each of two runs.
 
@@ -259,8 +264,9 @@ locally, and the user explicitly did not want a hosted Supabase account.
 3. Record, Stop, then Play original / Play with new take (the sentence plus
    1 s either side), Record again, Cancel, or **Use new take**.
 4. The take plays in the editor and in export. **Undo last change** (the
-   shared button, renamed from "Undo last cut") takes it back in one step:
-   the undo slot is now `{ edit, replacements }` for clean-up, filler cut
+   shared button, renamed from "Undo last cut") takes it back in one step
+   (now one step of the full history, section 3c):
+   the undo slot was `{ edit, replacements }` for clean-up, filler cut
    and re-record alike. Re-recording the same sentence again replaces its
    take.
 
@@ -391,6 +397,40 @@ file's top level; the editor specs' helpers moved to `e2e/editor-helpers.ts`.
 Its test video's pauses hold a faint tone (`quietLevel`, ~-57 dBFS): against
 digital silence the encoder's fade-out after each tone reads as sound for
 ~0.3 s and pushes every pause's start back, which a real room never does.
+
+---
+
+## 3c. Undo and redo (full history)
+
+- **Snapshots, not actions** (`history.ts`): every edit is immutable state
+  that never touches the source, so a step is a snapshot of it,
+  `{ trim, cuts, clips, replacements }`, and restoring one can't drift the
+  way replaying inverse actions could. `History = { past, future }`; the
+  present is the live state. An edit pushes the present onto `past` and
+  clears `future`; Undo and Redo move it between the two.
+- **Every edit is a step:** trim (a drag is one step, recorded at its first
+  real move; each arrow-key nudge is one; a typed command's trim is one),
+  clean-up, filler cut, split, reorder, merge, re-record. A reorder or merge
+  that changes nothing isn't recorded (`moveClip`/`mergeClips` return the
+  same array).
+- **Re-recorded takes** are kept alive by the snapshots that reference
+  them: Undo moves a take into `future`, Redo brings back the same
+  `ReplacementTake` (and its `AudioBuffer`). A take is freed once no step
+  holds it: a new edit after an undo, the cap, or loading another video.
+- **Cap: 50 steps** (`HISTORY_LIMIT`). Far more than a session undoes
+  through; a step is a few numbers except a take's audio (a few MB), so it
+  bounds that on this 7.5 GB machine.
+- **Buttons** sit where Undo was, in the clean-up bar: Undo last change and
+  Redo, each shown only when there's something to undo or redo. **Shortcuts:**
+  Ctrl/⌘+Z, Ctrl/⌘+Shift+Z, Ctrl+Y, on `window` via `useEffectEvent`; ignored
+  when focus is in an input, textarea, select or contenteditable, so the
+  command bar keeps its own text undo.
+- Undo and Redo pause the video on the restored trim's start, as Undo did.
+- History lives in memory with the edit, so a reload loses both.
+- **e2e:** the two fake-mic tests in `e2e/re-record.spec.ts` run one after
+  the other (`mode: 'default'`). Run in parallel, the undo test's nine
+  real-time exports starved the other's page (a 50 ms meter poll answered
+  370 ms late) and its take came out 0.9 s, not the asserted 1.0 s.
 
 ---
 
@@ -572,6 +612,14 @@ Other one-offs, also unexplained:
   crash with `EPIPE` and every page returns 500. Start it with the longest
   timeout, or restart it when that happens.
 
+### 4e. The session-log hook can rewrite the previous session's log
+
+The hook logs the most recently changed transcript, so the first message
+of a new session can rewrite the previous session's log (seen 2026-10-02:
+it dropped transcript entries). After any session switch, run
+`python3 ~/.claude/extract-log.py` by hand and check `git diff .claude-logs/`
+shows additions only.
+
 ---
 
 ## 5. Remaining queue (as originally given) and status
@@ -587,6 +635,7 @@ Other one-offs, also unexplained:
 8. ~~Re-record and splice (audio-only v1)~~: done (`3df2f89`, `15cd03e`,
    `e42ad94`; section 3b). Next, when the user approves: set-by-ear splice
    handles for sentences without a clean pause.
+9. Full undo/redo: built (section 3c), awaiting the user's commit approval.
 
 Not yet queued by the user:
 
@@ -598,7 +647,12 @@ Not yet queued by the user:
 
 ## 6. Standing rules (carry these forward)
 
-- **Commit code and session logs separately.**
+- **Never commit or push on your own** (user's rule, 2026-10-02). Do the
+  work and the checks, show a summary (files changed, tests, `git diff
+--stat`) and ask before committing, then ask again before pushing. One
+  commit per finished piece of work (e.g. all of undo/redo), not per step.
+- **Commit code and session logs separately.** `git diff .claude-logs/`
+  must show additions only before a logs commit.
   - One `feat(...)` commit per feature (Conventional Commits).
   - Then run `python3 ~/.claude/extract-log.py` to refresh `.claude-logs/`.
   - Leak-check it with: `grep -rhoE 'sb_secret_[A-Za-z0-9_-]{10,}|sb_publishable_[A-Za-z0-9_-]{10,}|eyJhbGciOi[A-Za-z0-9_.-]{20,}|AIza[0-9A-Za-z_-]{35}' .claude-logs/`.

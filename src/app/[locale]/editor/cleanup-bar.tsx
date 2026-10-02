@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-import { CleanupIcon, UndoIcon } from '@/components/ui/icons'
+import { CleanupIcon, RedoIcon, UndoIcon } from '@/components/ui/icons'
 
 type CleanupBarProps = {
 	/** Seconds that clean-up would remove now; 0 when there's nothing to remove. */
@@ -14,14 +14,17 @@ type CleanupBarProps = {
 	/** Filler words with no clear gap — left flagged for a manual cut. */
 	fillerReviewCount: number
 	canUndo: boolean
+	canRedo: boolean
 	onApply: () => void
 	onUndo: () => void
+	onRedo: () => void
 }
 
 /**
  * "Clean up recording": removes every flagged silence, and every filler word
  * with a clear gap around it, in one go — after showing how much time that
- * takes out. Undo restores the edit from before.
+ * takes out. Undo and Redo step back and forth through every edit, this
+ * one included.
  */
 export function CleanupBar({
 	removableSeconds,
@@ -29,8 +32,10 @@ export function CleanupBar({
 	fillerCutCount,
 	fillerReviewCount,
 	canUndo,
+	canRedo,
 	onApply,
-	onUndo
+	onUndo,
+	onRedo
 }: CleanupBarProps) {
 	const t = useTranslations('Editor.cleanup')
 	const [isConfirming, setIsConfirming] = useState(false)
@@ -87,12 +92,25 @@ export function CleanupBar({
 			<span className="text-text-muted text-xs">
 				{removableSeconds > 0 ? t('hint') : t('nothing')}
 			</span>
-			{canUndo && (
-				<Button variant="ghost" size="sm" className="ml-auto" onClick={onUndo}>
-					<UndoIcon />
-					{t('undo')}
-				</Button>
-			)}
+			<div className="ml-auto flex gap-2">
+				{canUndo && (
+					<Button variant="ghost" size="sm" aria-keyshortcuts="Control+Z" onClick={onUndo}>
+						<UndoIcon />
+						{t('undo')}
+					</Button>
+				)}
+				{canRedo && (
+					<Button
+						variant="ghost"
+						size="sm"
+						aria-keyshortcuts="Control+Shift+Z Control+Y"
+						onClick={onRedo}
+					>
+						<RedoIcon />
+						{t('redo')}
+					</Button>
+				)}
+			</div>
 		</div>
 	)
 }

@@ -22,6 +22,7 @@ import {
 	ArrowsClockwise,
 	ArrowsInLineHorizontal,
 	ArrowUUpLeft,
+	ArrowUUpRight,
 	ArrowSquareOut,
 	Broom,
 	Calendar,
@@ -126,6 +127,7 @@ export const MicIcon = (props: IconProps) => <Glyph source={Microphone} {...prop
 export const MinusIcon = (props: IconProps) => <Glyph source={Minus} {...props} />
 export const MoreIcon = (props: IconProps) => <Glyph source={DotsThreeVertical} {...props} />
 export const PlusIcon = (props: IconProps) => <Glyph source={Plus} {...props} />
+export const RedoIcon = (props: IconProps) => <Glyph source={ArrowUUpRight} {...props} />
 export const ReplaceIcon = (props: IconProps) => <Glyph source={ArrowsClockwise} {...props} />
 export const SearchIcon = (props: IconProps) => <Glyph source={MagnifyingGlass} {...props} />
 export const SettingsIcon = (props: IconProps) => <Glyph source={Gear} {...props} />

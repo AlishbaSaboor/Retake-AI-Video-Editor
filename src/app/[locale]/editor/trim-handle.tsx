@@ -15,6 +15,8 @@ type TrimHandleProps = {
 	/** Converts a pointer x position into a time along the handle's track. */
 	timeAtPointer: (clientX: number) => number
 	onChange: (edge: TrimEdge, seconds: number) => void
+	/** A pointer drag began (true) or ended (false), so it can count as one change. */
+	onDraggingChange?: (dragging: boolean) => void
 	/** The span the handle's track shows, when zoomed in; defaults to the whole clip. */
 	view?: { startSeconds: number; endSeconds: number }
 	/** Arrow-key steps in seconds (Shift for large); defaults to trim steps. */
@@ -31,6 +33,7 @@ export function TrimHandle({
 	label,
 	timeAtPointer,
 	onChange,
+	onDraggingChange,
 	view = { startSeconds: 0, endSeconds: durationSeconds },
 	steps = TRIM_STEPS,
 	className = 'top-9 h-16'
@@ -67,7 +70,9 @@ export function TrimHandle({
 			}}
 			onPointerDown={(event) => {
 				event.currentTarget.setPointerCapture(event.pointerId)
+				onDraggingChange?.(true)
 			}}
+			onLostPointerCapture={() => onDraggingChange?.(false)}
 			onPointerMove={(event) => {
 				if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
 				onChange(edge, timeAtPointer(event.clientX))
