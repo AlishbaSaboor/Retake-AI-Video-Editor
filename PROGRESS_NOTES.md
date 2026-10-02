@@ -8,6 +8,10 @@ session with no memory of it can carry on. Read this whole file, then
 >
 > - Branch `main`, in sync with `origin/main`. Updated 2026-10-02 (second
 >   session of the day).
+> - **Since then (`4574ee4`):** a live mic meter in the Record panel, a
+>   hint to pause before Stop, and a take cut off mid-speech is refused. The
+>   ±12 dB gain cap was confirmed as the cause of the level shortfall and
+>   kept (section 3b, "Gain").
 > - **Re-record and splice, audio-only v1, is committed** in `e42ad94`
 >   (section 3b): click the mic beside a transcript sentence, record, preview,
 >   Use new take / Cancel; it plays in the editor and in export, and Undo
@@ -113,9 +117,10 @@ separate `chore(logs)` commit.
 | Re-record and splice, slice 1: where a replacement sentence is spliced in (logic only, no UI yet) | `3df2f89` | 5 unit tests (`sentence-splice.test.mts`): joins land inside the real pauses even with the transcriber ~100 ms off, a long pause is only nibbled, no pause means review; a mutation to raw timestamps fails 2 of them. The gap search moved to `audio-gaps.ts`; `planFillerCut` output checked identical on 36,910 spans over four real recordings. Full e2e 17/17 twice.                                                                                                                                                                                                                            |
 | Splice in a pause that contains the transcriber's sentence edge                                   | `15cd03e` | 2 more unit tests: a stretched edge splices at the real speech; a pause merely near the edge is still not used (a mutation removing the rule fails the first). On real `Cap.mp4`: 11 of 30 sentences spliceable, was 6. Full e2e 17/17 twice.                                                                                                                                                                                                                                                                                                                                                        |
 | Re-record a sentence and splice the take in (audio-only v1)                                       | `e42ad94` | Unit tests for the take model (shorter take cuts the picture, longer holds it, reorder, cut inside a span, span not kept, split refused) and take prep (trim, Stop click, no speech, gain cap, blockers). e2e with a fake mic (`e2e/re-record.spec.ts`): blocked sentence shows its reason; Cancel and Undo restore; in the editor the video is silent under the take and holds its frame; the export has 880 Hz only where the takes are and 440 Hz elsewhere, length within 0.25 s (a mutation leaving the original sound on fails it). Real seams on `Cap.mp4`: section 3b. Full e2e 18/18 twice. |
+| Live mic meter while re-recording; refuse a take cut off mid-speech                               | `4574ee4` | Unit tests for the meter's dB scale and for `stoppedMidSpeech` (speech into the Stop guard caught; a pause, even with the Stop click in it, not). e2e: the meter rises from silence for the fake mic's tone (removing the meter fails it). Fake mic of continuous real speech: the panel refuses the take with the "still speaking" message and offers no Use new take. Full e2e 18/18 twice.                                                                                                                                                                                                        |
 
-**Current totals:** 185 unit tests (`src/**/*.test.mts`) and 18 e2e tests.
-Everything passes locally. On the re-record commit the full e2e suite passed
+**Current totals:** 187 unit tests (`src/**/*.test.mts`) and 18 e2e tests.
+Everything passes locally. On the meter commit the full e2e suite passed
 18/18 in each of two runs.
 
 `pnpm test` also runs the repo's `scripts/*.test.mjs`. On this Windows
@@ -310,11 +315,8 @@ add a video here." at 0:25 of `Cap.mp4`, export through the app):
 
 - **Level:** the take's speech is **2.0 dB below the speech around it**
   (-21.5 vs -19.5 dBFS), within 3 dB. Against the sentence it replaced it is
-  **3.8 dB below** (-21.5 vs -17.7), outside 3 dB. The matching itself was
-  within 0.4 dB in a dry run (the user's original sentence fed in 8 dB
-  quieter), so the likeliest cause is the ±12 dB cap: the raw take would
-  have been ~16 dB quieter than the original. **Not confirmed**: that needs
-  one recording with the applied gain logged.
+  **3.8 dB below** (-21.5 vs -17.7), outside 3 dB. The next section shows
+  why: the ±12 dB cap.
 - No clicks, so **no fades were added** (as agreed).
 - Before/after WAVs for listening (3 s around each seam, and the whole
   sentence ±2 s) are in the second-session scratchpad:
@@ -322,6 +324,39 @@ add a video here." at 0:25 of `Cap.mp4`, export through the app):
   `real3-seam2-before.wav`, `real3-seam2-after.wav`,
   `real3-sentence-before.wav`, `real3-sentence-after.wav`. The `real2-*`
   files are the run with suppression off and the Stop click in the take.
+
+**Gain, confirmed with logged values** (`seam-check-gain.mts`, a fourth
+real take recorded the same way, 2026-10-02):
+
+- The script captures, in the page, the decoded take (wrapping
+  `decodeAudioData`) and every gain the app sets (wrapping `AudioParam`'s
+  `value` setter), then recomputes the levels with the app's own functions.
+  No logging was added to the app.
+- Original sentence: **-17.7 dBFS**. Raw take: **-31.6 dBFS**, so the take was
+  **13.8 dB quieter** (not ~16, the earlier guess). Gain needed +13.8 dB;
+  applied **+12.0 dB, the cap**, and the app set exactly that.
+- In the export the take sits at -20.1 dBFS: **2.4 dB under** the original
+  sentence (within 3 dB this time), the cap's withheld 1.8 dB accounting for
+  it. The third take's 3.8 dB shortfall fits a raw take ~15.8 dB quieter.
+- **Noise floor:** at the +12 dB applied, the take's quiet in the export is
+  -58.6 dB against the original's -59.4 dB. The full +13.8 dB would put it
+  ~2.6 dB above the original's. Not shown to be inaudible, so per the user's
+  rule **the cap stays at ±12 dB**.
+- That take also showed **a click at seam 2** (max jump 0.033, 5× anything
+  within 40 ms; 65× the high-frequency energy around it): the recording was
+  only 2.34 s, Stop came while "here" was still sounding (-25 to -30 dB up
+  to the cut), and the take ended mid-word. Fixed in `4574ee4`: such a take
+  is refused with a message to record again (`stoppedMidSpeech`), not cut.
+  Seam 1 had +60 ms of dead air (0.05 → 0.11 s); not investigated further.
+- One of the dry runs before it had a corrupted export (the take read 5 s,
+  the audio before the seam didn't match); a rerun was clean. It coincided
+  with heavy paging (section 4d), so judge each run by its alignment
+  correlation (≥ 0.99 when sound).
+
+**The Record panel** also shows a live mic meter while recording (an
+`AnalyserNode` on the mic stream, -60 to 0 dBFS; the bar is resized straight
+on the element each frame, not through state) and says to pause a moment
+before pressing Stop.
 
 **Splice points** (`sentence-splice.ts` on `audio-gaps.ts`, which filler
 cuts share): each join goes inside the real pause beside the sentence, at
@@ -340,10 +375,12 @@ handles.
   skips the picture. Fine for screen recordings and voice-over; visible on
   talking heads. Accepted by the user for v1.
 - Sentences without a clean pause on both sides can't be re-recorded yet.
-- Stopping while still speaking cuts the last 0.3 s of the take (preview
-  shows it).
+- Stopping while still speaking means recording again: the take is refused
+  rather than cut mid-word.
 - A take more than 12 dB quieter or louder than the original isn't fully
-  level-matched.
+  level-matched (a real one was 13.8 dB quieter and ended 2.4 dB short).
+- The take's speech is found against an absolute -40 dBFS line on its raw,
+  pre-gain level, so a very quiet speaker's softest edges count as quiet.
 - In the editor (not export), the joins are only as exact as the frame loop
   (~16 ms), and while a frame is held the native controls show "paused".
 - Takes live in memory; reloading loses them, as it does every edit.
@@ -482,6 +519,8 @@ Added 2026-10-02, in that day's second session scratchpad
 | `real-splice.mts` / `classify.mts` | Run `planSentenceSplice` over the real `Cap.mp4` transcript and audio saved by the earlier session, and classify why sentences were refused.                                                                               |
 | `rerun-splice.mts`                 | The same planner run after the contains-the-edge rule: counts spliceable sentences on `Cap.mp4` (Deepgram) and `fixture.wav` (exact timings).                                                                              |
 | `seam-check.mts`                   | **The real seam check** (section 3b). `fake <label>` feeds `fake-mic-take.wav` as the mic; `real <label>` opens headed Chrome for the user to record. Exports, measures both seams, writes before/after WAVs.              |
+| `seam-check-gain.mts`              | The same, plus the raw take's speech level, the gain needed, applied (and as set by the app), and the noise floor at each. Run 2026-10-02 as `real5`.                                                                      |
+| `check-cutoff.cjs`                 | Fake mic of continuous real speech: checks the panel refuses a take cut off by Stop.                                                                                                                                       |
 
 ### 4c. Dev-server pauses under e2e load: observed, cause unknown, not profiled
 
