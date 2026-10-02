@@ -86,6 +86,43 @@ test('a sentence that runs straight into the speech beside it is left for review
 	})
 })
 
+test('an edge the transcriber stretched into a pause is spliced in that pause, at the real speech', () => {
+	// speech (0-1) | pause 1.0-1.6 | sentence 1.6-2.6 | pause 2.6-3.2 | speech (3.2-4.2)
+	const pauses = audio([
+		[1, 'speech'],
+		[0.6, 'room'],
+		[1, 'speech'],
+		[0.6, 'room'],
+		[1, 'speech'],
+		[2, 'room']
+	])
+	// Reported edges 0.3 s inside each pause: too far for the search beside
+	// the edge, but each pause contains its edge.
+	const plan = planSentenceSplice(sentence(1.3, 2.9), pauses)
+	assert.equal(plan.kind, 'splice')
+	if (plan.kind !== 'splice') return
+	// Within 80 ms of the sentence's real speech, which the audio puts at 1.6-2.6.
+	assert.ok(plan.startSeconds >= 1.52 - 0.011 && plan.startSeconds <= 1.6, JSON.stringify(plan))
+	assert.ok(plan.endSeconds >= 2.6 && plan.endSeconds <= 2.68 + 0.011, JSON.stringify(plan))
+})
+
+test('a pause near the edge that does not contain it is still not used', () => {
+	// The pause ends at 1.0 and speech runs on from there; the transcriber
+	// says the sentence starts at 1.2, in that speech, 0.2 s past the pause.
+	const nearMiss = audio([
+		[0.8, 'speech'],
+		[0.2, 'room'],
+		[1.5, 'speech'],
+		[0.3, 'room'],
+		[1, 'speech'],
+		[2, 'room']
+	])
+	assert.deepEqual(planSentenceSplice(sentence(1.2, 2.5), nearMiss), {
+		kind: 'review',
+		reason: 'no_gap_before'
+	})
+})
+
 test('a long pause beside the sentence is only nibbled, so the original pacing is kept', () => {
 	const longPauses = audio([
 		[1, 'speech'],

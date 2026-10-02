@@ -64,6 +64,11 @@ export function gapAfter(runs: Gap[], seconds: number): Gap | undefined {
 	)
 }
 
+/** The gap a transcriber's edge falls inside, if any: the word was stretched into the pause. */
+export function gapContaining(runs: Gap[], seconds: number): Gap | undefined {
+	return runs.find((r) => r.startSeconds <= seconds && r.endSeconds >= seconds)
+}
+
 /**
  * Where an edit removing the speech between two gaps should start and end:
  * inside each gap, at its middle or MAX_GAP_TRIM_SECONDS from the speech,
