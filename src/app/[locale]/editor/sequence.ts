@@ -68,6 +68,26 @@ export function moveClip(clips: Clip[], from: number, to: number): Clip[] {
 }
 
 /**
+ * Joins clips `from` through `to` (inclusive, from < to) into one, keeping
+ * the first one's id. Ranges that touch in the source become one again, so
+ * merging what a split divided restores the original clip exactly.
+ */
+export function mergeClips(clips: Clip[], from: number, to: number): Clip[] {
+	const first = clips[from]
+	if (!first || from >= to || to >= clips.length) return clips
+	const ranges: SourceRange[] = []
+	for (const range of clips.slice(from, to + 1).flatMap((c) => c.ranges)) {
+		const last = ranges.at(-1)
+		if (last && Math.abs(last.endSeconds - range.startSeconds) < EPSILON_SECONDS) {
+			ranges[ranges.length - 1] = { ...last, endSeconds: range.endSeconds }
+		} else {
+			ranges.push(range)
+		}
+	}
+	return [...clips.slice(0, from), { id: first.id, ranges }, ...clips.slice(to + 1)]
+}
+
+/**
  * Which clip a source time belongs to: the one with a range containing it,
  * or — at the very end of a range, where playback stops — the one it ends.
  */

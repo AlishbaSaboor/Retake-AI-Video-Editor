@@ -14,6 +14,7 @@ import { cutEditorWindow, initialCutRange, moveCutEdge, type FillerPlan } from '
 import { Timeline } from './timeline'
 import {
 	canSplitAt,
+	mergeClips,
 	moveClip,
 	playableSegments,
 	splitClipAt,
@@ -307,6 +308,7 @@ export function VideoEditor() {
 					canSplit={canSplitAt(sequence, currentTimeSeconds)}
 					onSplit={splitAtPlayhead}
 					onMove={(from, to) => setClips(moveClip(sequence, from, to))}
+					onMerge={(from, to) => setClips(mergeClips(sequence, from, to))}
 				/>
 			)}
 			{cutEditor && cutWindow && analysis.loudness && (

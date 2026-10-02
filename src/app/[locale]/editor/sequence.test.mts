@@ -4,6 +4,7 @@ import type { Edit } from './cleanup'
 import {
 	canSplitAt,
 	clipIndexAt,
+	mergeClips,
 	moveClip,
 	clipPlayedSeconds,
 	playableSegments,
@@ -70,6 +71,41 @@ test('moving a clip shifts the ones between, and an impossible move changes noth
 	assert.equal(moveClip(clips, 1, 1), clips)
 	assert.equal(moveClip(clips, 0, 3), clips)
 	assert.equal(moveClip(clips, -1, 0), clips)
+})
+
+test('merging what a split divided restores the original clip exactly', () => {
+	const split = splitClipAt(splitClipAt(wholeTake(DURATION), 3, newId) ?? [], 6, newId) ?? []
+	assert.equal(split.length, 3)
+	const merged = mergeClips(split, 0, 2)
+	assert.equal(merged.length, 1)
+	assert.deepEqual(merged[0]?.ranges, [{ startSeconds: 0, endSeconds: DURATION }])
+	assert.equal(merged[0]?.id, split[0]?.id)
+	// Merging part of the sequence leaves the rest alone.
+	const partly = mergeClips(split, 1, 2)
+	assert.deepEqual(partly[0], split[0])
+	assert.deepEqual(partly[1]?.ranges, [{ startSeconds: 3, endSeconds: DURATION }])
+})
+
+test('merging reordered clips keeps their ranges in playback order, and what plays is unchanged', () => {
+	const split = splitClipAt(wholeTake(DURATION), 4, newId) ?? []
+	const reordered = moveClip(split, 1, 0)
+	const merged = mergeClips(reordered, 0, 1)
+	assert.deepEqual(merged[0]?.ranges, [
+		{ startSeconds: 4, endSeconds: DURATION },
+		{ startSeconds: 0, endSeconds: 4 }
+	])
+	const edit = {
+		trim: { startSeconds: 1, endSeconds: 9 },
+		cuts: [{ startSeconds: 2, endSeconds: 5 }]
+	}
+	assert.deepEqual(playableSegments(merged, edit), playableSegments(reordered, edit))
+})
+
+test('an impossible merge changes nothing', () => {
+	const split = splitClipAt(wholeTake(DURATION), 4, newId) ?? []
+	assert.equal(mergeClips(split, 1, 1), split)
+	assert.equal(mergeClips(split, 1, 0), split)
+	assert.equal(mergeClips(split, 0, 2), split)
 })
 
 test('the clip at a time contains it, and the very end belongs to the clip it ends', () => {

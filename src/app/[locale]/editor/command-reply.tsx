@@ -18,7 +18,7 @@ type CommandReplyProps = {
 // Typed commands can only trim; the rest is listed as where to find it, so
 // the reply never implies a command that doesn't exist.
 const COMMAND_ABILITIES = ['trimRange', 'trimToEnd'] as const
-const EDITOR_ABILITIES = ['cleanup', 'fillerCut', 'handTrim', 'split', 'reorder'] as const
+const EDITOR_ABILITIES = ['cleanup', 'fillerCut', 'handTrim', 'split', 'reorder', 'merge'] as const
 
 /**
  * The bar's answer to a parsed command: the plan to confirm, or — when the
