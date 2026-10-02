@@ -493,6 +493,42 @@ test('an AI command shows what it understood and changes nothing until confirmed
 	await expect(input).toHaveValue('')
 })
 
+test('a command it cannot do gets a plain answer listing what it can, and changes nothing', async ({
+	page
+}) => {
+	await mockActions(page, {
+		words: [],
+		command: { action: 'unsupported', startSeconds: null, endSeconds: null }
+	})
+	await page.goto('/editor')
+	const video = await recordTestVideo(page, [[3, true]])
+	await page
+		.getByLabel('Choose a video file')
+		.setInputFiles({ name: 'take.webm', mimeType: 'video/webm', buffer: video })
+	const input = page.getByLabel('Edit command')
+	await expect(input).toBeVisible({ timeout: 30_000 })
+	const trimStart = page.getByRole('slider', { name: 'Trim start' })
+
+	await input.fill('add a title card that says hello')
+	await page.getByRole('button', { name: 'Run' }).click()
+	const reply = page.getByRole('status').filter({ hasText: 'You asked' })
+	await expect(reply).toContainText("I can't do that yet.")
+	await expect(reply).toContainText('Keep a time range')
+	await expect(reply).toContainText('Clean up recording')
+	await expect(reply.getByRole('button', { name: 'Apply' })).toHaveCount(0)
+	await expect(trimStart).toHaveAttribute('aria-valuenow', '0')
+	await reply.getByRole('button', { name: 'OK' }).click()
+	await expect(reply).toHaveCount(0)
+
+	// A trim it understood but that falls outside the clip is explained too.
+	await page.unrouteAll({ behavior: 'wait' })
+	await mockActions(page, { command: { action: 'trim', startSeconds: 8, endSeconds: 9 } })
+	await input.fill('cut from 8 to 9 seconds')
+	await page.getByRole('button', { name: 'Run' }).click()
+	await expect(page.getByText("That range isn't in this clip.")).toBeVisible()
+	await expect(trimStart).toHaveAttribute('aria-valuenow', '0')
+})
+
 test('a file that is not a video is rejected with a message', async ({ page }) => {
 	await page.goto('/editor')
 	await page.getByLabel('Choose a video file').setInputFiles({

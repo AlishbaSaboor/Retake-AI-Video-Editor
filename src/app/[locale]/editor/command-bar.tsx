@@ -8,8 +8,9 @@ import { AiIcon, SpinnerIcon } from '@/components/ui/icons'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/lib/toast'
 import { parseEditCommand } from './actions'
-import { commandToTrim } from './edit-command'
-import { formatTimecode, type TrimRange } from './timeline-scale'
+import { CommandReply } from './command-reply'
+import { commandToTrim, type CommandOutcome } from './edit-command'
+import type { TrimRange } from './timeline-scale'
 
 const AI_ICON_SIZE = 20
 
@@ -21,12 +22,13 @@ type CommandBarProps = {
 /**
  * Type an edit in plain English; Gemini parses it, and nothing changes until
  * the user confirms the plan it shows — an AI misreading a command should
- * cost a click on Cancel, not an Undo.
+ * cost a click on Cancel, not an Undo. A command it can't do gets a plain
+ * answer listing what it can, not an error.
  */
 export function CommandBar({ durationSeconds, onTrim }: CommandBarProps) {
 	const t = useTranslations('Editor.command')
 	const [command, setCommand] = useState('')
-	const [proposal, setProposal] = useState<{ command: string; range: TrimRange } | null>(null)
+	const [reply, setReply] = useState<{ command: string; outcome: CommandOutcome } | null>(null)
 
 	const parse = useMutation({
 		mutationFn: async (text: string) => {
@@ -35,28 +37,17 @@ export function CommandBar({ durationSeconds, onTrim }: CommandBarProps) {
 			return result.data
 		},
 		onSuccess: (parsed, text) => {
-			const outcome = commandToTrim(parsed, durationSeconds)
-			if (outcome.ok) {
-				setProposal({ command: text, range: outcome.range })
-				return
-			}
-			toast({
-				variant: 'destructive',
-				title: t(`${outcome.reason}.title`),
-				description: t(`${outcome.reason}.description`, {
-					duration: formatTimecode(durationSeconds)
-				})
-			})
+			setReply({ command: text, outcome: commandToTrim(parsed, durationSeconds) })
 		},
 		onError: (error) => {
 			toast({ variant: 'destructive', title: t('failed'), description: error.message })
 		}
 	})
 
-	function applyProposal() {
-		if (!proposal) return
-		onTrim(proposal.range)
-		setProposal(null)
+	function applyPlan() {
+		if (!reply?.outcome.ok) return
+		onTrim(reply.outcome.range)
+		setReply(null)
 		setCommand('')
 	}
 
@@ -69,7 +60,7 @@ export function CommandBar({ durationSeconds, onTrim }: CommandBarProps) {
 				onSubmit={(event) => {
 					event.preventDefault()
 					if (!command.trim()) return
-					setProposal(null)
+					setReply(null)
 					parse.mutate(command)
 				}}
 			>
@@ -93,36 +84,14 @@ export function CommandBar({ durationSeconds, onTrim }: CommandBarProps) {
 					{t('submit')}
 				</Button>
 			</form>
-			{proposal && (
-				<div
-					role="status"
-					className="border-accent/50 bg-surface flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 shadow-lg"
-				>
-					<div className="flex flex-col gap-0.5">
-						<p className="text-text-muted text-xs">
-							{t('confirm.asked', { command: proposal.command })}
-						</p>
-						<p className="text-text text-sm font-medium">
-							{t('confirm.plan', {
-								start: formatTimecode(proposal.range.startSeconds),
-								end: formatTimecode(proposal.range.endSeconds),
-								kept: (proposal.range.endSeconds - proposal.range.startSeconds).toFixed(1),
-								removed: (
-									durationSeconds -
-									(proposal.range.endSeconds - proposal.range.startSeconds)
-								).toFixed(1)
-							})}
-						</p>
-					</div>
-					<div className="ml-auto flex gap-2">
-						<Button variant="outline" size="sm" onClick={() => setProposal(null)}>
-							{t('confirm.cancel')}
-						</Button>
-						<Button size="sm" onClick={applyProposal}>
-							{t('confirm.apply')}
-						</Button>
-					</div>
-				</div>
+			{reply && (
+				<CommandReply
+					command={reply.command}
+					outcome={reply.outcome}
+					durationSeconds={durationSeconds}
+					onApply={applyPlan}
+					onDismiss={() => setReply(null)}
+				/>
 			)}
 		</div>
 	)
