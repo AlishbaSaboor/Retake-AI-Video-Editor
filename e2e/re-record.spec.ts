@@ -60,12 +60,23 @@ test.use({
 // and pushes every pause's start back.
 const ROOM_TONE = 0.002
 
-/** Records a take for the open re-record panel: about 2 s, so one 0.8 s tone. */
+/** Records a take for the open re-record panel: about 2 s, so one 0.8 s tone, watching the meter. */
 async function recordTake(page: Page) {
 	const panel = page.getByRole('region', { name: /^Re-record the sentence/ })
+	const started = Date.now()
 	await panel.getByRole('button', { name: /^Record/ }).click()
 	await expect(panel.getByText(/^Recording…/)).toBeVisible()
-	await page.waitForTimeout(2000)
+	// The meter follows the mic: from silence to clearly above it (louder than
+	// -42 dBFS) for the fake mic's tone, which the browser's noise suppression
+	// then fades, as it does any steady tone; real speech isn't faded.
+	const meter = panel.getByRole('meter', { name: 'Microphone level' })
+	await expect
+		.poll(async () => Number(await meter.getAttribute('aria-valuenow')), {
+			intervals: [50],
+			timeout: 2000
+		})
+		.toBeGreaterThan(30)
+	await page.waitForTimeout(Math.max(0, 2000 - (Date.now() - started)))
 	await panel.getByRole('button', { name: 'Stop' }).click()
 	await expect(panel.getByText(/^New take: 1\.0 s/)).toBeVisible({ timeout: 10_000 })
 	return panel
