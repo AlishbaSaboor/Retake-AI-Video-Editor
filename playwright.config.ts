@@ -3,6 +3,10 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
 	testDir: './e2e',
 	fullyParallel: true,
+	// Editor tests record real-time video in the browser. With one browser per
+	// core, the canvas recorders starve each other and produce clips with no
+	// frames; four in parallel keeps recordings intact.
+	workers: 4,
 	// A cold run compiles routes on demand per worker, which can take longer
 	// than Playwright's 30s default before anything is warm — an expiry there
 	// reads as a spurious failure rather than a real one.
