@@ -55,7 +55,13 @@
 		"command": {
 			"label": "Edit command",
 			"placeholder": "Try \"cut from 2 seconds to 5 seconds\"",
-			"submit": "Apply",
+			"submit": "Run",
+			"confirm": {
+				"asked": "You asked: “{command}”",
+				"plan": "I'll keep {start}–{end} ({kept} s) and remove the rest of the clip ({removed} s).",
+				"apply": "Apply",
+				"cancel": "Cancel"
+			},
 			"failed": "Couldn't run that command",
 			"unsupported": {
 				"title": "Can't do that yet",

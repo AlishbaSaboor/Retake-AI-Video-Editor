@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import type { EditCommand } from '../src/app/[locale]/editor/edit-command'
 import { toTranscript } from '../src/app/[locale]/editor/transcript'
 
 const RECORDING_SECONDS = 3
@@ -81,14 +82,6 @@ async function openEditorWithVideo(page: Page): Promise<void> {
 	})
 }
 
-/**
- * Answers the transcript Server Action with a canned transcript — built from
- * a word list by the app's own toTranscript — so fillers can be tested
- * without a Deepgram call. The request is still sent to the
- * real server — with its audio emptied, which fails input validation before
- * any AI call — so the reply comes back in this build's real Server Action
- * format, and only the result inside it is swapped for the canned one.
- */
 type TimedWord = { word: string; punctuated_word: string; start: number; end: number }
 
 /** A timed word, as the transcriber returns it. */
@@ -99,20 +92,36 @@ const w = (punctuated_word: string, start: number, end: number): TimedWord => ({
 	end
 })
 
-async function mockTranscript(page: Page, words: TimedWord[]): Promise<void> {
+/**
+ * Answers the editor's Server Actions with canned results, so AI features
+ * can be tested without Deepgram or Gemini. Each request still reaches the
+ * real server — with its input emptied, which fails validation before any
+ * AI call — so the reply comes back in this build's real Server Action
+ * format, and only the result inside it is swapped for the canned one.
+ * The transcript is built from a word list by the app's own toTranscript.
+ */
+async function mockActions(
+	page: Page,
+	canned: { words?: TimedWord[]; command?: EditCommand }
+): Promise<void> {
 	await page.route(
 		(url) => url.pathname.endsWith('/editor'),
 		async (route) => {
 			const request = route.request()
 			if (!request.headers()['next-action']) return route.continue()
+			const body = request.postData() ?? ''
+			const isTranscript = body.includes('"audioBase64"')
+			const data = isTranscript ? toTranscript(canned.words ?? []) : canned.command
 			const response = await route.fetch({
-				postData: (request.postData() ?? '').replace(/"audioBase64":"[^"]*"/, '"audioBase64":""')
+				postData: body.replace(/"(audioBase64|command)":"[^"]*"/, '"$1":""')
 			})
-			const body = (await response.text()).replace(
-				/\{"ok":false[^\n]*\}/,
-				JSON.stringify({ ok: true, data: toTranscript(words) })
-			)
-			await route.fulfill({ response, body })
+			await route.fulfill({
+				response,
+				body: (await response.text()).replace(
+					/\{"ok":false[^\n]*\}/,
+					JSON.stringify({ ok: true, data })
+				)
+			})
 		}
 	)
 }
@@ -143,7 +152,11 @@ test('a picked video plays in the editor and can be scrubbed on the timeline', a
 	await openEditorWithVideo(page)
 	await expect(page.locator('video')).toBeVisible()
 	const scrubber = page.getByRole('slider', { name: 'Playhead position' })
-	await expect(scrubber).toHaveAttribute('aria-valuemax', String(RECORDING_SECONDS))
+	// The real, resolved duration — recorded in real time, so it can land a
+	// little either side of RECORDING_SECONDS under load.
+	const duration = await page.locator('video').evaluate((v: HTMLVideoElement) => v.duration)
+	expect(duration).toBeGreaterThan(RECORDING_SECONDS - 1)
+	await expect(scrubber).toHaveAttribute('aria-valuemax', String(Math.round(duration)))
 	await expect(page.getByText('test-take.webm').first()).toBeVisible()
 	// The duration probe must hand the playhead back at the start.
 	await expect(scrubber).toHaveAttribute('aria-valuenow', '0')
@@ -160,7 +173,7 @@ test('a picked video plays in the editor and can be scrubbed on the timeline', a
 	// Keyboard: End jumps to the end, Home back to the start, arrows nudge.
 	await scrubber.focus()
 	await page.keyboard.press('End')
-	await expect(scrubber).toHaveAttribute('aria-valuenow', String(RECORDING_SECONDS))
+	await expect(scrubber).toHaveAttribute('aria-valuenow', String(Math.round(duration)))
 	await page.keyboard.press('Home')
 	await expect(scrubber).toHaveAttribute('aria-valuenow', '0')
 	await page.keyboard.press('ArrowRight')
@@ -232,18 +245,20 @@ test('filler words in the transcript are flagged apart from silences and open th
 	// "I like it" is a verb and must not be flagged. The audio is one
 	// unbroken tone — no gaps anywhere — so neither filler can be cut safely:
 	// both must be flagged for a manual cut, never auto-removed.
-	await mockTranscript(page, [
-		w('So,', 0, 0.3),
-		w('um,', 0.4, 0.6),
-		w('this', 0.7, 0.9),
-		w('is,', 1.0, 1.2),
-		w('like,', 1.5, 1.7),
-		w('the', 1.8, 2.0),
-		w('take.', 2.1, 2.6),
-		w('I', 3.0, 3.1),
-		w('like', 3.2, 3.4),
-		w('it.', 3.5, 3.8)
-	])
+	await mockActions(page, {
+		words: [
+			w('So,', 0, 0.3),
+			w('um,', 0.4, 0.6),
+			w('this', 0.7, 0.9),
+			w('is,', 1.0, 1.2),
+			w('like,', 1.5, 1.7),
+			w('the', 1.8, 2.0),
+			w('take.', 2.1, 2.6),
+			w('I', 3.0, 3.1),
+			w('like', 3.2, 3.4),
+			w('it.', 3.5, 3.8)
+		]
+	})
 	await page.goto('/editor')
 	const video = await recordTestVideo(page, [[4, true]])
 	await page
@@ -277,14 +292,16 @@ test('clean-up cuts a filler with clear gaps around it, keeps one without, and u
 }) => {
 	// Tone with two 150 ms gaps around "um" (1.15-1.45 s), then unbroken tone
 	// through "so uh done": that "uh" runs straight into its neighbours.
-	await mockTranscript(page, [
-		w('Hello,', 0, 1.0),
-		w('um,', 1.15, 1.45),
-		w('world.', 1.6, 3.0),
-		w('So', 3.0, 3.4),
-		w('uh', 3.4, 3.7),
-		w('done.', 3.7, 4.5)
-	])
+	await mockActions(page, {
+		words: [
+			w('Hello,', 0, 1.0),
+			w('um,', 1.15, 1.45),
+			w('world.', 1.6, 3.0),
+			w('So', 3.0, 3.4),
+			w('uh', 3.4, 3.7),
+			w('done.', 3.7, 4.5)
+		]
+	})
 	await page.goto('/editor')
 	const video = await recordTestVideo(page, [
 		[1, true],
@@ -380,7 +397,7 @@ test('the cut editor cuts a filler set by hand, previews it, and undo or cancel 
 }) => {
 	// One unbroken tone: the "uh" has no gap around it, so only a manual cut
 	// can remove it. Its transcriber span (0.5-0.8 s) seeds the handles.
-	await mockTranscript(page, [w('So', 0, 0.4), w('uh', 0.5, 0.8), w('done.', 0.9, 2.5)])
+	await mockActions(page, { words: [w('So', 0, 0.4), w('uh', 0.5, 0.8), w('done.', 0.9, 2.5)] })
 	await page.goto('/editor')
 	const video = await recordTestVideo(page, [[3, true]])
 	await page
@@ -431,6 +448,49 @@ test('the cut editor cuts a filler set by hand, previews it, and undo or cancel 
 	await seekTo(page, 0.6)
 	await expect.poll(() => playheadSeconds(page)).toBeLessThan(0.75)
 	await expect(page.getByRole('button', { name: 'Undo last cut' })).toHaveCount(0)
+})
+
+test('an AI command shows what it understood and changes nothing until confirmed', async ({
+	page
+}) => {
+	await mockActions(page, {
+		words: [],
+		command: { action: 'trim', startSeconds: 1, endSeconds: 2 }
+	})
+	await page.goto('/editor')
+	const video = await recordTestVideo(page, [[3, true]])
+	await page
+		.getByLabel('Choose a video file')
+		.setInputFiles({ name: 'take.webm', mimeType: 'video/webm', buffer: video })
+	const input = page.getByLabel('Edit command')
+	await expect(input).toBeVisible({ timeout: 30_000 })
+	const trimStart = page.getByRole('slider', { name: 'Trim start' })
+	const trimEnd = page.getByRole('slider', { name: 'Trim end' })
+	const untrimmedEnd = await trimEnd.getAttribute('aria-valuenow')
+
+	const run = async () => {
+		await input.fill('cut from 1 to 2 seconds')
+		await page.getByRole('button', { name: 'Run' }).click()
+		await expect(page.getByText('You asked: “cut from 1 to 2 seconds”')).toBeVisible()
+	}
+
+	// The plan is shown, and nothing has changed yet.
+	await run()
+	await expect(page.getByText("I'll keep 0:01–0:02 (1.0 s)", { exact: false })).toBeVisible()
+	await expect(trimStart).toHaveAttribute('aria-valuenow', '0')
+	await expect(trimEnd).toHaveAttribute('aria-valuenow', untrimmedEnd ?? '')
+
+	// Cancel drops it without touching the clip.
+	await page.getByRole('button', { name: 'Cancel' }).click()
+	await expect(page.getByText('You asked:', { exact: false })).toHaveCount(0)
+	await expect(trimStart).toHaveAttribute('aria-valuenow', '0')
+
+	// Confirming applies exactly what was shown.
+	await run()
+	await page.getByRole('button', { name: 'Apply', exact: true }).click()
+	await expect(trimStart).toHaveAttribute('aria-valuenow', '1')
+	await expect(trimEnd).toHaveAttribute('aria-valuenow', '2')
+	await expect(input).toHaveValue('')
 })
 
 test('a file that is not a video is rejected with a message', async ({ page }) => {
