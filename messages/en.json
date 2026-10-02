@@ -56,19 +56,26 @@
 			"label": "Edit command",
 			"placeholder": "Try \"cut from 2 seconds to 5 seconds\"",
 			"submit": "Run",
+			"asked": "You asked: “{command}”",
+			"dismiss": "OK",
 			"confirm": {
-				"asked": "You asked: “{command}”",
 				"plan": "I'll keep {start}–{end} ({kept} s) and remove the rest of the clip ({removed} s).",
 				"apply": "Apply",
 				"cancel": "Cancel"
 			},
 			"failed": "Couldn't run that command",
 			"unsupported": {
-				"title": "Can't do that yet",
-				"description": "Right now commands can trim the clip, like \"cut from 2 to 5 seconds\" or \"cut from 3 seconds to the end\"."
+				"title": "I can't do that yet.",
+				"commandsIntro": "As a typed command, I can trim the clip:",
+				"trimRange": "Keep a time range: “cut from 2 to 5 seconds”, “keep 1:05 to 1:20”",
+				"trimToEnd": "Keep from a point to the end: “cut from 3 seconds to the end”",
+				"editorIntro": "In the editor itself, you can also:",
+				"cleanup": "Remove long silences and filler words with Clean up recording",
+				"fillerCut": "Cut a single filler word by clicking its flag on the timeline",
+				"handTrim": "Trim by hand by dragging the timeline's handles"
 			},
 			"out_of_range": {
-				"title": "That range isn't in this clip",
+				"title": "That range isn't in this clip.",
 				"description": "Pick a start before the end, both within 0:00–{duration}."
 			}
 		},

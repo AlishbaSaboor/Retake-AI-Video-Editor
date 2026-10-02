@@ -29,6 +29,8 @@ export default defineConfig({
 		: {
 				command: 'pnpm dev',
 				url: 'http://localhost:3000',
+				// A reused dev server keeps the messages/*.json it started with — restart
+				// it after editing them, or new strings render as their raw keys.
 				reuseExistingServer: !process.env.CI,
 				timeout: 60_000
 			}
