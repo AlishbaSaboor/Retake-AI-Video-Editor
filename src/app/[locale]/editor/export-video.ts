@@ -43,6 +43,44 @@ export function totalSeconds(segments: Segment[]): number {
 	return segments.reduce((sum, s) => sum + segmentSeconds(s), 0)
 }
 
+// How far an export's length may drift from the edit's before the user is
+// told. Under memory pressure a stalled frame loop pauses the recorder late
+// (a longer file) or the end never reaches the file (a shorter one):
+// PROGRESS_NOTES.md section 4f. Healthy exports measure within ~40 ms.
+const LENGTH_TOLERANCE_SECONDS = 0.25
+
+/** How much longer (positive) or shorter (negative) the file is than the edit; null when close enough. */
+export function lengthMismatch(fileSeconds: number, editSeconds: number): number | null {
+	const off = fileSeconds - editSeconds
+	return Math.abs(off) > LENGTH_TOLERANCE_SECONDS ? off : null
+}
+
+/**
+ * A recorded file's real length. A MediaRecorder WebM has no duration
+ * header, so seeking far past the end makes the browser scan for it, as the
+ * editor does when it loads one.
+ */
+export async function fileSeconds(blob: Blob): Promise<number> {
+	const url = URL.createObjectURL(blob)
+	const video = Object.assign(document.createElement('video'), {
+		src: url,
+		preload: 'metadata',
+		muted: true
+	})
+	try {
+		await nextEvent(video, 'loadedmetadata')
+		if (!Number.isFinite(video.duration)) {
+			video.currentTime = Number.MAX_SAFE_INTEGER
+			while (!Number.isFinite(video.duration)) await nextEvent(video, 'durationchange')
+		}
+		return video.duration
+	} finally {
+		video.removeAttribute('src')
+		video.load()
+		URL.revokeObjectURL(url)
+	}
+}
+
 /** Whether this browser has what recordEdit needs. */
 export function canExport(): boolean {
 	return (

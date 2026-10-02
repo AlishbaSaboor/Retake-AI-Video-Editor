@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import {
 	editCommand,
 	mockActions,
@@ -706,4 +706,66 @@ test('export records a real video of the edit: its length, sound and pictures fo
 		expect(measured.squares[index], `frame for source ${frame.source}s`).not.toBeNull()
 		expect(Math.abs((measured.squares[index] ?? 0) - (20 + frame.source * 80))).toBeLessThan(30)
 	}
+})
+
+/** A 3 s tone take split at 1.5 s: the export pauses and resumes the recorder between the two. */
+async function openSplitTake(page: Page) {
+	await openEditorWithVideo(page, [[3, true]])
+	await seekTo(page, 1.5)
+	await page
+		.getByRole('region', { name: 'Clips' })
+		.getByRole('button', { name: 'Split at playhead' })
+		.click()
+}
+
+/** Exports, and checks the file still downloads with the wrong-length warning in place of "Export finished". */
+async function exportAndWarn(page: Page, direction: 'long' | 'short') {
+	const downloading = page.waitForEvent('download')
+	await page.getByRole('button', { name: 'Export video' }).click()
+	expect((await downloading).suggestedFilename()).toBe('test-take-edited.webm')
+	await expect(
+		page.getByText('test-take-edited.webm came out the wrong length', { exact: true })
+	).toBeVisible()
+	const message = page.getByText(/^This export came out /)
+	await expect(message).toBeVisible()
+	const match = (await message.innerText()).match(
+		/^This export came out (\d+\.\d) s too (long|short), probably because the computer ran low on memory\. Close other apps and export again\.$/
+	)
+	expect(match?.[2]).toBe(direction)
+	// The forced 600 ms, give or take a frame or two; over the 0.25 s allowed.
+	expect(Number(match?.[1])).toBeGreaterThan(0.25)
+	await expect(page.getByText('Export finished', { exact: true })).toHaveCount(0)
+}
+
+// The two ways an export goes wrong under memory pressure (PROGRESS_NOTES.md
+// 4f), forced in the page. The file still downloads; the user is told.
+test('an export that comes out too long says so, and still downloads', async ({ page }) => {
+	await mockActions(page, { words: [] })
+	await openSplitTake(page)
+	// The main thread stalls 600 ms at each segment's end, so the recorder is
+	// paused late and keeps recording the held frame.
+	await page.evaluate(() => {
+		const pause = MediaRecorder.prototype.pause
+		MediaRecorder.prototype.pause = function () {
+			const until = performance.now() + 600
+			while (performance.now() < until) {
+				// A stalled main thread.
+			}
+			pause.call(this)
+		}
+	})
+	await exportAndWarn(page, 'long')
+})
+
+test('an export that comes out too short says so, and still downloads', async ({ page }) => {
+	await mockActions(page, { words: [] })
+	await openSplitTake(page)
+	// Recording resumes 600 ms into the second segment, which is lost.
+	await page.evaluate(() => {
+		const resume = MediaRecorder.prototype.resume
+		MediaRecorder.prototype.resume = function () {
+			setTimeout(() => resume.call(this), 600)
+		}
+	})
+	await exportAndWarn(page, 'short')
 })
