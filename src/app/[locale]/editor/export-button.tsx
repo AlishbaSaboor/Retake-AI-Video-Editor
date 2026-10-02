@@ -6,7 +6,14 @@ import { Button } from '@/components/ui/button'
 import { DownloadIcon } from '@/components/ui/icons'
 import { toast } from '@/lib/toast'
 import { captureClientError } from '@/lib/observability/capture-client-error'
-import { canExport, exportFileName, recordEdit, totalSeconds } from './export-video'
+import {
+	canExport,
+	exportFileName,
+	fileSeconds,
+	lengthMismatch,
+	recordEdit,
+	totalSeconds
+} from './export-video'
 import type { Overlays } from './overlays'
 import type { ReplacementTake } from './re-record'
 import type { Segment } from './sequence'
@@ -29,7 +36,27 @@ function download(blob: Blob, fileName: string) {
 }
 
 /**
- * Records the edit to a real video file and downloads it: `start` begins,
+ * How far the exported file's length is off the edit's (`lengthMismatch`).
+ * Null too when it can't be measured: that is reported, and the export,
+ * already downloading, is left to stand.
+ */
+async function measuredMismatch(blob: Blob, editSeconds: number): Promise<number | null> {
+	try {
+		return lengthMismatch(await fileSeconds(blob), editSeconds)
+	} catch (error) {
+		captureClientError(error, { feature: 'export_length' })
+		return null
+	}
+}
+
+/** The wrong-length message's values: "0.4" and "long" for a file 0.4 s too long. */
+function describeMismatch(off: number) {
+	return { seconds: Math.abs(off).toFixed(1), direction: off > 0 ? 'long' : 'short' }
+}
+
+/**
+ * Records the edit to a real video file and downloads it, warning when the
+ * file came out a different length from the edit: `start` begins,
  * `percent` is how far it's got (null when idle), `cancel` stops it. Shared
  * by the Export button and the typed "export" command.
  */
@@ -58,7 +85,19 @@ export function useVideoExport({ videoUrl, videoName, segments, overlays }: Expo
 			})
 			const fileName = exportFileName(videoName, mimeType)
 			download(blob, fileName)
-			toast({ title: t('done.title'), description: t('done.description', { name: fileName }) })
+			setPercent(null)
+			const off = await measuredMismatch(blob, totalSeconds(segments))
+			// Statements, not a conditional expression: the React Compiler
+			// doesn't support those inside try/catch yet.
+			if (off === null) {
+				toast({ title: t('done.title'), description: t('done.description', { name: fileName }) })
+			} else {
+				toast({
+					variant: 'destructive',
+					title: t('wrongLength.title', { name: fileName }),
+					description: t('wrongLength.description', describeMismatch(off))
+				})
+			}
 		} catch (error) {
 			if (!controller.signal.aborted) {
 				const { userMessage } = captureClientError(error, { feature: 'export' })

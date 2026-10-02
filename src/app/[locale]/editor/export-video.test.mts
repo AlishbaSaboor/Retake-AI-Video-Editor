@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { exportFileName, pickMimeType, totalSeconds } from './export-video'
+import { exportFileName, lengthMismatch, pickMimeType, totalSeconds } from './export-video'
 
 test('the export uses the best format the browser can record', () => {
 	assert.equal(
@@ -34,4 +34,16 @@ test('the export runs as long as its segments laid end to end', () => {
 		3.5
 	)
 	assert.equal(totalSeconds([]), 0)
+})
+
+test('an export more than 0.25 s off the edit is flagged, with its direction', () => {
+	// Healthy exports measure within ~40 ms, and up to 0.25 s either way is let through.
+	assert.equal(lengthMismatch(2.96, 2.92), null)
+	assert.equal(lengthMismatch(2.68, 2.92), null)
+	assert.equal(lengthMismatch(3.16, 2.92), null)
+	assert.ok((lengthMismatch(2.66, 2.92) ?? 0) < 0)
+	assert.ok((lengthMismatch(3.18, 2.92) ?? 0) > 0)
+	// The misses measured under memory pressure (PROGRESS_NOTES.md 4f, 4c).
+	assert.ok(Math.abs((lengthMismatch(2.4, 2.92) ?? 0) + 0.52) < 1e-9)
+	assert.ok(Math.abs((lengthMismatch(3.35, 2.96) ?? 0) - 0.39) < 1e-9)
 })

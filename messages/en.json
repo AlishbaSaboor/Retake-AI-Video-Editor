@@ -199,6 +199,10 @@
 				"title": "Export finished",
 				"description": "{name} is downloading."
 			},
+			"wrongLength": {
+				"title": "{name} came out the wrong length",
+				"description": "This export came out {seconds} s too {direction, select, long {long} other {short}}, probably because the computer ran low on memory. Close other apps and export again."
+			},
 			"failed": "The export didn't finish.",
 			"unsupported": {
 				"title": "This browser can't export video.",
