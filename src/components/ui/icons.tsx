@@ -47,6 +47,7 @@ import {
 	Minus,
 	PencilSimple,
 	Plus,
+	Scissors,
 	SignOut,
 	Trash,
 	User,
@@ -125,6 +126,7 @@ export const ReplaceIcon = (props: IconProps) => <Glyph source={ArrowsClockwise}
 export const SearchIcon = (props: IconProps) => <Glyph source={MagnifyingGlass} {...props} />
 export const SettingsIcon = (props: IconProps) => <Glyph source={Gear} {...props} />
 export const SignOutIcon = (props: IconProps) => <Glyph source={SignOut} {...props} />
+export const SplitIcon = (props: IconProps) => <Glyph source={Scissors} {...props} />
 export const SuccessIcon = (props: IconProps) => <Glyph source={CheckCircle} {...props} />
 export const TimelineIcon = (props: IconProps) => <Glyph source={Clock} {...props} />
 export const TrashIcon = (props: IconProps) => <Glyph source={Trash} {...props} />

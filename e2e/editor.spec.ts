@@ -529,6 +529,41 @@ test('a command it cannot do gets a plain answer listing what it can, and change
 	await expect(trimStart).toHaveAttribute('aria-valuenow', '0')
 })
 
+test('splitting at the playhead makes two independent clips without changing what plays', async ({
+	page
+}) => {
+	await openEditorWithVideo(page)
+	const clips = page.getByRole('region', { name: 'Clips' })
+	const split = clips.getByRole('button', { name: 'Split at playhead' })
+	await expect(clips.getByText('1 clip', { exact: true })).toBeVisible()
+	// At 0:00 there's nothing before the playhead to split off.
+	await expect(split).toBeDisabled()
+
+	await seekTo(page, 1.5)
+	const at = await playheadSeconds(page)
+	await split.click()
+	await expect(clips.getByText('2 clips', { exact: true })).toBeVisible()
+	const items = clips.getByRole('listitem')
+	await expect(items).toHaveCount(2)
+	await expect(items.nth(0)).toHaveAttribute('aria-label', /^Clip 1: plays 0:01, from 0:00–0:01 /)
+	await expect(items.nth(1)).toHaveAttribute('aria-label', /^Clip 2: plays 0:0\d, from 0:01–0:0\d /)
+	// The split didn't move the playhead, which now sits at the start of Clip 2.
+	expect(await playheadSeconds(page)).toBeCloseTo(at, 2)
+	await expect(items.nth(1)).toHaveAttribute('aria-current', 'true')
+
+	// Played straight through from inside Clip 1, nothing is skipped or
+	// repeated: the playhead crosses the split and the highlight follows it.
+	await seekTo(page, 1)
+	await expect(items.nth(0)).toHaveAttribute('aria-current', 'true')
+	await page.locator('video').evaluate(async (element: HTMLVideoElement) => {
+		element.muted = true
+		await element.play()
+	})
+	await expect.poll(() => playheadSeconds(page), { timeout: 5000 }).toBeGreaterThan(2)
+	await expect(items.nth(1)).toHaveAttribute('aria-current', 'true')
+	await expect(items.nth(0)).not.toHaveAttribute('aria-current', 'true')
+})
+
 test('a file that is not a video is rejected with a message', async ({ page }) => {
 	await page.goto('/editor')
 	await page.getByLabel('Choose a video file').setInputFiles({

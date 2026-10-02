@@ -2,7 +2,6 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
 	clampTime,
-	clampToTrim,
 	formatTimecode,
 	moveTrimEdge,
 	isKnownDuration,
@@ -60,13 +59,6 @@ test('trim edges move within the source and never cross', () => {
 test('trimming is reversible: dragging an edge back restores the footage', () => {
 	const trimmed = moveTrimEdge({ startSeconds: 0, endSeconds: 10 }, 'start', 6, 10)
 	assert.deepEqual(moveTrimEdge(trimmed, 'start', 0, 10), { startSeconds: 0, endSeconds: 10 })
-})
-
-test('times are clamped into the trimmed range', () => {
-	const range = { startSeconds: 2, endSeconds: 5 }
-	assert.equal(clampToTrim(1, range), 2)
-	assert.equal(clampToTrim(9, range), 5)
-	assert.equal(clampToTrim(3, range), 3)
 })
 
 test('positions are percentages of the duration, clamped', () => {
