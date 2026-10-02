@@ -5,7 +5,6 @@ import {
 	mergeCuts,
 	planCleanup,
 	SILENCE_PADDING_SECONDS as PAD,
-	skipCuts,
 	type Edit
 } from './cleanup'
 
@@ -113,15 +112,6 @@ test('overlapping and touching cuts merge; separate ones do not', () => {
 			{ startSeconds: 5, endSeconds: 9 }
 		]
 	)
-})
-
-test('playback inside a cut continues from its end, and nowhere else is moved', () => {
-	const cuts = [{ startSeconds: 10, endSeconds: 20 }]
-	assert.equal(skipCuts(12, cuts), 20)
-	assert.equal(skipCuts(10, cuts), 20)
-	assert.equal(skipCuts(20, cuts), 20)
-	assert.equal(skipCuts(9.99, cuts), 9.99)
-	assert.equal(skipCuts(25, cuts), 25)
 })
 
 test('filler cuts are added as-is, clipped to the trim, and merged with overlapping cuts', () => {

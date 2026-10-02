@@ -74,10 +74,6 @@ export function moveTrimEdge(
 			}
 }
 
-export function clampToTrim(seconds: number, range: TrimRange): number {
-	return Math.min(Math.max(seconds, range.startSeconds), range.endSeconds)
-}
-
 /** A time's position along the timeline, as a CSS percentage. */
 export function timeToPercent(seconds: number, durationSeconds: number): string {
 	if (!isKnownDuration(durationSeconds)) return '0%'

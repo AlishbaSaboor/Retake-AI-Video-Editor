@@ -5,29 +5,22 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { ReplaceIcon } from '@/components/ui/icons'
 import { toast } from '@/lib/toast'
-import { keptSeconds, mergeCuts, planCleanup, skipCuts, type Cut, type Edit } from './cleanup'
+import { keptSeconds, mergeCuts, planCleanup, type Cut, type Edit } from './cleanup'
 import { CleanupBar } from './cleanup-bar'
+import { ClipStrip } from './clip-strip'
 import { CommandBar } from './command-bar'
 import { FillerCutEditor } from './filler-cut-editor'
 import { cutEditorWindow, initialCutRange, moveCutEdge, type FillerPlan } from './filler-cuts'
 import { Timeline } from './timeline'
-import {
-	clampToTrim,
-	isKnownDuration,
-	moveTrimEdge,
-	type TrimEdge,
-	type TrimRange
-} from './timeline-scale'
+import { canSplitAt, playableSegments, splitClipAt, wholeTake, type Clip } from './sequence'
+import { isKnownDuration, moveTrimEdge, type TrimEdge, type TrimRange } from './timeline-scale'
 import { TranscriptPanel } from './transcript-panel'
 import { UploadDropzone } from './upload-dropzone'
+import { useSequencePlayback } from './use-sequence-playback'
 import { useTakeAnalysis } from './use-take-analysis'
 import { VideoFileInput } from './video-file-input'
 
 type LoadedVideo = { file: File; url: string; name: string }
-
-// Pressing play this close to the out-point counts as "at the end" and
-// restarts from the in-point, rather than playing a frame and stopping.
-const END_TOLERANCE_SECONDS = 0.05
 
 /**
  * Pick a video, watch it, scrub it on the timeline. Everything here is local
@@ -52,7 +45,6 @@ export function VideoEditor() {
 	const [trim, setTrim] = useState<TrimRange | null>(null)
 	const hasDuration = isKnownDuration(durationSeconds)
 	const range: TrimRange = trim ?? { startSeconds: 0, endSeconds: durationSeconds }
-	const trimEnd = hasDuration ? range.endSeconds : Infinity
 	const analysis = useTakeAnalysis(video)
 	// Source ranges playback skips, from "Clean up recording". Like trim, a
 	// cut never touches the file; `undoEdit` is the edit from just before
@@ -67,14 +59,23 @@ export function VideoEditor() {
 		durationSeconds
 	)
 	const removableSeconds = keptSeconds(edit) - keptSeconds(cleanupPlan)
+	// Null until the first split, meaning "the whole take as one clip".
+	const [clips, setClips] = useState<Clip[] | null>(null)
+	const sequence = clips ?? wholeTake(durationSeconds)
 	// The filler cut editor: which filler is open and where its handles sit.
-	// While "Play with cut" previews, the pending cut is skipped like a real
-	// one, and preview playback stops at the end of the editor's window.
+	// A preview plays just the editor's window, straight through the source
+	// (clip order doesn't apply to it), with the pending cut skipped or not.
 	const [cutEditor, setCutEditor] = useState<{ plan: FillerPlan; range: TrimRange } | null>(null)
-	const [preview, setPreview] = useState<{ endSeconds: number; withCut: boolean } | null>(null)
+	const [preview, setPreview] = useState<{ withCut: boolean } | null>(null)
 	const cutWindow = cutEditor ? cutEditorWindow(cutEditor.plan.filler, durationSeconds) : null
-	const playbackCuts = preview?.withCut && cutEditor ? mergeCuts([...cuts, cutEditor.range]) : cuts
-	const stopAt = preview ? Math.min(trimEnd, preview.endSeconds) : trimEnd
+	const segments =
+		preview && cutWindow && cutEditor
+			? playableSegments(wholeTake(durationSeconds), {
+					trim: cutWindow,
+					cuts: preview.withCut ? mergeCuts([...cuts, cutEditor.range]) : cuts
+				})
+			: playableSegments(sequence, edit)
+	const playback = useSequencePlayback(videoRef, segments, isPlaying, setCurrentTimeSeconds)
 
 	const videoUrl = video?.url
 	// An object URL pins the whole file in memory until it's revoked, so each
@@ -83,30 +84,6 @@ export function VideoEditor() {
 		if (!videoUrl) return
 		return () => URL.revokeObjectURL(videoUrl)
 	}, [videoUrl])
-
-	// `timeupdate` only fires a few times a second, which makes the playhead
-	// stutter. While playing, follow the video every animation frame instead —
-	// which is also where playback jumps over cuts and stops at the trim's
-	// out-point.
-	useEffect(() => {
-		if (!isPlaying) return
-		let frame = 0
-		const follow = () => {
-			const element = videoRef.current
-			if (element) {
-				const pastCut = skipCuts(element.currentTime, playbackCuts)
-				if (pastCut !== element.currentTime) element.currentTime = pastCut
-				if (element.currentTime >= stopAt) {
-					element.pause()
-					element.currentTime = stopAt
-				}
-				setCurrentTimeSeconds(element.currentTime)
-			}
-			frame = requestAnimationFrame(follow)
-		}
-		frame = requestAnimationFrame(follow)
-		return () => cancelAnimationFrame(frame)
-	}, [isPlaying, stopAt, playbackCuts])
 
 	function loadFile(file: File) {
 		if (!file.type.startsWith('video/')) {
@@ -119,6 +96,7 @@ export function VideoEditor() {
 		}
 		isProbingDurationRef.current = false
 		setTrim(null)
+		setClips(null)
 		setCuts([])
 		setUndoEdit(null)
 		setCutEditor(null)
@@ -148,14 +126,6 @@ export function VideoEditor() {
 		}
 	}
 
-	function seek(seconds: number) {
-		const element = videoRef.current
-		if (!element) return
-		const target = skipCuts(clampToTrim(seconds, range), cuts)
-		element.currentTime = target
-		setCurrentTimeSeconds(target)
-	}
-
 	// Sets a new trim and pauses on the given frame so the preview shows the
 	// cut. Not through seek(): that clamps to the range from before this change.
 	function applyTrim(next: TrimRange, previewAt: number) {
@@ -172,7 +142,7 @@ export function VideoEditor() {
 		setCutEditor({ plan, range: initialCutRange(plan) })
 		setPreview(null)
 		videoRef.current?.pause()
-		seek(cutEditorWindow(plan.filler, durationSeconds).startSeconds)
+		playback.seek(cutEditorWindow(plan.filler, durationSeconds).startSeconds)
 	}
 
 	function moveCutEditorEdge(edge: TrimEdge, seconds: number) {
@@ -185,7 +155,7 @@ export function VideoEditor() {
 	function playCutPreview(withCut: boolean) {
 		const element = videoRef.current
 		if (!element || !cutWindow) return
-		setPreview({ endSeconds: cutWindow.endSeconds, withCut })
+		setPreview({ withCut })
 		element.currentTime = cutWindow.startSeconds
 		setCurrentTimeSeconds(cutWindow.startSeconds)
 		element.play().catch(() => setPreview(null))
@@ -208,6 +178,13 @@ export function VideoEditor() {
 		setPreview(null)
 	}
 
+	// Splitting never moves the playhead or changes what plays — it only
+	// divides the clip under the playhead into two that can be rearranged.
+	function splitAtPlayhead() {
+		const next = splitClipAt(sequence, currentTimeSeconds, () => crypto.randomUUID())
+		if (next) setClips(next)
+	}
+
 	function applyCleanup() {
 		setUndoEdit(edit)
 		setCuts(cleanupPlan.cuts)
@@ -226,23 +203,15 @@ export function VideoEditor() {
 		applyTrim(next, edge === 'start' ? next.startSeconds : next.endSeconds)
 	}
 
-	// Keeps the native controls inside the edit too: scrubbing past a trim
-	// edge snaps back to it, landing in a cut skips past it, and pressing play
-	// at the out-point starts over.
 	function handleTimeUpdate(element: HTMLVideoElement) {
 		if (isProbingDurationRef.current) return
-		if (hasDuration) {
-			const allowed = skipCuts(clampToTrim(element.currentTime, range), playbackCuts)
-			if (allowed !== element.currentTime) element.currentTime = allowed
-		}
-		setCurrentTimeSeconds(element.currentTime)
+		if (hasDuration) playback.settle(element)
+		else setCurrentTimeSeconds(element.currentTime)
 	}
 
 	function handlePlay(element: HTMLVideoElement) {
 		setIsPlaying(true)
-		if (hasDuration && element.currentTime >= range.endSeconds - END_TOLERANCE_SECONDS) {
-			element.currentTime = range.startSeconds
-		}
+		if (hasDuration) playback.restartIfAtEnd(element)
 	}
 
 	return (
@@ -319,10 +288,19 @@ export function VideoEditor() {
 				cuts={cuts}
 				silences={analysis.silences}
 				fillerPlans={analysis.fillerPlans}
-				onSeek={seek}
+				onSeek={playback.seek}
 				onTrimChange={handleTrimChange}
 				onEditFiller={openCutEditor}
 			/>
+			{video && hasDuration && (
+				<ClipStrip
+					clips={sequence}
+					edit={edit}
+					currentTimeSeconds={currentTimeSeconds}
+					canSplit={canSplitAt(sequence, currentTimeSeconds)}
+					onSplit={splitAtPlayhead}
+				/>
+			)}
 			{cutEditor && cutWindow && analysis.loudness && (
 				<FillerCutEditor
 					plan={cutEditor.plan}
@@ -336,7 +314,7 @@ export function VideoEditor() {
 					onCancel={closeCutEditor}
 				/>
 			)}
-			{video && <TranscriptPanel state={analysis.transcript} onSeek={seek} />}
+			{video && <TranscriptPanel state={analysis.transcript} onSeek={playback.seek} />}
 		</div>
 	)
 }

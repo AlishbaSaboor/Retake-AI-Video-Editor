@@ -44,6 +44,13 @@
 			"cancel": "Cancel",
 			"apply": "Cut"
 		},
+		"clips": {
+			"label": "Clips",
+			"count": "{count, plural, one {# clip} other {# clips}}",
+			"split": "Split at playhead",
+			"clipName": "Clip {number}",
+			"clipLabel": "Clip {number}: plays {duration}, from {source} of the take"
+		},
 		"transcript": {
 			"title": "Transcript",
 			"analyzing": "Listening to the audio…",

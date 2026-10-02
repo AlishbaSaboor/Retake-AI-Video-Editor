@@ -90,9 +90,3 @@ export function planCleanup(
 	}
 	return { trim, cuts: mergeCuts(cuts) }
 }
-
-/** Where playback continues from: past the end of any cut `seconds` falls in. */
-export function skipCuts(seconds: number, cuts: Cut[]): number {
-	const inside = cuts.find((cut) => seconds >= cut.startSeconds && seconds < cut.endSeconds)
-	return inside ? inside.endSeconds : seconds
-}
