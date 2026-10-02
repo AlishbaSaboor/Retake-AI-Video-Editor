@@ -4,6 +4,7 @@ import type { Edit } from './cleanup'
 import {
 	canSplitAt,
 	clipIndexAt,
+	moveClip,
 	clipPlayedSeconds,
 	playableSegments,
 	playbackPosition,
@@ -55,6 +56,20 @@ test('a clip with several ranges splits inside the right one', () => {
 		],
 		[[3, 4]]
 	])
+})
+
+test('moving a clip shifts the ones between, and an impossible move changes nothing', () => {
+	const [a, b, c] = ['a', 'b', 'c'].map((id, i) => ({
+		id,
+		ranges: [{ startSeconds: i, endSeconds: i + 1 }]
+	}))
+	const clips = [a, b, c]
+	assert.deepEqual(moveClip(clips, 2, 0), [c, a, b])
+	assert.deepEqual(moveClip(clips, 0, 2), [b, c, a])
+	assert.deepEqual(moveClip(clips, 0, 1), [b, a, c])
+	assert.equal(moveClip(clips, 1, 1), clips)
+	assert.equal(moveClip(clips, 0, 3), clips)
+	assert.equal(moveClip(clips, -1, 0), clips)
 })
 
 test('the clip at a time contains it, and the very end belongs to the clip it ends', () => {

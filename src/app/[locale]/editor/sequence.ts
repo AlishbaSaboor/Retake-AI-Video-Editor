@@ -59,6 +59,14 @@ export function splitClipAt(clips: Clip[], seconds: number, newId: () => string)
 	return [...clips.slice(0, clipIndex), before, after, ...clips.slice(clipIndex + 1)]
 }
 
+/** Moves the clip at `from` to sit at `to`, shifting the clips between them. */
+export function moveClip(clips: Clip[], from: number, to: number): Clip[] {
+	const clip = clips[from]
+	if (!clip || to < 0 || to >= clips.length || to === from) return clips
+	const rest = clips.filter((_, index) => index !== from)
+	return [...rest.slice(0, to), clip, ...rest.slice(to)]
+}
+
 /**
  * Which clip a source time belongs to: the one with a range containing it,
  * or — at the very end of a range, where playback stops — the one it ends.

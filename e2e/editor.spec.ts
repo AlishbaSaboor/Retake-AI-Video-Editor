@@ -67,19 +67,33 @@ async function recordTestVideo(
 	return Buffer.from(bytes)
 }
 
-/** Opens the editor with a freshly recorded test video loaded. */
+// A recording counts as intact when it lost no more than this to dropped frames.
+const MIN_RECORDED_SECONDS = RECORDING_SECONDS - 0.5
+const RECORDING_ATTEMPTS = 3
+
+/**
+ * Opens the editor with a freshly recorded test video loaded. A recorder
+ * starved of frames — four browsers recording while a cold dev server
+ * compiles — writes a file shorter than asked for, so a short one is
+ * recorded again rather than handed to a test that relies on its length.
+ */
 async function openEditorWithVideo(page: Page): Promise<void> {
 	await page.goto('/editor')
-	const video = await recordTestVideo(page)
-	await page
-		.getByLabel('Choose a video file')
-		.setInputFiles({ name: 'test-take.webm', mimeType: 'video/webm', buffer: video })
-	// Visible only once a real, finite duration has been resolved. Same 30 s
-	// allowance as the other video waits: with the whole suite recording and
-	// decoding in parallel, a cold load can pass 5 s.
-	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
-		timeout: 30_000
-	})
+	for (let attempt = 1; attempt <= RECORDING_ATTEMPTS; attempt++) {
+		const video = await recordTestVideo(page)
+		await page
+			.getByLabel('Choose a video file')
+			.setInputFiles({ name: 'test-take.webm', mimeType: 'video/webm', buffer: video })
+		// Visible only once a real, finite duration has been resolved. Same 30 s
+		// allowance as the other video waits: with the whole suite recording and
+		// decoding in parallel, a cold load can pass 5 s.
+		await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
+			timeout: 30_000
+		})
+		const duration = await page.locator('video').evaluate((v: HTMLVideoElement) => v.duration)
+		if (duration >= MIN_RECORDED_SECONDS) return
+	}
+	throw new Error(`no intact ${RECORDING_SECONDS}s recording in ${RECORDING_ATTEMPTS} attempts`)
 }
 
 type TimedWord = { word: string; punctuated_word: string; start: number; end: number }
@@ -515,6 +529,7 @@ test('a command it cannot do gets a plain answer listing what it can, and change
 	await expect(reply).toContainText("I can't do that yet.")
 	await expect(reply).toContainText('Keep a time range')
 	await expect(reply).toContainText('Clean up recording')
+	await expect(reply).toContainText('Reorder clips by dragging')
 	await expect(reply.getByRole('button', { name: 'Apply' })).toHaveCount(0)
 	await expect(trimStart).toHaveAttribute('aria-valuenow', '0')
 	await reply.getByRole('button', { name: 'OK' }).click()
@@ -562,6 +577,48 @@ test('splitting at the playhead makes two independent clips without changing wha
 	await expect.poll(() => playheadSeconds(page), { timeout: 5000 }).toBeGreaterThan(2)
 	await expect(items.nth(1)).toHaveAttribute('aria-current', 'true')
 	await expect(items.nth(0)).not.toHaveAttribute('aria-current', 'true')
+})
+
+test('clips reorder by dragging or by keyboard, and play back in their new order', async ({
+	page
+}) => {
+	await openEditorWithVideo(page)
+	const clips = page.getByRole('region', { name: 'Clips' })
+	await seekTo(page, 1.5)
+	await clips.getByRole('button', { name: 'Split at playhead' }).click()
+	const items = clips.getByRole('listitem')
+	await expect(items).toHaveCount(2)
+	const startsAt = (seconds: string) => new RegExp(`from ${seconds}–`)
+
+	await items.nth(1).dragTo(items.nth(0))
+	await expect(items.nth(0)).toHaveAttribute('aria-label', startsAt('0:01'))
+	await expect(items.nth(1)).toHaveAttribute('aria-label', startsAt('0:00'))
+
+	// The keyboard does the same: Alt+→ moves the first clip back after the second…
+	await items.nth(0).press('Alt+ArrowRight')
+	await expect(items.nth(0)).toHaveAttribute('aria-label', startsAt('0:00'))
+	// …and Alt+← moves it forward again; moving off either end does nothing.
+	await items.nth(1).press('Alt+ArrowLeft')
+	await items.nth(0).press('Alt+ArrowLeft')
+	await expect(items.nth(0)).toHaveAttribute('aria-label', startsAt('0:01'))
+	await expect(items.nth(1)).toHaveAttribute('aria-label', startsAt('0:00'))
+
+	// Played from the start of the sequence, the later part of the take comes
+	// first, then playback jumps back to the beginning of the source and stops
+	// where the moved clip ends.
+	await seekTo(page, 1.5)
+	await page.locator('video').evaluate(async (element: HTMLVideoElement) => {
+		element.muted = true
+		await element.play()
+	})
+	await expect.poll(() => playheadSeconds(page), { timeout: 5000 }).toBeLessThan(1)
+	await expect(items.nth(1)).toHaveAttribute('aria-current', 'true')
+	await expect
+		.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.paused), {
+			timeout: 5000
+		})
+		.toBe(true)
+	expect(await playheadSeconds(page)).toBeCloseTo(1.5, 0)
 })
 
 test('a file that is not a video is rejected with a message', async ({ page }) => {

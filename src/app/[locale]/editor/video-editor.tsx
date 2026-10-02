@@ -12,7 +12,14 @@ import { CommandBar } from './command-bar'
 import { FillerCutEditor } from './filler-cut-editor'
 import { cutEditorWindow, initialCutRange, moveCutEdge, type FillerPlan } from './filler-cuts'
 import { Timeline } from './timeline'
-import { canSplitAt, playableSegments, splitClipAt, wholeTake, type Clip } from './sequence'
+import {
+	canSplitAt,
+	moveClip,
+	playableSegments,
+	splitClipAt,
+	wholeTake,
+	type Clip
+} from './sequence'
 import { isKnownDuration, moveTrimEdge, type TrimEdge, type TrimRange } from './timeline-scale'
 import { TranscriptPanel } from './transcript-panel'
 import { UploadDropzone } from './upload-dropzone'
@@ -299,6 +306,7 @@ export function VideoEditor() {
 					currentTimeSeconds={currentTimeSeconds}
 					canSplit={canSplitAt(sequence, currentTimeSeconds)}
 					onSplit={splitAtPlayhead}
+					onMove={(from, to) => setClips(moveClip(sequence, from, to))}
 				/>
 			)}
 			{cutEditor && cutWindow && analysis.loudness && (
