@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
 import type { EditCommand } from '../src/app/[locale]/editor/edit-command'
 import { toTranscript } from '../src/app/[locale]/editor/transcript'
@@ -68,19 +69,26 @@ async function recordTestVideo(
 }
 
 // A recording counts as intact when it lost no more than this to dropped frames.
-const MIN_RECORDED_SECONDS = RECORDING_SECONDS - 0.5
+const MAX_RECORDING_LOSS_SECONDS = 0.5
 const RECORDING_ATTEMPTS = 3
 
 /**
- * Opens the editor with a freshly recorded test video loaded. A recorder
+ * Opens the editor with a freshly recorded test video loaded, and returns
+ * its duration. A recorder
  * starved of frames — four browsers recording while a cold dev server
  * compiles — writes a file shorter than asked for, so a short one is
  * recorded again rather than handed to a test that relies on its length.
  */
-async function openEditorWithVideo(page: Page): Promise<void> {
+async function openEditorWithVideo(
+	page: Page,
+	toneSchedule?: Array<[number, boolean]>
+): Promise<number> {
+	const seconds = toneSchedule
+		? toneSchedule.reduce((total, [length]) => total + length, 0)
+		: RECORDING_SECONDS
 	await page.goto('/editor')
 	for (let attempt = 1; attempt <= RECORDING_ATTEMPTS; attempt++) {
-		const video = await recordTestVideo(page)
+		const video = await recordTestVideo(page, toneSchedule)
 		await page
 			.getByLabel('Choose a video file')
 			.setInputFiles({ name: 'test-take.webm', mimeType: 'video/webm', buffer: video })
@@ -91,9 +99,9 @@ async function openEditorWithVideo(page: Page): Promise<void> {
 			timeout: 30_000
 		})
 		const duration = await page.locator('video').evaluate((v: HTMLVideoElement) => v.duration)
-		if (duration >= MIN_RECORDED_SECONDS) return
+		if (duration >= seconds - MAX_RECORDING_LOSS_SECONDS) return duration
 	}
-	throw new Error(`no intact ${RECORDING_SECONDS}s recording in ${RECORDING_ATTEMPTS} attempts`)
+	throw new Error(`no intact ${seconds}s recording in ${RECORDING_ATTEMPTS} attempts`)
 }
 
 type TimedWord = { word: string; punctuated_word: string; start: number; end: number }
@@ -729,4 +737,119 @@ test('a file that is not a video is rejected with a message', async ({ page }) =
 	// region, which a substring match would find as a second element.
 	await expect(page.getByText("That file isn't a video", { exact: true })).toBeVisible()
 	await expect(page.locator('video')).toHaveCount(0)
+})
+
+test('export records a real video of the edit: its length, sound and pictures follow the edit', async ({
+	page
+}) => {
+	await mockActions(page, { words: [] })
+	// A tone for the first and last second, silence in between; the square
+	// on screen moves 80 px a second, so each frame shows its source time.
+	const duration = await openEditorWithVideo(page, [
+		[1, true],
+		[1, false],
+		[1, true]
+	])
+	const clips = page.getByRole('region', { name: 'Clips' })
+	await seekTo(page, 1.5)
+	const splitAt = await playheadSeconds(page)
+	await clips.getByRole('button', { name: 'Split at playhead' }).click()
+	const items = clips.getByRole('option')
+	await items.nth(1).dragTo(items.nth(0))
+	await expect(items.nth(0)).toHaveAttribute('aria-label', /from 0:01–/)
+
+	const downloading = page.waitForEvent('download')
+	await page.getByRole('button', { name: 'Export video' }).click()
+	await expect(page.getByText(/^Exporting… \d+%$/)).toBeVisible()
+	const download = await downloading
+	expect(download.suggestedFilename()).toBe('test-take-edited.webm')
+	await expect(page.getByText('Export finished', { exact: true })).toBeVisible()
+	const bytes = await readFile(await download.path())
+
+	// The edit plays the take from the split to the end, then its start.
+	// Probes sit mid-way through each stretch of tone or silence, clear of
+	// the edges, and are mapped from source time to time in the export.
+	const firstPart = duration - splitAt
+	const toExport = (source: number) => (source >= splitAt ? source - splitAt : firstPart + source)
+	const probes = [
+		{ source: 1.75, tone: false },
+		{ source: (2 + duration) / 2, tone: true },
+		{ source: 0.5, tone: true },
+		{ source: 1.25, tone: false }
+	].map((probe) => ({ ...probe, at: toExport(probe.source) }))
+	const frames = [1.75, 0.5].map((source) => ({ source, at: toExport(source) }))
+
+	const measured = await page.evaluate(
+		async ({ bytes, probeTimes, frameTimes }) => {
+			const blob = new Blob([new Uint8Array(bytes)], { type: 'video/webm' })
+			const audio = await new OfflineAudioContext(1, 1, 48_000).decodeAudioData(
+				await blob.arrayBuffer()
+			)
+			const samples = audio.getChannelData(0)
+			const rms = (at: number) => {
+				const from = Math.floor((at - 0.05) * audio.sampleRate)
+				const to = Math.floor((at + 0.05) * audio.sampleRate)
+				let sum = 0
+				for (let i = from; i < to; i++) sum += (samples[i] ?? 0) ** 2
+				return Math.sqrt(sum / (to - from))
+			}
+
+			const video = Object.assign(document.createElement('video'), {
+				src: URL.createObjectURL(blob),
+				muted: true
+			})
+			const next = (type: string) =>
+				new Promise((resolve) => video.addEventListener(type, resolve, { once: true }))
+			await next('loadedmetadata')
+			// A recorded WebM has no duration header; seeking past the end makes
+			// the browser scan for it, as the editor does.
+			if (!Number.isFinite(video.duration)) {
+				video.currentTime = 1e9
+				while (!Number.isFinite(video.duration)) await next('durationchange')
+			}
+			const canvas = Object.assign(document.createElement('canvas'), { width: 320, height: 180 })
+			const context = canvas.getContext('2d', { willReadFrequently: true })
+			if (!context) throw new Error('no 2d context')
+			const squareLeft = async (at: number) => {
+				video.currentTime = at
+				await next('seeked')
+				context.drawImage(video, 0, 0, 320, 180)
+				const row = context.getImageData(0, 90, 320, 1).data
+				for (let x = 0; x < 320; x++) {
+					const [r = 0, g = 0, b = 0] = row.slice(x * 4, x * 4 + 3)
+					if (r > 180 && g > 60 && g < 150 && b < 110) return x
+				}
+				return null
+			}
+			const squares: Array<number | null> = []
+			for (const at of frameTimes) squares.push(await squareLeft(at))
+			return {
+				videoSeconds: video.duration,
+				audioSeconds: audio.duration,
+				loudness: probeTimes.map(rms),
+				squares
+			}
+		},
+		{
+			bytes: [...bytes],
+			probeTimes: probes.map((p) => p.at),
+			frameTimes: frames.map((f) => f.at)
+		}
+	)
+
+	// As long as the edit — no stalls recorded at the jump between clips.
+	expect(Math.abs(measured.videoSeconds - duration)).toBeLessThan(0.25)
+	expect(Math.abs(measured.audioSeconds - duration)).toBeLessThan(0.25)
+	// The sound is the edit's order, not the take's: silence first, then tone.
+	for (const [index, probe] of probes.entries()) {
+		const loudness = measured.loudness[index] ?? 0
+		if (probe.tone) expect(loudness, `tone at ${probe.at.toFixed(2)}s`).toBeGreaterThan(0.1)
+		else expect(loudness, `silence at ${probe.at.toFixed(2)}s`).toBeLessThan(0.02)
+	}
+	// And so are the pictures: each frame shows the square where it was at
+	// that source time (20 px + 80 px a second), within a few frames.
+	for (const [index, frame] of frames.entries()) {
+		expect(measured.squares[index], `frame for source ${frame.source}s`).not.toBeNull()
+		expect(Math.abs((measured.squares[index] ?? 0) - (20 + frame.source * 80))).toBeLessThan(30)
+	}
 })

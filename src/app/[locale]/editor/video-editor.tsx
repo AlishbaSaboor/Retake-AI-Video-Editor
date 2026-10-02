@@ -10,6 +10,7 @@ import { CleanupBar } from './cleanup-bar'
 import { ClipStrip } from './clip-strip'
 import { CompareToggle } from './compare-toggle'
 import { CommandBar } from './command-bar'
+import { ExportButton } from './export-button'
 import { FillerCutEditor } from './filler-cut-editor'
 import { cutEditorWindow, initialCutRange, moveCutEdge, type FillerPlan } from './filler-cuts'
 import { Timeline } from './timeline'
@@ -80,6 +81,7 @@ export function VideoEditor() {
 	// Before/after comparison: the untouched take, start to end. Both views
 	// play in source time, so switching leaves the playhead where it is.
 	const [showOriginal, setShowOriginal] = useState(false)
+	const editedSegments = playableSegments(sequence, edit)
 	const segments =
 		preview && cutWindow && cutEditor
 			? playableSegments(wholeTake(durationSeconds), {
@@ -88,7 +90,7 @@ export function VideoEditor() {
 				})
 			: showOriginal
 				? [{ startSeconds: 0, endSeconds: durationSeconds }]
-				: playableSegments(sequence, edit)
+				: editedSegments
 	const playback = useSequencePlayback(videoRef, segments, isPlaying, setCurrentTimeSeconds)
 
 	const videoUrl = video?.url
@@ -233,23 +235,32 @@ export function VideoEditor() {
 		<div className="flex flex-col gap-4">
 			{video ? (
 				<div className="flex flex-col gap-4">
-					<div className="flex items-center justify-between gap-4">
+					<div className="flex flex-wrap items-center justify-between gap-4">
 						<p className="text-text truncate text-sm font-medium">{video.name}</p>
 						{hasDuration && (
 							<CompareToggle showOriginal={showOriginal} onChange={setShowOriginal} />
 						)}
-						<Button
-							asChild
-							variant="outline"
-							size="sm"
-							className="has-[:focus-visible]:outline-accent shrink-0 cursor-pointer has-[:focus-visible]:outline-2"
-						>
-							<label>
-								<ReplaceIcon />
-								{t('replace')}
-								<VideoFileInput onFile={loadFile} />
-							</label>
-						</Button>
+						<div className="flex gap-2">
+							{hasDuration && (
+								<ExportButton
+									videoUrl={video.url}
+									videoName={video.name}
+									segments={editedSegments}
+								/>
+							)}
+							<Button
+								asChild
+								variant="outline"
+								size="sm"
+								className="has-[:focus-visible]:outline-accent shrink-0 cursor-pointer has-[:focus-visible]:outline-2"
+							>
+								<label>
+									<ReplaceIcon />
+									{t('replace')}
+									<VideoFileInput onFile={loadFile} />
+								</label>
+							</Button>
+						</div>
 					</div>
 					{hasDuration && (
 						<CommandBar
