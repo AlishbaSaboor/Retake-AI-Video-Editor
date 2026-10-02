@@ -90,7 +90,7 @@ export function useVideoExport({ videoUrl, videoName, segments, overlays }: Expo
 			// Statements, not a conditional expression: the React Compiler
 			// doesn't support those inside try/catch yet.
 			if (off === null) {
-				toast({ title: t('done.title'), description: t('done.description', { name: fileName }) })
+				toast({ title: t('done') })
 			} else {
 				toast({
 					variant: 'destructive',
