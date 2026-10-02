@@ -6,18 +6,19 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **Read this first: where things stand right now**
 >
-> - Branch `main`, in sync with `origin/main` (latest pushed commits are these
->   handoff notes; the last feature commit is `0b4b485`, before/after).
-> - **Export (queue item 7) is built but NOT committed.** The uncommitted
->   files are `export-video.ts`, `export-video.test.mts`, `export-button.tsx`
->   (all in `src/app/[locale]/editor/`), plus edits to `video-editor.tsx`,
->   `command-reply.tsx`, `messages/en.json`, `e2e/editor.spec.ts` and the
->   session log. Unit tests, lint, typecheck, build and the export e2e test
->   (4/4) pass, and A/V sync at 1080p H.264 was measured and is fine
->   (section 4b). It is ready to commit after a final full check run.
-> - The command-test regression mentioned in older instructions is **already
->   solved and committed** (section 4 explains it). Split, reorder, merge and
->   before/after are **done and pushed**. Only export remains.
+> - Branch `main`, in sync with `origin/main`. Updated 2026-10-02 after
+>   export shipped.
+> - **Export (queue item 7) is committed and pushed** in `2c2f0a5` (session
+>   log in `35125bf`). Before committing: 166 unit tests, Prettier, lint,
+>   typecheck and the production build passed, and the full e2e suite
+>   passed 17/17 in each of two runs, one from a cold start. A/V sync at
+>   1080p H.264 was measured and is fine (section 4b).
+> - **Export's known limitations:** the file opens with about 0.15 s of
+>   still, silent frame (optional fix in section 4b), and exporting takes as
+>   long as the edit runs, because it records in real time.
+> - **Known flake:** under peak e2e load the dev server occasionally pauses
+>   for 3–6 s (section 4c). Observed, cause unknown, not profiled.
+> - The whole original queue (section 5) is done. Nothing new is queued.
 
 ---
 
@@ -98,10 +99,11 @@ separate `chore(logs)` commit.
 | Reorder clips by dragging, or Alt+←/→                                           | `ae17d92` | Unit tests for `moveClip`, including off-end moves doing nothing. e2e drags and uses keys, then plays and checks that video time jumps from the later part back to the source start and stops where the moved clip ends.                                                                                                                                                                                                                                                                                                        |
 | Merge a selected run of adjacent clips                                          | `9404c4e` | Unit tests: merging a split restores the original single range exactly, and merging reordered clips keeps playback order with identical `playableSegments`. e2e: click, Shift+click, and Space/Shift+Space selection, with a merge before and after a reorder. Passed 12/12 on repeat.                                                                                                                                                                                                                                          |
 | Before/after comparison (Edited / Original), playhead preserved                 | `0b4b485` | e2e (8/8 on repeat): with a 1–2 s trim, the edit stops at about 2 s. Switching to Original leaves `currentTime` exactly unchanged and plays past 2.4 s. Switching back to Edited also leaves it unchanged.                                                                                                                                                                                                                                                                                                                      |
-| **Export (uncommitted; see section 4)**                                         | none      | Unit tests for the format pick, filename and total length. The e2e checks the exported file's length (±0.25 s), tone and silence at mapped probe times, and the square's pixel position in frames. Measured: 2.95 s vs 2.96 s expected; tone RMS 0.35, silence about 0; square at exactly 160 and 60 px as predicted. A real-footage export of `Cap.mp4` (split in three and reordered) came out at the right length, with each segment's audio at its edited position (correlation 0.81–0.96 vs 0.016 for the original order). |
+| Export the edit as a playable video (real-time, in the browser)                 | `2c2f0a5` | Unit tests for the format pick, filename and total length. The e2e checks the exported file's length (±0.25 s), tone and silence at mapped probe times, and the square's pixel position in frames. Measured: 2.95 s vs 2.96 s expected; tone RMS 0.35, silence about 0; square at exactly 160 and 60 px as predicted. A real-footage export of `Cap.mp4` (split in three and reordered) came out at the right length, with each segment's audio at its edited position (correlation 0.81–0.96 vs 0.016 for the original order). |
 
 **Current totals:** 166 unit tests and 17 e2e tests. Everything passes
-locally, and the suite has passed repeatedly from a cold dev server.
+locally. On the export commit the full e2e suite passed 17/17 in each of
+two runs, one from a cold dev server.
 
 **How to run the checks:**
 
@@ -201,6 +203,7 @@ locally, and the user explicitly did not want a hosted Supabase account.
     browser.
 - Costs:
   - The export takes as long as the edit runs.
+  - The file opens with about 0.15 s of still, silent frame (section 4b).
   - The tab must stay in front, because hidden tabs stop `requestAnimationFrame`.
   - A MediaRecorder WebM has no duration header (players handle it, and the
     editor already probes for it).
@@ -291,14 +294,8 @@ and the first 1080p attempt used a broken source. Disregard both.
 
 **Recommended next steps:**
 
-1. **Commit export now.**
-   1. Re-run the full check set: unit tests, e2e twice (kill :3000 first,
-      because `messages/en.json` changed), lint, typecheck, Prettier and
-      `pnpm build`.
-   2. Commit as `feat(editor): export the edit as a real, playable video`,
-      then a separate log commit, then push.
-   3. In the plain-language summary, mention that the export runs in real
-      time and opens with about 0.15 s of lead-in.
+1. ~~Commit export~~: done in `2c2f0a5` after the full check set (see the
+   top of this file).
 2. **Optional polish, in a follow-up commit, measured before and after:**
    remove the lead-in by starting or resuming the recorder when playback
    has actually begun, not before `play()`.
@@ -328,18 +325,33 @@ Run them from the repo root (`node <script>`) with the dev server up. The
 real-footage export output is `cap-edited.webm` in that folder. **Never
 copy the user's recordings or exports into the repo.**
 
-### 4c. Minor, unexplained, not reproduced
+### 4c. Dev-server pauses under e2e load: observed, cause unknown, not profiled
+
+- **Observed:** under peak e2e load, `next dev` occasionally pauses for
+  3–6 s. Seen in a timestamped server log during the pre-commit check runs
+  for export.
+- **Effect:** a command e2e test whose request lands in a pause longer than
+  5 s fails. That is how the two command tests failed in one run before the
+  two clean 17/17 runs export was committed on.
+- **Not export:** the pause shows up in requests unrelated to export, and
+  export code runs only in the browser.
+- It is the likely explanation for the earlier one-off `route.fetch: read
+ECONNRESET` in the unsupported-command test (inside the `mockActions`
+  helper), which wasn't reproduced in 3 full runs plus 24 focused repeats.
+- **Cause unknown.** It has not been profiled; don't claim a cause without
+  doing so. If it recurs, run `pnpm dev > <logfile> 2>&1` yourself
+  (Playwright reuses it) so the server's side is recorded.
+
+Other one-offs, also unexplained:
 
 - Once, every e2e test failed in the first run right after a dev-server
   restart. It wasn't reproduced in later kill-then-run cycles.
-- Once, the unsupported-command test failed with `route.fetch: read
-ECONNRESET` inside the `mockActions` helper (the dev server dropped the
-  connection). It wasn't reproduced in 3 full runs plus 24 focused repeats.
-  That server's output wasn't captured.
-- No cause is claimed for either. If either recurs, run `pnpm dev >
-<logfile> 2>&1` yourself (Playwright reuses it) so the server's side is
-  recorded.
-- A dev server may still be running in the background on port 3000.
+- On 2026-10-02, a dev server left running from the previous session (about
+  an hour old, idle) stopped answering requests at all: no response headers
+  within 30 s. Killing it and starting a fresh `pnpm dev` fixed it. Not
+  investigated.
+- A dev server may still be running in the background on port 3000. If it
+  doesn't respond, kill it and start a fresh one.
 
 ---
 
@@ -351,10 +363,8 @@ ECONNRESET` inside the `mockActions` helper (the dev server dropped the
 4. ~~Reorder clips manually by dragging~~: done (`ae17d92`)
 5. ~~Merge multiple adjacent clips~~: done (`9404c4e`)
 6. ~~Before/after comparison toggle, preserving the playhead~~: done (`0b4b485`)
-7. **Export a real, playable video reflecting all edits**: built,
-   uncommitted, sync verified. Follow section 4b's recommended next steps:
-   final check run, commit and push (code commit, then log commit), and
-   the plain-language summary.
+7. ~~Export a real, playable video reflecting all edits~~: done
+   (`2c2f0a5`). Optional follow-up: remove the ~0.15 s lead-in (section 4b).
 
 After that, the next things, not yet queued by the user:
 
