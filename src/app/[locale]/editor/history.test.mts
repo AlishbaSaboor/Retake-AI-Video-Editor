@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { emptyHistory, HISTORY_LIMIT, record, redo, undo, type History } from './history'
+import { emptyHistory, HISTORY_LIMIT, record, redo, reset, undo, type History } from './history'
 
 /** Applies a run of edits, each recording the step before it; returns the final state. */
 function edits(states: string[]): { history: History<string>; present: string } {
@@ -76,4 +76,42 @@ test('a re-recorded take undone and redone is the same recording, not a copy', (
 	// ...and redo brings back that exact object, audio and all.
 	assert.equal(redone.restore.replacements[0], take)
 	assert.equal(redone.restore.replacements[0]?.audio, take.audio)
+})
+
+test('reset goes back to the original in one step: one Undo restores every edit, Redo resets again', () => {
+	const { history, present } = edits(['a', 'b', 'c'])
+	const resetStep = reset(history, present, 'start')
+	assert.equal(resetStep.restore, 'start')
+	assert.deepEqual(resetStep.history.past, ['start', 'a', 'b', 'c'])
+	const undone = undo(resetStep.history, resetStep.restore)
+	assert.equal(undone?.restore, 'c')
+	assert.ok(undone)
+	const redone = redo(undone.history, undone.restore)
+	assert.equal(redone?.restore, 'start')
+	// Everything before the reset is still there to undo through.
+	assert.deepEqual(redone?.history.past, ['start', 'a', 'b', 'c'])
+})
+
+test('a reset after an undo ends the redo branch, like any edit', () => {
+	const { history, present } = edits(['a', 'b'])
+	const undone = undo(history, present)
+	assert.ok(undone)
+	const resetStep = reset(undone.history, undone.restore, 'start')
+	assert.equal(redo(resetStep.history, resetStep.restore), null)
+})
+
+test('takes removed by a reset are the same recordings when Undo brings them back', () => {
+	const take = { id: 'take-1', audio: new Float32Array(48_000) }
+	type Snapshot = { replacements: (typeof take)[] }
+	const original: Snapshot = { replacements: [] }
+	const edited: Snapshot = { replacements: [take] }
+	const resetStep = reset(record(emptyHistory<Snapshot>(), original), edited, original)
+	assert.deepEqual(resetStep.restore.replacements, [])
+	const undone = undo(resetStep.history, resetStep.restore)
+	assert.equal(undone?.restore.replacements[0], take)
+	assert.ok(undone)
+	// And past a redo of the reset and a second undo, still the same object.
+	const redone = redo(undone.history, undone.restore)
+	assert.ok(redone)
+	assert.equal(undo(redone.history, redone.restore)?.restore.replacements[0]?.audio, take.audio)
 })

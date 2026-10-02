@@ -239,11 +239,12 @@ async function exportedSeconds(page: Page): Promise<number> {
 	)
 }
 
-test('undo steps back through several edits, a re-record among them, and redo replays them all', async ({
-	page
-}) => {
-	test.setTimeout(300_000)
-	// A, B (2 s, re-recorded with a 0.8 s take) and D, with pauses between.
+/**
+ * Opens a take of three "sentences" — A, B (2 s, which a re-record replaces
+ * with the fake mic's 0.8 s) and D, with pauses between — and returns its
+ * duration once B can be re-recorded.
+ */
+async function openThreeSentences(page: Page): Promise<number> {
 	await mockActions(page, {
 		words: [w('Alpha.', 0, 1), w('Bravo', 1.6, 2.6), w('words.', 2.6, 3.6), w('Delta.', 4.2, 5.2)]
 	})
@@ -258,19 +259,37 @@ test('undo steps back through several edits, a re-record among them, and redo re
 		],
 		ROOM_TONE
 	)
-	const reRecordB = page.getByRole('button', { name: 'Re-record the sentence at 0:01' })
-	await expect(reRecordB).toBeVisible({ timeout: 30_000 })
-	const clips = page.getByRole('region', { name: 'Clips' }).getByRole('option')
+	await expect(reRecordButton(page, '0:01')).toBeVisible({ timeout: 30_000 })
+	return duration
+}
+
+const reRecordButton = (page: Page, at: string) =>
+	page.getByRole('button', { name: `Re-record the sentence at ${at}` })
+const clipOptions = (page: Page) => page.getByRole('region', { name: 'Clips' }).getByRole('option')
+
+/**
+ * The timeline, exactly, where the clips' m:ss labels would round: the
+ * trim, every clip's label in order, and how many sentences are re-recorded.
+ */
+const timelineOf = async (page: Page) => ({
+	trimEnd: await page.getByRole('slider', { name: 'Trim end' }).getAttribute('aria-valuenow'),
+	clips: await clipOptions(page).evaluateAll((options) =>
+		options.map((o) => o.getAttribute('aria-label'))
+	),
+	reRecorded: await page.getByText('re-recorded', { exact: true }).count()
+})
+
+test('undo steps back through several edits, a re-record among them, and redo replays them all', async ({
+	page
+}) => {
+	test.setTimeout(300_000)
+	const duration = await openThreeSentences(page)
+	const reRecordB = reRecordButton(page, '0:01')
+	const clips = clipOptions(page)
 	const trimEnd = page.getByRole('slider', { name: 'Trim end' })
 	const undoButton = page.getByRole('button', { name: 'Undo last change' })
 	const redoButton = page.getByRole('button', { name: 'Redo' })
-	// Exact, where the clips' m:ss labels would round: the trim, every
-	// clip's label in order, and how many sentences are re-recorded.
-	const timeline = async () => ({
-		trimEnd: await trimEnd.getAttribute('aria-valuenow'),
-		clips: await clips.evaluateAll((options) => options.map((o) => o.getAttribute('aria-label'))),
-		reRecorded: await page.getByText('re-recorded', { exact: true }).count()
-	})
+	const timeline = () => timelineOf(page)
 
 	// Each step: its timeline, and how long its export should be.
 	const steps = [{ timeline: await timeline(), seconds: duration }]
@@ -339,4 +358,185 @@ test('undo steps back through several edits, a re-record among them, and redo re
 	await expectStep(3)
 	await clips.first().press('Alt+ArrowRight')
 	await expect(redoButton).toHaveCount(0)
+})
+
+test('reset to original removes every edit as one step that Undo brings back, and export ignores the preview speed', async ({
+	page
+}) => {
+	test.setTimeout(180_000)
+	const duration = await openThreeSentences(page)
+	const resetButton = page.getByRole('button', { name: 'Reset to original' })
+	const undoButton = page.getByRole('button', { name: 'Undo last change' })
+	const redoButton = page.getByRole('button', { name: 'Redo' })
+	const original = await timelineOf(page)
+	await expect(resetButton).toHaveCount(0)
+
+	// Re-record B, trim a second off the end, split at 0.8 s.
+	await reRecordButton(page, '0:01').click()
+	await (await recordTake(page)).getByRole('button', { name: 'Use new take' }).click()
+	await page.getByRole('slider', { name: 'Trim end' }).press('Shift+ArrowLeft')
+	await seekTo(page, 0.8)
+	await page.getByRole('button', { name: 'Split at playhead' }).click()
+	await expect(clipOptions(page)).toHaveCount(2)
+	const edited = await timelineOf(page)
+	expect(edited.reRecorded).toBe(1)
+
+	// It asks first, and Cancel changes nothing.
+	const confirm = page.getByRole('status').filter({ hasText: 'Reset to the original take?' })
+	await resetButton.click()
+	await confirm.getByRole('button', { name: 'Cancel' }).click()
+	await expect(confirm).toHaveCount(0)
+	await expect.poll(() => timelineOf(page)).toEqual(edited)
+
+	await resetButton.click()
+	await confirm.getByRole('button', { name: 'Reset', exact: true }).click()
+	await expect.poll(() => timelineOf(page)).toEqual(original)
+	await expect(resetButton).toHaveCount(0)
+	// One step: one Undo brings back all three edits, the take included,
+	// and Redo resets again.
+	await undoButton.click()
+	await expect.poll(() => timelineOf(page)).toEqual(edited)
+	await redoButton.click()
+	await expect.poll(() => timelineOf(page)).toEqual(original)
+	await undoButton.click()
+	await expect.poll(() => timelineOf(page)).toEqual(edited)
+
+	// The preview speed is not an edit: the timeline and the redo branch stay...
+	const twice = page.getByRole('button', { name: '2×', exact: true })
+	await twice.click()
+	await expect(twice).toHaveAttribute('aria-pressed', 'true')
+	await expect(redoButton).toBeVisible()
+	await expect.poll(() => timelineOf(page)).toEqual(edited)
+	// ...and the export runs at 1×: as long as the edit, not half of it.
+	const seconds = await exportedSeconds(page)
+	expect(
+		Math.abs(seconds - (duration - 2.2)),
+		`exported ${seconds.toFixed(2)} s, edit ${(duration - 2.2).toFixed(2)} s`
+	).toBeLessThan(0.25)
+})
+
+/** A take the editor started, as logged by the page: its rate and how long it lasted. */
+type TakeLog = {
+	rate: number
+	endRate: number | null
+	takeSeconds: number
+	startedAt: number
+	endedAt: number | null
+	videoAtStart: number
+}
+
+type Sample = { wall: number; at: number; rate: number; paused: boolean }
+
+/** Plays from the playhead until the video stops (or `maxSeconds`), sampling time and rate. */
+async function playAndSample(page: Page, maxSeconds: number): Promise<Sample[]> {
+	return page.locator('video').evaluate(async (element: HTMLVideoElement, maxSeconds) => {
+		element.muted = true
+		await element.play()
+		const seen: Sample[] = []
+		const started = performance.now()
+		while (performance.now() - started < maxSeconds * 1000) {
+			const paused = element.paused
+			seen.push({
+				wall: performance.now(),
+				at: element.currentTime,
+				rate: element.playbackRate,
+				paused
+			})
+			// Stopped for good: paused at the end, not holding a frame under a take.
+			if (paused && element.volume !== 0 && seen.length > 5) break
+			await new Promise((resolve) => setTimeout(resolve, 20))
+		}
+		element.pause()
+		return seen
+	}, maxSeconds)
+}
+
+/** Source seconds per wall second, over the playing samples between two source times. */
+function speedOver(samples: Sample[], from: number, to: number): number {
+	const inside = samples.filter((s) => !s.paused && s.at >= from && s.at <= to)
+	const first = inside[0]
+	const last = inside.at(-1)
+	if (!first || !last || last.wall === first.wall) return 0
+	return (last.at - first.at) / ((last.wall - first.wall) / 1000)
+}
+
+const loggedTakes = async (page: Page): Promise<TakeLog[]> =>
+	JSON.parse((await page.evaluate(() => document.documentElement.dataset.takes)) ?? '[]')
+
+test('at 2× preview speed the editor plays twice as fast through jumps, a take and the original view', async ({
+	page
+}) => {
+	test.setTimeout(120_000)
+	// Logs every take the editor starts: its rate, length and when it ends.
+	await page.addInitScript(() => {
+		const takes: TakeLog[] = []
+		const save = () => (document.documentElement.dataset.takes = JSON.stringify(takes))
+		const start = AudioBufferSourceNode.prototype.start
+		AudioBufferSourceNode.prototype.start = function (when, offset, duration) {
+			const log: TakeLog = {
+				rate: this.playbackRate.value,
+				endRate: null,
+				takeSeconds: duration ?? 0,
+				startedAt: performance.now(),
+				endedAt: null,
+				videoAtStart: document.querySelector('video')?.currentTime ?? -1
+			}
+			takes.push(log)
+			this.addEventListener('ended', () => {
+				log.endedAt = performance.now()
+				log.endRate = this.playbackRate.value
+				save()
+			})
+			save()
+			return start.call(this, when, offset, duration)
+		}
+	})
+	const duration = await openThreeSentences(page)
+	await reRecordButton(page, '0:01').click()
+	await (await recordTake(page)).getByRole('button', { name: 'Use new take' }).click()
+	// Split at 0.8 s and move A to the end, so playback jumps back to it.
+	await seekTo(page, 0.8)
+	await page.getByRole('button', { name: 'Split at playhead' }).click()
+	await clipOptions(page).first().press('Alt+ArrowRight')
+	await expect(clipOptions(page).first()).toHaveAttribute('aria-label', /from 0:00–0:05 of/)
+	await page.getByRole('button', { name: '2×', exact: true }).click()
+
+	const startedBefore = (await loggedTakes(page)).length
+	await seekTo(page, 0.8)
+	const samples = await playAndSample(page, 8)
+	const playing = samples.filter((s) => !s.paused)
+	expect(playing.length).toBeGreaterThan(10)
+	expect(playing.every((s) => s.rate === 2)).toBe(true)
+	// D, after the take, plays at twice real time.
+	const speed = speedOver(samples, 4.0, duration - 0.1)
+	expect(speed, `D played at ${speed.toFixed(2)}×`).toBeGreaterThan(1.7)
+	expect(speed).toBeLessThan(2.3)
+	// The jump: from the end of the first clip back to A, which plays last.
+	const endOfFirst = samples.findIndex((s) => s.at > duration - 0.3)
+	expect(endOfFirst).toBeGreaterThan(-1)
+	expect(samples.slice(endOfFirst).some((s) => s.at < 0.7)).toBe(true)
+
+	// The take started as the picture reached B's span, at the video's rate,
+	// and ran its whole length at that rate: in sync, not cut short.
+	const take = (await loggedTakes(page))[startedBefore]
+	expect(take, 'the take played').toBeDefined()
+	if (!take) return
+	expect(take.rate).toBe(2)
+	expect(take.endRate).toBe(2)
+	expect(take.videoAtStart).toBeGreaterThan(1.2)
+	expect(take.videoAtStart).toBeLessThan(1.7)
+	const heardSeconds = ((take.endedAt ?? take.startedAt) - take.startedAt) / 1000
+	expect(heardSeconds, `take heard for ${heardSeconds.toFixed(2)} s`).toBeGreaterThan(
+		take.takeSeconds / 2 - 0.1
+	)
+	expect(heardSeconds).toBeLessThan(take.takeSeconds / 2 + 0.15)
+
+	// The original view plays at the preview speed too.
+	await page.getByRole('button', { name: 'Original', exact: true }).click()
+	await seekTo(page, 0.2)
+	const original = await playAndSample(page, 1.5)
+	const originalSpeed = speedOver(original, 0.2, duration)
+	expect(originalSpeed, `original at ${originalSpeed.toFixed(2)}×`).toBeGreaterThan(1.7)
+	expect(originalSpeed).toBeLessThan(2.3)
+	expect(original.filter((s) => !s.paused).every((s) => s.rate === 2)).toBe(true)
 })

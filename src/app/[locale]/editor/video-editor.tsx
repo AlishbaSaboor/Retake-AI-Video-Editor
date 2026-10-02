@@ -10,13 +10,15 @@ import { CleanupBar } from './cleanup-bar'
 import { ClipStrip } from './clip-strip'
 import { CompareToggle } from './compare-toggle'
 import { CommandBar } from './command-bar'
+import { isOriginalEdit, ORIGINAL_EDIT, type EditSnapshot } from './edit-snapshot'
 import { ExportButton } from './export-button'
 import { FillerCutEditor } from './filler-cut-editor'
 import { cutEditorWindow, initialCutRange, moveCutEdge, type FillerPlan } from './filler-cuts'
-import { emptyHistory, record, redo, undo, type Step } from './history'
+import { emptyHistory, record, redo, reset, undo, type Step } from './history'
 import { previewWindow, reRecordBlocker, type ReplacementTake } from './re-record'
 import { ReRecordPanel } from './re-record-panel'
 import { planSentenceSplice, type SplicePlan } from './sentence-splice'
+import { SpeedToggle } from './speed-toggle'
 import { Timeline } from './timeline'
 import {
 	canSplitAt,
@@ -37,14 +39,6 @@ import { useTakeAnalysis } from './use-take-analysis'
 import { VideoFileInput } from './video-file-input'
 
 type LoadedVideo = { file: File; url: string; name: string }
-
-/** One step of Undo/Redo: what's trimmed, cut, arranged and re-recorded. */
-type EditSnapshot = {
-	trim: TrimRange | null
-	cuts: Cut[]
-	clips: Clip[] | null
-	replacements: ReplacementTake[]
-}
 
 const overlaps = (a: SourceRange, b: SourceRange) =>
 	a.startSeconds < b.endSeconds && a.endSeconds > b.startSeconds
@@ -126,6 +120,9 @@ export function VideoEditor() {
 	// Before/after comparison: the untouched take, start to end. Both views
 	// play in source time, so switching leaves the playhead where it is.
 	const [showOriginal, setShowOriginal] = useState(false)
+	// How fast the editor plays, for previewing only: never part of the edit,
+	// its history or the export.
+	const [previewRate, setPreviewRate] = useState(1)
 	const editedSegments = playableSegments(sequence, edit, replacements)
 	const segments =
 		preview && cutWindow && cutEditor
@@ -152,6 +149,7 @@ export function VideoEditor() {
 		videoRef,
 		segments,
 		isPlaying,
+		previewRate,
 		setCurrentTimeSeconds,
 		stopPlaying
 	)
@@ -339,6 +337,10 @@ export function VideoEditor() {
 		if (step) restore(step)
 	}
 
+	function resetEdit() {
+		restore(reset(history, snapshot, ORIGINAL_EDIT))
+	}
+
 	function restore(step: Step<EditSnapshot>) {
 		setHistory(step.history)
 		setCuts(step.restore.cuts)
@@ -442,6 +444,8 @@ export function VideoEditor() {
 							ref={videoRef}
 							src={video.url}
 							controls
+							// One speed control: the preview speed below, not the player's own menu.
+							controlsList="noplaybackrate"
 							playsInline
 							className="block aspect-video w-full bg-black"
 							onLoadedMetadata={(event) => handleLoadedMetadata(event.currentTarget)}
@@ -462,6 +466,11 @@ export function VideoEditor() {
 							}}
 						/>
 					</div>
+					{hasDuration && (
+						<div className="mx-auto flex w-full max-w-3xl justify-end">
+							<SpeedToggle rate={previewRate} onChange={setPreviewRate} />
+						</div>
+					)}
 				</div>
 			) : (
 				<UploadDropzone onFile={loadFile} />
@@ -474,9 +483,11 @@ export function VideoEditor() {
 					fillerReviewCount={analysis.fillerPlans.length - fillerCuts.length}
 					canUndo={history.past.length > 0}
 					canRedo={history.future.length > 0}
+					canReset={!isOriginalEdit(snapshot, durationSeconds)}
 					onApply={applyCleanup}
 					onUndo={undoEdit}
 					onRedo={redoEdit}
+					onReset={resetEdit}
 				/>
 			)}
 			<Timeline

@@ -18,6 +18,7 @@
 // `/ssr` build takes its props directly and renders in both. Keep this
 // import path if you stay on phosphor.
 import {
+	ArrowCounterClockwise,
 	ArrowRight,
 	ArrowsClockwise,
 	ArrowsInLineHorizontal,
@@ -129,6 +130,7 @@ export const MoreIcon = (props: IconProps) => <Glyph source={DotsThreeVertical} 
 export const PlusIcon = (props: IconProps) => <Glyph source={Plus} {...props} />
 export const RedoIcon = (props: IconProps) => <Glyph source={ArrowUUpRight} {...props} />
 export const ReplaceIcon = (props: IconProps) => <Glyph source={ArrowsClockwise} {...props} />
+export const ResetIcon = (props: IconProps) => <Glyph source={ArrowCounterClockwise} {...props} />
 export const SearchIcon = (props: IconProps) => <Glyph source={MagnifyingGlass} {...props} />
 export const SettingsIcon = (props: IconProps) => <Glyph source={Gear} {...props} />
 export const SignOutIcon = (props: IconProps) => <Glyph source={SignOut} {...props} />
