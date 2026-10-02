@@ -558,7 +558,7 @@ test('splitting at the playhead makes two independent clips without changing wha
 	const at = await playheadSeconds(page)
 	await split.click()
 	await expect(clips.getByText('2 clips', { exact: true })).toBeVisible()
-	const items = clips.getByRole('listitem')
+	const items = clips.getByRole('option')
 	await expect(items).toHaveCount(2)
 	await expect(items.nth(0)).toHaveAttribute('aria-label', /^Clip 1: plays 0:01, from 0:00–0:01 /)
 	await expect(items.nth(1)).toHaveAttribute('aria-label', /^Clip 2: plays 0:0\d, from 0:01–0:0\d /)
@@ -586,7 +586,7 @@ test('clips reorder by dragging or by keyboard, and play back in their new order
 	const clips = page.getByRole('region', { name: 'Clips' })
 	await seekTo(page, 1.5)
 	await clips.getByRole('button', { name: 'Split at playhead' }).click()
-	const items = clips.getByRole('listitem')
+	const items = clips.getByRole('option')
 	await expect(items).toHaveCount(2)
 	const startsAt = (seconds: string) => new RegExp(`from ${seconds}–`)
 
@@ -619,6 +619,49 @@ test('clips reorder by dragging or by keyboard, and play back in their new order
 		})
 		.toBe(true)
 	expect(await playheadSeconds(page)).toBeCloseTo(1.5, 0)
+})
+
+test('a selected run of adjacent clips merges into one, and merging a split undoes it', async ({
+	page
+}) => {
+	await openEditorWithVideo(page)
+	const clips = page.getByRole('region', { name: 'Clips' })
+	const split = clips.getByRole('button', { name: 'Split at playhead' })
+	const merge = clips.getByRole('button', { name: 'Merge clips' })
+	// Clicked seeks can land a pixel short (2 → 1.999999), so split well inside
+	// a second: the labels below show whole seconds, rounded down.
+	for (const seconds of [1.5, 2.2]) {
+		await seekTo(page, seconds)
+		await split.click()
+	}
+	const items = clips.getByRole('option')
+	await expect(items).toHaveCount(3)
+	await expect(merge).toBeDisabled()
+
+	// One clip selected isn't enough to merge; Shift+click extends the run.
+	await items.nth(0).click()
+	await expect(items.nth(0)).toHaveAttribute('aria-selected', 'true')
+	await expect(merge).toBeDisabled()
+	await items.nth(1).click({ modifiers: ['Shift'] })
+	await expect(items.nth(1)).toHaveAttribute('aria-selected', 'true')
+	await expect(items.nth(2)).toHaveAttribute('aria-selected', 'false')
+	await merge.click()
+	await expect(items).toHaveCount(2)
+	await expect(items.nth(0)).toHaveAttribute('aria-label', /^Clip 1: plays 0:02, from 0:00–0:02 /)
+
+	// Merging out of source order keeps the playback order inside the clip.
+	await items.nth(1).dragTo(items.nth(0))
+	await expect(items.nth(0)).toHaveAttribute('aria-label', /from 0:02–0:0\d of/)
+	// From the keyboard: Space selects, Shift+Space extends.
+	await items.nth(0).press('Space')
+	await items.nth(1).press('Shift+Space')
+	await merge.click()
+	await expect(items).toHaveCount(1)
+	await expect(items.nth(0)).toHaveAttribute(
+		'aria-label',
+		/^Clip 1: plays 0:0\d, from 0:02–0:0\d, 0:00–0:02 /
+	)
+	await expect(merge).toBeDisabled()
 })
 
 test('a file that is not a video is rejected with a message', async ({ page }) => {
