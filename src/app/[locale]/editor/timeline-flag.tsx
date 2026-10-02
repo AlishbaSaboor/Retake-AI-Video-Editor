@@ -4,13 +4,15 @@ import { FillerWordIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { timeToPercent } from './timeline-scale'
 
-export type FlagKind = 'silence' | 'filler'
+export type FlagKind = 'silence' | 'filler' | 'fillerReview'
 
 // Silences and filler words differ in colour, shape and glyph, so the two
-// read apart at a glance — not by colour alone.
+// read apart at a glance — not by colour alone. A filler clean-up can't cut
+// safely (no clear gap around it) is outlined rather than filled.
 const KIND_STYLES: Record<FlagKind, string> = {
 	silence: 'bg-warning rounded-full',
-	filler: 'bg-filler rounded-sm'
+	filler: 'bg-filler rounded-sm',
+	fillerReview: 'bg-surface text-filler border-filler rounded-sm border-dashed'
 }
 
 const FILLER_ICON_SIZE = 10

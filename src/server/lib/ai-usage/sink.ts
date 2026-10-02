@@ -2,8 +2,8 @@ import 'server-only'
 import { after } from 'next/server'
 import { db } from '@/server/db/client'
 import { captureError } from '@/lib/observability/capture-error'
-import { openRouterSlug } from './models'
-import { costMicroUsd, rateCard } from './pricing'
+import { audioMinuteRate, openRouterSlug } from './models'
+import { audioCostMicroUsd, costMicroUsd, rateCard } from './pricing'
 import { createAiTracker, type AiUsageRow } from './track'
 
 // The real sink: price the row, write it, and make sure a failure here can
@@ -47,6 +47,18 @@ function recordUsage(row: AiUsageRow): void {
 }
 
 async function persist(row: AiUsageRow): Promise<void> {
+	// Per-minute models (speech-to-text) are priced from the audio duration,
+	// not tokens, and stored as `<provider>/<model>` — the same shape an
+	// OpenRouter slug has, so the model column reads consistently.
+	const minuteRate = audioMinuteRate(row.model)
+	if (minuteRate != null) {
+		await write(
+			row,
+			`${row.provider}/${row.model}`,
+			audioCostMicroUsd(row.audioSeconds, minuteRate)
+		)
+		return
+	}
 	const rates = await rateCard()
 	// Two lookups, two jobs. The tier-suffixed slug is what prices the call,
 	// since `:batch` is a separate upstream entry at half price. The base slug
@@ -57,18 +69,22 @@ async function persist(row: AiUsageRow): Promise<void> {
 	if (pricingSlug == null) reportUnmappedModel(row)
 
 	const cost = pricingSlug == null ? null : costMicroUsd(row, rates?.get(pricingSlug))
+	// The OpenRouter slug, so one model reads as one model across every repo.
+	// A provider serves the same model under different ids depending on
+	// whether the call named a dated or a floating alias, and the slug is the
+	// only form that collapses them.
+	//
+	// Falls back to the provider's raw id when nothing is mapped. That is the
+	// string someone needs in order to find the slug, and those rows are
+	// exactly the ones carrying a NULL cost.
+	await write(row, baseSlug ?? row.model, cost)
+}
+
+async function write(row: AiUsageRow, model: string, cost: number | null): Promise<void> {
 	await db.aiUsage.create({
 		data: {
 			provider: row.provider,
-			// The OpenRouter slug, so one model reads as one model across every
-			// repo. A provider serves the same model under different ids
-			// depending on whether the call named a dated or a floating alias,
-			// and the slug is the only form that collapses them.
-			//
-			// Falls back to the provider's raw id when nothing is mapped. That
-			// is the string someone needs in order to find the slug, and those
-			// rows are exactly the ones carrying a NULL cost.
-			model: baseSlug ?? row.model,
+			model,
 			serviceTier: row.serviceTier,
 			feature: row.feature,
 			inputTokens: row.inputTokens,

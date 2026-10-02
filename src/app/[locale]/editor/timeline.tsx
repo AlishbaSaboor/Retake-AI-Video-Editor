@@ -13,7 +13,7 @@ import {
 	type TrimRange
 } from './timeline-scale'
 import { keptSeconds, type Cut } from './cleanup'
-import type { FillerWord } from './filler-words'
+import type { FillerPlan } from './filler-cuts'
 import type { Silence } from './take-audio'
 import { TimelineFlag } from './timeline-flag'
 import { TrimHandle } from './trim-handle'
@@ -30,8 +30,8 @@ type TimelineProps = {
 	trim: TrimRange
 	/** Detected silences, flagged on the track; empty until analysed. */
 	silences: Silence[]
-	/** Filler words found in the transcript, flagged the same way. */
-	fillerWords: FillerWord[]
+	/** Filler words found in the transcript: cuttable, or left for review. */
+	fillerPlans: FillerPlan[]
 	/** Ranges removed by clean-up, shown struck out on the track. */
 	cuts: Cut[]
 	onSeek: (seconds: number) => void
@@ -51,7 +51,7 @@ export function Timeline({
 	currentTimeSeconds,
 	trim,
 	silences,
-	fillerWords,
+	fillerPlans,
 	cuts,
 	onSeek,
 	onTrimChange
@@ -89,16 +89,16 @@ export function Timeline({
 			<div className="border-border mb-2 flex items-center gap-1.5 border-b pb-3">
 				<TimelineIcon className="text-accent" />
 				<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
-				{hasClip && (silences.length > 0 || fillerWords.length > 0) && (
+				{hasClip && (silences.length > 0 || fillerPlans.length > 0) && (
 					<div className="ml-auto flex items-center gap-2 text-xs">
 						{silences.length > 0 && (
 							<span className="border-warning/20 bg-warning/10 text-warning rounded border px-2 py-0.5">
 								{t('silenceCount', { count: silences.length })}
 							</span>
 						)}
-						{fillerWords.length > 0 && (
+						{fillerPlans.length > 0 && (
 							<span className="border-filler/20 bg-filler/10 text-filler rounded border px-2 py-0.5">
-								{t('fillerCount', { count: fillerWords.length })}
+								{t('fillerCount', { count: fillerPlans.length })}
 							</span>
 						)}
 					</div>
@@ -214,15 +214,15 @@ export function Timeline({
 							onJump={onSeek}
 						/>
 					))}
-					{fillerWords.map((filler, index) => (
+					{fillerPlans.map((plan, index) => (
 						<TimelineFlag
 							key={`filler-${index}`}
-							kind="filler"
-							atSeconds={filler.atSeconds}
+							kind={plan.kind === 'cut' ? 'filler' : 'fillerReview'}
+							atSeconds={plan.filler.startSeconds}
 							durationSeconds={durationSeconds}
-							label={t('fillerPinLabel', {
-								word: filler.word,
-								at: formatTimecode(filler.atSeconds)
+							label={t(plan.kind === 'cut' ? 'fillerPinLabel' : 'fillerReviewPinLabel', {
+								word: plan.filler.word,
+								at: formatTimecode(plan.filler.startSeconds)
 							})}
 							onJump={onSeek}
 						/>

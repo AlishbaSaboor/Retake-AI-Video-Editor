@@ -31,14 +31,17 @@ import type { AiCallStatus, AiProvider } from './models'
 // Google is the only one of the three needing work here, which is why it is
 // the one that gets missed.
 //
-// Only Google's extractor is live — Retake calls no other provider. The table
-// above stays so whoever adds one writes its extractor against it.
+// Google's and Deepgram's extractors are live. Deepgram is per-minute speech-
+// to-text, so it reports audio duration rather than tokens. The table above
+// stays so whoever adds a token-priced provider writes its extractor against it.
 
 export type ExtractedUsage = {
 	model?: string
 	requestId?: string
 	status?: AiCallStatus
 	tokens: TokenCounts
+	/** For per-minute (speech-to-text) providers: the audio duration billed. */
+	audioSeconds?: number
 }
 
 export type UsageExtractor = (response: unknown) => ExtractedUsage | undefined
@@ -60,6 +63,22 @@ const googleResponse = z.object({
 	})
 })
 
+// Deepgram bills per minute of audio, not per token: the duration it
+// reports is the usage, and token counts are genuinely zero.
+const deepgramResponse = z.object({
+	metadata: z.object({
+		request_id: z.string().optional(),
+		duration: z.number().nonnegative()
+	})
+})
+
+const NO_TOKENS: TokenCounts = {
+	inputTokens: 0,
+	outputTokens: 0,
+	cacheWriteTokens: 0,
+	cacheReadTokens: 0
+}
+
 // Never let a negative fall through: a provider changing its accounting mid-
 // flight should show up as an odd-looking zero, not as a credit.
 function nonNegative(value: number): number {
@@ -67,6 +86,7 @@ function nonNegative(value: number): number {
 }
 
 const EXTRACTORS: Record<AiProvider, UsageExtractor> = {
+	deepgram: (response) => extractDeepgram(response),
 	google: (response) => {
 		const parsed = googleResponse.safeParse(response)
 		if (!parsed.success) return undefined
@@ -91,6 +111,17 @@ const EXTRACTORS: Record<AiProvider, UsageExtractor> = {
 				cacheReadTokens: cached
 			}
 		}
+	}
+}
+
+function extractDeepgram(response: unknown): ExtractedUsage | undefined {
+	const parsed = deepgramResponse.safeParse(response)
+	if (!parsed.success) return undefined
+	return {
+		requestId: parsed.data.metadata.request_id,
+		status: 'ok',
+		tokens: NO_TOKENS,
+		audioSeconds: parsed.data.metadata.duration
 	}
 }
 

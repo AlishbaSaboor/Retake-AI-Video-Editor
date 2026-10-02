@@ -23,11 +23,12 @@
 		"replace": "Replace video",
 		"cleanup": {
 			"button": "Clean up recording",
-			"hint": "Removes the flagged silences in one step.",
-			"nothing": "No flagged silences to remove.",
+			"hint": "Removes flagged silences and filler words in one step.",
+			"nothing": "Nothing flagged that can be removed automatically.",
 			"estimate": "This will remove approximately {seconds, plural, one {# second} other {# seconds}}.",
-			"fillersKept": "Filler words stay: their timing is estimated, so cutting them could clip the words around them.",
-			"apply": "Remove silences",
+			"breakdown": "({silences, plural, one {# silence} other {# silences}}, {fillers, plural, one {# filler word} other {# filler words}})",
+			"fillersForReview": "{count, plural, one {# filler word runs} other {# filler words run}} straight into the next word with no clear pause, so {count, plural, one {it stays} other {they stay}} flagged (outlined) for you to cut by hand.",
+			"apply": "Apply clean-up",
 			"cancel": "Cancel",
 			"undo": "Undo clean-up"
 		},
@@ -62,6 +63,7 @@
 			"silencePinLabel": "Silence from {start} to {end}. Jump there",
 			"fillerCount": "{count, plural, one {# filler word} other {# filler words}}",
 			"fillerPinLabel": "Filler word \"{word}\" at {at}. Jump there",
+			"fillerReviewPinLabel": "Filler word \"{word}\" at {at}, needs a manual cut (no clear pause around it). Jump there",
 			"empty": "Your timeline appears here once a video loads.",
 			"clipLabel": "{name}, {duration}"
 		}

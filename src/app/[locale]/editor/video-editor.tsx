@@ -58,7 +58,12 @@ export function VideoEditor() {
 	const [cuts, setCuts] = useState<Cut[]>([])
 	const [undoEdit, setUndoEdit] = useState<Edit | null>(null)
 	const edit: Edit = { trim: range, cuts }
-	const cleanupPlan = planCleanup(edit, analysis.silences, durationSeconds)
+	const fillerCuts = analysis.fillerPlans.flatMap((plan) => (plan.kind === 'cut' ? [plan] : []))
+	const cleanupPlan = planCleanup(
+		edit,
+		{ silences: analysis.silences, fillerCuts },
+		durationSeconds
+	)
 	const removableSeconds = keptSeconds(edit) - keptSeconds(cleanupPlan)
 
 	const videoUrl = video?.url
@@ -243,6 +248,9 @@ export function VideoEditor() {
 			{video && hasDuration && (
 				<CleanupBar
 					removableSeconds={removableSeconds}
+					silenceCount={analysis.silences.length}
+					fillerCutCount={fillerCuts.length}
+					fillerReviewCount={analysis.fillerPlans.length - fillerCuts.length}
 					canUndo={undoEdit !== null}
 					onApply={applyCleanup}
 					onUndo={undoCleanup}
@@ -255,7 +263,7 @@ export function VideoEditor() {
 				trim={range}
 				cuts={cuts}
 				silences={analysis.silences}
-				fillerWords={analysis.fillerWords}
+				fillerPlans={analysis.fillerPlans}
 				onSeek={seek}
 				onTrimChange={handleTrimChange}
 			/>

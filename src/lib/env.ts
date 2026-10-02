@@ -45,6 +45,9 @@ const envSchema = z.object({
 	// Gemini, read only by src/server/ai/google.ts. Optional so the app boots
 	// without it; an AI call made without it fails on its own.
 	GEMINI_API_KEY: z.string().optional(),
+	// Deepgram, read only by src/server/ai/deepgram.ts (transcripts). Optional
+	// for the same reason: a transcript made without it fails on its own.
+	DEEPGRAM_API_KEY: z.string().optional(),
 
 	// Required by cron routes only; an unset secret must not break unrelated pages.
 	CRON_SECRET: z.string().optional(),

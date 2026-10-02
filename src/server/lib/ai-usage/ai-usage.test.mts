@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { costMicroUsd, type OpenRouterRates } from './pricing'
-import { openRouterSlug } from './models'
+import { audioCostMicroUsd, costMicroUsd, type OpenRouterRates } from './pricing'
+import { audioMinuteRate, openRouterSlug } from './models'
 import { extractUsage } from './usage'
 import { buildRow, createAiTracker, type AiCallSpec, type AiUsageRow } from './track'
 
@@ -164,6 +164,37 @@ test('an unrecognised response shape yields no usage rather than throwing', () =
 	assert.equal(extractUsage('google', null), undefined)
 })
 
+test('deepgram usage is the audio duration it billed, with zero tokens', () => {
+	assert.deepEqual(
+		extractUsage('deepgram', {
+			metadata: { request_id: 'dg-1', duration: 90.5 },
+			results: { channels: [] }
+		}),
+		{
+			requestId: 'dg-1',
+			status: 'ok',
+			tokens: { inputTokens: 0, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 },
+			audioSeconds: 90.5
+		}
+	)
+	assert.equal(extractUsage('deepgram', { results: {} }), undefined)
+})
+
+// --- per-minute pricing ----------------------------------------------------
+
+test('a per-minute model is priced from audio duration at its listed rate', () => {
+	const rate = audioMinuteRate('nova-3')
+	assert.equal(rate, 0.0043)
+	// 90 s at $0.0043/min = $0.00645 = 6,450 micro-USD.
+	assert.equal(audioCostMicroUsd(90, rate ?? NaN), 6450)
+})
+
+test('a per-minute call with no reported duration is unpriced, never zero', () => {
+	assert.equal(audioCostMicroUsd(undefined, 0.0043), null)
+	assert.equal(audioCostMicroUsd(Number.NaN, 0.0043), null)
+	assert.equal(audioMinuteRate('gemini-3.5-flash-lite'), null)
+})
+
 // --- row building ----------------------------------------------------------
 
 const SPEC: AiCallSpec = {
@@ -182,6 +213,17 @@ test('the model that served the call wins over the model that was asked for', ()
 		{ status: 'ok', latencyMs: 12 }
 	)
 	assert.equal(row.model, 'gemini-3.5-flash-lite-001')
+})
+
+test('a deepgram row carries the billed audio duration for pricing', () => {
+	const row = buildRow(
+		{ provider: 'deepgram', model: 'nova-3', feature: 'transcribe_take' },
+		{ metadata: { request_id: 'dg-2', duration: 12 } },
+		{ status: 'ok', latencyMs: 5 }
+	)
+	assert.equal(row.audioSeconds, 12)
+	assert.equal(row.model, 'nova-3')
+	assert.equal(row.inputTokens, 0)
 })
 
 test('a failed call still produces a row, with the requested model and no tokens', () => {

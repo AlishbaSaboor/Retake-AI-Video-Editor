@@ -75,6 +75,51 @@ export function detectSilences(samples: Float32Array, sampleRate: number): Silen
 	return silences
 }
 
+/** Loudness over time, for finding the gaps around filler words. */
+export type Loudness = {
+	/** dBFS per window, floored at FLOOR_DB (digital silence). */
+	db: Float32Array
+	windowSeconds: number
+	/** Below this a window counts as a gap — see gapThresholdDb. */
+	gapThresholdDb: number
+}
+
+const LOUDNESS_WINDOW_SECONDS = 0.01
+const FLOOR_DB = -120
+// A gap is quieter than the recording's noise floor plus GAP_ABOVE_FLOOR_DB,
+// and always at least GAP_BELOW_SPEECH_DB under typical speech. Relative to
+// the recording rather than fixed, because a laptop mic in a room and a
+// clean studio file have floors 50 dB apart.
+const GAP_ABOVE_FLOOR_DB = 10
+const GAP_BELOW_SPEECH_DB = 15
+const FLOOR_PERCENTILE = 0.1
+const SPEECH_PERCENTILE = 0.9
+
+/** Loudness in 10 ms windows, with a gap threshold fitted to this recording. */
+export function measureLoudness(samples: Float32Array, sampleRate: number): Loudness {
+	const windowSize = Math.max(1, Math.round(sampleRate * LOUDNESS_WINDOW_SECONDS))
+	const db = new Float32Array(Math.ceil(samples.length / windowSize))
+	for (let w = 0; w < db.length; w++) {
+		const start = w * windowSize
+		const end = Math.min(start + windowSize, samples.length)
+		let sumOfSquares = 0
+		for (let i = start; i < end; i++) sumOfSquares += (samples[i] ?? 0) ** 2
+		const rms = Math.sqrt(sumOfSquares / Math.max(1, end - start))
+		db[w] = rms > 0 ? Math.max(FLOOR_DB, 20 * Math.log10(rms)) : FLOOR_DB
+	}
+	return { db, windowSeconds: windowSize / sampleRate, gapThresholdDb: gapThresholdDb(db) }
+}
+
+function gapThresholdDb(db: Float32Array): number {
+	if (db.length === 0) return FLOOR_DB
+	const sorted = Float32Array.from(db).sort()
+	const at = (fraction: number) => sorted[Math.floor(fraction * (sorted.length - 1))] ?? FLOOR_DB
+	return Math.min(
+		at(FLOOR_PERCENTILE) + GAP_ABOVE_FLOOR_DB,
+		at(SPEECH_PERCENTILE) - GAP_BELOW_SPEECH_DB
+	)
+}
+
 /** Mono 16-bit PCM WAV, the plainest audio format Gemini accepts. */
 export function encodeWav(samples: Float32Array, sampleRate: number): ArrayBuffer {
 	const dataBytes = samples.length * BYTES_PER_SAMPLE

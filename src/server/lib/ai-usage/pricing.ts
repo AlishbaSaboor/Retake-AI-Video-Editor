@@ -80,6 +80,21 @@ export function costMicroUsd(
 	return Math.round(usd * MICRO_USD_PER_USD)
 }
 
+const SECONDS_PER_MINUTE = 60
+
+/**
+ * Cost of a per-minute (speech-to-text) call, from the audio duration the
+ * provider reports. Null when the duration is unknown — unpriced, never 0,
+ * same rule as costMicroUsd.
+ */
+export function audioCostMicroUsd(
+	audioSeconds: number | undefined,
+	usdPerMinute: number
+): number | null {
+	if (audioSeconds == null || !Number.isFinite(audioSeconds) || audioSeconds < 0) return null
+	return Math.round((audioSeconds / SECONDS_PER_MINUTE) * usdPerMinute * MICRO_USD_PER_USD)
+}
+
 // --- the rate card ---------------------------------------------------------
 
 // OpenRouter publishes its whole rate card unauthenticated, which is the only
