@@ -55,10 +55,23 @@ const NO_TOKENS: TokenCounts = {
 	cacheReadTokens: 0
 }
 
+/**
+ * Why a call failed, in what `meta` may hold: the error's type and, when it
+ * has one, its HTTP status (429, 503, ...). Never its message, which is free
+ * text and can echo what was sent.
+ */
+export function failureMeta(error: unknown): AiUsageMeta {
+	const meta: AiUsageMeta = { error_type: error instanceof Error ? error.name : typeof error }
+	if (typeof error === 'object' && error !== null && 'status' in error) {
+		if (typeof error.status === 'number') meta.error_status = error.status
+	}
+	return meta
+}
+
 export function buildRow(
 	spec: AiCallSpec,
 	response: unknown,
-	outcome: { status: AiCallStatus; latencyMs: number }
+	outcome: { status: AiCallStatus; latencyMs: number; failure?: AiUsageMeta }
 ): AiUsageRow {
 	const extracted =
 		outcome.status === 'error'
@@ -74,7 +87,7 @@ export function buildRow(
 		status: extracted?.status ?? outcome.status,
 		latencyMs: outcome.latencyMs,
 		requestId: extracted?.requestId,
-		meta: spec.meta,
+		meta: outcome.failure ? { ...spec.meta, ...outcome.failure } : spec.meta,
 		audioSeconds: extracted?.audioSeconds,
 		...(extracted?.tokens ?? NO_TOKENS)
 	}
@@ -85,9 +98,15 @@ export function createAiTracker(sink: UsageSink) {
 	// row costs a line in a spend report; a failed AI call costs a user their
 	// feature. That trade is never close, so this swallows everything —
 	// including a bug in buildRow or in a caller's own `extract`.
-	function record(spec: AiCallSpec, response: unknown, status: AiCallStatus, startedAt: number) {
+	function record(
+		spec: AiCallSpec,
+		response: unknown,
+		status: AiCallStatus,
+		startedAt: number,
+		failure?: AiUsageMeta
+	) {
 		try {
-			sink(buildRow(spec, response, { status, latencyMs: Date.now() - startedAt }))
+			sink(buildRow(spec, response, { status, latencyMs: Date.now() - startedAt, failure }))
 		} catch {
 			// The sink is responsible for reporting its own failures to Sentry;
 			// it holds the context to do it usefully and this frame does not.
@@ -101,7 +120,7 @@ export function createAiTracker(sink: UsageSink) {
 			record(spec, response, 'ok', startedAt)
 			return response
 		} catch (error) {
-			record(spec, undefined, 'error', startedAt)
+			record(spec, undefined, 'error', startedAt, failureMeta(error))
 			throw error
 		}
 	}

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { audioCostMicroUsd, costMicroUsd, type OpenRouterRates } from './pricing'
 import { audioMinuteRate, openRouterSlug } from './models'
 import { extractUsage } from './usage'
-import { buildRow, createAiTracker, type AiCallSpec, type AiUsageRow } from './track'
+import { buildRow, createAiTracker, failureMeta, type AiCallSpec, type AiUsageRow } from './track'
 
 // Real rates, copied from OpenRouter's catalogue. Using invented round
 // numbers would let a units bug (per-token vs. per-million) pass every
@@ -283,4 +283,29 @@ test('a provider error is recorded and then rethrown untouched', async () => {
 	)
 	assert.equal(rows.length, 1)
 	assert.equal(rows[0]?.status, 'error')
+	// Why it failed, as an enum-like type only: the message is free text.
+	assert.deepEqual(rows[0]?.meta, { error_type: 'Error' })
+})
+
+test('a failed call records the error type and HTTP status, alongside its own meta', async () => {
+	const rows: AiUsageRow[] = []
+	const trackAiCall = createAiTracker((row) => rows.push(row))
+	class ApiError extends Error {
+		override name = 'ApiError'
+		status = 429
+	}
+	await assert.rejects(
+		trackAiCall({ ...SPEC, meta: { project_id: 'p1' } }, async () => {
+			throw new ApiError('Resource exhausted: quota for "make it warmer"')
+		})
+	)
+	assert.deepEqual(rows[0]?.meta, { project_id: 'p1', error_type: 'ApiError', error_status: 429 })
+	assert.ok(!JSON.stringify(rows[0]).includes('warmer'), 'no message text in the row')
+})
+
+test('failureMeta keeps a status only when it is a number', () => {
+	assert.deepEqual(failureMeta(Object.assign(new TypeError('x'), { status: '503' })), {
+		error_type: 'TypeError'
+	})
+	assert.deepEqual(failureMeta('boom'), { error_type: 'string' })
 })

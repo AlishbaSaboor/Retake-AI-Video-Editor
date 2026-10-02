@@ -20,7 +20,13 @@ session with no memory of it can carry on. Read this whole file, then
 >   in edited time, over the bottom of the preview and the export; on/off is
 >   one undo step, reset turns them off, "turn captions on" works as a
 >   command. No new API call. `3b697e7`.
-> - **Every editor action as a typed command** (section 3g): split, merge,
+> - **Exports can come out the wrong length under memory pressure**
+>   (section 4f): up to ~0.23 s long or ~0.5 s short, measured. Not fixed:
+>   no cheap, safe fix exists yet.
+> - **A failed AI call now records why** (section 3g): `error_type` and
+>   `error_status` in the `ai_usage` row's `meta`, never the message. Checked
+>   with a real failed Gemini call (row 74, `ApiError`, 400, no spend).
+> - **Every editor action as a typed command** (section 3g, `4a7186d`): split, merge,
 >   move, clean-up, undo/redo/reset, preview speed, re-record (opens the
 >   panel or says why not) and export, each confirmed first; all 18 command
 >   shapes checked against real Gemini.
@@ -142,7 +148,7 @@ separate `chore(logs)` commit.
 | Automatic captions from the transcript, on/off as an edit, by toggle or typed command                            | `3b697e7`                                                  | Unit tests (`captions.test.mts`): a caption ends at a sentence, a pause over 0.7 s or two 24-character lines; cut words never show and later ones move up; reordered clips carry their words; a re-recorded sentence's words are spread over the take; `captionAt`. Captions count for reset; `captions_on`/`captions_off` plans. e2e on real exports (`graphics.spec.ts`): off by default; on, caption text in the bottom rows while each sentence is spoken (0.7 s, 2.7 s) and none in the pause (1.7 s); with the first second trimmed, the first sentence is gone and the second moved up; toggled off, none at all. Preview: same, nothing in the Original view; undo/redo of the toggle; reset turns them off; the typed command. Mutations: no caption drawing in export, and captions in source time, each fail it.                                                                                                                                                                                                                                                                                   |
 | Every editor action as a typed command (split, merge, move, clean-up, undo/redo/reset, speed, re-record, export) | `feat(editor): run every editor action as a typed command` | Unit tests (`edit-command.test.mts`): each command plans or refuses against the editor's state (split allowed, clip numbers from 1, merge needs a later clip, "already there", clean-up needs something to remove, undo/redo/reset need something to do, only the preview speeds, the sentence at a time and its re-record blocker, nothing to export). e2e (`commands.spec.ts`): clean-up confirmed (Cancel leaves it), then undo, redo, reset and undoing the reset, each by command; refusals for nothing to undo/redo/clean/reset, a 3× speed, a sentence with no pause before it, a time with no sentence; 2× sets the preview speed; export downloads the edit at its length (the take less the cut filler); the honest reply lists the new commands. Split ×2, move, merge by command, each exactly one undo step (four Undos back to one clip); refusals for a split at a clip edge, a clip already in place, clip 5 of 3; re-record opens the panel for that sentence.                                                                                                                               |
 
-**Current totals:** 223 unit tests (`src/**/*.test.mts`) and 26 e2e tests.
+**Current totals:** 225 unit tests (`src/**/*.test.mts`) and 26 e2e tests.
 Everything passes locally. On the meter commit the full e2e suite passed
 18/18 in each of two runs.
 
@@ -602,7 +608,15 @@ digital silence the encoder's fade-out after each tone reads as sound for
   2 to 5 seconds" came back as 2–2.9: the prompt gives the length, and the
   app clamps a trim end to it anyway. One call (`ai_usage` row 71) failed
   with status `error` after 317 ms and no detail stored; the same command
-  retried was fine. Cause unknown. 19 calls, 5,283 micro-USD ($0.0053).
+  retried was fine. Cause unknown at the time; since then a failed call
+  records its error type and HTTP status in `meta` (`failureMeta` in
+  `track.ts`: `error_type`, `error_status`; never the message, which is free
+  text). Checked end to end at no cost: a dev server started with an
+  invalid `GEMINI_API_KEY` (an env var overrides `.env.local`), one command
+  through the editor, and row 74 read `status` `error`, `meta`
+  `{"error_type": "ApiError", "error_status": 400}`, 0 tokens, cost 0. The
+  SDK's `ApiError` sets that name and a numeric `status`. 19 calls, 5,283
+  micro-USD ($0.0053).
   **Each command now costs ~290 micro-USD, not ~183:** the longer prompt
   raised input tokens from ~230 to ~438.
 
@@ -855,6 +869,64 @@ Rewritten stats and a replaced earlier reply are expected. After a session
 switch, run it by hand so the current session's log exists. Never hand-edit
 a log; if a log from a **different** session shows deletions, show the user
 and wait for their decision.
+
+### 4f. Export length under memory pressure: measured 2026-10-03, not fixed
+
+**Yes, real exports can come out the wrong length,** and only under memory
+pressure. Measured with an instrumented export (scratchpad
+`diag-export.spec.ts`: wraps `MediaRecorder` start/pause/resume/stop, the
+offscreen `<video>`'s play/pause, the export's `AudioContext` clock and
+`requestAnimationFrame` gaps, then reads the file's video and audio track
+lengths and the tone edges in its audio). The edit: a ~2.9 s take split at
+~1.5 s with the second part moved first. Each miss is the larger of the
+file's two track errors; the raw per-export lines are `diag-pressure*.txt`
+in session `e275341f-…`'s scratchpad (re-checked against this table
+2026-10-03).
+
+| Condition                                      | Exports | Within ~40 ms | Long                      | Short              |
+| ---------------------------------------------- | ------- | ------------- | ------------------------- | ------------------ |
+| Alone, ~2.1 GB free                            | 4       | 4             | 0                         | 0                  |
+| Inside a full e2e run (4 workers), 2.3 GB free | 8       | 8             | 0                         | 0                  |
+| A 2.2–2.5 GB memory hog, 0.3–0.7 GB free       | 37      | 32            | 3 (+0.11, +0.13, +0.23 s) | 2 (−0.42, −0.52 s) |
+
+**Long: the export loop pauses the recorder late.** The loop checks each
+animation frame whether the segment has ended; a main-thread stall of
+150–270 ms right at a segment's end leaves the recorder running for it (a
+recording window 1.65 s instead of 1.51 s; the offscreen video found 151 ms
+past the segment end when paused). What fills the extra time depends on the
+segment: one ending at the end of the source adds silence over a held frame
+(audio edges show 0.16–0.18 s of inserted silence); **one ending mid-source
+records up to the stall's length of whatever follows it in the source**:
+in a real edit, often cut material (measured: 151 ms; in this test edit it
+was the start of the other clip). The audio clock kept pace with wall time in
+every window (within ~10 ms) and the video never reported `waiting`, so
+decoding and the audio clock aren't the cause.
+
+**Short: the file loses its last ~0.5 s.** The recorder ran its full time
+(3.0 s), but both tracks stop together ~0.5 s early (video 2.416 s, audio
+2.400 s for a 2.920 s edit) and the audio's last edge (the tone ending at
+~2.46 s) is missing: the tail never reached the file. Both short exports
+had long frame stalls (167 ms, 583 ms) while recording. **Likely cause, not
+proven:** under load the VP9 encoder falls behind, and what's still queued
+when `stop()` is called is dropped.
+
+**Not fixed, because none of these is cheap, safe and verified yet:**
+
+- Short: pause the recorder and give the encoder a moment to drain before
+  `stop()` (cheap, adds ~1 s at the end, no length change). Unverified: the
+  cause is a hypothesis, and at ~2 in 37 exports under pressure, showing it
+  works needs dozens of exports each way.
+- Long: mute the source at the exact segment end on the audio clock, and
+  stop drawing frames past it. Stops cut material leaking in, but not the
+  extra length, and the mute could clip the last ~40–65 ms of kept audio
+  (the lead-in offset in section 4b) unless measured.
+- Either: compare each recording window with its segment after an export
+  and warn the user ("the computer was busy; export again with fewer apps
+  open") when they differ by more than ~0.1 s. Honest, cheap; not a fix.
+
+This explains the e2e export-length failures in section 4c (0.39 s long,
+0.30 s short): the suite's own load, plus low memory, causes both. With
+2+ GB free the export was accurate in every measured run.
 
 ---
 
