@@ -9,14 +9,16 @@ import { Input } from '@/components/ui/input'
 import { toast } from '@/lib/toast'
 import { parseEditCommand } from './actions'
 import { CommandReply } from './command-reply'
-import { commandToTrim, type CommandOutcome } from './edit-command'
-import type { TrimRange } from './timeline-scale'
+import { commandToPlan, type CommandOutcome, type CommandPlan } from './edit-command'
 
 const AI_ICON_SIZE = 20
 
 type CommandBarProps = {
 	durationSeconds: number
-	onTrim: (range: TrimRange) => void
+	/** How long the edited video plays: a title's times are in it. */
+	editedSeconds: number
+	hasWatermark: boolean
+	onApply: (plan: CommandPlan) => void
 }
 
 /**
@@ -25,7 +27,12 @@ type CommandBarProps = {
  * cost a click on Cancel, not an Undo. A command it can't do gets a plain
  * answer listing what it can, not an error.
  */
-export function CommandBar({ durationSeconds, onTrim }: CommandBarProps) {
+export function CommandBar({
+	durationSeconds,
+	editedSeconds,
+	hasWatermark,
+	onApply
+}: CommandBarProps) {
 	const t = useTranslations('Editor.command')
 	const [command, setCommand] = useState('')
 	const [reply, setReply] = useState<{ command: string; outcome: CommandOutcome } | null>(null)
@@ -37,7 +44,7 @@ export function CommandBar({ durationSeconds, onTrim }: CommandBarProps) {
 			return result.data
 		},
 		onSuccess: (parsed, text) => {
-			setReply({ command: text, outcome: commandToTrim(parsed, durationSeconds) })
+			setReply({ command: text, outcome: commandToPlan(parsed, durationSeconds, editedSeconds) })
 		},
 		onError: (error) => {
 			toast({ variant: 'destructive', title: t('failed'), description: error.message })
@@ -46,7 +53,7 @@ export function CommandBar({ durationSeconds, onTrim }: CommandBarProps) {
 
 	function applyPlan() {
 		if (!reply?.outcome.ok) return
-		onTrim(reply.outcome.range)
+		onApply(reply.outcome.plan)
 		setReply(null)
 		setCommand('')
 	}
@@ -89,6 +96,7 @@ export function CommandBar({ durationSeconds, onTrim }: CommandBarProps) {
 					command={reply.command}
 					outcome={reply.outcome}
 					durationSeconds={durationSeconds}
+					hasWatermark={hasWatermark}
 					onApply={applyPlan}
 					onDismiss={() => setReply(null)}
 				/>

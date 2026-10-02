@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-import type { CommandOutcome } from './edit-command'
+import type { CommandOutcome, CommandPlan } from './edit-command'
 import { formatTimecode } from './timeline-scale'
 
 type CommandReplyProps = {
@@ -10,14 +10,16 @@ type CommandReplyProps = {
 	command: string
 	outcome: CommandOutcome
 	durationSeconds: number
+	/** Whether a watermark plan moves the logo already there, or adds one. */
+	hasWatermark: boolean
 	onApply: () => void
 	onDismiss: () => void
 }
 
 // What the editor can really do today, for the "I can't do that yet" reply.
-// Typed commands can only trim; the rest is listed as where to find it, so
-// the reply never implies a command that doesn't exist.
-const COMMAND_ABILITIES = ['trimRange', 'trimToEnd'] as const
+// Typed commands can trim and add graphics; the rest is listed as where to
+// find it, so the reply never implies a command that doesn't exist.
+const COMMAND_ABILITIES = ['trimRange', 'trimToEnd', 'addTitle', 'addWatermark'] as const
 const EDITOR_ABILITIES = [
 	'cleanup',
 	'fillerCut',
@@ -26,6 +28,7 @@ const EDITOR_ABILITIES = [
 	'reorder',
 	'merge',
 	'reRecord',
+	'graphics',
 	'export'
 ] as const
 
@@ -37,10 +40,34 @@ export function CommandReply({
 	command,
 	outcome,
 	durationSeconds,
+	hasWatermark,
 	onApply,
 	onDismiss
 }: CommandReplyProps) {
 	const t = useTranslations('Editor.command')
+
+	function describe(plan: CommandPlan): string {
+		if (plan.kind === 'title') {
+			return t('confirm.title', {
+				text: plan.title.text,
+				start: formatTimecode(plan.title.startSeconds),
+				end: formatTimecode(plan.title.startSeconds + plan.title.durationSeconds)
+			})
+		}
+		if (plan.kind === 'watermark') {
+			const corner = t(`corners.${plan.corner}`)
+			return hasWatermark
+				? t('confirm.watermarkMove', { corner })
+				: t('confirm.watermarkNew', { corner })
+		}
+		const kept = plan.range.endSeconds - plan.range.startSeconds
+		return t('confirm.plan', {
+			start: formatTimecode(plan.range.startSeconds),
+			end: formatTimecode(plan.range.endSeconds),
+			kept: kept.toFixed(1),
+			removed: (durationSeconds - kept).toFixed(1)
+		})
+	}
 
 	return (
 		<div
@@ -50,17 +77,7 @@ export function CommandReply({
 			<div className="flex flex-col gap-1">
 				<p className="text-text-muted text-xs">{t('asked', { command })}</p>
 				{outcome.ok ? (
-					<p className="text-text text-sm font-medium">
-						{t('confirm.plan', {
-							start: formatTimecode(outcome.range.startSeconds),
-							end: formatTimecode(outcome.range.endSeconds),
-							kept: (outcome.range.endSeconds - outcome.range.startSeconds).toFixed(1),
-							removed: (
-								durationSeconds -
-								(outcome.range.endSeconds - outcome.range.startSeconds)
-							).toFixed(1)
-						})}
-					</p>
+					<p className="text-text text-sm font-medium">{describe(outcome.plan)}</p>
 				) : outcome.reason === 'out_of_range' ? (
 					<>
 						<p className="text-text text-sm font-medium">{t('out_of_range.title')}</p>

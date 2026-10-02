@@ -76,15 +76,26 @@
 			"dismiss": "OK",
 			"confirm": {
 				"plan": "I'll keep {start}–{end} ({kept} s) and remove the rest of the clip ({removed} s).",
+				"title": "I'll show the title “{text}” from {start} to {end} of the edited video.",
+				"watermarkNew": "I'll put your logo in the {corner} corner for the whole video. Choose the PNG next.",
+				"watermarkMove": "I'll move the watermark to the {corner} corner.",
 				"apply": "Apply",
 				"cancel": "Cancel"
 			},
 			"failed": "Couldn't run that command",
+			"corners": {
+				"top-left": "top-left",
+				"top-right": "top-right",
+				"bottom-left": "bottom-left",
+				"bottom-right": "bottom-right"
+			},
 			"unsupported": {
 				"title": "I can't do that yet.",
-				"commandsIntro": "As a typed command, I can trim the clip:",
+				"commandsIntro": "As a typed command, I can:",
 				"trimRange": "Keep a time range: “cut from 2 to 5 seconds”, “keep 1:05 to 1:20”",
 				"trimToEnd": "Keep from a point to the end: “cut from 3 seconds to the end”",
+				"addTitle": "Add a title card: “add the title Welcome for the first 3 seconds”",
+				"addWatermark": "Add a logo watermark: “put my logo in the top-right corner”",
 				"editorIntro": "In the editor itself, you can also:",
 				"cleanup": "Remove long silences and filler words with Clean up recording",
 				"fillerCut": "Cut a single filler word by clicking its flag on the timeline",
@@ -93,6 +104,7 @@
 				"reorder": "Reorder clips by dragging them in the Clips strip",
 				"merge": "Merge adjacent clips by selecting them and choosing Merge clips",
 				"export": "Export the edit as a video file with Export video",
+				"graphics": "Add or change a title and watermark in the Graphics panel",
 				"reRecord": "Re-record a sentence by clicking the microphone next to it in the transcript"
 			},
 			"out_of_range": {
@@ -117,6 +129,32 @@
 			"label": "Compare with the original",
 			"edited": "Edited",
 			"original": "Original"
+		},
+		"graphics": {
+			"label": "Graphics",
+			"titleText": "Title text",
+			"titleStart": "Starts at (s)",
+			"titleDuration": "Duration (s)",
+			"titleHint": "Times are in the edited video: 0 is where the export starts.",
+			"addTitle": "Add title",
+			"updateTitle": "Update title",
+			"removeTitle": "Remove title",
+			"corner": "Watermark corner",
+			"corners": {
+				"top-left": "Top left",
+				"top-right": "Top right",
+				"bottom-left": "Bottom left",
+				"bottom-right": "Bottom right"
+			},
+			"addLogo": "Add logo (PNG)",
+			"replaceLogo": "Replace logo",
+			"removeWatermark": "Remove watermark",
+			"logoInput": "Logo image",
+			"watermarkAlt": "Watermark",
+			"notAPng": {
+				"title": "That isn't a PNG",
+				"description": "{name} can't be used as a watermark. Choose a PNG image."
+			}
 		},
 		"speed": {
 			"label": "Preview speed",

@@ -10,11 +10,23 @@ import { CleanupBar } from './cleanup-bar'
 import { ClipStrip } from './clip-strip'
 import { CompareToggle } from './compare-toggle'
 import { CommandBar } from './command-bar'
+import type { CommandPlan } from './edit-command'
 import { isOriginalEdit, ORIGINAL_EDIT, type EditSnapshot } from './edit-snapshot'
 import { ExportButton } from './export-button'
+import { totalSeconds } from './export-video'
 import { FillerCutEditor } from './filler-cut-editor'
+import { GraphicsPanel } from './graphics-panel'
 import { cutEditorWindow, initialCutRange, moveCutEdge, type FillerPlan } from './filler-cuts'
 import { emptyHistory, record, redo, reset, undo, type Step } from './history'
+import { OverlayPreview } from './overlay-preview'
+import {
+	editedSecondsAt,
+	readLogo,
+	type Corner,
+	type Overlays,
+	type TitleCard,
+	type Watermark
+} from './overlays'
 import { previewWindow, reRecordBlocker, type ReplacementTake } from './re-record'
 import { ReRecordPanel } from './re-record-panel'
 import { planSentenceSplice, type SplicePlan } from './sentence-splice'
@@ -55,6 +67,9 @@ export function VideoEditor() {
 	const [video, setVideo] = useState<LoadedVideo | null>(null)
 	const [durationSeconds, setDurationSeconds] = useState(0)
 	const [currentTimeSeconds, setCurrentTimeSeconds] = useState(0)
+	// Which segment playback is in: a source time can end one and start another.
+	const [segmentIndex, setSegmentIndex] = useState<number | null>(null)
+	const [picture, setPicture] = useState<{ width: number; height: number } | null>(null)
 	const [isPlaying, setIsPlaying] = useState(false)
 	// Browser recordings (MediaRecorder WebM — what re-recording a take will
 	// produce) carry no duration header, so they report Infinity until the
@@ -90,11 +105,17 @@ export function VideoEditor() {
 	// Null until the first split, meaning "the whole take as one clip".
 	const [clips, setClips] = useState<Clip[] | null>(null)
 	const sequence = clips ?? wholeTake(durationSeconds)
+	// The title card and watermark over the edited video (overlays.ts).
+	const [title, setTitle] = useState<TitleCard | null>(null)
+	const [watermark, setWatermark] = useState<Watermark | null>(null)
+	const overlays: Overlays = { title, watermark }
+	const logoInputRef = useRef<HTMLInputElement>(null)
+	const logoCornerRef = useRef<Corner>('bottom-right')
 	// Every edit records the snapshot from just before it, so Undo and Redo
 	// step through them (history.ts). A trim drag records once, at its first
 	// real move; each arrow-key nudge is a step of its own.
 	const [history, setHistory] = useState(emptyHistory<EditSnapshot>)
-	const snapshot: EditSnapshot = { trim, cuts, clips, replacements }
+	const snapshot: EditSnapshot = { trim, cuts, clips, replacements, title, watermark }
 	const trimDragRef = useRef<{ recorded: boolean } | null>(null)
 	// The filler cut editor: which filler is open and where its handles sit.
 	// A preview plays just the editor's window, straight through the source
@@ -150,9 +171,15 @@ export function VideoEditor() {
 		segments,
 		isPlaying,
 		previewRate,
-		setCurrentTimeSeconds,
+		followPlayhead,
 		stopPlaying
 	)
+	// Overlays show in the edited view only: not over the original, nor a
+	// cut or take preview, which play other segments.
+	const editedNow =
+		segments === editedSegments
+			? editedSecondsAt(currentTimeSeconds, editedSegments, segmentIndex)
+			: null
 
 	const videoUrl = video?.url
 	// An object URL pins the whole file in memory until it's revoked, so each
@@ -176,6 +203,9 @@ export function VideoEditor() {
 		setClips(null)
 		setCuts([])
 		setReplacements([])
+		setTitle(null)
+		setWatermark(null)
+		setPicture(null)
 		setHistory(emptyHistory())
 		setCutEditor(null)
 		setPreview(null)
@@ -189,6 +219,7 @@ export function VideoEditor() {
 	}
 
 	function handleLoadedMetadata(element: HTMLVideoElement) {
+		setPicture({ width: element.videoWidth, height: element.videoHeight })
 		if (isKnownDuration(element.duration)) {
 			setDurationSeconds(element.duration)
 			return
@@ -346,6 +377,8 @@ export function VideoEditor() {
 		setCuts(step.restore.cuts)
 		setClips(step.restore.clips)
 		setReplacements(step.restore.replacements)
+		setTitle(step.restore.title)
+		setWatermark(step.restore.watermark)
 		applyTrim(step.restore.trim, step.restore.trim?.startSeconds ?? 0)
 	}
 
@@ -370,6 +403,56 @@ export function VideoEditor() {
 		window.addEventListener('keydown', handleShortcut)
 		return () => window.removeEventListener('keydown', handleShortcut)
 	}, [])
+
+	function followPlayhead(seconds: number, index: number | null) {
+		setCurrentTimeSeconds(seconds)
+		setSegmentIndex(index)
+	}
+
+	function changeTitle(next: TitleCard | null) {
+		recordEdit()
+		setTitle(next)
+	}
+
+	// The file picker opens straight from the click (Add logo, or Apply on a
+	// watermark command); the corner waits for the file.
+	function pickLogo(corner: Corner) {
+		logoCornerRef.current = corner
+		logoInputRef.current?.click()
+	}
+
+	async function addLogo(file: File) {
+		const notAPng = () =>
+			toast({
+				variant: 'destructive',
+				title: t('graphics.notAPng.title'),
+				description: t('graphics.notAPng.description', { name: file.name })
+			})
+		if (file.type !== 'image/png') return notAPng()
+		const logo = await readLogo(file).catch(() => null)
+		if (!logo) return notAPng()
+		recordEdit()
+		setWatermark({ ...logo, corner: logoCornerRef.current })
+	}
+
+	function moveWatermark(corner: Corner) {
+		if (!watermark || watermark.corner === corner) return
+		recordEdit()
+		setWatermark({ ...watermark, corner })
+	}
+
+	function applyCommand(plan: CommandPlan) {
+		if (plan.kind === 'trim') {
+			recordEdit()
+			applyTrim(plan.range, plan.range.startSeconds)
+		} else if (plan.kind === 'title') {
+			changeTitle(plan.title)
+		} else if (watermark) {
+			moveWatermark(plan.corner)
+		} else {
+			pickLogo(plan.corner)
+		}
+	}
 
 	function stopPlaying() {
 		setIsPlaying(false)
@@ -413,6 +496,7 @@ export function VideoEditor() {
 									videoUrl={video.url}
 									videoName={video.name}
 									segments={editedSegments}
+									overlays={overlays}
 								/>
 							)}
 							<Button
@@ -432,13 +516,12 @@ export function VideoEditor() {
 					{hasDuration && (
 						<CommandBar
 							durationSeconds={durationSeconds}
-							onTrim={(next) => {
-								recordEdit()
-								applyTrim(next, next.startSeconds)
-							}}
+							editedSeconds={totalSeconds(editedSegments)}
+							hasWatermark={watermark !== null}
+							onApply={applyCommand}
 						/>
 					)}
-					<div className="border-border mx-auto w-full max-w-3xl overflow-hidden rounded-2xl border bg-black shadow-2xl">
+					<div className="border-border relative mx-auto w-full max-w-3xl overflow-hidden rounded-2xl border bg-black shadow-2xl">
 						<video
 							key={video.url}
 							ref={videoRef}
@@ -465,6 +548,9 @@ export function VideoEditor() {
 								setVideo(null)
 							}}
 						/>
+						{editedNow !== null && picture && (
+							<OverlayPreview overlays={overlays} editedSeconds={editedNow} picture={picture} />
+						)}
 					</div>
 					{hasDuration && (
 						<div className="mx-auto flex w-full max-w-3xl justify-end">
@@ -517,6 +603,36 @@ export function VideoEditor() {
 					onMove={(from, to) => arrangeClips(moveClip(sequence, from, to))}
 					onMerge={(from, to) => arrangeClips(mergeClips(sequence, from, to))}
 				/>
+			)}
+			{video && hasDuration && (
+				<>
+					<GraphicsPanel
+						key={title ? JSON.stringify(title) : 'no title'}
+						title={title}
+						watermark={watermark}
+						onTitleChange={changeTitle}
+						onPickLogo={pickLogo}
+						onCornerChange={moveWatermark}
+						onRemoveWatermark={() => {
+							recordEdit()
+							setWatermark(null)
+						}}
+					/>
+					<input
+						ref={logoInputRef}
+						type="file"
+						accept="image/png"
+						aria-label={t('graphics.logoInput')}
+						className="sr-only"
+						tabIndex={-1}
+						onChange={(event) => {
+							const file = event.currentTarget.files?.[0]
+							// Cleared so picking the same file again still counts.
+							event.currentTarget.value = ''
+							if (file) void addLogo(file)
+						}}
+					/>
+				</>
 			)}
 			{cutEditor && cutWindow && analysis.loudness && (
 				<FillerCutEditor
