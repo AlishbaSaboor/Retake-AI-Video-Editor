@@ -612,13 +612,21 @@ Other one-offs, also unexplained:
   crash with `EPIPE` and every page returns 500. Start it with the longest
   timeout, or restart it when that happens.
 
-### 4e. The session-log hook can rewrite the previous session's log
+### 4e. How the session-log script behaves (by design)
 
-The hook logs the most recently changed transcript, so the first message
-of a new session can rewrite the previous session's log (seen 2026-10-02:
-it dropped transcript entries). After any session switch, run
-`python3 ~/.claude/extract-log.py` by hand and check `git diff .claude-logs/`
-shows additions only.
+`~/.claude/extract-log.py` is the trial's standard script; don't modify
+it. Each run it:
+
+- overwrites the whole log file, so header stats are rewritten every time
+- keeps every prompt but only the **final** reply to each prompt, so an
+  earlier reply to the same prompt is replaced
+- logs whichever transcript was modified most recently, so the first
+  message of a new session can rewrite the previous session's log
+
+Rewritten stats and a replaced earlier reply are expected. After a session
+switch, run it by hand so the current session's log exists. Never hand-edit
+a log; if a log from a **different** session shows deletions, show the user
+and wait for their decision.
 
 ---
 
@@ -648,11 +656,12 @@ Not yet queued by the user:
 ## 6. Standing rules (carry these forward)
 
 - **Never commit or push on your own** (user's rule, 2026-10-02). Do the
-  work and the checks, show a summary (files changed, tests, `git diff
---stat`) and ask before committing, then ask again before pushing. One
+  work and the checks, show a summary (files changed, tests,
+  `git diff --stat`) and ask before committing, then ask again before pushing. One
   commit per finished piece of work (e.g. all of undo/redo), not per step.
-- **Commit code and session logs separately.** `git diff .claude-logs/`
-  must show additions only before a logs commit.
+- **Commit code and session logs separately.** Before a logs commit, run
+  the secret scan and show the user `git diff --stat`; commit the logs
+  exactly as the script wrote them (section 4e).
   - One `feat(...)` commit per feature (Conventional Commits).
   - Then run `python3 ~/.claude/extract-log.py` to refresh `.claude-logs/`.
   - Leak-check it with: `grep -rhoE 'sb_secret_[A-Za-z0-9_-]{10,}|sb_publishable_[A-Za-z0-9_-]{10,}|eyJhbGciOi[A-Za-z0-9_.-]{20,}|AIza[0-9A-Za-z_-]{35}' .claude-logs/`.
