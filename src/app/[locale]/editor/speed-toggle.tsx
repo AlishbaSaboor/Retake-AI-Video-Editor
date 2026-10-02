@@ -2,8 +2,7 @@
 
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-
-const RATES = [0.5, 1, 1.5, 2] as const
+import { PREVIEW_RATES } from './preview-speed'
 
 type SpeedToggleProps = {
 	rate: number
@@ -18,7 +17,7 @@ export function SpeedToggle({ rate, onChange }: SpeedToggleProps) {
 			<span className="text-text-muted mr-1 text-xs" title={t('hint')}>
 				{t('label')}
 			</span>
-			{RATES.map((option) => (
+			{PREVIEW_RATES.map((option) => (
 				<Button
 					key={option}
 					size="sm"

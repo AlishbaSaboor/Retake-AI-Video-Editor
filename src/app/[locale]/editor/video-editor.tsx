@@ -11,9 +11,9 @@ import { ClipStrip } from './clip-strip'
 import { CompareToggle } from './compare-toggle'
 import { editedCaptions } from './captions'
 import { CommandBar } from './command-bar'
-import type { CommandPlan } from './edit-command'
+import type { CommandContext, CommandPlan } from './edit-command'
 import { isOriginalEdit, ORIGINAL_EDIT, type EditSnapshot } from './edit-snapshot'
-import { ExportButton } from './export-button'
+import { ExportButton, useVideoExport } from './export-button'
 import { totalSeconds } from './export-video'
 import { FillerCutEditor } from './filler-cut-editor'
 import { GraphicsPanel } from './graphics-panel'
@@ -163,6 +163,12 @@ export function VideoEditor() {
 				? editedCaptions(analysis.transcript.transcript.words, editedSegments)
 				: []
 	}
+	const exporter = useVideoExport({
+		videoUrl: video?.url ?? '',
+		videoName: video?.name ?? '',
+		segments: editedSegments,
+		overlays
+	})
 	const segments =
 		preview && cutWindow && cutEditor
 			? playableSegments(
@@ -355,8 +361,8 @@ export function VideoEditor() {
 
 	// Splitting never moves the playhead or changes what plays — it only
 	// divides the clip under the playhead into two that can be rearranged.
-	function splitAtPlayhead() {
-		const next = splitClipAt(sequence, currentTimeSeconds, () => crypto.randomUUID(), replacements)
+	function splitAt(seconds: number) {
+		const next = splitClipAt(sequence, seconds, () => crypto.randomUUID(), replacements)
 		if (next) arrangeClips(next)
 	}
 
@@ -467,18 +473,78 @@ export function VideoEditor() {
 		setWatermark({ ...watermark, corner })
 	}
 
+	// The transcript's sentence for "the sentence at 0:25": the one the
+	// transcript labels 0:25 (its start, in whole seconds), else the one
+	// being spoken then; and why it can't be re-recorded, if it can't.
+	function sentenceAt(seconds: number) {
+		if (analysis.transcript.status !== 'ready' || !analysis.loudness) return null
+		const sentences = analysis.transcript.transcript.segments
+		const sentence =
+			sentences.find((s) => Math.floor(s.startSeconds) === Math.floor(seconds)) ??
+			sentences.find((s) => seconds >= s.startSeconds && seconds < s.endSeconds)
+		if (!sentence) return null
+		const plan = planSentenceSplice(sentence, analysis.loudness)
+		return { sentence, blocker: reRecordBlocker(plan, edit, sequence, replacements) }
+	}
+
+	const commandContext: CommandContext = {
+		durationSeconds,
+		editedSeconds: totalSeconds(editedSegments),
+		clipCount: sequence.length,
+		canSplitAt: (seconds) => canSplitAt(sequence, seconds, replacements),
+		cleanupSeconds: removableSeconds,
+		canUndo: history.past.length > 0,
+		canRedo: history.future.length > 0,
+		canReset: !isOriginalEdit(snapshot, durationSeconds),
+		sentenceAt
+	}
+
+	// Each runs what its button does, so each edit is the same one undo step.
 	function applyCommand(plan: CommandPlan) {
-		if (plan.kind === 'trim') {
-			recordEdit()
-			applyTrim(plan.range, plan.range.startSeconds)
-		} else if (plan.kind === 'title') {
-			changeTitle(plan.title)
-		} else if (plan.kind === 'captions') {
-			changeCaptions(plan.on)
-		} else if (watermark) {
-			moveWatermark(plan.corner)
-		} else {
-			pickLogo(plan.corner)
+		switch (plan.kind) {
+			case 'trim':
+				recordEdit()
+				applyTrim(plan.range, plan.range.startSeconds)
+				break
+			case 'split':
+				splitAt(plan.seconds)
+				break
+			case 'merge':
+				arrangeClips(mergeClips(sequence, plan.from, plan.to))
+				break
+			case 'move':
+				arrangeClips(moveClip(sequence, plan.from, plan.to))
+				break
+			case 'cleanup':
+				applyCleanup()
+				break
+			case 'undo':
+				undoEdit()
+				break
+			case 'redo':
+				redoEdit()
+				break
+			case 'reset':
+				resetEdit()
+				break
+			case 'speed':
+				setPreviewRate(plan.rate)
+				break
+			case 'rerecord':
+				openReRecord(plan.sentence)
+				break
+			case 'export':
+				void exporter.start()
+				break
+			case 'title':
+				changeTitle(plan.title)
+				break
+			case 'captions':
+				changeCaptions(plan.on)
+				break
+			case 'watermark':
+				if (watermark) moveWatermark(plan.corner)
+				else pickLogo(plan.corner)
 		}
 	}
 
@@ -519,14 +585,7 @@ export function VideoEditor() {
 							<CompareToggle showOriginal={showOriginal} onChange={setShowOriginal} />
 						)}
 						<div className="flex gap-2">
-							{hasDuration && (
-								<ExportButton
-									videoUrl={video.url}
-									videoName={video.name}
-									segments={editedSegments}
-									overlays={overlays}
-								/>
-							)}
+							{hasDuration && <ExportButton exporter={exporter} />}
 							<Button
 								asChild
 								variant="outline"
@@ -543,8 +602,7 @@ export function VideoEditor() {
 					</div>
 					{hasDuration && (
 						<CommandBar
-							durationSeconds={durationSeconds}
-							editedSeconds={totalSeconds(editedSegments)}
+							context={commandContext}
 							hasWatermark={watermark !== null}
 							onApply={applyCommand}
 						/>
@@ -627,7 +685,7 @@ export function VideoEditor() {
 					replacements={replacements}
 					currentTimeSeconds={currentTimeSeconds}
 					canSplit={canSplitAt(sequence, currentTimeSeconds, replacements)}
-					onSplit={splitAtPlayhead}
+					onSplit={() => splitAt(currentTimeSeconds)}
 					onMove={(from, to) => arrangeClips(moveClip(sequence, from, to))}
 					onMerge={(from, to) => arrangeClips(mergeClips(sequence, from, to))}
 				/>
