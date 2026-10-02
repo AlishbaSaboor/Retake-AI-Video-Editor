@@ -49,7 +49,8 @@
 			"count": "{count, plural, one {# clip} other {# clips}}",
 			"split": "Split at playhead",
 			"clipName": "Clip {number}",
-			"clipLabel": "Clip {number}: plays {duration}, from {source} of the take"
+			"clipLabel": "Clip {number}: plays {duration}, from {source} of the take",
+			"reorderHint": "Drag a clip, or press Alt+← / Alt+→ on it, to change the order."
 		},
 		"transcript": {
 			"title": "Transcript",
@@ -79,7 +80,9 @@
 				"editorIntro": "In the editor itself, you can also:",
 				"cleanup": "Remove long silences and filler words with Clean up recording",
 				"fillerCut": "Cut a single filler word by clicking its flag on the timeline",
-				"handTrim": "Trim by hand by dragging the timeline's handles"
+				"handTrim": "Trim by hand by dragging the timeline's handles",
+				"split": "Split a clip at the playhead with Split at playhead",
+				"reorder": "Reorder clips by dragging them in the Clips strip"
 			},
 			"out_of_range": {
 				"title": "That range isn't in this clip.",
