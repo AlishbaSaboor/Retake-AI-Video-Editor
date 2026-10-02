@@ -6,7 +6,8 @@ since `AGENTS.md` is the file every tool reads and `CLAUDE.md` is
 Claude-Code-only. Don't duplicate rules back into this file; add them to
 `AGENTS.md` so they reach every tool, not just this one.
 
-This file holds the two things that genuinely are Claude-Code-specific.
+This file holds the things that genuinely are Claude-Code-specific, plus
+the owner's standing rules for sessions on this project.
 
 ## Session logs
 
@@ -15,6 +16,18 @@ Always commit `.claude-logs/` with your changes.
 `.claude-logs/` is tracked, not gitignored — the transcript for the session
 that produced a change belongs on the branch that ships it. Stage it
 immediately before every `git push`, separately from the code commit.
+
+## Standing rules
+
+- Once a task is finished and every check passes, commit and push on your
+  own. Stop and ask if anything fails or is destructive.
+- Commit code and logs separately; for logs, follow section 4e of
+  `PROGRESS_NOTES.md`.
+- Run the secret scan before each logs commit.
+- Zero API cost unless the owner approves it.
+- Verify audio/video work for real, against the actual output, not just
+  that it compiles.
+- Update `PROGRESS_NOTES.md` after each feature.
 
 ## Skills
 

@@ -715,10 +715,10 @@ Not yet queued by the user:
 
 ## 6. Standing rules (carry these forward)
 
-- **Never commit or push on your own** (user's rule, 2026-10-02). Do the
-  work and the checks, show a summary (files changed, tests,
-  `git diff --stat`) and ask before committing, then ask again before pushing. One
-  commit per finished piece of work (e.g. all of undo/redo), not per step.
+- **Commit and push on your own once a task is finished and every check
+  passes; stop and ask if anything fails or is destructive** (user's rule,
+  2026-10-03, also in `CLAUDE.md`). One commit per finished piece of work
+  (e.g. all of undo/redo), not per step.
 - **Commit code and session logs separately.** Before a logs commit, run
   the secret scan and show the user `git diff --stat`; commit the logs
   exactly as the script wrote them (section 4e).
