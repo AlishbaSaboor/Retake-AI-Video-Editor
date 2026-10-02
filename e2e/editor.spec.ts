@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { test, expect } from '@playwright/test'
 import {
+	editCommand,
 	mockActions,
 	openEditorWithVideo,
 	playheadSeconds,
@@ -325,7 +326,7 @@ test('an AI command shows what it understood and changes nothing until confirmed
 }) => {
 	await mockActions(page, {
 		words: [],
-		command: { action: 'trim', startSeconds: 1, endSeconds: 2, text: null, corner: null }
+		command: editCommand({ action: 'trim', startSeconds: 1, endSeconds: 2 })
 	})
 	await page.goto('/editor')
 	const video = await recordTestVideo(page, [[3, true]])
@@ -368,13 +369,7 @@ test('a command it cannot do gets a plain answer listing what it can, and change
 }) => {
 	await mockActions(page, {
 		words: [],
-		command: {
-			action: 'unsupported',
-			startSeconds: null,
-			endSeconds: null,
-			text: null,
-			corner: null
-		}
+		command: editCommand({ action: 'unsupported' })
 	})
 	await page.goto('/editor')
 	const video = await recordTestVideo(page, [[3, true]])
@@ -392,8 +387,9 @@ test('a command it cannot do gets a plain answer listing what it can, and change
 	await expect(reply).toContainText('Keep a time range')
 	await expect(reply).toContainText('Add a title card')
 	await expect(reply).toContainText('Add a logo watermark')
-	await expect(reply).toContainText('Clean up recording')
-	await expect(reply).toContainText('Reorder clips by dragging')
+	await expect(reply).toContainText('Remove long silences and filler words')
+	await expect(reply).toContainText('Reorder clips: “move clip 2 to the start”')
+	await expect(reply).toContainText('Compare the edit with the original')
 	await expect(reply.getByRole('button', { name: 'Apply' })).toHaveCount(0)
 	await expect(trimStart).toHaveAttribute('aria-valuenow', '0')
 	await reply.getByRole('button', { name: 'OK' }).click()
@@ -402,7 +398,7 @@ test('a command it cannot do gets a plain answer listing what it can, and change
 	// A trim it understood but that falls outside the clip is explained too.
 	await page.unrouteAll({ behavior: 'wait' })
 	await mockActions(page, {
-		command: { action: 'trim', startSeconds: 8, endSeconds: 9, text: null, corner: null }
+		command: editCommand({ action: 'trim', startSeconds: 8, endSeconds: 9 })
 	})
 	await input.fill('cut from 8 to 9 seconds')
 	await page.getByRole('button', { name: 'Run' }).click()
@@ -535,7 +531,7 @@ test('the original and edited takes can be compared without moving the playhead'
 }) => {
 	await mockActions(page, {
 		words: [],
-		command: { action: 'trim', startSeconds: 1, endSeconds: 2, text: null, corner: null }
+		command: editCommand({ action: 'trim', startSeconds: 1, endSeconds: 2 })
 	})
 	await openEditorWithVideo(page)
 	await page.getByLabel('Edit command').fill('keep 1 to 2 seconds')

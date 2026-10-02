@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
 import type { EditCommand } from '../src/app/[locale]/editor/edit-command'
-import { mockActions, openEditorWithVideo, seekTo, w } from './editor-helpers'
+import { editCommand, mockActions, openEditorWithVideo, seekTo, w } from './editor-helpers'
 
 // The test video is 320×180: a dark background with an orange square
 // crossing y 60–120. The title's band is drawn across the middle (y ~76–104)
@@ -12,7 +12,7 @@ const BAND_ROWS = { from: 80, to: 100 }
 const CAPTION_ROWS = { from: 145, to: 175 }
 const CORNER_CENTRES = { 'top-left': [34, 22], 'bottom-right': [286, 158] } as const
 
-const NONE = { startSeconds: null, endSeconds: null, text: null, corner: null }
+const NONE = editCommand({ action: 'unsupported' })
 
 /** A solid green PNG, 64×32, made in the page. */
 async function greenLogo(page: Page): Promise<Buffer> {

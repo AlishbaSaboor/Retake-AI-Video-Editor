@@ -3,7 +3,15 @@ import { readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test, expect, type Page } from '@playwright/test'
-import { mockActions, openEditorWithVideo, seekTo, w } from './editor-helpers'
+import {
+	mockActions,
+	openEditorWithVideo,
+	openThreeSentences,
+	reRecordButton,
+	ROOM_TONE,
+	seekTo,
+	w
+} from './editor-helpers'
 
 /**
  * What the fake microphone "says", looped by Chromium: 0.4 s of silence, an
@@ -58,12 +66,6 @@ test.use({
 // test's nine real-time exports beside the other test starved its page (a
 // 50 ms meter poll answered 370 ms late) and came out a take of 0.9 s, not 1.0.
 test.describe.configure({ mode: 'default' })
-
-// The pauses between the video's "sentences" hold a faint tone (~-57 dBFS)
-// rather than digital silence, as a real room does: against digital
-// silence, the encoder's fade-out after each tone reads as sound for ~0.3 s
-// and pushes every pause's start back.
-const ROOM_TONE = 0.002
 
 /** Records a take for the open re-record panel: about 2 s, so one 0.8 s tone, watching the meter. */
 async function recordTake(page: Page) {
@@ -239,32 +241,6 @@ async function exportedSeconds(page: Page): Promise<number> {
 	)
 }
 
-/**
- * Opens a take of three "sentences" — A, B (2 s, which a re-record replaces
- * with the fake mic's 0.8 s) and D, with pauses between — and returns its
- * duration once B can be re-recorded.
- */
-async function openThreeSentences(page: Page): Promise<number> {
-	await mockActions(page, {
-		words: [w('Alpha.', 0, 1), w('Bravo', 1.6, 2.6), w('words.', 2.6, 3.6), w('Delta.', 4.2, 5.2)]
-	})
-	const duration = await openEditorWithVideo(
-		page,
-		[
-			[1, true],
-			[0.6, false],
-			[2, true],
-			[0.6, false],
-			[1, true]
-		],
-		ROOM_TONE
-	)
-	await expect(reRecordButton(page, '0:01')).toBeVisible({ timeout: 30_000 })
-	return duration
-}
-
-const reRecordButton = (page: Page, at: string) =>
-	page.getByRole('button', { name: `Re-record the sentence at ${at}` })
 const clipOptions = (page: Page) => page.getByRole('region', { name: 'Clips' }).getByRole('option')
 
 /**

@@ -17,26 +17,24 @@ type CommandReplyProps = {
 }
 
 // What the editor can really do today, for the "I can't do that yet" reply.
-// Typed commands can trim and add graphics; the rest is listed as where to
-// find it, so the reply never implies a command that doesn't exist.
+// Every action has a command; what only the editor itself does is listed as
+// where to find it, so the reply never implies a command that doesn't exist.
 const COMMAND_ABILITIES = [
 	'trimRange',
 	'trimToEnd',
+	'split',
+	'merge',
+	'reorder',
+	'cleanup',
+	'undoRedo',
+	'speed',
+	'reRecord',
+	'export',
 	'addTitle',
 	'addWatermark',
 	'captions'
 ] as const
-const EDITOR_ABILITIES = [
-	'cleanup',
-	'fillerCut',
-	'handTrim',
-	'split',
-	'reorder',
-	'merge',
-	'reRecord',
-	'graphics',
-	'export'
-] as const
+const EDITOR_ABILITIES = ['fillerCut', 'compare'] as const
 
 /**
  * The bar's answer to a parsed command: the plan to confirm, or — when the
@@ -51,30 +49,54 @@ export function CommandReply({
 	onDismiss
 }: CommandReplyProps) {
 	const t = useTranslations('Editor.command')
+	const tReRecord = useTranslations('Editor.reRecord')
 
 	function describe(plan: CommandPlan): string {
-		if (plan.kind === 'title') {
-			return t('confirm.title', {
-				text: plan.title.text,
-				start: formatTimecode(plan.title.startSeconds),
-				end: formatTimecode(plan.title.startSeconds + plan.title.durationSeconds)
-			})
+		switch (plan.kind) {
+			case 'trim': {
+				const kept = plan.range.endSeconds - plan.range.startSeconds
+				return t('confirm.plan', {
+					start: formatTimecode(plan.range.startSeconds),
+					end: formatTimecode(plan.range.endSeconds),
+					kept: kept.toFixed(1),
+					removed: (durationSeconds - kept).toFixed(1)
+				})
+			}
+			case 'split':
+				return t('confirm.split', { at: formatTimecode(plan.seconds) })
+			case 'merge':
+				return t('confirm.merge', { from: plan.from + 1, to: plan.to + 1 })
+			case 'move':
+				return t('confirm.move', { from: plan.from + 1, to: plan.to + 1 })
+			case 'cleanup':
+				return t('confirm.cleanup', { seconds: Math.max(1, Math.round(plan.seconds)) })
+			case 'undo':
+			case 'redo':
+			case 'reset':
+			case 'export':
+				return t(`confirm.${plan.kind}`)
+			case 'speed':
+				return t('confirm.speed', { rate: plan.rate })
+			case 'rerecord':
+				return t('confirm.rerecord', {
+					text: plan.sentence.text,
+					at: formatTimecode(plan.sentence.startSeconds)
+				})
+			case 'title':
+				return t('confirm.title', {
+					text: plan.title.text,
+					start: formatTimecode(plan.title.startSeconds),
+					end: formatTimecode(plan.title.startSeconds + plan.title.durationSeconds)
+				})
+			case 'watermark': {
+				const corner = t(`corners.${plan.corner}`)
+				return hasWatermark
+					? t('confirm.watermarkMove', { corner })
+					: t('confirm.watermarkNew', { corner })
+			}
+			case 'captions':
+				return plan.on ? t('confirm.captionsOn') : t('confirm.captionsOff')
 		}
-		if (plan.kind === 'captions')
-			return plan.on ? t('confirm.captionsOn') : t('confirm.captionsOff')
-		if (plan.kind === 'watermark') {
-			const corner = t(`corners.${plan.corner}`)
-			return hasWatermark
-				? t('confirm.watermarkMove', { corner })
-				: t('confirm.watermarkNew', { corner })
-		}
-		const kept = plan.range.endSeconds - plan.range.startSeconds
-		return t('confirm.plan', {
-			start: formatTimecode(plan.range.startSeconds),
-			end: formatTimecode(plan.range.endSeconds),
-			kept: kept.toFixed(1),
-			removed: (durationSeconds - kept).toFixed(1)
-		})
 	}
 
 	return (
@@ -93,6 +115,13 @@ export function CommandReply({
 							{t('out_of_range.description', { duration: formatTimecode(durationSeconds) })}
 						</p>
 					</>
+				) : outcome.reason === 'cannot_rerecord' ? (
+					<>
+						<p className="text-text text-sm font-medium">{t('refused.cannot_rerecord')}</p>
+						<p className="text-text-muted text-xs">{tReRecord(`blocked.${outcome.blocker}`)}</p>
+					</>
+				) : outcome.reason !== 'unsupported' ? (
+					<p className="text-text text-sm font-medium">{t(`refused.${outcome.reason}`)}</p>
 				) : (
 					<>
 						<p className="text-text text-sm font-medium">{t('unsupported.title')}</p>

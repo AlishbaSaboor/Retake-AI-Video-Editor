@@ -109,6 +109,20 @@ export async function openEditorWithVideo(
 	throw new Error(`no intact ${seconds}s recording in ${RECORDING_ATTEMPTS} attempts`)
 }
 
+/** A parsed command with only the fields that matter given; the rest null, as Gemini sends them. */
+export const editCommand = (
+	fields: Partial<EditCommand> & Pick<EditCommand, 'action'>
+): EditCommand => ({
+	startSeconds: null,
+	endSeconds: null,
+	text: null,
+	corner: null,
+	fromClip: null,
+	toClip: null,
+	rate: null,
+	...fields
+})
+
 export type TimedWord = { word: string; punctuated_word: string; start: number; end: number }
 
 /** A timed word, as the transcriber returns it. */
@@ -165,4 +179,37 @@ export async function seekTo(page: Page, seconds: number): Promise<void> {
 
 export async function playheadSeconds(page: Page): Promise<number> {
 	return page.locator('video').evaluate((video: HTMLVideoElement) => video.currentTime)
+}
+
+// The pauses between the video's "sentences" hold a faint tone (~-57 dBFS)
+// rather than digital silence, as a real room does: against digital
+// silence, the encoder's fade-out after each tone reads as sound for ~0.3 s
+// and pushes every pause's start back.
+export const ROOM_TONE = 0.002
+
+export const reRecordButton = (page: Page, at: string) =>
+	page.getByRole('button', { name: `Re-record the sentence at ${at}` })
+
+/**
+ * Opens a take of three "sentences" — A, B (2 s, which a re-record replaces
+ * with the fake mic's 0.8 s) and D, with pauses between — and returns its
+ * duration once B can be re-recorded.
+ */
+export async function openThreeSentences(page: Page): Promise<number> {
+	await mockActions(page, {
+		words: [w('Alpha.', 0, 1), w('Bravo', 1.6, 2.6), w('words.', 2.6, 3.6), w('Delta.', 4.2, 5.2)]
+	})
+	const duration = await openEditorWithVideo(
+		page,
+		[
+			[1, true],
+			[0.6, false],
+			[2, true],
+			[0.6, false],
+			[1, true]
+		],
+		ROOM_TONE
+	)
+	await expect(reRecordButton(page, '0:01')).toBeVisible({ timeout: 30_000 })
+	return duration
 }

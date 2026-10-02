@@ -1,8 +1,40 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { commandToPlan, commandToTrim, editCommandSchema, type EditCommand } from './edit-command'
+import {
+	commandToPlan,
+	commandToTrim,
+	editCommandSchema,
+	type CommandContext,
+	type EditCommand
+} from './edit-command'
 
-const NONE = { startSeconds: null, endSeconds: null, text: null, corner: null }
+const NONE = {
+	startSeconds: null,
+	endSeconds: null,
+	text: null,
+	corner: null,
+	fromClip: null,
+	toClip: null,
+	rate: null
+}
+const SENTENCE = { startSeconds: 25.2, endSeconds: 27, text: 'Let me add a video here.' }
+/** A three-clip edit with something to clean up and to undo, but nothing to redo. */
+const CONTEXT: CommandContext = {
+	durationSeconds: 60,
+	editedSeconds: 50,
+	clipCount: 3,
+	canSplitAt: (seconds) => seconds > 1 && seconds < 59,
+	cleanupSeconds: 4.2,
+	canUndo: true,
+	canRedo: false,
+	canReset: true,
+	sentenceAt: (seconds) =>
+		seconds >= 25 && seconds < 27
+			? { sentence: SENTENCE, blocker: null }
+			: seconds >= 40 && seconds < 42
+				? { sentence: { ...SENTENCE, startSeconds: 40 }, blocker: 'no_gap_after' }
+				: null
+}
 const trim = (startSeconds: number | null, endSeconds: number | null): EditCommand => ({
 	...NONE,
 	action: 'trim',
@@ -55,7 +87,10 @@ test('a malformed model reply fails validation instead of reaching the trim', ()
 
 test('a title command plans that text over that stretch of the edited video', () => {
 	const title = (text: string | null, start: number | null, end: number | null) =>
-		commandToPlan({ ...NONE, action: 'title', text, startSeconds: start, endSeconds: end }, 10, 8)
+		commandToPlan(
+			{ ...NONE, action: 'title', text, startSeconds: start, endSeconds: end },
+			{ ...CONTEXT, durationSeconds: 10, editedSeconds: 8 }
+		)
 	assert.deepEqual(title(' Welcome ', 0, 3), {
 		ok: true,
 		plan: { kind: 'title', title: { text: 'Welcome', startSeconds: 0, durationSeconds: 3 } }
@@ -73,11 +108,11 @@ test('a title command plans that text over that stretch of the edited video', ()
 })
 
 test('a watermark command plans a corner, bottom-right when none is named', () => {
-	assert.deepEqual(commandToPlan({ ...NONE, action: 'watermark', corner: 'top-left' }, 10, 10), {
+	assert.deepEqual(commandToPlan({ ...NONE, action: 'watermark', corner: 'top-left' }, CONTEXT), {
 		ok: true,
 		plan: { kind: 'watermark', corner: 'top-left' }
 	})
-	assert.deepEqual(commandToPlan({ ...NONE, action: 'watermark' }, 10, 10), {
+	assert.deepEqual(commandToPlan({ ...NONE, action: 'watermark' }, CONTEXT), {
 		ok: true,
 		plan: { kind: 'watermark', corner: 'bottom-right' }
 	})
@@ -88,19 +123,128 @@ test('a watermark command plans a corner, bottom-right when none is named', () =
 })
 
 test('captions on and off are plans of their own', () => {
-	assert.deepEqual(commandToPlan({ ...NONE, action: 'captions_on' }, 10, 10), {
+	assert.deepEqual(commandToPlan({ ...NONE, action: 'captions_on' }, CONTEXT), {
 		ok: true,
 		plan: { kind: 'captions', on: true }
 	})
-	assert.deepEqual(commandToPlan({ ...NONE, action: 'captions_off' }, 10, 10), {
+	assert.deepEqual(commandToPlan({ ...NONE, action: 'captions_off' }, CONTEXT), {
 		ok: true,
 		plan: { kind: 'captions', on: false }
 	})
 })
 
 test('a trim still plans exactly as before', () => {
-	assert.deepEqual(commandToPlan(trim(2, 5), 10, 10), {
+	assert.deepEqual(commandToPlan(trim(2, 5), CONTEXT), {
 		ok: true,
 		plan: { kind: 'trim', range: { startSeconds: 2, endSeconds: 5 } }
+	})
+})
+
+// --- every editor action as a command ---------------------------------------
+
+const run = (command: Partial<EditCommand>, context: CommandContext = CONTEXT) =>
+	commandToPlan({ ...NONE, action: 'unsupported', ...command }, context)
+
+test('split at a time plans that split, or says it cannot split there', () => {
+	assert.deepEqual(run({ action: 'split', startSeconds: 10 }), {
+		ok: true,
+		plan: { kind: 'split', seconds: 10 }
+	})
+	assert.deepEqual(run({ action: 'split', startSeconds: 59.95 }), {
+		ok: false,
+		reason: 'cannot_split'
+	})
+	assert.deepEqual(run({ action: 'split' }), { ok: false, reason: 'unsupported' })
+})
+
+test('merge takes clip numbers from 1, all of them when none are named', () => {
+	assert.deepEqual(run({ action: 'merge', fromClip: 2, toClip: 3 }), {
+		ok: true,
+		plan: { kind: 'merge', from: 1, to: 2 }
+	})
+	assert.deepEqual(run({ action: 'merge' }), { ok: true, plan: { kind: 'merge', from: 0, to: 2 } })
+	assert.deepEqual(run({ action: 'merge', fromClip: 2, toClip: 5 }), {
+		ok: false,
+		reason: 'no_such_clip'
+	})
+	// One clip has nothing to merge with.
+	assert.deepEqual(run({ action: 'merge' }, { ...CONTEXT, clipCount: 1 }), {
+		ok: false,
+		reason: 'no_such_clip'
+	})
+})
+
+test('move puts a clip at a position, the end when none is named', () => {
+	assert.deepEqual(run({ action: 'move', fromClip: 2, toClip: 1 }), {
+		ok: true,
+		plan: { kind: 'move', from: 1, to: 0 }
+	})
+	assert.deepEqual(run({ action: 'move', fromClip: 1 }), {
+		ok: true,
+		plan: { kind: 'move', from: 0, to: 2 }
+	})
+	assert.deepEqual(run({ action: 'move', fromClip: 3 }), { ok: false, reason: 'already_there' })
+	assert.deepEqual(run({ action: 'move', fromClip: 4, toClip: 1 }), {
+		ok: false,
+		reason: 'no_such_clip'
+	})
+	assert.deepEqual(run({ action: 'move', fromClip: 1.5, toClip: 1 }), {
+		ok: false,
+		reason: 'no_such_clip'
+	})
+})
+
+test('clean-up, undo, redo and reset plan only when there is something to do', () => {
+	assert.deepEqual(run({ action: 'cleanup' }), {
+		ok: true,
+		plan: { kind: 'cleanup', seconds: 4.2 }
+	})
+	assert.deepEqual(run({ action: 'cleanup' }, { ...CONTEXT, cleanupSeconds: 0 }), {
+		ok: false,
+		reason: 'nothing_to_clean'
+	})
+	assert.deepEqual(run({ action: 'undo' }), { ok: true, plan: { kind: 'undo' } })
+	assert.deepEqual(run({ action: 'redo' }), { ok: false, reason: 'nothing_to_redo' })
+	assert.deepEqual(run({ action: 'reset' }), { ok: true, plan: { kind: 'reset' } })
+	assert.deepEqual(run({ action: 'reset' }, { ...CONTEXT, canReset: false }), {
+		ok: false,
+		reason: 'nothing_to_reset'
+	})
+})
+
+test('speed takes only the preview speeds the editor offers', () => {
+	assert.deepEqual(run({ action: 'speed', rate: 2 }), {
+		ok: true,
+		plan: { kind: 'speed', rate: 2 }
+	})
+	assert.deepEqual(run({ action: 'speed', rate: 0.5 }), {
+		ok: true,
+		plan: { kind: 'speed', rate: 0.5 }
+	})
+	assert.deepEqual(run({ action: 'speed', rate: 3 }), { ok: false, reason: 'unsupported_speed' })
+	assert.deepEqual(run({ action: 'speed' }), { ok: false, reason: 'unsupported_speed' })
+})
+
+test('re-record opens the sentence at that time, or says why it cannot', () => {
+	assert.deepEqual(run({ action: 'rerecord', startSeconds: 25 }), {
+		ok: true,
+		plan: { kind: 'rerecord', sentence: SENTENCE }
+	})
+	assert.deepEqual(run({ action: 'rerecord', startSeconds: 40 }), {
+		ok: false,
+		reason: 'cannot_rerecord',
+		blocker: 'no_gap_after'
+	})
+	assert.deepEqual(run({ action: 'rerecord', startSeconds: 5 }), {
+		ok: false,
+		reason: 'no_sentence'
+	})
+})
+
+test('export plans unless nothing plays', () => {
+	assert.deepEqual(run({ action: 'export' }), { ok: true, plan: { kind: 'export' } })
+	assert.deepEqual(run({ action: 'export' }, { ...CONTEXT, editedSeconds: 0 }), {
+		ok: false,
+		reason: 'nothing_to_export'
 	})
 })

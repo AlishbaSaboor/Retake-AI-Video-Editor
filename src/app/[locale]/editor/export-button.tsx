@@ -11,7 +11,7 @@ import type { Overlays } from './overlays'
 import type { ReplacementTake } from './re-record'
 import type { Segment } from './sequence'
 
-type ExportButtonProps = {
+type ExportSource = {
 	videoUrl: string
 	videoName: string
 	/** What the edit plays, in order — captured when the export starts. */
@@ -28,8 +28,12 @@ function download(blob: Blob, fileName: string) {
 	setTimeout(() => URL.revokeObjectURL(href))
 }
 
-/** Records the edit to a real video file and downloads it, with progress and Cancel. */
-export function ExportButton({ videoUrl, videoName, segments, overlays }: ExportButtonProps) {
+/**
+ * Records the edit to a real video file and downloads it: `start` begins,
+ * `percent` is how far it's got (null when idle), `cancel` stops it. Shared
+ * by the Export button and the typed "export" command.
+ */
+export function useVideoExport({ videoUrl, videoName, segments, overlays }: ExportSource) {
 	const t = useTranslations('Editor.export')
 	const [percent, setPercent] = useState<number | null>(null)
 	const controllerRef = useRef<AbortController | null>(null)
@@ -64,11 +68,24 @@ export function ExportButton({ videoUrl, videoName, segments, overlays }: Export
 		setPercent(null)
 	}
 
-	if (percent !== null) {
+	return {
+		percent,
+		start,
+		cancel: () => controllerRef.current?.abort(),
+		canStart: percent === null && totalSeconds(segments) > 0
+	}
+}
+
+/** The export's button: progress and Cancel while it runs. */
+export function ExportButton({ exporter }: { exporter: ReturnType<typeof useVideoExport> }) {
+	const t = useTranslations('Editor.export')
+	if (exporter.percent !== null) {
 		return (
 			<div role="status" className="flex items-center gap-2">
-				<span className="text-text-muted text-xs">{t('progress', { percent })}</span>
-				<Button variant="outline" size="sm" onClick={() => controllerRef.current?.abort()}>
+				<span className="text-text-muted text-xs">
+					{t('progress', { percent: exporter.percent })}
+				</span>
+				<Button variant="outline" size="sm" onClick={exporter.cancel}>
 					{t('cancel')}
 				</Button>
 			</div>
@@ -79,8 +96,8 @@ export function ExportButton({ videoUrl, videoName, segments, overlays }: Export
 			variant="outline"
 			size="sm"
 			title={t('hint')}
-			disabled={totalSeconds(segments) === 0}
-			onClick={start}
+			disabled={!exporter.canStart}
+			onClick={exporter.start}
 		>
 			<DownloadIcon />
 			{t('button')}

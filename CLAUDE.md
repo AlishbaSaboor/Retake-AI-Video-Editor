@@ -14,16 +14,18 @@ the owner's standing rules for sessions on this project.
 Always commit `.claude-logs/` with your changes.
 
 `.claude-logs/` is tracked, not gitignored — the transcript for the session
-that produced a change belongs on the branch that ships it. Stage it
-immediately before every `git push`, separately from the code commit.
+that produced a change belongs on the branch that ships it. On this project
+it's committed once, at the end of a work session, separately from the code
+(see Standing rules below).
 
 ## Standing rules
 
 - Once a task is finished and every check passes, commit and push on your
   own. Stop and ask if anything fails or is destructive.
-- Commit code and logs separately; for logs, follow section 4e of
+- Commit code once per finished feature. Commit the session logs only at
+  the end of a work session (when the owner says they're stopping), as a
+  separate commit, after the secret scan; follow section 4e of
   `PROGRESS_NOTES.md`.
-- Run the secret scan before each logs commit.
 - Zero API cost unless the owner approves it.
 - Verify audio/video work for real, against the actual output, not just
   that it compiles.

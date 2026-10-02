@@ -18,7 +18,10 @@ const UNSUPPORTED: EditCommand = {
 	startSeconds: null,
 	endSeconds: null,
 	text: null,
-	corner: null
+	corner: null,
+	fromClip: null,
+	toClip: null,
+	rate: null
 }
 
 // Gemini and Deepgram both answer 429 (rate-limited) or 503 (overloaded)
@@ -45,6 +48,14 @@ function systemInstruction(durationSeconds: number): string {
 		'A watermark or logo in a corner is action "watermark" with corner one of',
 		'"top-left", "top-right", "bottom-left", "bottom-right", or null if none is named.',
 		'Turning captions (or subtitles) on or off is action "captions_on" or "captions_off".',
+		'"Split at X" is action "split" with startSeconds X. Clips are numbered from 1:',
+		'"merge clips 2 and 3" is action "merge" with fromClip 2 and toClip 3 (both null for',
+		'all clips); "move clip 3 to the start" is action "move" with fromClip 3 and toClip 1',
+		'(toClip null for the end). Removing silences and filler words ("clean up") is action',
+		'"cleanup". "Undo", "redo" and "reset to the original" (start over) are actions "undo",',
+		'"redo" and "reset". "Play at 2x" is action "speed" with rate 2. "Re-record the sentence',
+		'at 0:25" is action "rerecord" with startSeconds 25. Exporting or downloading the video',
+		'is action "export".',
 		'Unused fields are null. Anything else — removing a middle section, other effects,',
 		'audio — is action "unsupported" with every other field null.'
 	].join(' ')
