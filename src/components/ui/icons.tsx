@@ -45,6 +45,7 @@ import {
 	Lightning,
 	List,
 	MagnifyingGlass,
+	Microphone,
 	Minus,
 	PencilSimple,
 	Plus,
@@ -121,6 +122,7 @@ export const FilterIcon = (props: IconProps) => <Glyph source={FunnelSimple} {..
 export const InfoIcon = (props: IconProps) => <Glyph source={Info} {...props} />
 export const MenuIcon = (props: IconProps) => <Glyph source={List} {...props} />
 export const MergeIcon = (props: IconProps) => <Glyph source={ArrowsInLineHorizontal} {...props} />
+export const MicIcon = (props: IconProps) => <Glyph source={Microphone} {...props} />
 export const MinusIcon = (props: IconProps) => <Glyph source={Minus} {...props} />
 export const MoreIcon = (props: IconProps) => <Glyph source={DotsThreeVertical} {...props} />
 export const PlusIcon = (props: IconProps) => <Glyph source={Plus} {...props} />

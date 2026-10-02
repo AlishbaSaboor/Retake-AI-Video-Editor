@@ -9,6 +9,19 @@ import type { Edit } from './cleanup'
 export type SourceRange = { startSeconds: number; endSeconds: number }
 export type Clip = { id: string; ranges: SourceRange[] }
 
+/**
+ * A span of the source whose sound a re-recorded take replaces. The span's
+ * picture keeps playing under the take: cut short where the take is
+ * shorter, holding its last frame where the take runs longer.
+ */
+export type Replacement = { span: SourceRange; takeSeconds: number }
+
+/** One stretch of what plays: a range of the source, possibly with a take heard over it. */
+export type Segment<R extends Replacement = Replacement> = SourceRange & {
+	/** The take heard instead of the source, and how long the last frame is held after the range. */
+	voiceOver?: { replacement: R; holdSeconds: number }
+}
+
 /** Shortest piece a split may leave on either side, so no clip is a sliver. */
 const MIN_CLIP_SECONDS = 0.1
 /** Gaps shorter than this between kept pieces are rounding, not content. */
@@ -19,8 +32,14 @@ export function wholeTake(durationSeconds: number): Clip[] {
 	return [{ id: 'take', ranges: [{ startSeconds: 0, endSeconds: durationSeconds }] }]
 }
 
-/** The clip and range a split at `seconds` would divide, with room on both sides. */
-function findSplit(clips: Clip[], seconds: number) {
+/**
+ * The clip and range a split at `seconds` would divide, with room on both
+ * sides — never inside a replaced span, which has to stay in one piece.
+ */
+function findSplit(clips: Clip[], seconds: number, replacements: readonly Replacement[]) {
+	if (replacements.some((r) => seconds > r.span.startSeconds && seconds < r.span.endSeconds)) {
+		return null
+	}
 	for (const [clipIndex, clip] of clips.entries()) {
 		const rangeIndex = clip.ranges.findIndex(
 			(r) =>
@@ -33,13 +52,22 @@ function findSplit(clips: Clip[], seconds: number) {
 }
 
 /** Whether a split at `seconds` would leave at least MIN_CLIP_SECONDS on both sides. */
-export function canSplitAt(clips: Clip[], seconds: number): boolean {
-	return findSplit(clips, seconds) !== null
+export function canSplitAt(
+	clips: Clip[],
+	seconds: number,
+	replacements: readonly Replacement[] = []
+): boolean {
+	return findSplit(clips, seconds, replacements) !== null
 }
 
 /** Splits the clip containing `seconds` into two at that point; null where canSplitAt is false. */
-export function splitClipAt(clips: Clip[], seconds: number, newId: () => string): Clip[] | null {
-	const split = findSplit(clips, seconds)
+export function splitClipAt(
+	clips: Clip[],
+	seconds: number,
+	newId: () => string,
+	replacements: readonly Replacement[] = []
+): Clip[] | null {
+	const split = findSplit(clips, seconds, replacements)
 	if (!split) return null
 	const { clipIndex, clip, rangeIndex, range } = split
 	const before: Clip = {
@@ -101,12 +129,24 @@ export function clipIndexAt(clips: Clip[], seconds: number): number {
 	)
 }
 
-/** What part of a source range survives the trim and the cuts, in order. */
-function keptPieces(range: SourceRange, { trim, cuts }: Edit): SourceRange[] {
+/**
+ * What part of a source range survives the trim and the cuts, in order. A
+ * replacement plays where its whole span is inside this range and the
+ * trim — then it wins over any cut inside the span — and nowhere else.
+ */
+function keptPieces<R extends Replacement>(
+	range: SourceRange,
+	{ trim, cuts }: Edit,
+	replacements: readonly R[]
+): Segment<R>[] {
 	let start = Math.max(range.startSeconds, trim.startSeconds)
 	const end = Math.min(range.endSeconds, trim.endSeconds)
-	const pieces: SourceRange[] = []
-	for (const cut of [...cuts].sort((a, b) => a.startSeconds - b.startSeconds)) {
+	const active = replacements.filter(
+		(r) => r.span.startSeconds >= start && r.span.endSeconds <= end
+	)
+	const removed = [...cuts, ...active.map((r) => r.span)]
+	const pieces: Segment<R>[] = []
+	for (const cut of removed.sort((a, b) => a.startSeconds - b.startSeconds)) {
 		if (cut.endSeconds <= start || cut.startSeconds >= end) continue
 		if (cut.startSeconds - start > EPSILON_SECONDS) {
 			pieces.push({ startSeconds: start, endSeconds: cut.startSeconds })
@@ -114,17 +154,41 @@ function keptPieces(range: SourceRange, { trim, cuts }: Edit): SourceRange[] {
 		start = Math.max(start, cut.endSeconds)
 	}
 	if (end - start > EPSILON_SECONDS) pieces.push({ startSeconds: start, endSeconds: end })
-	return pieces
+	for (const replacement of active) {
+		const { startSeconds, endSeconds } = replacement.span
+		const spanSeconds = endSeconds - startSeconds
+		pieces.push({
+			startSeconds,
+			endSeconds: startSeconds + Math.min(replacement.takeSeconds, spanSeconds),
+			voiceOver: { replacement, holdSeconds: Math.max(0, replacement.takeSeconds - spanSeconds) }
+		})
+	}
+	return pieces.sort((a, b) => a.startSeconds - b.startSeconds)
 }
 
-/** Everything that plays, in playback order: each clip's ranges, trimmed and cut. */
-export function playableSegments(clips: Clip[], edit: Edit): SourceRange[] {
-	return clips.flatMap((clip) => clip.ranges.flatMap((range) => keptPieces(range, edit)))
+/** Everything that plays, in playback order: each clip's ranges, trimmed, cut and re-recorded. */
+export function playableSegments<R extends Replacement>(
+	clips: Clip[],
+	edit: Edit,
+	replacements: readonly R[] = []
+): Segment<R>[] {
+	return clips.flatMap((clip) =>
+		clip.ranges.flatMap((range) => keptPieces(range, edit, replacements))
+	)
 }
 
-/** How long one clip plays for, after trim and cuts. */
-export function clipPlayedSeconds(clip: Clip, edit: Edit): number {
-	return playableSegments([clip], edit).reduce((sum, s) => sum + s.endSeconds - s.startSeconds, 0)
+/** How long a segment plays for, including any frame held under a longer take. */
+export function segmentSeconds(segment: Segment): number {
+	return segment.endSeconds - segment.startSeconds + (segment.voiceOver?.holdSeconds ?? 0)
+}
+
+/** How long one clip plays for, after trim, cuts and replacements. */
+export function clipPlayedSeconds(
+	clip: Clip,
+	edit: Edit,
+	replacements: readonly Replacement[] = []
+): number {
+	return playableSegments([clip], edit, replacements).reduce((sum, s) => sum + segmentSeconds(s), 0)
 }
 
 /**

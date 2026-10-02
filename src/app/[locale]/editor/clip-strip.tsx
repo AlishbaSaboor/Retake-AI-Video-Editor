@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/button'
 import { MergeIcon, SplitIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import type { Edit } from './cleanup'
-import { clipIndexAt, clipPlayedSeconds, type Clip } from './sequence'
+import { clipIndexAt, clipPlayedSeconds, type Clip, type Replacement } from './sequence'
 import { formatTimecode } from './timeline-scale'
 
 type ClipStripProps = {
 	clips: Clip[]
 	edit: Edit
+	replacements: readonly Replacement[]
 	currentTimeSeconds: number
 	canSplit: boolean
 	onSplit: () => void
@@ -31,13 +32,14 @@ type Selection = { anchorId: string; focusId: string }
 
 /**
  * The take as its clips, in playback order, each as wide as it plays for
- * (after trim and cuts). The clip under the playhead is highlighted. Clips
+ * (after trim, cuts and re-recorded takes). The clip under the playhead is highlighted. Clips
  * reorder by dragging, or with Alt+arrow keys so it isn't mouse-only; a
  * selected run of them merges into one.
  */
 export function ClipStrip({
 	clips,
 	edit,
+	replacements,
 	currentTimeSeconds,
 	canSplit,
 	onSplit,
@@ -114,7 +116,7 @@ export function ClipStrip({
 				className="flex gap-1.5"
 			>
 				{clips.map((clip, index) => {
-					const playedSeconds = clipPlayedSeconds(clip, edit)
+					const playedSeconds = clipPlayedSeconds(clip, edit, replacements)
 					const isCurrent = index === currentIndex
 					const isSelected = selected !== null && index >= selected.from && index <= selected.to
 					const source = clip.ranges

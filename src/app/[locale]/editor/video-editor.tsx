@@ -13,6 +13,9 @@ import { CommandBar } from './command-bar'
 import { ExportButton } from './export-button'
 import { FillerCutEditor } from './filler-cut-editor'
 import { cutEditorWindow, initialCutRange, moveCutEdge, type FillerPlan } from './filler-cuts'
+import { previewWindow, reRecordBlocker, type ReplacementTake } from './re-record'
+import { ReRecordPanel } from './re-record-panel'
+import { planSentenceSplice, type SplicePlan } from './sentence-splice'
 import { Timeline } from './timeline'
 import {
 	canSplitAt,
@@ -21,9 +24,11 @@ import {
 	playableSegments,
 	splitClipAt,
 	wholeTake,
-	type Clip
+	type Clip,
+	type SourceRange
 } from './sequence'
 import { isKnownDuration, moveTrimEdge, type TrimEdge, type TrimRange } from './timeline-scale'
+import type { TranscriptSegment } from './transcript'
 import { TranscriptPanel } from './transcript-panel'
 import { UploadDropzone } from './upload-dropzone'
 import { useSequencePlayback } from './use-sequence-playback'
@@ -31,6 +36,12 @@ import { useTakeAnalysis } from './use-take-analysis'
 import { VideoFileInput } from './video-file-input'
 
 type LoadedVideo = { file: File; url: string; name: string }
+
+/** Everything Undo restores: what's removed, and what's re-recorded. */
+type UndoState = { edit: Edit; replacements: ReplacementTake[] }
+
+const overlaps = (a: SourceRange, b: SourceRange) =>
+	a.startSeconds < b.endSeconds && a.endSeconds > b.startSeconds
 
 /**
  * Pick a video, watch it, scrub it on the timeline. Everything here is local
@@ -57,15 +68,25 @@ export function VideoEditor() {
 	const range: TrimRange = trim ?? { startSeconds: 0, endSeconds: durationSeconds }
 	const analysis = useTakeAnalysis(video)
 	// Source ranges playback skips, from "Clean up recording". Like trim, a
-	// cut never touches the file; `undoEdit` is the edit from just before
-	// the last clean-up, restored in one step by Undo.
+	// cut never touches the file; `undoState` is the edit (and re-recorded
+	// takes) from just before the last clean-up, filler cut or re-record,
+	// restored in one step by Undo.
 	const [cuts, setCuts] = useState<Cut[]>([])
-	const [undoEdit, setUndoEdit] = useState<Edit | null>(null)
+	const [undoState, setUndoState] = useState<UndoState | null>(null)
 	const edit: Edit = { trim: range, cuts }
+	// Re-recorded sentences, each heard over its span instead of the source.
+	const [replacements, setReplacements] = useState<ReplacementTake[]>([])
+	const replacedSpans = replacements.map((r) => r.span)
+	// Clean-up leaves re-recorded sentences alone: the take already replaced them.
+	const outsideReplaced = (range: SourceRange) =>
+		!replacedSpans.some((span) => overlaps(span, range))
 	const fillerCuts = analysis.fillerPlans.flatMap((plan) => (plan.kind === 'cut' ? [plan] : []))
 	const cleanupPlan = planCleanup(
 		edit,
-		{ silences: analysis.silences, fillerCuts },
+		{
+			silences: analysis.silences.filter(outsideReplaced),
+			fillerCuts: fillerCuts.filter(outsideReplaced)
+		},
 		durationSeconds
 	)
 	const removableSeconds = keptSeconds(edit) - keptSeconds(cleanupPlan)
@@ -78,20 +99,53 @@ export function VideoEditor() {
 	const [cutEditor, setCutEditor] = useState<{ plan: FillerPlan; range: TrimRange } | null>(null)
 	const [preview, setPreview] = useState<{ withCut: boolean } | null>(null)
 	const cutWindow = cutEditor ? cutEditorWindow(cutEditor.plan.filler, durationSeconds) : null
+	// Re-recording a sentence: which one, where its take would go, and the
+	// take recorded so far. Its preview plays the sentence with some context,
+	// with the new take or as recorded.
+	const [reRecord, setReRecord] = useState<{
+		sentence: TranscriptSegment
+		plan: SplicePlan
+		take: ReplacementTake | null
+	} | null>(null)
+	const [takePreview, setTakePreview] = useState<{ withTake: boolean } | null>(null)
+	const otherReplacements = replacements.filter(
+		(r) =>
+			reRecord?.plan.kind !== 'splice' ||
+			r.span.startSeconds !== reRecord.plan.startSeconds ||
+			r.span.endSeconds !== reRecord.plan.endSeconds
+	)
 	// Before/after comparison: the untouched take, start to end. Both views
 	// play in source time, so switching leaves the playhead where it is.
 	const [showOriginal, setShowOriginal] = useState(false)
-	const editedSegments = playableSegments(sequence, edit)
+	const editedSegments = playableSegments(sequence, edit, replacements)
 	const segments =
 		preview && cutWindow && cutEditor
-			? playableSegments(wholeTake(durationSeconds), {
-					trim: cutWindow,
-					cuts: preview.withCut ? mergeCuts([...cuts, cutEditor.range]) : cuts
-				})
-			: showOriginal
-				? [{ startSeconds: 0, endSeconds: durationSeconds }]
-				: editedSegments
-	const playback = useSequencePlayback(videoRef, segments, isPlaying, setCurrentTimeSeconds)
+			? playableSegments(
+					wholeTake(durationSeconds),
+					{
+						trim: cutWindow,
+						cuts: preview.withCut ? mergeCuts([...cuts, cutEditor.range]) : cuts
+					},
+					replacements
+				)
+			: takePreview && reRecord?.plan.kind === 'splice'
+				? playableSegments(
+						wholeTake(durationSeconds),
+						{ trim: previewWindow(reRecord.plan, durationSeconds), cuts },
+						takePreview.withTake && reRecord.take
+							? [...otherReplacements, reRecord.take]
+							: otherReplacements
+					)
+				: showOriginal
+					? [{ startSeconds: 0, endSeconds: durationSeconds }]
+					: editedSegments
+	const playback = useSequencePlayback(
+		videoRef,
+		segments,
+		isPlaying,
+		setCurrentTimeSeconds,
+		stopPlaying
+	)
 
 	const videoUrl = video?.url
 	// An object URL pins the whole file in memory until it's revoked, so each
@@ -114,9 +168,12 @@ export function VideoEditor() {
 		setTrim(null)
 		setClips(null)
 		setCuts([])
-		setUndoEdit(null)
+		setReplacements([])
+		setUndoState(null)
 		setCutEditor(null)
 		setPreview(null)
+		setReRecord(null)
+		setTakePreview(null)
 		setShowOriginal(false)
 		setVideo({ file, url: URL.createObjectURL(file), name: file.name })
 		setDurationSeconds(0)
@@ -183,7 +240,7 @@ export function VideoEditor() {
 	function applyFillerCut() {
 		if (!cutEditor) return
 		videoRef.current?.pause()
-		setUndoEdit(edit)
+		setUndoState({ edit, replacements })
 		setCuts(mergeCuts([...cuts, cutEditor.range]))
 		setCutEditor(null)
 		setPreview(null)
@@ -195,24 +252,78 @@ export function VideoEditor() {
 		setPreview(null)
 	}
 
+	function openReRecord(sentence: TranscriptSegment) {
+		if (!analysis.loudness) return
+		const plan = planSentenceSplice(sentence, analysis.loudness)
+		const existing =
+			plan.kind === 'splice'
+				? replacements.find(
+						(r) =>
+							r.span.startSeconds === plan.startSeconds && r.span.endSeconds === plan.endSeconds
+					)
+				: undefined
+		setReRecord({ sentence, plan, take: existing ?? null })
+		setTakePreview(null)
+		videoRef.current?.pause()
+		playback.seek(sentence.startSeconds)
+	}
+
+	// Plays the sentence with context — with the new take, or as recorded —
+	// so the take can be judged in place before it's used.
+	function playTakePreview(withTake: boolean) {
+		const element = videoRef.current
+		if (!element || reRecord?.plan.kind !== 'splice') return
+		const start = previewWindow(reRecord.plan, durationSeconds).startSeconds
+		setPreview(null)
+		setTakePreview({ withTake })
+		element.currentTime = start
+		setCurrentTimeSeconds(start)
+		element.play().catch(() => setTakePreview(null))
+	}
+
+	// One step on the same undo as clean-up. A take for a sentence that
+	// already has one replaces it.
+	function applyReRecord() {
+		const take = reRecord?.take
+		if (!take) return
+		videoRef.current?.pause()
+		setUndoState({ edit, replacements })
+		setReplacements([...otherReplacements, take])
+		setReRecord(null)
+		setTakePreview(null)
+	}
+
+	function closeReRecord() {
+		videoRef.current?.pause()
+		setReRecord(null)
+		setTakePreview(null)
+	}
+
 	// Splitting never moves the playhead or changes what plays — it only
 	// divides the clip under the playhead into two that can be rearranged.
 	function splitAtPlayhead() {
-		const next = splitClipAt(sequence, currentTimeSeconds, () => crypto.randomUUID())
+		const next = splitClipAt(sequence, currentTimeSeconds, () => crypto.randomUUID(), replacements)
 		if (next) setClips(next)
 	}
 
 	function applyCleanup() {
-		setUndoEdit(edit)
+		setUndoState({ edit, replacements })
 		setCuts(cleanupPlan.cuts)
 		applyTrim(cleanupPlan.trim, cleanupPlan.trim.startSeconds)
 	}
 
-	function undoCleanup() {
-		if (!undoEdit) return
-		setCuts(undoEdit.cuts)
-		applyTrim(undoEdit.trim, undoEdit.trim.startSeconds)
-		setUndoEdit(null)
+	function undo() {
+		if (!undoState) return
+		setCuts(undoState.edit.cuts)
+		setReplacements(undoState.replacements)
+		applyTrim(undoState.edit.trim, undoState.edit.trim.startSeconds)
+		setUndoState(null)
+	}
+
+	function stopPlaying() {
+		setIsPlaying(false)
+		setPreview(null)
+		setTakePreview(null)
 	}
 
 	function handleTrimChange(edge: TrimEdge, seconds: number) {
@@ -281,8 +392,8 @@ export function VideoEditor() {
 							onTimeUpdate={(event) => handleTimeUpdate(event.currentTarget)}
 							onPlay={(event) => handlePlay(event.currentTarget)}
 							onPause={() => {
-								setIsPlaying(false)
-								setPreview(null)
+								// Pausing on purpose to hold a frame under a longer take isn't stopping.
+								if (!playback.isHolding()) stopPlaying()
 							}}
 							onError={() => {
 								toast({
@@ -304,9 +415,9 @@ export function VideoEditor() {
 					silenceCount={analysis.silences.length}
 					fillerCutCount={fillerCuts.length}
 					fillerReviewCount={analysis.fillerPlans.length - fillerCuts.length}
-					canUndo={undoEdit !== null}
+					canUndo={undoState !== null}
 					onApply={applyCleanup}
-					onUndo={undoCleanup}
+					onUndo={undo}
 				/>
 			)}
 			<Timeline
@@ -315,6 +426,7 @@ export function VideoEditor() {
 				currentTimeSeconds={currentTimeSeconds}
 				trim={range}
 				cuts={cuts}
+				replacedSpans={replacedSpans}
 				silences={analysis.silences}
 				fillerPlans={analysis.fillerPlans}
 				onSeek={playback.seek}
@@ -325,8 +437,9 @@ export function VideoEditor() {
 				<ClipStrip
 					clips={sequence}
 					edit={edit}
+					replacements={replacements}
 					currentTimeSeconds={currentTimeSeconds}
-					canSplit={canSplitAt(sequence, currentTimeSeconds)}
+					canSplit={canSplitAt(sequence, currentTimeSeconds, replacements)}
 					onSplit={splitAtPlayhead}
 					onMove={(from, to) => setClips(moveClip(sequence, from, to))}
 					onMerge={(from, to) => setClips(mergeClips(sequence, from, to))}
@@ -345,7 +458,28 @@ export function VideoEditor() {
 					onCancel={closeCutEditor}
 				/>
 			)}
-			{video && <TranscriptPanel state={analysis.transcript} onSeek={playback.seek} />}
+			{reRecord && analysis.loudness && (
+				<ReRecordPanel
+					key={reRecord.sentence.startSeconds}
+					sentence={reRecord.sentence}
+					plan={reRecord.plan}
+					blocker={reRecordBlocker(reRecord.plan, edit, sequence, otherReplacements)}
+					loudness={analysis.loudness}
+					take={reRecord.take}
+					onTake={(take) => setReRecord({ ...reRecord, take })}
+					onPlay={playTakePreview}
+					onApply={applyReRecord}
+					onCancel={closeReRecord}
+				/>
+			)}
+			{video && (
+				<TranscriptPanel
+					state={analysis.transcript}
+					onSeek={playback.seek}
+					onReRecord={analysis.loudness ? openReRecord : undefined}
+					replacedSpans={replacedSpans}
+				/>
+			)}
 		</div>
 	)
 }

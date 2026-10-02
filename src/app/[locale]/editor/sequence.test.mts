@@ -168,3 +168,101 @@ test('a position inside a segment stays; inside something removed, it moves to w
 	assert.deepEqual(playbackPosition(2.5, segments), { index: 1, seconds: 3 })
 	assert.equal(playbackPosition(10, segments), null)
 })
+
+// --- re-recorded takes ------------------------------------------------------
+
+const take = (startSeconds: number, endSeconds: number, takeSeconds: number) => ({
+	span: { startSeconds, endSeconds },
+	takeSeconds
+})
+
+test('a take shorter than its span plays over the start of the span, and the picture cuts at its end', () => {
+	const shorter = take(4, 6, 1.5)
+	assert.deepEqual(playableSegments(wholeTake(DURATION), untouched, [shorter]), [
+		{ startSeconds: 0, endSeconds: 4 },
+		{ startSeconds: 4, endSeconds: 5.5, voiceOver: { replacement: shorter, holdSeconds: 0 } },
+		{ startSeconds: 6, endSeconds: 10 }
+	])
+	assert.equal(clipPlayedSeconds(wholeTake(DURATION)[0] as Clip, untouched, [shorter]), 9.5)
+})
+
+test('a take longer than its span plays over all of it, holding the last frame for the rest', () => {
+	const longer = take(4, 6, 2.5)
+	const segments = playableSegments(wholeTake(DURATION), untouched, [longer])
+	assert.deepEqual(segments[1], {
+		startSeconds: 4,
+		endSeconds: 6,
+		voiceOver: { replacement: longer, holdSeconds: 0.5 }
+	})
+	assert.equal(clipPlayedSeconds(wholeTake(DURATION)[0] as Clip, untouched, [longer]), 10.5)
+})
+
+test('a take plays where its clip plays, after a reorder', () => {
+	const reordered: Clip[] = [
+		{ id: 'b', ranges: [{ startSeconds: 5, endSeconds: 10 }] },
+		{ id: 'a', ranges: [{ startSeconds: 0, endSeconds: 5 }] }
+	]
+	const early = take(1, 2, 1)
+	assert.deepEqual(
+		playableSegments(reordered, untouched, [early]).map((s) => [
+			s.startSeconds,
+			s.endSeconds,
+			Boolean(s.voiceOver)
+		]),
+		[
+			[5, 10, false],
+			[0, 1, false],
+			[1, 2, true],
+			[2, 5, false]
+		]
+	)
+})
+
+test('a take wins over a cut inside its span; a cut beside it still applies', () => {
+	const replaced = take(4, 6, 2)
+	const edit: Edit = {
+		...untouched,
+		cuts: [
+			{ startSeconds: 4.5, endSeconds: 5 },
+			{ startSeconds: 3, endSeconds: 4.2 }
+		]
+	}
+	assert.deepEqual(
+		playableSegments(wholeTake(DURATION), edit, [replaced]).map((s) => [
+			s.startSeconds,
+			s.endSeconds,
+			Boolean(s.voiceOver)
+		]),
+		[
+			[0, 3, false],
+			[4, 6, true],
+			[6, 10, false]
+		]
+	)
+})
+
+test('a take whose span is not wholly kept does not play, and the edit plays as if it were not there', () => {
+	const replaced = take(4, 6, 2)
+	const trimmedInto: Edit = { ...untouched, trim: { startSeconds: 5, endSeconds: DURATION } }
+	assert.deepEqual(
+		playableSegments(wholeTake(DURATION), trimmedInto, [replaced]),
+		playableSegments(wholeTake(DURATION), trimmedInto)
+	)
+	// Split across two clips (as a reorder could pull the halves apart).
+	const splitAcross: Clip[] = [
+		{ id: 'a', ranges: [{ startSeconds: 0, endSeconds: 5 }] },
+		{ id: 'b', ranges: [{ startSeconds: 5, endSeconds: 10 }] }
+	]
+	assert.deepEqual(
+		playableSegments(splitAcross, untouched, [replaced]),
+		playableSegments(splitAcross, untouched)
+	)
+})
+
+test('a split inside a replaced span is refused, but at its edges it is fine', () => {
+	const replaced = take(4, 6, 2)
+	assert.equal(canSplitAt(wholeTake(DURATION), 5, [replaced]), false)
+	assert.equal(splitClipAt(wholeTake(DURATION), 5, newId, [replaced]), null)
+	assert.equal(canSplitAt(wholeTake(DURATION), 4, [replaced]), true)
+	assert.equal(canSplitAt(wholeTake(DURATION), 6, [replaced]), true)
+})

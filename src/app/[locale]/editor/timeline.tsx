@@ -14,6 +14,7 @@ import {
 } from './timeline-scale'
 import { keptSeconds, type Cut } from './cleanup'
 import type { FillerPlan } from './filler-cuts'
+import type { SourceRange } from './sequence'
 import type { Silence } from './take-audio'
 import { TimelineFlag } from './timeline-flag'
 import { TrimHandle } from './trim-handle'
@@ -34,6 +35,8 @@ type TimelineProps = {
 	fillerPlans: FillerPlan[]
 	/** Ranges removed by clean-up, shown struck out on the track. */
 	cuts: Cut[]
+	/** Spans whose sound a re-recorded take replaces. */
+	replacedSpans: SourceRange[]
 	onSeek: (seconds: number) => void
 	onTrimChange: (edge: TrimEdge, seconds: number) => void
 	/** A filler flag was clicked: open its cut editor. */
@@ -55,6 +58,7 @@ export function Timeline({
 	silences,
 	fillerPlans,
 	cuts,
+	replacedSpans,
 	onSeek,
 	onTrimChange,
 	onEditFiller
@@ -165,6 +169,17 @@ export function Timeline({
 									style={{
 										left: timeToPercent(cut.startSeconds, durationSeconds),
 										right: `calc(100% - ${timeToPercent(cut.endSeconds, durationSeconds)})`
+									}}
+								/>
+							))}
+							{replacedSpans.map((span) => (
+								<div
+									key={`replaced-${span.startSeconds}`}
+									aria-hidden
+									className="bg-accent/20 border-accent/70 pointer-events-none absolute inset-y-0 z-10 border-x-2"
+									style={{
+										left: timeToPercent(span.startSeconds, durationSeconds),
+										right: `calc(100% - ${timeToPercent(span.endSeconds, durationSeconds)})`
 									}}
 								/>
 							))}

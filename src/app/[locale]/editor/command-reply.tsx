@@ -25,6 +25,7 @@ const EDITOR_ABILITIES = [
 	'split',
 	'reorder',
 	'merge',
+	'reRecord',
 	'export'
 ] as const
 
