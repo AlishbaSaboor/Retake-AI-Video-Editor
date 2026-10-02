@@ -1,7 +1,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { Edit } from './cleanup'
-import { matchingGain, reRecordBlocker, speechLevelDb, speechRange, takeRange } from './re-record'
+import {
+	inputLevelPercent,
+	matchingGain,
+	reRecordBlocker,
+	speechLevelDb,
+	speechRange,
+	stoppedMidSpeech,
+	takeRange
+} from './re-record'
 import type { SplicePlan } from './sentence-splice'
 import { wholeTake, type Clip } from './sequence'
 import { measureLoudness, type Loudness } from './take-audio'
@@ -123,4 +131,31 @@ test('re-recording is blocked with the reason: no pause, trimmed, split, or over
 	// The same sentence again is allowed: the new take replaces the old one.
 	const same = { span: { startSeconds: 1.92, endSeconds: 3.58 }, takeSeconds: 1 }
 	assert.equal(reRecordBlocker(plan, untouched, whole, [same]), null)
+})
+
+test('the input meter reads its level on a dB scale: empty at -60 dBFS and below, full at 0', () => {
+	// A constant block of amplitude a has an RMS of a: 0.001 is -60 dBFS, 0.0316 about -30.
+	assert.equal(inputLevelPercent(new Float32Array(512)), 0)
+	assert.equal(inputLevelPercent(new Float32Array(512).fill(0.0001)), 0)
+	assert.equal(inputLevelPercent(new Float32Array(512).fill(0.001)), 0)
+	assert.equal(inputLevelPercent(new Float32Array(512).fill(0.0316)), 50)
+	assert.equal(inputLevelPercent(new Float32Array(512).fill(1)), 100)
+})
+
+test('a take Stop cut off mid-speech is caught, so it is recorded again rather than cut mid-word', () => {
+	// Speech runs into the last 0.3 s, where the press of Stop begins.
+	const cutOff = audio([
+		[0.5, ROOM],
+		[1.6, 0.1]
+	])
+	assert.equal(stoppedMidSpeech(cutOff), true)
+	// A pause before Stop: fine, even with the click of the press in it.
+	const paused = audio([
+		[0.5, ROOM],
+		[1.2, 0.1],
+		[0.4, ROOM],
+		[0.02, 1],
+		[0.13, ROOM]
+	])
+	assert.equal(stoppedMidSpeech(paused), false)
 })

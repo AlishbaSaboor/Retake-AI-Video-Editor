@@ -144,7 +144,7 @@
 			"record": "Record",
 			"recordAgain": "Record again",
 			"stop": "Stop",
-			"recording": "Recording… say the sentence, then press Stop.",
+			"recording": "Recording… say the sentence, pause a moment, then press Stop.",
 			"processing": "Preparing your take…",
 			"noSpeech": "No speech was heard in that recording. Check your microphone and try again.",
 			"take": "New take: {seconds} s (original: {original} s)",
@@ -156,7 +156,9 @@
 			"micUnavailable": {
 				"title": "Can’t use the microphone",
 				"description": "Allow microphone access for this site and check a microphone is connected, then try again."
-			}
+			},
+			"inputLevel": "Microphone level",
+			"stoppedMidSpeech": "Stop was pressed while you were still speaking, so the end of the take would be cut off. Record again, and pause a moment before pressing Stop."
 		}
 	}
 }

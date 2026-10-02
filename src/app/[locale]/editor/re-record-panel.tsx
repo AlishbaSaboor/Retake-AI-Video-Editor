@@ -6,7 +6,12 @@ import { Button } from '@/components/ui/button'
 import { MicIcon, SpinnerIcon } from '@/components/ui/icons'
 import { toast } from '@/lib/toast'
 import { captureClientError } from '@/lib/observability/capture-client-error'
-import { prepareTake, type ReplacementTake, type ReRecordBlocker } from './re-record'
+import {
+	inputLevelPercent,
+	prepareTake,
+	type ReplacementTake,
+	type ReRecordBlocker
+} from './re-record'
 import type { SplicePlan } from './sentence-splice'
 import type { Loudness } from './take-audio'
 import { formatTimecode } from './timeline-scale'
@@ -49,12 +54,20 @@ export function ReRecordPanel({
 	onCancel
 }: ReRecordPanelProps) {
 	const t = useTranslations('Editor.reRecord')
-	const [status, setStatus] = useState<'idle' | 'recording' | 'processing' | 'no_speech'>('idle')
+	const [status, setStatus] = useState<
+		'idle' | 'recording' | 'processing' | 'no_speech' | 'stopped_mid_speech'
+	>('idle')
 	const recorderRef = useRef<MediaRecorder | null>(null)
+	// The input meter's bar, and what stops it. The bar is resized on every
+	// animation frame straight on the element, not through state, so the
+	// panel doesn't re-render sixty times a second.
+	const meterRef = useRef<HTMLDivElement>(null)
+	const stopMeterRef = useRef<(() => void) | null>(null)
 
 	// Closing the panel mid-recording releases the mic without keeping the take.
 	useEffect(
 		() => () => {
+			stopMeterRef.current?.()
 			const recorder = recorderRef.current
 			if (!recorder) return
 			recorder.onstop = null
@@ -63,6 +76,34 @@ export function ReRecordPanel({
 		},
 		[]
 	)
+
+	/** Shows the mic's level live while recording, so a too-quiet take is caught before it's made. */
+	function startMeter(stream: MediaStream) {
+		const audio = new AudioContext()
+		// Created after awaiting the mic, so possibly suspended: a suspended
+		// context feeds the analyser silence.
+		void audio.resume()
+		const analyser = audio.createAnalyser()
+		audio.createMediaStreamSource(stream).connect(analyser)
+		const samples = new Float32Array(analyser.fftSize)
+		let frame = 0
+		const draw = () => {
+			analyser.getFloatTimeDomainData(samples)
+			const percent = inputLevelPercent(samples)
+			const bar = meterRef.current
+			if (bar) {
+				bar.style.width = `${percent}%`
+				bar.parentElement?.setAttribute('aria-valuenow', String(percent))
+			}
+			frame = requestAnimationFrame(draw)
+		}
+		draw()
+		stopMeterRef.current = () => {
+			stopMeterRef.current = null
+			cancelAnimationFrame(frame)
+			void audio.close()
+		}
+	}
 
 	async function startRecording() {
 		let stream: MediaStream
@@ -82,11 +123,13 @@ export function ReRecordPanel({
 		recorder.ondataavailable = (event) => chunks.push(event.data)
 		recorder.onstop = () => {
 			recorderRef.current = null
+			stopMeterRef.current?.()
 			for (const track of stream.getTracks()) track.stop()
 			void finishTake(new Blob(chunks, { type: recorder.mimeType }))
 		}
 		recorderRef.current = recorder
 		recorder.start()
+		startMeter(stream)
 		onTake(null)
 		setStatus('recording')
 	}
@@ -94,7 +137,7 @@ export function ReRecordPanel({
 	async function finishTake(recording: Blob) {
 		if (plan.kind !== 'splice') return
 		setStatus('processing')
-		let prepared: ReplacementTake | null
+		let prepared: Awaited<ReturnType<typeof prepareTake>>
 		try {
 			prepared = await prepareTake(recording, plan, loudness)
 		} catch (error) {
@@ -103,8 +146,13 @@ export function ReRecordPanel({
 			setStatus('idle')
 			return
 		}
+		if (typeof prepared === 'string') {
+			onTake(null)
+			setStatus(prepared)
+			return
+		}
 		onTake(prepared)
-		setStatus(prepared ? 'idle' : 'no_speech')
+		setStatus('idle')
 	}
 
 	const originalSeconds = plan.kind === 'splice' ? plan.endSeconds - plan.startSeconds : 0
@@ -123,7 +171,20 @@ export function ReRecordPanel({
 			</div>
 			<div className="flex flex-wrap items-center gap-2" role="status">
 				{status === 'recording' && (
-					<span className="text-danger mr-auto text-xs">{t('recording')}</span>
+					<div className="mr-auto flex items-center gap-2">
+						<div
+							role="meter"
+							aria-label={t('inputLevel')}
+							aria-valuemin={0}
+							aria-valuemax={100}
+							// Starts at 0; the meter loop updates it with the bar's width.
+							aria-valuenow={0}
+							className="bg-surface-inset h-2 w-24 overflow-hidden rounded-full"
+						>
+							<div ref={meterRef} className="bg-accent h-full w-0" />
+						</div>
+						<span className="text-danger text-xs">{t('recording')}</span>
+					</div>
 				)}
 				{status === 'processing' && (
 					<span className="text-text-muted mr-auto flex items-center gap-2 text-xs">
@@ -133,6 +194,9 @@ export function ReRecordPanel({
 				)}
 				{status === 'no_speech' && (
 					<span className="text-warning mr-auto text-xs">{t('noSpeech')}</span>
+				)}
+				{status === 'stopped_mid_speech' && (
+					<span className="text-warning mr-auto text-xs">{t('stoppedMidSpeech')}</span>
 				)}
 				{status === 'idle' && take && (
 					<span className="text-text-muted mr-auto font-mono text-xs">

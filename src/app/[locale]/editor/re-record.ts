@@ -40,22 +40,41 @@ const LEVEL_PERCENTILE = 0.9
 const STOP_PRESS_SECONDS = 0.3
 
 /**
- * A recording's speech, before the press of Stop: from its first to its
- * last window above both its own gap threshold and the absolute silence
- * line. The relative threshold alone sinks below the noise floor when a
- * recording has no speech at all.
+ * A recording's windows before the press of Stop, and the level that counts
+ * as speech in them: above both its own gap threshold and the absolute
+ * silence line. The relative threshold alone sinks below the noise floor
+ * when a recording has no speech at all.
  */
+function beforeStop({ db, windowSeconds, gapThresholdDb }: Loudness) {
+	return {
+		windows: db.subarray(
+			0,
+			Math.max(0, db.length - Math.round(STOP_PRESS_SECONDS / windowSeconds))
+		),
+		threshold: Math.max(gapThresholdDb, SILENCE_THRESHOLD_DB)
+	}
+}
+
+/** A recording's speech, before the press of Stop: from its first to its last loud window. */
 export function speechRange(loudness: Loudness): SourceRange | null {
-	const { db, windowSeconds, gapThresholdDb } = loudness
-	const threshold = Math.max(gapThresholdDb, SILENCE_THRESHOLD_DB)
-	const beforeStop = db.subarray(
-		0,
-		Math.max(0, db.length - Math.round(STOP_PRESS_SECONDS / windowSeconds))
-	)
-	const first = beforeStop.findIndex((level) => level >= threshold)
+	const { windows, threshold } = beforeStop(loudness)
+	const first = windows.findIndex((level) => level >= threshold)
 	if (first < 0) return null
-	const last = beforeStop.findLastIndex((level) => level >= threshold)
-	return { startSeconds: first * windowSeconds, endSeconds: (last + 1) * windowSeconds }
+	const last = windows.findLastIndex((level) => level >= threshold)
+	return {
+		startSeconds: first * loudness.windowSeconds,
+		endSeconds: (last + 1) * loudness.windowSeconds
+	}
+}
+
+/**
+ * Whether Stop was pressed so soon that the speech was still going where
+ * the press begins: the take would end mid-word, which a real take did,
+ * as a click at the join. Such a take is recorded again, not cut.
+ */
+export function stoppedMidSpeech(loudness: Loudness): boolean {
+	const { windows, threshold } = beforeStop(loudness)
+	return (windows.at(-1) ?? -Infinity) >= threshold
 }
 
 /**
@@ -97,23 +116,37 @@ export function matchingGain(originalDb: number, takeDb: number): number {
 	return 10 ** (db / 20)
 }
 
+/** The input meter reads empty at this level and below, full at 0 dBFS. */
+const METER_FLOOR_DB = -60
+
+/** How full the input meter is (0-100) for a block of mic samples: their RMS on a dB scale. */
+export function inputLevelPercent(samples: Float32Array): number {
+	let sumOfSquares = 0
+	for (const sample of samples) sumOfSquares += sample * sample
+	const rms = Math.sqrt(sumOfSquares / Math.max(1, samples.length))
+	if (rms === 0) return 0
+	const db = 20 * Math.log10(rms)
+	return Math.round(Math.min(100, Math.max(0, (1 - db / METER_FLOOR_DB) * 100)))
+}
+
 /**
  * Turns a mic recording into a take for `plan`'s span, matched to the
- * original take's level — or null when no speech was heard in it.
- * Browser-only.
+ * original take's level — or why it can't be one: no speech was heard in
+ * it, or Stop cut the speech off. Browser-only.
  */
 export async function prepareTake(
 	recording: Blob,
 	plan: Extract<SplicePlan, { kind: 'splice' }>,
 	original: Loudness
-): Promise<ReplacementTake | null> {
+): Promise<ReplacementTake | 'no_speech' | 'stopped_mid_speech'> {
 	const audio = await decodeAudio(recording)
 	// The browser recorded it, so it can decode it; failing to is a bug.
 	if (!audio) throw new Error('the browser could not decode its own recording')
 	const loudness = measureLoudness(await analysisSamples(audio), ANALYSIS_SAMPLE_RATE)
 	const speech = speechRange(loudness)
 	const range = takeRange(loudness, plan, audio.duration)
-	if (!speech || !range) return null
+	if (!speech || !range) return 'no_speech'
+	if (stoppedMidSpeech(loudness)) return 'stopped_mid_speech'
 	return {
 		id: crypto.randomUUID(),
 		span: { startSeconds: plan.startSeconds, endSeconds: plan.endSeconds },
