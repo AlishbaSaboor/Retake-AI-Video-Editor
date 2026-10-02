@@ -266,7 +266,10 @@ locally, and the user explicitly did not want a hosted Supabase account.
     editor already probes for it).
 - `export-button.tsx` gives progress, Cancel and the download
   (`<name>-edited.webm`). The download is always the **edited** sequence,
-  regardless of the comparison toggle or a cut preview.
+  regardless of the comparison toggle or a cut preview. When it's done, one
+  toast: "Export finished", title only (the "<name> is downloading." line
+  under it was dropped 2026-10-03 as redundant), or the wrong-length warning
+  in its place (section 4f).
 
 ---
 

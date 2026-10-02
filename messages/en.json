@@ -195,10 +195,7 @@
 			"hint": "Plays the edit through once to record it, so it takes as long as the edit runs. Keep this tab open and in front.",
 			"progress": "Exporting… {percent}%",
 			"cancel": "Cancel export",
-			"done": {
-				"title": "Export finished",
-				"description": "{name} is downloading."
-			},
+			"done": "Export finished",
 			"wrongLength": {
 				"title": "{name} came out the wrong length",
 				"description": "This export came out {seconds} s too {direction, select, long {long} other {short}}, probably because the computer ran low on memory. Close other apps and export again."

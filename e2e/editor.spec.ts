@@ -618,6 +618,8 @@ test('export records a real video of the edit: its length, sound and pictures fo
 	const download = await downloading
 	expect(download.suggestedFilename()).toBe('test-take-edited.webm')
 	await expect(page.getByText('Export finished', { exact: true })).toBeVisible()
+	// Just that: no second "… is downloading." line under it.
+	await expect(page.getByText(/is downloading/)).toHaveCount(0)
 	const bytes = await readFile(await download.path())
 
 	// The edit plays the take from the split to the end, then its start.
