@@ -30,7 +30,7 @@
 			"fillersForReview": "{count, plural, one {# filler word runs} other {# filler words run}} straight into the next word with no clear pause, so {count, plural, one {it stays} other {they stay}} flagged (outlined) for you to cut by hand.",
 			"apply": "Apply clean-up",
 			"cancel": "Cancel",
-			"undo": "Undo last cut"
+			"undo": "Undo last change"
 		},
 		"fillerCut": {
 			"label": "Cut editor for \"{word}\"",
@@ -60,7 +60,9 @@
 			"transcribing": "Transcribing…",
 			"no_audio": "This video has no audio track to transcribe.",
 			"too_long": "Transcripts work on clips up to 5 minutes for now. Silences are still flagged on the timeline.",
-			"empty": "No speech detected."
+			"empty": "No speech detected.",
+			"reRecord": "Re-record the sentence at {at}",
+			"replaced": "re-recorded"
 		},
 		"command": {
 			"label": "Edit command",
@@ -86,7 +88,8 @@
 				"split": "Split a clip at the playhead with Split at playhead",
 				"reorder": "Reorder clips by dragging them in the Clips strip",
 				"merge": "Merge adjacent clips by selecting them and choosing Merge clips",
-				"export": "Export the edit as a video file with Export video"
+				"export": "Export the edit as a video file with Export video",
+				"reRecord": "Re-record a sentence by clicking the microphone next to it in the transcript"
 			},
 			"out_of_range": {
 				"title": "That range isn't in this clip.",
@@ -124,6 +127,35 @@
 			"unsupported": {
 				"title": "This browser can't export video.",
 				"description": "Try a current version of Chrome, Edge, Firefox or Safari."
+			}
+		},
+		"reRecord": {
+			"label": "Re-record the sentence at {at}",
+			"title": "Re-record the sentence at {at}",
+			"original": "Original: “{text}”",
+			"hint": "Say the sentence again. Your new take replaces the original sound; the picture keeps playing underneath, so say it to match what is on screen.",
+			"blocked": {
+				"no_gap_before": "There is no clear pause before this sentence, so a new take can’t be joined in without cutting into speech.",
+				"no_gap_after": "There is no clear pause after this sentence, so a new take can’t be joined in without cutting into speech.",
+				"trimmed": "Part of this sentence is trimmed away. Move the trim handles to include all of it first.",
+				"split": "This sentence is split between two clips. Merge them first.",
+				"overlaps": "This sentence overlaps one you’ve already re-recorded."
+			},
+			"record": "Record",
+			"recordAgain": "Record again",
+			"stop": "Stop",
+			"recording": "Recording… say the sentence, then press Stop.",
+			"processing": "Preparing your take…",
+			"noSpeech": "No speech was heard in that recording. Check your microphone and try again.",
+			"take": "New take: {seconds} s (original: {original} s)",
+			"playOriginal": "Play original",
+			"playWithTake": "Play with new take",
+			"cancel": "Cancel",
+			"apply": "Use new take",
+			"failed": "Couldn’t prepare that recording.",
+			"micUnavailable": {
+				"title": "Can’t use the microphone",
+				"description": "Allow microphone access for this site and check a microphone is connected, then try again."
 			}
 		}
 	}

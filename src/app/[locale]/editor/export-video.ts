@@ -1,4 +1,5 @@
-import type { SourceRange } from './sequence'
+import type { ReplacementTake } from './re-record'
+import { segmentSeconds, type Segment } from './sequence'
 
 // Exporting re-records the edit in real time: an offscreen copy of the take
 // plays each kept segment in order while a MediaRecorder captures its frames
@@ -8,6 +9,10 @@ import type { SourceRange } from './sequence'
 // server-side encoding (uploading the whole take): no dependency, and the
 // footage never leaves the browser — at the cost of taking as long as the
 // edit runs, with the tab in front, since hidden tabs stop drawing frames.
+//
+// Over a re-recorded segment the source's sound is muted and the take plays
+// into the same recording instead; where the take runs longer than the
+// segment's picture, recording carries on over the paused last frame.
 
 // Best first. WebM is what Chromium and Firefox record; Safari records MP4.
 const MIME_TYPES = [
@@ -30,8 +35,8 @@ export function exportFileName(sourceName: string, mimeType: string): string {
 }
 
 /** How long the export plays for: the segments laid end to end. */
-export function totalSeconds(segments: SourceRange[]): number {
-	return segments.reduce((sum, s) => sum + s.endSeconds - s.startSeconds, 0)
+export function totalSeconds(segments: Segment[]): number {
+	return segments.reduce((sum, s) => sum + segmentSeconds(s), 0)
 }
 
 /** Whether this browser has what recordEdit needs. */
@@ -60,6 +65,21 @@ function nextEvent(target: EventTarget, type: string): Promise<void> {
 
 const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve))
 
+/** Starts a re-recorded take playing into `destination`; `ended` turns true once it has played out. */
+function playTake(audio: AudioContext, destination: AudioNode, take: ReplacementTake) {
+	const level = audio.createGain()
+	level.gain.value = take.gain
+	const source = audio.createBufferSource()
+	source.buffer = take.audio
+	source.connect(level).connect(destination)
+	const playing = { ended: false }
+	source.onended = () => {
+		playing.ended = true
+	}
+	source.start(0, take.offsetSeconds, take.takeSeconds)
+	return playing
+}
+
 /**
  * Plays `segments` of the video at `url` in order and records them into one
  * file. Only call where canExport() is true. `onProgress` gets the fraction
@@ -67,7 +87,7 @@ const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve))
  */
 export async function recordEdit(
 	url: string,
-	segments: SourceRange[],
+	segments: Segment<ReplacementTake>[],
 	{ onProgress, signal }: { onProgress: (fraction: number) => void; signal: AbortSignal }
 ): Promise<{ blob: Blob; mimeType: string }> {
 	const mimeType = pickMimeType((type) => MediaRecorder.isTypeSupported(type))
@@ -94,7 +114,8 @@ export async function recordEdit(
 		}
 		draw()
 		const destination = audio.createMediaStreamDestination()
-		audio.createMediaElementSource(video).connect(destination)
+		const sourceSound = audio.createGain()
+		audio.createMediaElementSource(video).connect(sourceSound).connect(destination)
 		await audio.resume()
 		recorder = new MediaRecorder(
 			new MediaStream([
@@ -116,15 +137,25 @@ export async function recordEdit(
 			context.drawImage(video, 0, 0, canvas.width, canvas.height)
 			if (recorder.state === 'inactive') recorder.start()
 			else recorder.resume()
+			sourceSound.gain.value = segment.voiceOver ? 0 : 1
 			await video.play()
+			// Started with the picture, so the two run together from here.
+			const take = segment.voiceOver && playTake(audio, destination, segment.voiceOver.replacement)
 			while (video.currentTime < segment.endSeconds && !video.ended) {
 				signal.throwIfAborted()
 				onProgress((done + video.currentTime - segment.startSeconds) / total)
 				await nextFrame()
 			}
 			video.pause()
+			if (take) {
+				// The picture holds its last frame while the rest of the take plays.
+				while (!take.ended) {
+					signal.throwIfAborted()
+					await nextFrame()
+				}
+			}
 			recorder.pause()
-			done += segment.endSeconds - segment.startSeconds
+			done += segmentSeconds(segment)
 		}
 		recorder.stop()
 		await stopped

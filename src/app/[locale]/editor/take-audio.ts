@@ -40,7 +40,7 @@ export type Silence = { startSeconds: number; endSeconds: number }
 // silent. Room tone typically sits at -50 to -60 dBFS and speech at -30 to
 // -10, so -40 separates them without tuning per recording.
 const WINDOW_SECONDS = 0.05
-const SILENCE_THRESHOLD_DB = -40
+export const SILENCE_THRESHOLD_DB = -40
 const SILENCE_THRESHOLD_RMS = 10 ** (SILENCE_THRESHOLD_DB / 20)
 
 /**
@@ -161,21 +161,32 @@ export function toBase64(buffer: ArrayBuffer): string {
 }
 
 /**
- * Decodes a video file's audio track to mono samples at ANALYSIS_SAMPLE_RATE.
- * Null when there's no audio to analyse — no audio track, or a codec this
- * browser can't decode — which is an expected outcome, not an error.
- * Browser-only.
+ * Decodes a file's audio track at full quality. Null when there's no audio
+ * to decode — no audio track, or a codec this browser can't decode — which
+ * is an expected outcome, not an error. Browser-only.
  */
-export async function decodeTakeAudio(file: File): Promise<Float32Array | null> {
+export async function decodeAudio(file: Blob): Promise<AudioBuffer | null> {
 	const context = new AudioContext()
-	let decoded: AudioBuffer
 	try {
-		decoded = await context.decodeAudioData(await file.arrayBuffer())
+		return await context.decodeAudioData(await file.arrayBuffer())
 	} catch {
 		return null
 	} finally {
 		void context.close()
 	}
+}
+
+/**
+ * Decodes a video file's audio track to mono samples at ANALYSIS_SAMPLE_RATE,
+ * or null when it has none (see decodeAudio). Browser-only.
+ */
+export async function decodeTakeAudio(file: File): Promise<Float32Array | null> {
+	const decoded = await decodeAudio(file)
+	return decoded && analysisSamples(decoded)
+}
+
+/** Mixes decoded audio to mono at ANALYSIS_SAMPLE_RATE, for measuring. Browser-only. */
+export async function analysisSamples(decoded: AudioBuffer): Promise<Float32Array> {
 	const frames = Math.max(1, Math.ceil(decoded.duration * ANALYSIS_SAMPLE_RATE))
 	const offline = new OfflineAudioContext(1, frames, ANALYSIS_SAMPLE_RATE)
 	const source = offline.createBufferSource()

@@ -104,6 +104,9 @@ test('an edge the transcriber stretched into a pause is spliced in that pause, a
 	// Within 80 ms of the sentence's real speech, which the audio puts at 1.6-2.6.
 	assert.ok(plan.startSeconds >= 1.52 - 0.011 && plan.startSeconds <= 1.6, JSON.stringify(plan))
 	assert.ok(plan.endSeconds >= 2.6 && plan.endSeconds <= 2.68 + 0.011, JSON.stringify(plan))
+	// And the speech it reports is the audio's, not the transcriber's 1.3-2.9.
+	assert.ok(Math.abs(plan.speech.startSeconds - 1.6) <= 0.011, JSON.stringify(plan))
+	assert.ok(Math.abs(plan.speech.endSeconds - 2.6) <= 0.011, JSON.stringify(plan))
 })
 
 test('a pause near the edge that does not contain it is still not used', () => {

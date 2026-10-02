@@ -7,13 +7,14 @@ import { DownloadIcon } from '@/components/ui/icons'
 import { toast } from '@/lib/toast'
 import { captureClientError } from '@/lib/observability/capture-client-error'
 import { canExport, exportFileName, recordEdit, totalSeconds } from './export-video'
-import type { SourceRange } from './sequence'
+import type { ReplacementTake } from './re-record'
+import type { Segment } from './sequence'
 
 type ExportButtonProps = {
 	videoUrl: string
 	videoName: string
 	/** What the edit plays, in order — captured when the export starts. */
-	segments: SourceRange[]
+	segments: Segment<ReplacementTake>[]
 }
 
 const PERCENT = 100
