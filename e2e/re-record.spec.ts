@@ -54,6 +54,11 @@ test.use({
 	}
 })
 
+// One test at a time: takes are recorded against the clock, and the undo
+// test's nine real-time exports beside the other test starved its page (a
+// 50 ms meter poll answered 370 ms late) and came out a take of 0.9 s, not 1.0.
+test.describe.configure({ mode: 'default' })
+
 // The pauses between the video's "sentences" hold a faint tone (~-57 dBFS)
 // rather than digital silence, as a real room does: against digital
 // silence, the encoder's fade-out after each tone reads as sound for ~0.3 s
@@ -209,8 +214,129 @@ test('a re-recorded take replaces only its sentence, in playback and export, and
 	}
 	expect(Math.max(pause?.low ?? 1, pause?.high ?? 1), 'quiet between takes').toBeLessThan(0.01)
 
-	// Undo takes back the last take (C); B's stays.
+	// Undo takes back the last take (C); B's stays, one more Undo away.
 	await page.getByRole('button', { name: 'Undo last change' }).click()
 	await expect(page.getByText('re-recorded', { exact: true })).toHaveCount(1)
-	await expect(page.getByRole('button', { name: 'Undo last change' })).toHaveCount(0)
+	await expect(page.getByRole('button', { name: 'Undo last change' })).toBeVisible()
+	await expect(page.getByRole('button', { name: 'Redo' })).toBeVisible()
+})
+
+/** Exports the edit and returns the exported file's length in seconds (its audio track). */
+async function exportedSeconds(page: Page): Promise<number> {
+	const downloading = page.waitForEvent('download')
+	await page.getByRole('button', { name: 'Export video' }).click()
+	const bytes = await readFile(await (await downloading).path())
+	await expect(page.getByRole('button', { name: 'Export video' })).toBeVisible()
+	return page.evaluate(
+		async (bytes) => {
+			const blob = new Blob([new Uint8Array(bytes)], { type: 'video/webm' })
+			const audio = await new OfflineAudioContext(1, 1, 48_000).decodeAudioData(
+				await blob.arrayBuffer()
+			)
+			return audio.duration
+		},
+		[...bytes]
+	)
+}
+
+test('undo steps back through several edits, a re-record among them, and redo replays them all', async ({
+	page
+}) => {
+	test.setTimeout(300_000)
+	// A, B (2 s, re-recorded with a 0.8 s take) and D, with pauses between.
+	await mockActions(page, {
+		words: [w('Alpha.', 0, 1), w('Bravo', 1.6, 2.6), w('words.', 2.6, 3.6), w('Delta.', 4.2, 5.2)]
+	})
+	const duration = await openEditorWithVideo(
+		page,
+		[
+			[1, true],
+			[0.6, false],
+			[2, true],
+			[0.6, false],
+			[1, true]
+		],
+		ROOM_TONE
+	)
+	const reRecordB = page.getByRole('button', { name: 'Re-record the sentence at 0:01' })
+	await expect(reRecordB).toBeVisible({ timeout: 30_000 })
+	const clips = page.getByRole('region', { name: 'Clips' }).getByRole('option')
+	const trimEnd = page.getByRole('slider', { name: 'Trim end' })
+	const undoButton = page.getByRole('button', { name: 'Undo last change' })
+	const redoButton = page.getByRole('button', { name: 'Redo' })
+	// Exact, where the clips' m:ss labels would round: the trim, every
+	// clip's label in order, and how many sentences are re-recorded.
+	const timeline = async () => ({
+		trimEnd: await trimEnd.getAttribute('aria-valuenow'),
+		clips: await clips.evaluateAll((options) => options.map((o) => o.getAttribute('aria-label'))),
+		reRecorded: await page.getByText('re-recorded', { exact: true }).count()
+	})
+
+	// Each step: its timeline, and how long its export should be.
+	const steps = [{ timeline: await timeline(), seconds: duration }]
+	// 1. Re-record B: its 2 s become the take's 0.8 s.
+	await reRecordB.click()
+	await (await recordTake(page)).getByRole('button', { name: 'Use new take' }).click()
+	await expect(page.getByText('re-recorded', { exact: true })).toHaveCount(1)
+	steps.push({ timeline: await timeline(), seconds: duration - 1.2 })
+	// 2. Trim a second off the end, from the keyboard.
+	await trimEnd.press('Shift+ArrowLeft')
+	steps.push({ timeline: await timeline(), seconds: duration - 2.2 })
+	// 3. Split at 0.8 s, inside A.
+	await seekTo(page, 0.8)
+	await page.getByRole('button', { name: 'Split at playhead' }).click()
+	await expect(clips).toHaveCount(2)
+	steps.push({ timeline: await timeline(), seconds: duration - 2.2 })
+	// 4. Move the first clip after the second.
+	await clips.first().press('Alt+ArrowRight')
+	await expect(clips.first()).toHaveAttribute('aria-label', /from 0:00–0:05 of/)
+	steps.push({ timeline: await timeline(), seconds: duration - 2.2 })
+	// Every step looks different on the timeline, so each restore is checked.
+	expect(new Set(steps.map((s) => JSON.stringify(s.timeline))).size).toBe(steps.length)
+
+	const expectStep = async (index: number) => {
+		const step = steps[index]
+		if (!step) throw new Error(`no step ${index}`)
+		await expect.poll(timeline).toEqual(step.timeline)
+		const seconds = await exportedSeconds(page)
+		expect(
+			Math.abs(seconds - step.seconds),
+			`step ${index}: exported ${seconds.toFixed(2)} s, expected ${step.seconds.toFixed(2)} s`
+		).toBeLessThan(0.25)
+	}
+	await expectStep(4)
+
+	// Ctrl+Z in the command bar is the text field's own undo, not the editor's.
+	const command = page.getByRole('textbox', { name: 'Edit command' })
+	await command.fill('cut')
+	await command.press('Control+z')
+	await expect(redoButton).toHaveCount(0)
+	await expect.poll(timeline).toEqual(steps[4]?.timeline)
+
+	// Undo all four, by button and by Ctrl+Z.
+	await undoButton.click()
+	await expectStep(3)
+	for (const index of [2, 1, 0]) {
+		await page.keyboard.press('Control+z')
+		await expectStep(index)
+	}
+	await expect(undoButton).toHaveCount(0)
+
+	// Redo all four, by button, Ctrl+Shift+Z and Ctrl+Y. The re-recorded take
+	// comes back from the redo branch: no new recording is made.
+	await redoButton.click()
+	await expectStep(1)
+	await page.keyboard.press('Control+Shift+z')
+	await expectStep(2)
+	await page.keyboard.press('Control+y')
+	await expectStep(3)
+	await redoButton.click()
+	await expectStep(4)
+	await expect(redoButton).toHaveCount(0)
+
+	// A new edit after an undo ends the redo branch.
+	await undoButton.click()
+	await expectStep(3)
+	await clips.first().press('Alt+ArrowRight')
+	await expect(redoButton).toHaveCount(0)
 })
