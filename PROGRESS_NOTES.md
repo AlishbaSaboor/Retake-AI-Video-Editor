@@ -6,19 +6,28 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **Read this first: where things stand right now**
 >
-> - Branch `main`, in sync with `origin/main`. Updated 2026-10-02 after
->   export shipped.
-> - **Export (queue item 7) is committed and pushed** in `2c2f0a5` (session
->   log in `35125bf`). Before committing: 166 unit tests, Prettier, lint,
->   typecheck and the production build passed, and the full e2e suite
->   passed 17/17 in each of two runs, one from a cold start. A/V sync at
->   1080p H.264 was measured and is fine (section 4b).
-> - **Export's known limitations:** the file opens with about 0.15 s of
->   still, silent frame (optional fix in section 4b), and exporting takes as
->   long as the edit runs, because it records in real time.
+> - Branch `main`, in sync with `origin/main`. Updated 2026-10-02 (second
+>   session of the day).
+> - **In progress: re-record and splice** (section 3b). The user approved an
+>   **audio-only** first version. Slice 1 (the splice-point planner,
+>   `sentence-splice.ts`) is committed in `3df2f89`, logic and tests only.
+>   **Slice 2 (the UI flow) waits for the user's approval of the revised
+>   design. Don't start it without that.**
+> - **Export (queue item 7) is committed and pushed** in `2c2f0a5`. Before
+>   committing: 166 unit tests, Prettier, lint, typecheck and the production
+>   build passed, and the full e2e suite passed 17/17 in each of two runs,
+>   one from a cold start. A/V sync at 1080p H.264 was measured and is fine
+>   (section 4b).
+> - **Export's known limitations:** exporting takes as long as the edit
+>   runs, because it records in real time. The file opens with a lead-in of
+>   about **40–65 ms**, not the ~0.15 s these notes used to say: that figure
+>   was a measurement artifact, and the proposed fix had no effect (section
+>   4b, corrected 2026-10-02).
 > - **Known flake:** under peak e2e load the dev server occasionally pauses
 >   for 3–6 s (section 4c). Observed, cause unknown, not profiled.
-> - The whole original queue (section 5) is done. Nothing new is queued.
+> - **This machine has 7.5 GB of RAM and swaps hard when many apps are open**
+>   (section 4d). Real-time export measurements made while it swaps are
+>   noise. Check free memory before measuring.
 
 ---
 
@@ -32,10 +41,8 @@ hand.
 
 **Signature identity: "re-record and splice."** The product's defining move
 is to let you re-record a bad stretch of a take and splice the new
-recording in, instead of reshooting everything. _Not built yet._ The
-non-destructive model below (edits are ranges over the source, never
-changes to the file) is designed to make it possible. A re-recorded piece
-would become another source range or clip in the sequence.
+recording in, instead of reshooting everything. _In progress_: section 3b
+has the agreed design and where it stands.
 
 **Three pillars:**
 
@@ -82,28 +89,35 @@ actions in `actions.ts`.
 Commits are in order, oldest first. Each feature commit is followed by a
 separate `chore(logs)` commit.
 
-| Feature                                                                         | Commit    | How it was verified                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Template setup, local editor page (upload a video, see it with a timeline area) | `ec9d09f` | e2e: home links to the editor; a picked video plays and can be scrubbed. MediaRecorder WebM with `Infinity` duration is handled by a forced duration probe. Non-videos are rejected with a toast.                                                                                                                                                                                                                                                                                                                               |
-| Local Supabase CLI dev setup                                                    | `65fd6ef` | `supabase start` in Docker, Prisma migrated, app boots. Only the services we use are enabled.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Manual trim handles                                                             | `da35eb7` | Unit tests for `moveTrimEdge` (clamped, never crossing, reversible). e2e drags a handle, previews the trimmed playback, and undoes it.                                                                                                                                                                                                                                                                                                                                                                                          |
-| AI edit commands (Gemini) and the dark visual design                            | `96bdaa4` | Unit tests for the command schema and range validation (`edit-command.test.mts`). e2e with mocked server actions. Each real call was checked to land a costed row in `ai_usage`.                                                                                                                                                                                                                                                                                                                                                |
-| Transcript plus long-silence flags                                              | `8da9af7` | Tested with real speech. Silences come from measured loudness (50 ms windows, under -40 dBFS), not transcript timestamps. Threshold set to **7 s** (`MIN_SILENCE_SECONDS`), with unit tests showing pauses under 7 s aren't flagged. e2e uses a tone video with silences at known times.                                                                                                                                                                                                                                        |
-| Filler-word flags; fix for long takes failing to transcribe                     | `a9fb9ba` | Unit tests for filler detection. Root cause of the long-take failure: a 10 MB proxy body limit truncated uploads. `bodySizeLimit` and `proxyClientMaxBodySize` are now set from one constant in `next.config.ts` (`TRANSCRIBE_REQUEST_LIMIT_BYTES` in `take-audio.ts`). Verified with the user's real ~1–2 minute recording.                                                                                                                                                                                                    |
-| One-click clean-up of silences, undoable                                        | `ba1fe03` | Unit tests for `planCleanup`, `keptSeconds` and `mergeCuts`. e2e: clean-up removes flagged silences after showing an estimate, and Undo restores them.                                                                                                                                                                                                                                                                                                                                                                          |
-| Precise filler removal (Deepgram timing plus gap snapping)                      | `8a92dea` | Measured on the user's real recording (`Cap.mp4`) by exporting before/after WAVs around a filler at about 0:33.5. The user listened and confirmed the cut is real and clean. Unit tests in `filler-cuts.test.mts`. e2e: a filler with clear gaps is cut, one without gaps is left for review.                                                                                                                                                                                                                                   |
-| Filler cut editor (set a cut by ear with draggable edges, preview, Undo)        | `5d203ad` | e2e: cut a filler by hand, preview with and without the cut, and check that Undo or Cancel leave the take intact.                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Confirm an AI command's plan before it runs                                     | `72c8d35` | e2e: the command shows what it understood, Cancel changes nothing, Apply applies exactly what was shown.                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Honest "I can't do that yet" replies for unsupported commands                   | `a0d6159` | e2e: a reply lists what is possible and Apply never appears. An out-of-range trim is explained ("That range isn't in this clip.").                                                                                                                                                                                                                                                                                                                                                                                              |
-| Split a clip at the playhead                                                    | `6eb5bb3` | Unit tests: a split leaves what plays unchanged, refuses slivers (`MIN_CLIP_SECONDS` = 0.1), and `clipIndexAt` assigns the very end to the last clip. e2e: split at 1.5 s, the playhead doesn't move, and the highlight follows playback across the split.                                                                                                                                                                                                                                                                      |
-| Reorder clips by dragging, or Alt+←/→                                           | `ae17d92` | Unit tests for `moveClip`, including off-end moves doing nothing. e2e drags and uses keys, then plays and checks that video time jumps from the later part back to the source start and stops where the moved clip ends.                                                                                                                                                                                                                                                                                                        |
-| Merge a selected run of adjacent clips                                          | `9404c4e` | Unit tests: merging a split restores the original single range exactly, and merging reordered clips keeps playback order with identical `playableSegments`. e2e: click, Shift+click, and Space/Shift+Space selection, with a merge before and after a reorder. Passed 12/12 on repeat.                                                                                                                                                                                                                                          |
-| Before/after comparison (Edited / Original), playhead preserved                 | `0b4b485` | e2e (8/8 on repeat): with a 1–2 s trim, the edit stops at about 2 s. Switching to Original leaves `currentTime` exactly unchanged and plays past 2.4 s. Switching back to Edited also leaves it unchanged.                                                                                                                                                                                                                                                                                                                      |
-| Export the edit as a playable video (real-time, in the browser)                 | `2c2f0a5` | Unit tests for the format pick, filename and total length. The e2e checks the exported file's length (±0.25 s), tone and silence at mapped probe times, and the square's pixel position in frames. Measured: 2.95 s vs 2.96 s expected; tone RMS 0.35, silence about 0; square at exactly 160 and 60 px as predicted. A real-footage export of `Cap.mp4` (split in three and reordered) came out at the right length, with each segment's audio at its edited position (correlation 0.81–0.96 vs 0.016 for the original order). |
+| Feature                                                                                           | Commit    | How it was verified                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Template setup, local editor page (upload a video, see it with a timeline area)                   | `ec9d09f` | e2e: home links to the editor; a picked video plays and can be scrubbed. MediaRecorder WebM with `Infinity` duration is handled by a forced duration probe. Non-videos are rejected with a toast.                                                                                                                                                                                                                                                                                                                               |
+| Local Supabase CLI dev setup                                                                      | `65fd6ef` | `supabase start` in Docker, Prisma migrated, app boots. Only the services we use are enabled.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Manual trim handles                                                                               | `da35eb7` | Unit tests for `moveTrimEdge` (clamped, never crossing, reversible). e2e drags a handle, previews the trimmed playback, and undoes it.                                                                                                                                                                                                                                                                                                                                                                                          |
+| AI edit commands (Gemini) and the dark visual design                                              | `96bdaa4` | Unit tests for the command schema and range validation (`edit-command.test.mts`). e2e with mocked server actions. Each real call was checked to land a costed row in `ai_usage`.                                                                                                                                                                                                                                                                                                                                                |
+| Transcript plus long-silence flags                                                                | `8da9af7` | Tested with real speech. Silences come from measured loudness (50 ms windows, under -40 dBFS), not transcript timestamps. Threshold set to **7 s** (`MIN_SILENCE_SECONDS`), with unit tests showing pauses under 7 s aren't flagged. e2e uses a tone video with silences at known times.                                                                                                                                                                                                                                        |
+| Filler-word flags; fix for long takes failing to transcribe                                       | `a9fb9ba` | Unit tests for filler detection. Root cause of the long-take failure: a 10 MB proxy body limit truncated uploads. `bodySizeLimit` and `proxyClientMaxBodySize` are now set from one constant in `next.config.ts` (`TRANSCRIBE_REQUEST_LIMIT_BYTES` in `take-audio.ts`). Verified with the user's real ~1–2 minute recording.                                                                                                                                                                                                    |
+| One-click clean-up of silences, undoable                                                          | `ba1fe03` | Unit tests for `planCleanup`, `keptSeconds` and `mergeCuts`. e2e: clean-up removes flagged silences after showing an estimate, and Undo restores them.                                                                                                                                                                                                                                                                                                                                                                          |
+| Precise filler removal (Deepgram timing plus gap snapping)                                        | `8a92dea` | Measured on the user's real recording (`Cap.mp4`) by exporting before/after WAVs around a filler at about 0:33.5. The user listened and confirmed the cut is real and clean. Unit tests in `filler-cuts.test.mts`. e2e: a filler with clear gaps is cut, one without gaps is left for review.                                                                                                                                                                                                                                   |
+| Filler cut editor (set a cut by ear with draggable edges, preview, Undo)                          | `5d203ad` | e2e: cut a filler by hand, preview with and without the cut, and check that Undo or Cancel leave the take intact.                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Confirm an AI command's plan before it runs                                                       | `72c8d35` | e2e: the command shows what it understood, Cancel changes nothing, Apply applies exactly what was shown.                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Honest "I can't do that yet" replies for unsupported commands                                     | `a0d6159` | e2e: a reply lists what is possible and Apply never appears. An out-of-range trim is explained ("That range isn't in this clip.").                                                                                                                                                                                                                                                                                                                                                                                              |
+| Split a clip at the playhead                                                                      | `6eb5bb3` | Unit tests: a split leaves what plays unchanged, refuses slivers (`MIN_CLIP_SECONDS` = 0.1), and `clipIndexAt` assigns the very end to the last clip. e2e: split at 1.5 s, the playhead doesn't move, and the highlight follows playback across the split.                                                                                                                                                                                                                                                                      |
+| Reorder clips by dragging, or Alt+←/→                                                             | `ae17d92` | Unit tests for `moveClip`, including off-end moves doing nothing. e2e drags and uses keys, then plays and checks that video time jumps from the later part back to the source start and stops where the moved clip ends.                                                                                                                                                                                                                                                                                                        |
+| Merge a selected run of adjacent clips                                                            | `9404c4e` | Unit tests: merging a split restores the original single range exactly, and merging reordered clips keeps playback order with identical `playableSegments`. e2e: click, Shift+click, and Space/Shift+Space selection, with a merge before and after a reorder. Passed 12/12 on repeat.                                                                                                                                                                                                                                          |
+| Before/after comparison (Edited / Original), playhead preserved                                   | `0b4b485` | e2e (8/8 on repeat): with a 1–2 s trim, the edit stops at about 2 s. Switching to Original leaves `currentTime` exactly unchanged and plays past 2.4 s. Switching back to Edited also leaves it unchanged.                                                                                                                                                                                                                                                                                                                      |
+| Export the edit as a playable video (real-time, in the browser)                                   | `2c2f0a5` | Unit tests for the format pick, filename and total length. The e2e checks the exported file's length (±0.25 s), tone and silence at mapped probe times, and the square's pixel position in frames. Measured: 2.95 s vs 2.96 s expected; tone RMS 0.35, silence about 0; square at exactly 160 and 60 px as predicted. A real-footage export of `Cap.mp4` (split in three and reordered) came out at the right length, with each segment's audio at its edited position (correlation 0.81–0.96 vs 0.016 for the original order). |
+| Re-record and splice, slice 1: where a replacement sentence is spliced in (logic only, no UI yet) | `3df2f89` | 5 unit tests (`sentence-splice.test.mts`): joins land inside the real pauses even with the transcriber ~100 ms off, a long pause is only nibbled, no pause means review; a mutation to raw timestamps fails 2 of them. The gap search moved to `audio-gaps.ts`; `planFillerCut` output checked identical on 36,910 spans over four real recordings. Full e2e 17/17 twice.                                                                                                                                                       |
 
-**Current totals:** 166 unit tests and 17 e2e tests. Everything passes
-locally. On the export commit the full e2e suite passed 17/17 in each of
-two runs, one from a cold dev server.
+**Current totals:** 171 unit tests (`src/**/*.test.mts`) and 17 e2e tests.
+Everything passes locally. On the slice 1 commit the full e2e suite passed
+17/17 in each of two runs.
+
+`pnpm test` also runs the repo's `scripts/*.test.mjs`. On this Windows
+machine 41 of those (all in `check-standards.test.mjs`) fail with `EPERM`
+on `symlinkSync`, because creating symlinks needs Developer Mode or admin.
+They fail identically on a clean checkout, aren't about the editor, and CI
+runs them on Linux.
 
 **How to run the checks:**
 
@@ -203,13 +217,88 @@ locally, and the user explicitly did not want a hosted Supabase account.
     browser.
 - Costs:
   - The export takes as long as the edit runs.
-  - The file opens with about 0.15 s of still, silent frame (section 4b).
+  - The file's audio starts about 40–65 ms after its picture (section 4b).
   - The tab must stay in front, because hidden tabs stop `requestAnimationFrame`.
   - A MediaRecorder WebM has no duration header (players handle it, and the
     editor already probes for it).
 - `export-button.tsx` gives progress, Cancel and the download
   (`<name>-edited.webm`). The download is always the **edited** sequence,
   regardless of the comparison toggle or a cut preview.
+
+---
+
+## 3b. Re-record and splice (in progress)
+
+**Decided by the user (2026-10-02):**
+
+- **v1 is audio-only.** The user re-records a sentence with the mic only;
+  camera + mic is not in v1. The user is responsible for matching what they
+  say to what's on screen.
+- The flow:
+  1. Click a sentence in the transcript.
+  2. See the original sentence and record a replacement in the browser.
+  3. Preview it, then Apply or Cancel (the same pattern as AI commands).
+  4. On Apply it's spliced in place of the original span. One-step Undo,
+     shared with clean-up. Export includes it.
+- **Expected API cost: zero.** Recording (`MediaRecorder`), decoding, the
+  gap search, trimming and level matching all run in the browser. The new
+  take is never sent to Deepgram or Gemini, so nothing lands in `ai_usage`.
+
+**The picture during a replaced span** (proposed by the user, adopted in
+the revised design that awaits approval):
+
+- The original picture keeps playing through the span with its own sound
+  muted, and the new audio plays over it.
+- If the take is longer than the span, the span's last frame is held until
+  the take ends. If it's shorter, the picture cuts at the take's end and
+  carries on from the end of the span.
+- So **no second `<video>` is needed, only a second audio source.** The take
+  is decoded once anyway (for trimming and level), so it plays as an
+  `AudioBufferSourceNode` through a gain node, both in the editor and in
+  export's existing `AudioContext`.
+
+**Known limitation: lip sync on face-on-camera footage.** The new words
+play over the original mouth movements, so on talking-head video the lips
+won't match. When the take's length differs from the span, the picture also
+freezes (take longer) or skips (take shorter). Fine for screen recordings
+and voice-over; visible on face-on footage. The user accepted this for v1.
+
+**Splice points: slice 1, committed `3df2f89`** (`sentence-splice.ts`, on
+top of `audio-gaps.ts`, which filler cuts now share):
+
+- Each join goes inside the real pause beside the sentence: at the pause's
+  middle, or 80 ms from the speech if that's closer, so a long pause keeps
+  its pacing.
+- No pause on a side means review: the splice is never guessed at.
+- **Finding on real speech (`Cap.mp4`, 30 sentences): only 6 are spliceable
+  under this rule.** The 24 refused edges break down as:
+  - 6 have a clear 200–1150 ms pause that _contains_ the transcriber's edge.
+    Deepgram stretches a sentence's first or last word up to ~380 ms into
+    the pause, and the search window (tuned on fillers) only looks
+    −0.10/+0.15 s around the edge.
+  - 8 have a pause within 0.25 s. Some are real; some are 50–100 ms dips
+    that could be inside a word.
+  - 10 have no pause at all: continuous speech across a sentence boundary.
+- **This needs a user decision before slice 2:** widen the rule (accept a
+  pause that contains the edge) and/or add by-ear handles for sentences with
+  no pause.
+
+**Seam measurements to keep for slice 2.** Measure them on a real
+re-recording spliced into `Cap.mp4`, and have the user listen to each seam:
+
+- clicks: the jump between neighbouring samples and high-frequency energy
+  at the join, compared with the surrounding pause
+- added dead air: the pause length at the seam vs the original pause
+- level: the replacement's speech within ±3 dB of the original around it
+- room tone: the noise floor in the pauses either side of each seam
+
+**Slices:**
+
+0. Export lead-in fix: **dropped**. Measured to have no effect (section 4b).
+1. Splice-point planner: **committed** (`3df2f89`).
+2. Record, preview, Apply/Cancel, playback, export, Undo: **waits for
+   approval** of the revised design.
+3. Level matching, plus fades only if the seams measure clicks.
 
 ---
 
@@ -267,18 +356,27 @@ Results:
   affected. It lands exactly on time, which it couldn't if the source were
   out of sync.
 
-**What is real: a one-time lead-in of about 150 ms at the start of the
-export.**
+**Corrected 2026-10-02: the lead-in is about 40–65 ms, not ~150 ms.**
 
-- Synthetic: the export's audio starts 154 ms later than the source's.
-- `Cap.mp4`: 120–140 ms.
-- Sound and picture are shifted by the same amount, so they stay in sync.
-  The file just opens with about 0.15 s of still, silent frame.
-- Cause: the recorder starts before `video.play()` has actually started
-  playback (decoder warm-up), so the wait is recorded. Later segment joins
-  don't show it, because the decoder is warm.
-- The total length is correspondingly about 0.1–0.15 s over
-  (108.96 s vs 108.87 s on `Cap.mp4`).
+These notes used to say the export opens with about 0.15 s of still, silent
+frame, because the recorder starts before playback. Both parts were wrong:
+
+- The ~150 ms came from comparing tone onsets decoded with
+  `decodeAudioData`, which drops a track's start offset in the container.
+  The synthetic source's audio track starts **140 ms** into its file (first
+  WebM blocks: video at 0 ms, audio at 140 ms), so its tone looked 140 ms
+  earlier than it really plays.
+- Corrected with the container's timestamps (`webm-starts.cjs`), the
+  export's tone starts 39–65 ms after the source's. That matches the
+  export's own audio track starting 33–59 ms after its video track.
+- The proposed fix (start or resume the recorder only once `play()` has
+  resolved) was built and measured: 39–56 ms after vs 39–65 ms before, the
+  same within run-to-run spread. It was reverted, not committed.
+- A `Cap.mp4` export (split in three, reordered) came out at 108.84 s for a
+  108.865 s edit, each segment in place (correlation 0.946–0.997, vs 0.055
+  for the original order) and offset 20 ms, which is the method's
+  resolution. The earlier reading of 108.96 s wasn't reproduced.
+- No further work is planned on the lead-in unless the user asks.
 
 **Superseded:** the earlier 260 ms "video shift" came from a weak
 frame-activity correlation on a mostly static screen recording (r = 0.525),
@@ -296,17 +394,9 @@ and the first 1080p attempt used a broken source. Disregard both.
 
 1. ~~Commit export~~: done in `2c2f0a5` after the full check set (see the
    top of this file).
-2. **Optional polish, in a follow-up commit, measured before and after:**
-   remove the lead-in by starting or resuming the recorder when playback
-   has actually begun, not before `play()`.
-   - In `recordEdit` (`export-video.ts`), call `video.play()` first, then
-     `recorder.start()`/`resume()` once the `playing` event fires (or the
-     play promise resolves).
-   - The trade-off is that a few ms at the very start of each segment may
-     be lost instead of a frozen frame added.
-   - Verify with `sync-1080-edges.cjs`: "heard at" for edge 5 should drop
-     from 5.362 s towards 5.208 s. The offsets must stay 0.
-   - Also run the e2e export test, which allows ±0.25 s on length.
+2. ~~Remove the lead-in by starting the recorder after `play()`~~: tried
+   2026-10-02 and measured to make no difference (see the correction
+   above), so not committed.
 
 **Verification scripts** (scratch, not in the repo; recreate if missing):
 
@@ -324,6 +414,17 @@ They were in the session scratchpad:
 Run them from the repo root (`node <script>`) with the dev server up. The
 real-footage export output is `cap-edited.webm` in that folder. **Never
 copy the user's recordings or exports into the repo.**
+
+Added 2026-10-02, in that day's second session scratchpad
+(`…\bb3649b5-7aa1-4aee-b39a-763a50b36f04\scratchpad\`):
+
+| Script                             | What it does                                                                                                                                                                                                               |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `leadin.cjs`                       | Exports the **saved** `sync13-source.webm` (not re-recorded, so runs compare like for like) and reports the tone-onset difference plus seek-based sync. Its onset uses `decodeAudioData`; correct it with the next script. |
+| `webm-starts.cjs`                  | Reads each track's first block timestamp straight from a WebM container. The correction for `decodeAudioData` rebasing a track to zero.                                                                                    |
+| `sync-play.cjs`                    | A/V sync by **playing** a file (`requestVideoFrameCallback`), not seeking it; also counts frames and the longest frame gap, which exposes stalls.                                                                          |
+| `stall-export.cjs`                 | Logs every animation-frame gap over 100 ms in the page during one export.                                                                                                                                                  |
+| `real-splice.mts` / `classify.mts` | Run `planSentenceSplice` over the real `Cap.mp4` transcript and audio saved by the earlier session, and classify why sentences were refused.                                                                               |
 
 ### 4c. Dev-server pauses under e2e load: observed, cause unknown, not profiled
 
@@ -353,6 +454,28 @@ Other one-offs, also unexplained:
 - A dev server may still be running in the background on port 3000. If it
   doesn't respond, kill it and start a fresh one.
 
+### 4d. Low memory on this machine (observed 2026-10-02)
+
+- The machine has 7.5 GB of RAM. With many apps open (Edge WebView2 apps,
+  Chrome, Docker's WSL VM, Loom, VS Code, Discord, MySQL, Notion, ChatGPT)
+  it reached 24 GB committed, with 200–400 MB free and 5,000–60,000 pages
+  read from disk per second.
+- **Effect on export:** the browser stalled for up to 1.9 s at a time, so
+  exports dropped to 159–225 frames for a 13.5 s take (vs 336–384 once
+  memory was freed) and had picture freezes of up to ~2 s. One export came
+  out empty (110 bytes), one lost sound partway, and one took 22 s for a
+  13.5 s video.
+- **Effect on the dev server:** the editor page didn't load within 30 s.
+- After the user closed several apps (committed memory down to 15 GB),
+  exports were clean again. **Check free memory before any real-time
+  measurement.**
+- Whether this also explains the dev-server pauses in 4c is **not
+  established**. It fits, but nothing was measured during those pauses.
+- Separately, a dev server started as a Claude Code background task breaks
+  when the task hits its time limit: it keeps listening, but its workers
+  crash with `EPIPE` and every page returns 500. Start it with the longest
+  timeout, or restart it when that happens.
+
 ---
 
 ## 5. Remaining queue (as originally given) and status
@@ -364,11 +487,12 @@ Other one-offs, also unexplained:
 5. ~~Merge multiple adjacent clips~~: done (`9404c4e`)
 6. ~~Before/after comparison toggle, preserving the playhead~~: done (`0b4b485`)
 7. ~~Export a real, playable video reflecting all edits~~: done
-   (`2c2f0a5`). Optional follow-up: remove the ~0.15 s lead-in (section 4b).
+   (`2c2f0a5`).
+8. **Re-record and splice (audio-only v1)**: in progress (section 3b).
+   Slice 1 is committed; slice 2 waits for the user's approval.
 
-After that, the next things, not yet queued by the user:
+Not yet queued by the user:
 
-- re-record and splice (the signature feature)
 - motion graphics
 - any new abilities added to `COMMAND_ABILITIES`/`EDITOR_ABILITIES` in
   `command-reply.tsx`, so the honest reply stays accurate
