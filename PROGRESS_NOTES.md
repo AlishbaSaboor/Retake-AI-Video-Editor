@@ -6,14 +6,15 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **Read this first: where things stand right now**
 >
-> - Branch `main`, in sync with `origin/main` at `a77ec1d` (the last pushed
->   commit, the log commit for the before/after comparison).
+> - Branch `main`, in sync with `origin/main` (latest pushed commits are these
+>   handoff notes; the last feature commit is `0b4b485`, before/after).
 > - **Export (queue item 7) is built but NOT committed.** The uncommitted
 >   files are `export-video.ts`, `export-video.test.mts`, `export-button.tsx`
 >   (all in `src/app/[locale]/editor/`), plus edits to `video-editor.tsx`,
 >   `command-reply.tsx`, `messages/en.json`, `e2e/editor.spec.ts` and the
 >   session log. Unit tests, lint, typecheck, build and the export e2e test
->   (4/4) pass. One verification question is still open: see section 4.
+>   (4/4) pass, and A/V sync at 1080p H.264 was measured and is fine
+>   (section 4b). It is ready to commit after a final full check run.
 > - The command-test regression mentioned in older instructions is **already
 >   solved and committed** (section 4 explains it). Split, reorder, merge and
 >   before/after are **done and pushed**. Only export remains.
@@ -228,69 +229,87 @@ including one that had passed before. **Root cause, confirmed:**
 - **Standing lesson:** after editing `messages/*.json`, kill whatever is
   listening on port 3000 before running e2e.
 
-### 4b. OPEN: export A/V sync on large (1080p H.264) sources
+### 4b. RESOLVED (2026-10-02): export A/V sync on 1080p H.264 sources is fine
 
-This is the one thing between export and a commit.
+The suspected ~140 ms picture delay is **not real**. Nothing about sync
+blocks committing export.
 
-**What's measured:**
+**The decisive measurement** (`sync-1080-edges.cjs`, scripts list below):
 
-- **Small synthetic take (320×180 WebM):** the export is in sync. Audio is
-  shifted +36 ms vs the source and video +25 ms, a difference of about
-  11 ms. Length is correct, and every joint between segments is tight.
-- **Real footage (`Cap.mp4`, 1920×1080 H.264, 108.9 s; split at 36.29 s and
-  72.58 s, last clip moved first):**
-  - Export length is 108.96 s vs 108.87 s expected.
-  - Each segment's audio is at its correct edited position, but sits a
-    **constant ~120–140 ms late**. It's constant, not growing, so it's a
-    one-time lead-in at export start (decoder startup), not a per-join
-    error.
-  - Video frame rate is healthy: 28.5 fps exported vs 24.5 fps source,
-    median gap 33 ms, longest gap 267 ms (the source's own is 345 ms). The
-    encoder keeps up.
-  - A frame-activity cross-correlation put the **video** shift at about
-    **260 ms**, but with weak confidence (r = 0.525: a screen recording is
-    mostly static). **Not trusted.** If true, pictures trail sound by about
-    140 ms, which is a noticeable lip-sync error.
-- An attempt to measure sync on a synthetic 1080p H.264 source failed
-  because the **source itself** was bad. Chrome's MediaRecorder stalled at
-  startup, freezing its first ~3.5 s of pictures. Seen by viewing saved
-  frames (both files showed the square at x = 31 at t = 2.6 s).
+- Source: a synthetic 1920×1080 **H.264** take (recorded as
+  `video/webm;codecs=h264,opus`, because Chrome can't reliably
+  `decodeAudioData` its own fragmented-MP4 recordings).
+  - Lasts 13 s.
+  - A tone toggles every second.
+  - A square moves 20 px/s (at 320-wide scale), keyed to the same audio
+    clock.
+- Exported whole through the app.
+- For each tone edge k after the source's startup stall (k = 5–12): seek
+  the export to the moment edge k is heard, and read which source time the
+  picture shows.
 
-**Ruled out:**
+Results:
 
-- dropped frames or the encoder failing to keep up (frame-rate check)
-- drift that accumulates per segment join (offsets constant)
-- wrong segment order or content (audio correlation, synthetic pixel checks)
-- A/V desync in the small-source case
+| Edge     | Heard at (export)  | Picture shows  | Offset                                     |
+| -------- | ------------------ | -------------- | ------------------------------------------ |
+| k = 5–11 | 5.362 s … 11.362 s | exactly 5 … 11 | **0 ms** (±50 ms, the method's resolution) |
+| k = 12   | 12.36 s            | 11.8           | 200 ms                                     |
 
-**Next debugging step** (the user interrupted just before it ran):
+- A 140 ms picture lag would read about 3 px off at every edge; it doesn't.
+- The single k = 12 outlier is the last edge, at the end of the file.
+  It's consistent with the seek-landing artifact below, not a steady lag.
+- The source's own seek-based readings were garbage (−3000 … +2000 ms)
+  because seeking in Chrome's H.264 recordings lands on sparse keyframes.
+  The export is made by _playing_ the source, not seeking it, so it isn't
+  affected. It lands exactly on time, which it couldn't if the source were
+  out of sync.
 
-1. Re-run `verify-sync-1080.cjs` (see the scripts list below) with a
-   longer, 13 s source: 13 tone toggles, `setTimeout(r, 13000)`, and
-   sample frames at 6.1–11.1 s, i.e. after the source's startup stall.
-2. Confirm the source is in sync there: in the source, picture shift
-   should equal audio-edge shift.
-3. Measure the export: per audio edge `e_k`, the picture should show
-   elapsed time `k`. A/V offset = picture shift − audio shift.
+**What is real: a one-time lead-in of about 150 ms at the start of the
+export.**
 
-What to do with the result:
+- Synthetic: the export's audio starts 154 ms later than the source's.
+- `Cap.mp4`: 120–140 ms.
+- Sound and picture are shifted by the same amount, so they stay in sync.
+  The file just opens with about 0.15 s of still, silent frame.
+- Cause: the recorder starts before `video.play()` has actually started
+  playback (decoder warm-up), so the wait is recorded. Later segment joins
+  don't show it, because the decoder is warm.
+- The total length is correspondingly about 0.1–0.15 s over
+  (108.96 s vs 108.87 s on `Cap.mp4`).
 
-- **Within about ±45 ms:** export is fine. Commit as `feat(editor): export
-the edit as a real, playable video` with a separate log commit. In the
-  plain-language summary, note the ~120 ms lead-in at the start on large
-  files.
-- **Pictures really trail sound:**
-  - Likely cause: frames drawn on `requestAnimationFrame` from the element
-    lag presentation, and/or start-up latency differs between the canvas
-    path and the Web Audio path.
-  - Candidate fixes, to verify by measurement, not guessing:
-    - draw with `video.requestVideoFrameCallback` instead of rAF
-    - start or resume the recorder on the `playing` event rather than
-      before `play()` (would also remove the lead-in)
-    - prefer hardware H.264 (`video/mp4;codecs=avc1…`, supported in this
-      Chrome) for big sources
-  - Re-run the e2e export test and the real-footage script after any
-    change.
+**Superseded:** the earlier 260 ms "video shift" came from a weak
+frame-activity correlation on a mostly static screen recording (r = 0.525),
+and the first 1080p attempt used a broken source. Disregard both.
+
+**Already ruled out:**
+
+- dropped frames or the encoder failing to keep up: 28.5 fps exported vs
+  24.5 fps source, median gap 33 ms
+- drift that accumulates per segment join
+- wrong segment order or content: real-footage audio correlation 0.81–0.96
+  per segment, synthetic pixel checks exact
+
+**Recommended next steps:**
+
+1. **Commit export now.**
+   1. Re-run the full check set: unit tests, e2e twice (kill :3000 first,
+      because `messages/en.json` changed), lint, typecheck, Prettier and
+      `pnpm build`.
+   2. Commit as `feat(editor): export the edit as a real, playable video`,
+      then a separate log commit, then push.
+   3. In the plain-language summary, mention that the export runs in real
+      time and opens with about 0.15 s of lead-in.
+2. **Optional polish, in a follow-up commit, measured before and after:**
+   remove the lead-in by starting or resuming the recorder when playback
+   has actually begun, not before `play()`.
+   - In `recordEdit` (`export-video.ts`), call `video.play()` first, then
+     `recorder.start()`/`resume()` once the `playing` event fires (or the
+     play promise resolves).
+   - The trade-off is that a few ms at the very start of each segment may
+     be lost instead of a frozen frame added.
+   - Verify with `sync-1080-edges.cjs`: "heard at" for edge 5 should drop
+     from 5.362 s towards 5.208 s. The offsets must stay 0.
+   - Also run the e2e export test, which allows ±0.25 s on length.
 
 **Verification scripts** (scratch, not in the repo; recreate if missing):
 
@@ -302,7 +321,8 @@ They were in the session scratchpad:
 | `verify-export.cjs`                        | Exports a 3-way split plus reorder of `C:/Users/alish/Downloads/Cap.mp4` through the running app in installed Chrome (`channel: 'chrome'`, needed for H.264/AAC). Compares per-segment audio envelopes. Server actions are aborted, so no Deepgram spend. |
 | `verify-sync.cjs` / `verify-sync-1080.cjs` | Synthetic A/V sync checks (tone edges vs square position).                                                                                                                                                                                                |
 | `fps.cjs`                                  | Frame-rate comparison between source and export.                                                                                                                                                                                                          |
-| `verify-video-lag.cjs`                     | Frame-activity correlation (the weak 260 ms reading).                                                                                                                                                                                                     |
+| `sync-1080-edges.cjs`                      | **The decisive 1080p H.264 sync check** (section 4b): A/V offset at each tone edge of an exported synthetic take.                                                                                                                                         |
+| `verify-video-lag.cjs`                     | Frame-activity correlation (the weak 260 ms reading, superseded).                                                                                                                                                                                         |
 
 Run them from the repo root (`node <script>`) with the dev server up. The
 real-footage export output is `cap-edited.webm` in that folder. **Never
@@ -331,9 +351,10 @@ ECONNRESET` inside the `mockActions` helper (the dev server dropped the
 4. ~~Reorder clips manually by dragging~~: done (`ae17d92`)
 5. ~~Merge multiple adjacent clips~~: done (`9404c4e`)
 6. ~~Before/after comparison toggle, preserving the playhead~~: done (`0b4b485`)
-7. **Export a real, playable video reflecting all edits**: built, uncommitted.
-   Finish section 4b, then commit and push (code commit, then log commit)
-   and write the plain-language summary.
+7. **Export a real, playable video reflecting all edits**: built,
+   uncommitted, sync verified. Follow section 4b's recommended next steps:
+   final check run, commit and push (code commit, then log commit), and
+   the plain-language summary.
 
 After that, the next things, not yet queued by the user:
 
