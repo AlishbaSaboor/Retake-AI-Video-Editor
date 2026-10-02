@@ -1,3 +1,4 @@
+import { drawOverlays, type Overlays } from './overlays'
 import type { ReplacementTake } from './re-record'
 import { segmentSeconds, type Segment } from './sequence'
 
@@ -13,6 +14,9 @@ import { segmentSeconds, type Segment } from './sequence'
 // Over a re-recorded segment the source's sound is muted and the take plays
 // into the same recording instead; where the take runs longer than the
 // segment's picture, recording carries on over the paused last frame.
+//
+// The title and watermark are drawn onto each frame after the picture, at
+// the edited video's time, so they're in the recording itself.
 
 // Best first. WebM is what Chromium and Firefox record; Safari records MP4.
 const MIME_TYPES = [
@@ -80,14 +84,25 @@ function playTake(audio: AudioContext, destination: AudioNode, take: Replacement
 	return playing
 }
 
+/** Loads a watermark's image, ready to draw. */
+async function loadLogo(overlays: Overlays): Promise<HTMLImageElement | null> {
+	if (!overlays.watermark) return null
+	const logo = new Image()
+	logo.src = overlays.watermark.image
+	await logo.decode()
+	return logo
+}
+
 /**
  * Plays `segments` of the video at `url` in order and records them into one
- * file. Only call where canExport() is true. `onProgress` gets the fraction
- * done; aborting `signal` stops early and rejects with its reason.
+ * file, with `overlays` drawn over it. Only call where canExport() is true.
+ * `onProgress` gets the fraction done; aborting `signal` stops early and
+ * rejects with its reason.
  */
 export async function recordEdit(
 	url: string,
 	segments: Segment<ReplacementTake>[],
+	overlays: Overlays,
 	{ onProgress, signal }: { onProgress: (fraction: number) => void; signal: AbortSignal }
 ): Promise<{ blob: Blob; mimeType: string }> {
 	const mimeType = pickMimeType((type) => MediaRecorder.isTypeSupported(type))
@@ -102,14 +117,21 @@ export async function recordEdit(
 	let drawing = true
 	try {
 		await nextEvent(video, 'loadeddata')
+		const logo = await loadLogo(overlays)
 		const canvas = Object.assign(document.createElement('canvas'), {
 			width: video.videoWidth,
 			height: video.videoHeight
 		})
 		const context = canvas.getContext('2d')
 		if (!context) throw new Error('no 2d canvas context')
-		const draw = () => {
+		// Where the frame being drawn is in the edited video; set per segment below.
+		let editedSeconds = () => 0
+		const paint = () => {
 			context.drawImage(video, 0, 0, canvas.width, canvas.height)
+			drawOverlays(context, overlays, editedSeconds(), logo)
+		}
+		const draw = () => {
+			paint()
 			if (drawing) requestAnimationFrame(draw)
 		}
 		draw()
@@ -131,10 +153,14 @@ export async function recordEdit(
 		const total = totalSeconds(segments)
 		let done = 0
 		for (const segment of segments) {
+			const segmentStart = done
+			const span = segment.endSeconds - segment.startSeconds
+			editedSeconds = () =>
+				segmentStart + Math.min(span, Math.max(0, video.currentTime - segment.startSeconds))
 			video.currentTime = segment.startSeconds
 			await nextEvent(video, 'seeked')
 			// The first frame of the segment, before the recorder sees anything.
-			context.drawImage(video, 0, 0, canvas.width, canvas.height)
+			paint()
 			if (recorder.state === 'inactive') recorder.start()
 			else recorder.resume()
 			sourceSound.gain.value = segment.voiceOver ? 0 : 1
@@ -149,6 +175,8 @@ export async function recordEdit(
 			video.pause()
 			if (take) {
 				// The picture holds its last frame while the rest of the take plays.
+				const holdStart = performance.now()
+				editedSeconds = () => segmentStart + span + (performance.now() - holdStart) / 1000
 				while (!take.ended) {
 					signal.throwIfAborted()
 					await nextFrame()

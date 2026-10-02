@@ -13,7 +13,13 @@ import { toTranscript, type Transcript } from './transcript'
 // can spend.
 const MAX_COMMAND_LENGTH = 300
 
-const UNSUPPORTED: EditCommand = { action: 'unsupported', startSeconds: null, endSeconds: null }
+const UNSUPPORTED: EditCommand = {
+	action: 'unsupported',
+	startSeconds: null,
+	endSeconds: null,
+	text: null,
+	corner: null
+}
 
 // Gemini and Deepgram both answer 429 (rate-limited) or 503 (overloaded)
 // under load — the user's cue to retry, not a bug to report, so an AppError.
@@ -33,8 +39,13 @@ function systemInstruction(durationSeconds: number): string {
 		'"Cut from X to Y" (or "keep X to Y", "trim to X–Y") means keep only that range:',
 		'action "trim" with startSeconds X and endSeconds Y, converting minutes to seconds.',
 		'Use null for an edge the command leaves at the clip boundary ("from 3s to the end").',
-		'Anything else — removing a middle section, effects, text, audio — is action',
-		'"unsupported" with both edges null.'
+		'A title card ("add the title Welcome for the first 3 seconds") is action "title"',
+		'with text the exact words to show, and startSeconds/endSeconds when it is on screen',
+		'(the first 3 seconds: 0 and 3; null for an edge left open).',
+		'A watermark or logo in a corner is action "watermark" with corner one of',
+		'"top-left", "top-right", "bottom-left", "bottom-right", or null if none is named.',
+		'Unused fields are null. Anything else — removing a middle section, other effects,',
+		'audio — is action "unsupported" with every other field null.'
 	].join(' ')
 }
 

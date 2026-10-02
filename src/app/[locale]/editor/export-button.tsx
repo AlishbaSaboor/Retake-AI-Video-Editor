@@ -7,6 +7,7 @@ import { DownloadIcon } from '@/components/ui/icons'
 import { toast } from '@/lib/toast'
 import { captureClientError } from '@/lib/observability/capture-client-error'
 import { canExport, exportFileName, recordEdit, totalSeconds } from './export-video'
+import type { Overlays } from './overlays'
 import type { ReplacementTake } from './re-record'
 import type { Segment } from './sequence'
 
@@ -15,6 +16,7 @@ type ExportButtonProps = {
 	videoName: string
 	/** What the edit plays, in order — captured when the export starts. */
 	segments: Segment<ReplacementTake>[]
+	overlays: Overlays
 }
 
 const PERCENT = 100
@@ -27,7 +29,7 @@ function download(blob: Blob, fileName: string) {
 }
 
 /** Records the edit to a real video file and downloads it, with progress and Cancel. */
-export function ExportButton({ videoUrl, videoName, segments }: ExportButtonProps) {
+export function ExportButton({ videoUrl, videoName, segments, overlays }: ExportButtonProps) {
 	const t = useTranslations('Editor.export')
 	const [percent, setPercent] = useState<number | null>(null)
 	const controllerRef = useRef<AbortController | null>(null)
@@ -46,7 +48,7 @@ export function ExportButton({ videoUrl, videoName, segments }: ExportButtonProp
 		controllerRef.current = controller
 		setPercent(0)
 		try {
-			const { blob, mimeType } = await recordEdit(videoUrl, segments, {
+			const { blob, mimeType } = await recordEdit(videoUrl, segments, overlays, {
 				onProgress: (fraction) => setPercent(Math.floor(fraction * PERCENT)),
 				signal: controller.signal
 			})

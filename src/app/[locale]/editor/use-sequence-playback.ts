@@ -89,7 +89,8 @@ export function useSequencePlayback(
 	segments: Segment<ReplacementTake>[],
 	isPlaying: boolean,
 	rate: number,
-	onTime: (seconds: number) => void,
+	/** The playhead's source time, and which segment it's in: a time can end one segment and start another. */
+	onTime: (seconds: number, segmentIndex: number | null) => void,
 	/** Playback ended while the video was already paused (holding under a take): no `pause` event comes. */
 	onStop: () => void
 ) {
@@ -176,7 +177,7 @@ export function useSequencePlayback(
 				} else if (!replacement && voiceRef.current) {
 					stopVoice(voiceRef, videoRef)
 				}
-				onTime(element.currentTime)
+				onTime(element.currentTime, playingIndexRef.current)
 			}
 			frame = requestAnimationFrame(follow)
 		}
@@ -210,7 +211,7 @@ export function useSequencePlayback(
 		const target = at?.seconds ?? segments.at(-1)?.endSeconds ?? seconds
 		playingIndexRef.current = at?.index ?? null
 		element.currentTime = target
-		onTime(target)
+		onTime(target, at?.index ?? null)
 	}
 
 	/**
@@ -226,7 +227,7 @@ export function useSequencePlayback(
 			const target = playbackPosition(seconds, segments)?.seconds ?? segments.at(-1)?.endSeconds
 			if (target !== undefined) element.currentTime = target
 		}
-		onTime(element.currentTime)
+		onTime(element.currentTime, playingIndexRef.current)
 	}
 
 	/** For `play`: pressing play at the end of the sequence starts it over. */
