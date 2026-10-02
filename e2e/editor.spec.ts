@@ -117,6 +117,16 @@ async function mockTranscript(page: Page, words: TimedWord[]): Promise<void> {
 	)
 }
 
+/** Clicks the timeline at a given time, as a user would to seek there. */
+async function seekTo(page: Page, seconds: number): Promise<void> {
+	const scrubber = page.getByRole('slider', { name: 'Playhead position' })
+	await scrubber.scrollIntoViewIfNeeded()
+	const box = await scrubber.boundingBox()
+	const duration = await page.locator('video').evaluate((v: HTMLVideoElement) => v.duration)
+	if (!box) throw new Error('scrubber has no layout box')
+	await page.mouse.click(box.x + (seconds / duration) * box.width, box.y + box.height / 2)
+}
+
 async function playheadSeconds(page: Page): Promise<number> {
 	return page.locator('video').evaluate((video: HTMLVideoElement) => video.currentTime)
 }
@@ -216,7 +226,7 @@ test('long silences are flagged on the timeline and jump there when clicked', as
 	await expect.poll(() => playheadSeconds(page)).toBeCloseTo(1, 0)
 })
 
-test('filler words in the transcript are flagged apart from silences and jump there', async ({
+test('filler words in the transcript are flagged apart from silences and open their cut editor', async ({
 	page
 }) => {
 	// "I like it" is a verb and must not be flagged. The audio is one
@@ -253,7 +263,10 @@ test('filler words in the transcript are flagged apart from silences and jump th
 	await page
 		.getByRole('button', { name: /^Filler word "like" at 0:01, needs a manual cut/ })
 		.click()
-	await expect.poll(() => playheadSeconds(page)).toBeCloseTo(1.5, 1)
+	// A filler flag opens its cut editor, with the playhead a second ahead of
+	// the filler (the editor window's start) so playback leads into it.
+	await expect(page.getByRole('region', { name: 'Cut editor for "like"' })).toBeVisible()
+	await expect.poll(() => playheadSeconds(page)).toBeCloseTo(0.5, 1)
 
 	// Nothing here is safe to remove automatically.
 	await expect(page.getByRole('button', { name: 'Clean up recording' })).toBeDisabled()
@@ -284,19 +297,12 @@ test('clean-up cuts a filler with clear gaps around it, keeps one without, and u
 		.getByLabel('Choose a video file')
 		.setInputFiles({ name: 'take-with-filler-gaps.webm', mimeType: 'video/webm', buffer: video })
 	await expect(page.getByText('2 filler words', { exact: true })).toBeVisible({ timeout: 30_000 })
-	await expect(page.getByRole('button', { name: /^Filler word "um" at 0:01. Jump/ })).toBeVisible()
+	await expect(
+		page.getByRole('button', { name: /^Filler word "um" at 0:01. Open the cut editor/ })
+	).toBeVisible()
 	await expect(
 		page.getByRole('button', { name: /^Filler word "uh" at 0:03, needs a manual cut/ })
 	).toBeVisible()
-
-	const scrubber = page.getByRole('slider', { name: 'Playhead position' })
-	const seekTo = async (seconds: number) => {
-		await scrubber.scrollIntoViewIfNeeded()
-		const box = await scrubber.boundingBox()
-		const duration = await page.locator('video').evaluate((v: HTMLVideoElement) => v.duration)
-		if (!box) throw new Error('scrubber has no layout box')
-		await page.mouse.click(box.x + (seconds / duration) * box.width, box.y + box.height / 2)
-	}
 
 	await page.getByRole('button', { name: 'Clean up recording' }).click()
 	await expect(page.getByText('(0 silences, 1 filler word)')).toBeVisible()
@@ -304,14 +310,14 @@ test('clean-up cuts a filler with clear gaps around it, keeps one without, and u
 	await page.getByRole('button', { name: 'Apply clean-up' }).click()
 
 	// Inside the cut "um": playback can't land there, it continues past it...
-	await seekTo(1.3)
+	await seekTo(page, 1.3)
 	await expect.poll(() => playheadSeconds(page)).toBeGreaterThan(1.4)
 	// ...while the "uh" with no gap was left alone, as were its neighbours.
-	await seekTo(3.55)
+	await seekTo(page, 3.55)
 	await expect.poll(() => playheadSeconds(page)).toBeCloseTo(3.55, 0)
 
-	await page.getByRole('button', { name: 'Undo clean-up' }).click()
-	await seekTo(1.3)
+	await page.getByRole('button', { name: 'Undo last cut' }).click()
+	await seekTo(page, 1.3)
 	await expect.poll(() => playheadSeconds(page)).toBeLessThan(1.4)
 })
 
@@ -362,11 +368,69 @@ test('clean-up removes flagged silences after an estimate, and undo restores the
 	await page.locator('video').evaluate((element: HTMLVideoElement) => element.pause())
 
 	// One-step undo brings the silence back: the middle is reachable again.
-	await page.getByRole('button', { name: 'Undo clean-up' }).click()
-	await expect(page.getByRole('button', { name: 'Undo clean-up' })).toHaveCount(0)
+	await page.getByRole('button', { name: 'Undo last cut' }).click()
+	await expect(page.getByRole('button', { name: 'Undo last cut' })).toHaveCount(0)
 	await seekToMiddle()
 	await expect.poll(() => playheadSeconds(page)).toBeLessThan(6.5)
 	await expect(page.getByRole('button', { name: 'Clean up recording' })).toBeEnabled()
+})
+
+test('the cut editor cuts a filler set by hand, previews it, and undo or cancel leave it intact', async ({
+	page
+}) => {
+	// One unbroken tone: the "uh" has no gap around it, so only a manual cut
+	// can remove it. Its transcriber span (0.5-0.8 s) seeds the handles.
+	await mockTranscript(page, [w('So', 0, 0.4), w('uh', 0.5, 0.8), w('done.', 0.9, 2.5)])
+	await page.goto('/editor')
+	const video = await recordTestVideo(page, [[3, true]])
+	await page
+		.getByLabel('Choose a video file')
+		.setInputFiles({ name: 'take-with-uh.webm', mimeType: 'video/webm', buffer: video })
+	const flag = page.getByRole('button', { name: /^Filler word "uh" at 0:00, needs a manual cut/ })
+	await expect(flag).toBeVisible({ timeout: 30_000 })
+
+	await flag.click()
+	const editor = page.getByRole('region', { name: 'Cut editor for "uh"' })
+	await expect(editor).toBeVisible()
+	const start = editor.getByRole('slider', { name: 'Cut start' })
+	await expect(start).toHaveAttribute('aria-valuenow', '0.5')
+	// Widen the cut 50 ms earlier, in 10 ms key steps.
+	await start.focus()
+	for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowLeft')
+	await expect
+		.poll(async () => Number(await start.getAttribute('aria-valuenow')))
+		.toBeCloseTo(0.45, 3)
+
+	// "Play with cut" plays the window (0-1.8 s), jumping the pending cut,
+	// and stops at the window's end.
+	await editor.getByRole('button', { name: 'Play with cut' }).click()
+	await expect
+		.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.paused), {
+			timeout: 5000
+		})
+		.toBe(true)
+	await expect.poll(() => playheadSeconds(page)).toBeCloseTo(1.8, 1)
+
+	await editor.getByRole('button', { name: 'Cut', exact: true }).click()
+	await expect(editor).toHaveCount(0)
+	await seekTo(page, 0.6)
+	await expect.poll(() => playheadSeconds(page)).toBeGreaterThan(0.79)
+
+	// One-step undo restores it...
+	await page.getByRole('button', { name: 'Undo last cut' }).click()
+	await seekTo(page, 0.6)
+	await expect.poll(() => playheadSeconds(page)).toBeLessThan(0.75)
+
+	// ...and Cancel never cuts at all.
+	await flag.click()
+	await page
+		.getByRole('region', { name: 'Cut editor for "uh"' })
+		.getByRole('button', { name: 'Cancel' })
+		.click()
+	await expect(page.getByRole('region', { name: 'Cut editor for "uh"' })).toHaveCount(0)
+	await seekTo(page, 0.6)
+	await expect.poll(() => playheadSeconds(page)).toBeLessThan(0.75)
+	await expect(page.getByRole('button', { name: 'Undo last cut' })).toHaveCount(0)
 })
 
 test('a file that is not a video is rejected with a message', async ({ page }) => {

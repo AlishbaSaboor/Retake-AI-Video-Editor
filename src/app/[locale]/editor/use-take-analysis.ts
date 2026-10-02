@@ -86,6 +86,8 @@ export function useTakeAnalysis(video: { file: File; url: string } | null) {
 
 	const loudness = audio.data?.loudness
 	return {
+		/** For the cut editor's waveform; null until the audio is decoded. */
+		loudness: loudness ?? null,
 		silences: audio.data?.silences ?? NO_SILENCES,
 		fillerPlans:
 			transcript.data && loudness

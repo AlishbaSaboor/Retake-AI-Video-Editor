@@ -30,7 +30,19 @@
 			"fillersForReview": "{count, plural, one {# filler word runs} other {# filler words run}} straight into the next word with no clear pause, so {count, plural, one {it stays} other {they stay}} flagged (outlined) for you to cut by hand.",
 			"apply": "Apply clean-up",
 			"cancel": "Cancel",
-			"undo": "Undo clean-up"
+			"undo": "Undo last cut"
+		},
+		"fillerCut": {
+			"label": "Cut editor for \"{word}\"",
+			"title": "Cut \"{word}\" at {at}",
+			"hint": "Drag the handles until only the filler is inside, then listen both ways. Dips below the dashed line are pauses.",
+			"startLabel": "Cut start",
+			"endLabel": "Cut end",
+			"range": "cut {start}s–{end}s in this view ({length} ms)",
+			"playOriginal": "Play original",
+			"playWithCut": "Play with cut",
+			"cancel": "Cancel",
+			"apply": "Cut"
 		},
 		"transcript": {
 			"title": "Transcript",
@@ -62,8 +74,8 @@
 			"silenceCount": "{count, plural, one {# silence} other {# silences}}",
 			"silencePinLabel": "Silence from {start} to {end}. Jump there",
 			"fillerCount": "{count, plural, one {# filler word} other {# filler words}}",
-			"fillerPinLabel": "Filler word \"{word}\" at {at}. Jump there",
-			"fillerReviewPinLabel": "Filler word \"{word}\" at {at}, needs a manual cut (no clear pause around it). Jump there",
+			"fillerPinLabel": "Filler word \"{word}\" at {at}. Open the cut editor",
+			"fillerReviewPinLabel": "Filler word \"{word}\" at {at}, needs a manual cut (no clear pause around it). Open the cut editor",
 			"empty": "Your timeline appears here once a video loads.",
 			"clipLabel": "{name}, {duration}"
 		}
