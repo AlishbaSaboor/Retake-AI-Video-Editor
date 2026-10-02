@@ -24,6 +24,14 @@ export function record<T>(history: History<T>, present: T): History<T> {
 	return { past: [...history.past, present].slice(-HISTORY_LIMIT), future: [] }
 }
 
+/**
+ * Goes back to `original` as one step, so a single Undo restores everything
+ * it removed — takes included, since `present` keeps them.
+ */
+export function reset<T>(history: History<T>, present: T, original: T): Step<T> {
+	return { history: record(history, present), restore: original }
+}
+
 /** Null with nothing to undo. */
 export function undo<T>(history: History<T>, present: T): Step<T> | null {
 	const restore = history.past.at(-1)

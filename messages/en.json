@@ -31,7 +31,10 @@
 			"apply": "Apply clean-up",
 			"cancel": "Cancel",
 			"undo": "Undo last change",
-			"redo": "Redo"
+			"redo": "Redo",
+			"reset": "Reset to original",
+			"resetConfirm": "Reset to the original take? This removes every trim, cut, clip change and re-recorded sentence. Undo brings them all back.",
+			"resetApply": "Reset"
 		},
 		"fillerCut": {
 			"label": "Cut editor for \"{word}\"",
@@ -114,6 +117,11 @@
 			"label": "Compare with the original",
 			"edited": "Edited",
 			"original": "Original"
+		},
+		"speed": {
+			"label": "Preview speed",
+			"hint": "Only how fast the editor plays. The export always runs at normal speed.",
+			"rate": "{rate}×"
 		},
 		"export": {
 			"button": "Export video",

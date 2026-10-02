@@ -25,13 +25,15 @@ function startVoice(
 	audio: AudioContext,
 	element: HTMLVideoElement,
 	replacement: ReplacementTake,
-	intoSeconds: number
+	intoSeconds: number,
+	rate: number
 ): VoiceOver {
 	void audio.resume()
 	const level = audio.createGain()
 	level.gain.value = replacement.gain
 	const source = audio.createBufferSource()
 	source.buffer = replacement.audio
+	source.playbackRate.value = rate
 	source.connect(level).connect(audio.destination)
 	const voice: VoiceOver = {
 		replacement,
@@ -76,11 +78,17 @@ function stopVoice(
  * the take plays through Web Audio instead; where the take outlasts the
  * segment, the video pauses on its last frame until the take is done.
  * Volume, not `muted`: unmuting a video without a user gesture can pause it.
+ *
+ * `rate` is the preview speed. The take plays at the same rate as the
+ * video, so it stays in sync and a held frame lasts as long as the take.
+ * Web Audio has no pitch correction, so a take sounds higher when sped up,
+ * unlike the video's own sound.
  */
 export function useSequencePlayback(
 	videoRef: RefObject<HTMLVideoElement | null>,
 	segments: Segment<ReplacementTake>[],
 	isPlaying: boolean,
+	rate: number,
 	onTime: (seconds: number) => void,
 	/** Playback ended while the video was already paused (holding under a take): no `pause` event comes. */
 	onStop: () => void
@@ -118,6 +126,9 @@ export function useSequencePlayback(
 		const follow = () => {
 			const element = videoRef.current
 			if (element) {
+				// A take keeps the video's rate when the speed changes while it plays.
+				const voicing = voiceRef.current?.source.playbackRate
+				if (voicing && voicing.value !== rate) voicing.value = rate
 				const seconds = element.currentTime
 				const index = playingIndexRef.current ?? -1
 				const current = segments[index]
@@ -159,7 +170,8 @@ export function useSequencePlayback(
 						audio,
 						element,
 						replacement,
-						element.currentTime - playing.startSeconds
+						element.currentTime - playing.startSeconds,
+						rate
 					)
 				} else if (!replacement && voiceRef.current) {
 					stopVoice(voiceRef, videoRef)
@@ -170,7 +182,15 @@ export function useSequencePlayback(
 		}
 		frame = requestAnimationFrame(follow)
 		return () => cancelAnimationFrame(frame)
-	}, [isPlaying, segments, videoRef, onTime, onStop])
+	}, [isPlaying, segments, rate, videoRef, onTime, onStop])
+
+	// The preview speed on the video. After every render, not on change only:
+	// a new video element starts at 1×, and the rate must be set before play
+	// starts, not on the first frame after it.
+	useEffect(() => {
+		const element = videoRef.current
+		if (element && element.playbackRate !== rate) element.playbackRate = rate
+	})
 
 	// The take and its audio context go with the editor.
 	useEffect(
