@@ -103,10 +103,19 @@
 				},
 				"crop": "I'll crop the video to {aspect}, centred. You can move the crop box afterwards.",
 				"uncrop": "I'll take the crop off.",
+				"volume": "I'll set {which} to {percent}% volume.",
+				"louder": "I'll make {which} louder (×1.5, up to 200%).",
+				"quieter": "I'll make {which} quieter (×⅔).",
+				"mute": "I'll mute {which}.",
+				"unmute": "I'll unmute {which}.",
+				"fade_in": "I'll fade {which} in over its first {seconds} s.",
+				"fade_out": "I'll fade {which} out over its last {seconds} s.",
 				"apply": "Apply",
 				"cancel": "Cancel"
 			},
 			"failed": "Couldn't run that command",
+			"clipNumber": "clip {number}",
+			"everyClip": "the whole video",
 			"corners": {
 				"top-left": "top-left",
 				"top-right": "top-right",
@@ -143,6 +152,7 @@
 				"captions": "Turn captions on or off: “turn captions on”",
 				"annotate": "Cover, blur or pixelate part of the picture: “pixelate the top-left corner from 2 to 5 seconds”",
 				"transform": "Rotate, flip or crop the video: “rotate the video 15 degrees”, “flip it horizontally”, “crop to 9:16”",
+				"audio": "Change the sound: “mute clip 2”, “make it louder”, “fade out the last 2 seconds”",
 				"editorIntro": "In the editor itself, you can also:",
 				"fillerCut": "Cut a single filler word by ear: click its flag on the timeline",
 				"compare": "Compare the edit with the original: Edited / Original above the player",
@@ -261,6 +271,15 @@
 			"barHint": "Drag to move it in time, or its edges to change when it starts and ends. Arrow keys move it; Delete removes it.",
 			"start": "{name} start",
 			"end": "{name} end"
+		},
+		"clipAudio": {
+			"label": "Clip sound",
+			"clip": "Clip {number}",
+			"volume": "Volume {percent}%",
+			"mute": "Mute",
+			"fadeIn": "Fade in (s)",
+			"fadeOut": "Fade out (s)",
+			"hint": "Fades run over each clip's own playing time, cuts skipped. A re-recorded sentence keeps its own level matching; the clip's volume and fades apply on top. Over 100% can clip loud speech."
 		},
 		"transform": {
 			"label": "Picture",

@@ -29,6 +29,11 @@ session with no memory of it can carry on. Read this whole file, then
 > - **A failed AI call now records why** (section 3g): `error_type` and
 >   `error_status` in the `ai_usage` row's `meta`, never the message. Checked
 >   with a real failed Gemini call (row 74, `ApiError`, 400, no spend).
+> - **Clip volume and fades** (section 3l): volume 0–200%, mute, fade in and
+>   out per clip, in the preview (through a Web Audio gain) and the export;
+>   a re-recorded take keeps its level matching with the clip's on top.
+>   Typed commands checked against real Gemini; the command prompt was
+>   rewritten terse: ~680 → ~416 input tokens a command.
 > - **Picture transforms and pixelate** (section 3k): crop (presets and a
 >   free crop box), rotate to any angle (handle, degrees field, 90° buttons;
 >   the frame grows to hold the turned picture, corners black), flip, and
@@ -180,8 +185,9 @@ separate `chore(logs)` commit.
 | Audio problem flags on the timeline: clipping, quiet speech, loud background (informational, no API call)                  | `feat(editor): flag clipping, quiet speech and loud background`          | Unit tests (`audio-quality.test.mts`, synthetic tone bursts): clean audio raises nothing; clipping found only in its section, in either stereo channel; a full-scale peak every 10 ms is not clipping; 20 dB quiet for 6 s found only there; a 10 dB dip, a 1.5 s quiet moment, or too little speech is not; noise 10 dB under for 14 s found at exactly 13–27 s, at −30 dB not; all three tagged in order. e2e (`audio-quality.spec.ts`): a 36 s take recorded through Opus with clipping at 6–9 s, 20 dB quiet at 12–18 s and noise at 21–33 s: exactly one flag of each, labelled 0:06–0:09, 0:12–0:18, 0:22–0:33; counts and plain meanings shown; a flag jumps the playhead to its start; nothing to undo. Real audio: section 3i. Mutations: all detection off fails the e2e and a unit test; each detector off alone fails 2–3 unit tests. Full e2e 31/31 twice.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Set a re-recorded sentence's joins by ear when it has no clean pause                                                       | `feat(editor): set a sentence's joins by ear when it has no clean pause` | Unit tests (`sentence-splice.test.mts`): a run-on sentence is refused and its joins start at the nearest dips; a side with a pause starts in it as an automatic splice would; bounds (a second either side, inside what plays, fenced by cuts and spans beside it, not by a cut inside); moving a join clamps to bounds and a 0.2 s minimum; a by-ear splice replaces exactly the joins and its take is its own speech; the views. Command: a no-pause sentence now opens the panel, a split one is still refused. e2e (`re-record-by-ear.spec.ts`, fake mic): refused, Set the join by ear, the warning line, Record enabled; the start join on a 20 ms dip; 10 ms arrow steps; the end join stops at 4.0 s and at its view's start; Play around the start plays that view and stops; record (0.8 s), apply; the export has 880 Hz only between the joins, 440 Hz either side, length within 0.25 s; Undo/Redo; reopening restores the joins. Real seam on `Cap.mp4`: section 3j. Full e2e 32/32 three times (with logging) and twice clean.                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Picture transforms (crop, rotate, flip) and pixelate, by hand or typed command                                             | `feat(editor): crop, rotate and flip the picture, and pixelate`          | Unit tests (`transform.test.mts`): identity; angles fold into (-180, 180]; a quarter turn swaps the frame and maps corners exactly, 15° frames the whole picture; flips, then flip-and-turn; crop size, shift and inverse; presets centred and refitted after a turn; resize keeps a preset shape; even canvas sizes. Commands (`edit-command.test.mts`): rotate is relative and folds, flip toggles (horizontal by default), crop presets and none, pixelate. A transform counts for reset. e2e (`transform.spec.ts`, real exports, one test at a time): rotate right 90° exports 180×320 with the square where a quarter turn puts it; flipped, it moves to its mirror place and the pinned red box turns with the picture; 1:1 crop exports 180×180; the preview's square is within 0.04 of the export's in each; the title's text runs across the middle of the cropped frame; one undo step each, reset clears. 15° exports 356×256 with black corners; the handle dragged a quarter round commits ~90° (undoable), arrow keys 1°. Pixelate leaves block-wide blended runs at the square's edges only in its time. Commands rotate, flip, crop, pixelate, one undo step each. Mutations: the export ignoring the turn and flip fails it; the preview turning the wrong way fails it. Real footage: `Cap.mp4` turned 90° and cropped 9:16 exports 1080×1920, 108.84 s, its frame correlating 0.98 with the preview's (upside down: -0.02). Full e2e 36/36 twice. |
+| Clip volume (0–200%), mute, and fade in and out, by hand or typed command                                                  | `feat(editor): clip volume, mute and fades`                              | Unit tests (`clip-audio.test.mts`): gain is the volume, 0 muted; fades are straight lines from and to silence, overlapping ones meet where they cross; a segment schedules its part of the envelope on the audio clock (whole clip, a later segment, overlapping fades); segments carry their clip's sound and offset, cuts skipped; a split shares it (fades stay at the ends) and merging back restores it; clip sound counts for reset. Commands (`edit-command.test.mts`): volume on a clip or all, capped at 200%; louder ×1.5; mute one clip; no such clip; fade out on the last clip and fade in on the first by default, 1 s unless timed. e2e (`audio.spec.ts`, real exports): clip at 50% measured 0.49–0.50 of the tone, muted under 0.02, 200% ~2.0; undo, redo, reset. Fades: levels 0.244/0.492/0.748/0.996 up and 0.771/0.512/0.265 down against 0.25/0.5/0.75/1 (fade out ~20 ms late); the preview's level rises from near 0 through ½ to 1. A take (`re-record.spec.ts`): at 50% both the original's 440 Hz and the take's 880 Hz halve and their ratio holds. Commands mute, fade out, louder, one undo step each. Mutations: no envelope in the export fails the level test; a take bypassing the clip level fails the take test. Full e2e 40/40 twice.                                                                                                                                                                                          |
 
-**Current totals:** 265 unit tests (`src/**/*.test.mts`) and 36 e2e tests.
+**Current totals:** 273 unit tests (`src/**/*.test.mts`) and 40 e2e tests.
 Everything passes locally. On the meter commit the full e2e suite passed
 18/18 in each of two runs.
 
@@ -1037,6 +1043,58 @@ crop }` in `EditSnapshot`, so every change is one undo step and reset
 
 ---
 
+## 3l. Clip volume, mute and fades
+
+- **Model** (`clip-audio.ts`): `ClipAudio = { volume, muted, fadeInSeconds,
+fadeOutSeconds }` on the clip itself (`Clip.audio`, absent when as
+  recorded), so it's in every snapshot: one undo step per change, and reset
+  (back to the untouched take) clears it. A change to a take never split
+  makes it one explicit clip. Volume 0 to 2 (200%).
+- **Fades** run over the clip's own played time, its kept pieces end to end
+  (cuts skipped, a take's held frame included): straight lines from silence
+  and to silence; fades longer than the clip together meet where their
+  lines cross. `playableSegments` marks each segment of a clip with sound
+  with its clip's settings, the clip's length and its offset in it
+  (`Segment.audio`); clips as recorded carry nothing, so their segments are
+  unchanged.
+- **Split and merge:** both halves keep the volume and mute; the fade in
+  stays with the first half, the fade out with the second. A merge keeps
+  the first clip's volume, mute and fade in and the last clip's fade out.
+- **Export:** one clip-level gain after both the source's sound and any
+  take; each segment schedules its part of the envelope on the audio clock
+  when it starts (`scheduleClipGain`, exact: ramps between the envelope's
+  corners). Measured fade out ~20 ms late: the element's sound reaches the
+  graph a little after the clock (section 4b's lead-in).
+- **Preview:** a <video> can't go over 100%, so once any clip has sound
+  settings the video's sound is routed through a Web Audio gain
+  (`createMediaElementSource`, once per element: it stays routed), set each
+  frame toward the envelope at the playhead (smoothed over 15 ms). A take
+  plays into the same gain. Videos with no clip sound keep the browser's
+  own path.
+- **A re-recorded take** keeps its level-matching gain and edge fades; the
+  clip's volume and fades apply on top (muting a clip mutes its take).
+- **UI:** a Clip sound panel, a row per clip: Volume slider (5% steps; a
+  drag is one change, on release), Mute, Fade in / Fade out seconds (on
+  Enter or leaving the field). Over 100% can clip loud speech; the panel
+  says so.
+- **Commands:** `volume` (`percent`, on `fromClip` or every clip), `louder`
+  / `quieter` (×1.5 / ÷1.5, up to 200%), `mute` / `unmute`, `fade_in` /
+  `fade_out` (`seconds`, default 1; with no clip named, the first clip's
+  fade in or the last clip's fade out: the start or end of the video).
+- **The command prompt, trimmed:** it had grown to ~680 input tokens a
+  command; rewritten as a terse list of actions and fields (examples only
+  where needed), it's ~416 with seven more actions. Real Gemini, 2026-10-04
+  (approved): all 7 new shapes and a 12-command regression sample (trim,
+  split, merge all, move, title, watermark, captions, blur, rotate, crop,
+  speed, an unsupported one) parsed right; rows 84–103. One call (row 100,
+  "crop to 9:16") was rate-limited: `meta` `{"error_type": "ApiError",
+"error_status": 429}` after 308 ms (the failure-reason logging at work);
+  the app showed "busy", and the command parsed right when rerun. 19
+  successful calls, 7,285 micro-USD ($0.0073); **a command now costs
+  ~320–410 micro-USD** (was ~430–460).
+
+---
+
 ## 4. Unresolved issues
 
 ### 4a. The command-test regression from earlier instructions is solved
@@ -1419,6 +1477,7 @@ This explains the e2e export-length failures in section 4c (0.39 s long,
     by-ear take's edges. A re-record with the fade in the user's own voice
     is the last ear check.
 18. ~~Picture transforms (crop, rotate, flip) and pixelate~~: done (section 3k).
+19. ~~Clip volume, mute and fades~~: done (section 3l).
 
 Not yet queued by the user:
 

@@ -25,7 +25,9 @@ const UNSUPPORTED: EditCommand = {
 	region: null,
 	degrees: null,
 	axis: null,
-	aspect: null
+	aspect: null,
+	percent: null,
+	seconds: null
 }
 
 // Gemini and Deepgram both answer 429 (rate-limited) or 503 (overloaded)
@@ -39,39 +41,29 @@ function rethrowAsBusy(error: unknown): never {
 	throw error
 }
 
+// Terse on purpose: every word is paid for on every command. Each line names
+// an action and its fields; examples only where the mapping isn't obvious.
 function systemInstruction(durationSeconds: number): string {
 	return [
-		'You turn one video-editing command into JSON. The video is',
-		`${durationSeconds.toFixed(1)} seconds long.`,
-		'"Cut from X to Y" (or "keep X to Y", "trim to X–Y") means keep only that range:',
-		'action "trim" with startSeconds X and endSeconds Y, converting minutes to seconds.',
-		'Use null for an edge the command leaves at the clip boundary ("from 3s to the end").',
-		'A title card ("add the title Welcome for the first 3 seconds") is action "title"',
-		'with text the exact words to show, and startSeconds/endSeconds when it is on screen',
-		'(the first 3 seconds: 0 and 3; null for an edge left open).',
-		'A watermark or logo in a corner is action "watermark" with corner one of',
-		'"top-left", "top-right", "bottom-left", "bottom-right", or null if none is named.',
-		'Turning captions (or subtitles) on or off is action "captions_on" or "captions_off".',
-		'"Split at X" is action "split" with startSeconds X. Clips are numbered from 1:',
-		'"merge clips 2 and 3" is action "merge" with fromClip 2 and toClip 3 (both null for',
-		'all clips); "move clip 3 to the start" is action "move" with fromClip 3 and toClip 1',
-		'(toClip null for the end). Removing silences and filler words ("clean up") is action',
-		'"cleanup". "Undo", "redo" and "reset to the original" (start over) are actions "undo",',
-		'"redo" and "reset". "Play at 2x" is action "speed" with rate 2. "Re-record the sentence',
-		'at 0:25" is action "rerecord" with startSeconds 25. Exporting or downloading the video',
-		'is action "export". Covering part of the picture with a solid box is action "box", and',
-		'blurring part of it is action "blur", each with region one of "top-left", "top-right",',
-		'"bottom-left", "bottom-right" (corners), "top", "bottom", "left", "right" (halves),',
-		'"center" or "full" (null if none is named), and startSeconds/endSeconds when it shows',
-		'(null for an edge left open). Pixelating part of the picture is action "pixelate", with',
-		'region and times as for "blur". Turning the picture ("rotate the video 15 degrees",',
-		'"turn it left 90 degrees") is action "rotate" with degrees how far to turn it,',
-		'clockwise; negative for anticlockwise or left. Mirroring it is action "flip" with axis',
-		'"horizontal" (left and right swap, the default) or "vertical" (upside down). Cropping',
-		'it to a shape is action "crop" with aspect one of "16:9", "9:16", "1:1", "4:5", or',
-		'"none" to remove the crop.',
-		'Unused fields are null. Anything else — removing a middle section, other effects,',
-		'audio — is action "unsupported" with every other field null.'
+		`Turn one video-editing command into JSON. The video is ${durationSeconds.toFixed(1)} s long.`,
+		'Times are in seconds (convert minutes). Unused fields are null; null for an edge left open.',
+		'Clips count from 1. Actions:',
+		'trim: keep startSeconds to endSeconds ("cut from 2 to 5", "keep 1:05 to 1:20").',
+		'split at startSeconds. merge fromClip to toClip (both null: all clips).',
+		'move fromClip to position toClip (null: the end).',
+		'cleanup: remove silences and filler words. undo, redo, reset (start over), export (or download).',
+		'speed: preview rate ("play at 2x": 2). rerecord: the sentence at startSeconds.',
+		'title: text (the exact words) shown startSeconds to endSeconds ("the first 3 seconds": 0, 3).',
+		'watermark: a logo in corner top-left, top-right, bottom-left or bottom-right.',
+		'captions_on, captions_off (or subtitles).',
+		'box, blur, pixelate: cover part of the picture, region top-left, top-right, bottom-left,',
+		'bottom-right, top, bottom, left, right, center or full, from startSeconds to endSeconds.',
+		'rotate: degrees to turn, clockwise; negative for anticlockwise or left.',
+		'flip: axis horizontal (default) or vertical. crop: aspect 16:9, 9:16, 1:1, 4:5, or none.',
+		'volume: percent, for fromClip (null: every clip). louder, quieter: for fromClip (null: all).',
+		'mute, unmute: fromClip (null: all). fade_in, fade_out: seconds long, on fromClip',
+		'(null: the start or end of the video; "fade out the last 2 seconds": fade_out, seconds 2).',
+		'unsupported: anything else, every other field null.'
 	].join(' ')
 }
 

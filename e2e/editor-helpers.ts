@@ -124,6 +124,8 @@ export const editCommand = (
 	degrees: null,
 	axis: null,
 	aspect: null,
+	percent: null,
+	seconds: null,
 	...fields
 })
 

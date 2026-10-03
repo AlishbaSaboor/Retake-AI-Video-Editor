@@ -8,6 +8,7 @@ import {
 	type EditCommand
 } from './edit-command'
 import { IDENTITY_TRANSFORM, outputSize } from './transform'
+import { DEFAULT_CLIP_AUDIO } from './clip-audio'
 
 const NONE = {
 	startSeconds: null,
@@ -20,7 +21,9 @@ const NONE = {
 	region: null,
 	degrees: null,
 	axis: null,
-	aspect: null
+	aspect: null,
+	percent: null,
+	seconds: null
 }
 const SENTENCE = { startSeconds: 25.2, endSeconds: 27, text: 'Let me add a video here.' }
 /** A three-clip edit with something to clean up and to undo, but nothing to redo. */
@@ -40,7 +43,8 @@ const CONTEXT: CommandContext = {
 				? { sentence: { ...SENTENCE, startSeconds: 40 }, blocker: 'no_gap_after' }
 				: null,
 	transform: IDENTITY_TRANSFORM,
-	picture: { width: 320, height: 180 }
+	picture: { width: 320, height: 180 },
+	clipAudio: [DEFAULT_CLIP_AUDIO, DEFAULT_CLIP_AUDIO, DEFAULT_CLIP_AUDIO]
 }
 const trim = (startSeconds: number | null, endSeconds: number | null): EditCommand => ({
 	...NONE,
@@ -384,4 +388,52 @@ test('pixelate covers a region over a stretch of the edited video, like blur', (
 	assert.equal(pixelate.plan.annotation.kind, 'pixelate')
 	assert.equal(pixelate.plan.annotation.startSeconds, 2)
 	assert.equal(pixelate.plan.annotation.endSeconds, 5)
+})
+
+test('volume, louder, quieter and mute go on the named clip, or every clip', () => {
+	const run = (fields: Partial<EditCommand>) =>
+		commandToPlan({ ...NONE, action: 'unsupported', ...fields }, CONTEXT)
+	const half = run({ action: 'volume', fromClip: 2, percent: 50 })
+	assert.ok(half.ok && half.plan.kind === 'clipAudio')
+	if (!half.ok || half.plan.kind !== 'clipAudio') return
+	assert.deepEqual(
+		half.plan.audio.map((a) => a.volume),
+		[1, 0.5, 1]
+	)
+	const capped = run({ action: 'volume', percent: 300 })
+	assert.ok(
+		capped.ok && capped.plan.kind === 'clipAudio' && capped.plan.audio.every((a) => a.volume === 2)
+	)
+	const louder = run({ action: 'louder' })
+	assert.ok(
+		louder.ok &&
+			louder.plan.kind === 'clipAudio' &&
+			louder.plan.audio.every((a) => a.volume === 1.5)
+	)
+	const muted = run({ action: 'mute', fromClip: 2 })
+	assert.ok(muted.ok && muted.plan.kind === 'clipAudio')
+	if (!muted.ok || muted.plan.kind !== 'clipAudio') return
+	assert.deepEqual(
+		muted.plan.audio.map((a) => a.muted),
+		[false, true, false]
+	)
+	assert.deepEqual(run({ action: 'mute', fromClip: 5 }), { ok: false, reason: 'no_such_clip' })
+	assert.deepEqual(run({ action: 'volume' }), { ok: false, reason: 'unsupported' })
+})
+
+test('a fade goes on the start or end of the video unless a clip is named, a second unless timed', () => {
+	const run = (fields: Partial<EditCommand>) =>
+		commandToPlan({ ...NONE, action: 'unsupported', ...fields }, CONTEXT)
+	const out = run({ action: 'fade_out', seconds: 2 })
+	assert.ok(out.ok && out.plan.kind === 'clipAudio')
+	if (!out.ok || out.plan.kind !== 'clipAudio') return
+	assert.deepEqual(
+		out.plan.audio.map((a) => a.fadeOutSeconds),
+		[0, 0, 2]
+	)
+	assert.deepEqual(out.plan.change, { kind: 'fade_out', clip: 3, seconds: 2 })
+	const fadeIn = run({ action: 'fade_in' })
+	assert.ok(fadeIn.ok && fadeIn.plan.kind === 'clipAudio')
+	if (!fadeIn.ok || fadeIn.plan.kind !== 'clipAudio') return
+	assert.deepEqual(fadeIn.plan.change, { kind: 'fade_in', clip: 1, seconds: 1 })
 })

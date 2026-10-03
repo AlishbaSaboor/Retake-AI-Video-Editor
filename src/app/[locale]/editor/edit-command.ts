@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { regionRect, REGIONS, type NewAnnotation, type Region } from './annotations'
+import { clampVolume, DEFAULT_FADE_SECONDS, VOLUME_STEP, type ClipAudio } from './clip-audio'
 import { CORNERS, type Corner, type TitleCard } from './overlays'
 import { PREVIEW_RATES } from './preview-speed'
 import {
@@ -43,6 +44,13 @@ const ACTIONS = [
 	'rotate',
 	'flip',
 	'crop',
+	'volume',
+	'louder',
+	'quieter',
+	'mute',
+	'unmute',
+	'fade_in',
+	'fade_out',
 	'unsupported'
 ] as const
 const FLIP_AXES = ['horizontal', 'vertical'] as const
@@ -70,7 +78,11 @@ export const editCommandSchema = z.object({
 	/** How far to turn the picture, clockwise; negative is anticlockwise. */
 	degrees: z.number().nullable(),
 	axis: z.enum(FLIP_AXES).nullable(),
-	aspect: z.enum(COMMAND_ASPECTS).nullable()
+	aspect: z.enum(COMMAND_ASPECTS).nullable(),
+	/** A clip's volume, in percent. */
+	percent: z.number().nullable(),
+	/** A fade's length. */
+	seconds: z.number().nullable()
 })
 export type EditCommand = z.infer<typeof editCommandSchema>
 
@@ -94,7 +106,9 @@ export const EDIT_COMMAND_JSON_SCHEMA = {
 		degrees: NULLABLE_NUMBER,
 		// Named in the prompt and checked by the schema above, as corners are.
 		axis: { type: ['string', 'null'] },
-		aspect: { type: ['string', 'null'] }
+		aspect: { type: ['string', 'null'] },
+		percent: NULLABLE_NUMBER,
+		seconds: NULLABLE_NUMBER
 	},
 	required: [
 		'action',
@@ -108,7 +122,9 @@ export const EDIT_COMMAND_JSON_SCHEMA = {
 		'region',
 		'degrees',
 		'axis',
-		'aspect'
+		'aspect',
+		'percent',
+		'seconds'
 	]
 }
 
@@ -137,6 +153,7 @@ export type CommandPlan =
 	| { kind: 'captions'; on: boolean }
 	| { kind: 'annotation'; region: Region; annotation: NewAnnotation }
 	| { kind: 'transform'; transform: PictureTransform; change: TransformChange }
+	| { kind: 'clipAudio'; audio: ClipAudio[]; change: AudioChange }
 
 /** Why a command can't be done; each has its own plain answer. */
 export type RefusalReason =
@@ -171,6 +188,8 @@ export type CommandContext = {
 	canUndo: boolean
 	canRedo: boolean
 	canReset: boolean
+	/** Each clip's volume, mute and fades now, in clip order. */
+	clipAudio: ClipAudio[]
 	/** The picture's flip, rotation and crop now, and the source picture's size. */
 	transform: PictureTransform
 	picture: Size
@@ -254,6 +273,14 @@ export function commandToPlan(command: EditCommand, context: CommandContext): Co
 				title: { text: command.text.trim(), startSeconds: start, durationSeconds: end - start }
 			})
 		}
+		case 'volume':
+		case 'louder':
+		case 'quieter':
+		case 'mute':
+		case 'unmute':
+		case 'fade_in':
+		case 'fade_out':
+			return audioCommand(command, context)
 		case 'rotate': {
 			if (command.degrees === null || normalizeDegrees(command.degrees) === 0) {
 				return refuse('unsupported')
@@ -318,6 +345,75 @@ export function commandToPlan(command: EditCommand, context: CommandContext): Co
 		}
 		case 'unsupported':
 			return refuse('unsupported')
+	}
+}
+
+/** What an audio command changes, for its confirmation. Clip numbers count from 1; null is every clip. */
+export type AudioChange =
+	| { kind: 'volume'; clip: number | null; percent: number }
+	| { kind: 'louder' | 'quieter'; clip: number | null }
+	| { kind: 'mute' | 'unmute'; clip: number | null }
+	| { kind: 'fade_in' | 'fade_out'; clip: number; seconds: number }
+
+const PERCENT = 100
+
+/**
+ * Volume, mute and fades. A named clip is that clip; none is every clip,
+ * except a fade, which with none named goes on the first clip (in) or the
+ * last (out): the start and end of the video.
+ */
+function audioCommand(command: EditCommand, context: CommandContext): CommandOutcome {
+	const count = context.clipAudio.length
+	const named = command.fromClip
+	if (named !== null && (!Number.isInteger(named) || named < 1 || named > count)) {
+		return refuse('no_such_clip')
+	}
+	const every = (change: (audio: ClipAudio) => ClipAudio) =>
+		context.clipAudio.map((audio, index) =>
+			named === null || index === named - 1 ? change(audio) : audio
+		)
+	switch (command.action) {
+		case 'volume': {
+			if (command.percent === null) return refuse('unsupported')
+			const volume = clampVolume(command.percent / PERCENT)
+			return plan({
+				kind: 'clipAudio',
+				audio: every((audio) => ({ ...audio, volume })),
+				change: { kind: 'volume', clip: named, percent: Math.round(volume * PERCENT) }
+			})
+		}
+		case 'louder':
+		case 'quieter': {
+			const factor = command.action === 'louder' ? VOLUME_STEP : 1 / VOLUME_STEP
+			return plan({
+				kind: 'clipAudio',
+				audio: every((audio) => ({ ...audio, volume: clampVolume(audio.volume * factor) })),
+				change: { kind: command.action, clip: named }
+			})
+		}
+		case 'mute':
+		case 'unmute': {
+			const muted = command.action === 'mute'
+			return plan({
+				kind: 'clipAudio',
+				audio: every((audio) => ({ ...audio, muted })),
+				change: { kind: command.action, clip: named }
+			})
+		}
+		default: {
+			const fadeIn = command.action === 'fade_in'
+			const clip = named ?? (fadeIn ? 1 : count)
+			const seconds = command.seconds ?? DEFAULT_FADE_SECONDS
+			if (seconds <= 0) return refuse('unsupported')
+			const field = fadeIn ? 'fadeInSeconds' : 'fadeOutSeconds'
+			return plan({
+				kind: 'clipAudio',
+				audio: context.clipAudio.map((audio, index) =>
+					index === clip - 1 ? { ...audio, [field]: seconds } : audio
+				),
+				change: { kind: fadeIn ? 'fade_in' : 'fade_out', clip, seconds }
+			})
+		}
 	}
 }
 

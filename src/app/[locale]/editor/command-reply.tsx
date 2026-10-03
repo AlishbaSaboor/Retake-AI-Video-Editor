@@ -34,7 +34,8 @@ const COMMAND_ABILITIES = [
 	'addWatermark',
 	'captions',
 	'annotate',
-	'transform'
+	'transform',
+	'audio'
 ] as const
 const EDITOR_ABILITIES = ['fillerCut', 'compare', 'annotations', 'transformByHand'] as const
 
@@ -98,6 +99,20 @@ export function CommandReply({
 			}
 			case 'captions':
 				return plan.on ? t('confirm.captionsOn') : t('confirm.captionsOff')
+			case 'clipAudio': {
+				const { change } = plan
+				const which =
+					'clip' in change && change.clip !== null
+						? t('clipNumber', { number: change.clip })
+						: t('everyClip')
+				if (change.kind === 'volume') {
+					return t('confirm.volume', { which, percent: change.percent })
+				}
+				if (change.kind === 'fade_in' || change.kind === 'fade_out') {
+					return t(`confirm.${change.kind}`, { which, seconds: change.seconds })
+				}
+				return t(`confirm.${change.kind}`, { which })
+			}
 			case 'transform': {
 				const { change } = plan
 				if (change.kind === 'rotate') {

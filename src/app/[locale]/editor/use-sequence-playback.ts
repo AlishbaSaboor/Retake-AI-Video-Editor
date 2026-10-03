@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react'
+import { clipGainAt } from './clip-audio'
 import { scheduleTakeGain, type ReplacementTake } from './re-record'
 import { isInSegment, playbackPosition, SEEK_TOLERANCE_SECONDS, type Segment } from './sequence'
 
@@ -9,6 +10,8 @@ const END_TOLERANCE_SECONDS = 0.05
 // catches it — inside this it's the end of the segment, beyond it the user
 // has scrubbed somewhere else.
 const SEGMENT_END_SLACK_SECONDS = 0.25
+/** How quickly the preview's clip level follows the fades between frames. */
+const LEVEL_SMOOTHING_SECONDS = 0.015
 
 /** A re-recorded take playing over the video, and whether the picture is holding for it. */
 type VoiceOver = {
@@ -20,9 +23,13 @@ type VoiceOver = {
 	holding: boolean
 }
 
-/** Starts `replacement` playing from `intoSeconds` into its take, over the video turned down. */
+/**
+ * Starts `replacement` playing from `intoSeconds` into its take, over the
+ * video turned down, into `output` (the clip's level, or the speakers).
+ */
 function startVoice(
 	audio: AudioContext,
+	output: AudioNode,
 	element: HTMLVideoElement,
 	replacement: ReplacementTake,
 	intoSeconds: number,
@@ -33,7 +40,7 @@ function startVoice(
 	const source = audio.createBufferSource()
 	source.buffer = replacement.audio
 	source.playbackRate.value = rate
-	source.connect(level).connect(audio.destination)
+	source.connect(level).connect(output)
 	const voice: VoiceOver = {
 		replacement,
 		source,
@@ -98,6 +105,10 @@ export function useSequencePlayback(
 	const playingIndexRef = useRef<number | null>(null)
 	const audioRef = useRef<AudioContext | null>(null)
 	const voiceRef = useRef<VoiceOver | null>(null)
+	// Clip volume and fades: the video's sound routed through a gain (a
+	// <video> can't go above 100%), made the first time a clip needs it.
+	// A media element can be routed only once, so it stays routed.
+	const clipLevelRef = useRef<{ element: HTMLVideoElement; gain: GainNode } | null>(null)
 
 	// `timeupdate` only fires a few times a second, which makes the playhead
 	// stutter and segment jumps land late, so follow every animation frame.
@@ -129,6 +140,34 @@ export function useSequencePlayback(
 				if (current) element.currentTime = current.endSeconds
 				if (wasHolding) onStop()
 			}
+		}
+
+		/**
+		 * Sets the clip's level for where playback is: its volume along its
+		 * fades, smoothed over ~15 ms between frames. Routes the video through
+		 * the gain the first time any segment needs it. The gain, or null
+		 * while the video plays straight to the speakers.
+		 */
+		const followClipLevel = (element: HTMLVideoElement, playing: Segment | undefined) => {
+			if (clipLevelRef.current?.element !== element && segments.some((s) => s.audio)) {
+				const audio = audioRef.current ?? new AudioContext()
+				audioRef.current = audio
+				void audio.resume()
+				const gain = audio.createGain()
+				audio.createMediaElementSource(element).connect(gain).connect(audio.destination)
+				clipLevelRef.current = { element, gain }
+			}
+			const level = clipLevelRef.current?.element === element ? clipLevelRef.current.gain : null
+			if (!level) return null
+			const audio = playing?.audio
+			const target = audio
+				? clipGainAt(
+						audio,
+						audio.offsetSeconds + element.currentTime - (playing?.startSeconds ?? 0)
+					)
+				: 1
+			level.gain.setTargetAtTime(target, level.context.currentTime, LEVEL_SMOOTHING_SECONDS)
+			return level
 		}
 
 		let frame = 0
@@ -170,6 +209,7 @@ export function useSequencePlayback(
 				// Entering (or resuming inside) a re-recorded segment starts its take
 				// from the matching point; anywhere else, no take plays.
 				const playing = segments[playingIndexRef.current ?? -1]
+				const clipLevel = followClipLevel(element, playing)
 				const replacement = playing?.voiceOver?.replacement
 				if (replacement && !element.paused && voiceRef.current?.replacement !== replacement) {
 					stopVoice(voiceRef, videoRef)
@@ -177,6 +217,7 @@ export function useSequencePlayback(
 					audioRef.current = audio
 					voiceRef.current = startVoice(
 						audio,
+						clipLevel ?? audio.destination,
 						element,
 						replacement,
 						// A hair before the start reads as the start (SEEK_TOLERANCE_SECONDS).

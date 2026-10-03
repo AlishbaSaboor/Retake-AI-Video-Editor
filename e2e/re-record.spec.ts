@@ -449,3 +449,58 @@ test('at 2× preview speed the editor plays twice as fast through jumps, a take 
 	expect(originalSpeed).toBeLessThan(2.3)
 	expect(original.filter((s) => !s.paused).every((s) => s.rate === 2)).toBe(true)
 })
+
+test("a clip's volume applies on top of a re-recorded take, which keeps its level matching", async ({
+	page
+}) => {
+	test.setTimeout(150_000)
+	await openThreeSentences(page)
+	await reRecordButton(page, '0:01').click()
+	await (await recordTake(page)).getByRole('button', { name: 'Use new take' }).click()
+	await expect(page.getByText('re-recorded', { exact: true })).toHaveCount(1)
+
+	/** The original's 440 Hz in A (0.5 s) and the take's 880 Hz in B (~2.0 s), in an export. */
+	const strengths = async () => {
+		const downloading = page.waitForEvent('download')
+		await page.getByRole('button', { name: 'Export video' }).click()
+		const bytes = await readFile(await (await downloading).path())
+		await expect(page.getByRole('button', { name: 'Export video' })).toBeVisible()
+		return page.evaluate(
+			async (bytes) => {
+				const audio = await new OfflineAudioContext(1, 1, 48_000).decodeAudioData(
+					await new Blob([new Uint8Array(bytes)], { type: 'video/webm' }).arrayBuffer()
+				)
+				const samples = audio.getChannelData(0)
+				const strength = (at: number, hz: number) => {
+					const from = Math.floor((at - 0.05) * audio.sampleRate)
+					const n = Math.floor(0.1 * audio.sampleRate)
+					const coeff = 2 * Math.cos((2 * Math.PI * hz) / audio.sampleRate)
+					let s1 = 0
+					let s2 = 0
+					for (let i = 0; i < n; i++) {
+						const s0 = (samples[from + i] ?? 0) + coeff * s1 - s2
+						s2 = s1
+						s1 = s0
+					}
+					return Math.sqrt(s1 * s1 + s2 * s2 - coeff * s1 * s2) / n
+				}
+				return { original: strength(0.5, 440), take: strength(2.0, 880) }
+			},
+			[...bytes]
+		)
+	}
+	const full = await strengths()
+	const slider = page.getByRole('region', { name: 'Clip sound' }).getByRole('slider')
+	await slider.fill('50')
+	await slider.blur()
+	const half = await strengths()
+	// Both halve: the clip's volume is on top of the take's own gain.
+	expect(half.original / full.original).toBeGreaterThan(0.42)
+	expect(half.original / full.original).toBeLessThan(0.58)
+	expect(half.take / full.take).toBeGreaterThan(0.42)
+	expect(half.take / full.take).toBeLessThan(0.58)
+	// The take's level against the original's is what it was.
+	expect(Math.abs(half.take / half.original - full.take / full.original)).toBeLessThan(
+		0.15 * (full.take / full.original)
+	)
+})

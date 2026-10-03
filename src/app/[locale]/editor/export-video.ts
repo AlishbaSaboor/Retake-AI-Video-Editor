@@ -1,3 +1,4 @@
+import { scheduleClipGain } from './clip-audio'
 import { drawFrame, type Overlays } from './overlays'
 import { scheduleTakeGain, type ReplacementTake } from './re-record'
 import { segmentSeconds, type Segment } from './sequence'
@@ -180,8 +181,11 @@ export async function recordEdit(
 		}
 		draw()
 		const destination = audio.createMediaStreamDestination()
+		// The clip's volume and fades, over the source's sound and any take alike.
+		const clipLevel = audio.createGain()
+		clipLevel.connect(destination)
 		const sourceSound = audio.createGain()
-		audio.createMediaElementSource(video).connect(sourceSound).connect(destination)
+		audio.createMediaElementSource(video).connect(sourceSound).connect(clipLevel)
 		await audio.resume()
 		recorder = new MediaRecorder(
 			new MediaStream([
@@ -209,8 +213,15 @@ export async function recordEdit(
 			else recorder.resume()
 			sourceSound.gain.value = segment.voiceOver ? 0 : 1
 			await video.play()
+			const at = audio.currentTime
+			clipLevel.gain.cancelScheduledValues(at)
+			if (segment.audio) {
+				scheduleClipGain(clipLevel.gain, segment.audio, at, 0, segmentSeconds(segment), 1)
+			} else {
+				clipLevel.gain.setValueAtTime(1, at)
+			}
 			// Started with the picture, so the two run together from here.
-			const take = segment.voiceOver && playTake(audio, destination, segment.voiceOver.replacement)
+			const take = segment.voiceOver && playTake(audio, clipLevel, segment.voiceOver.replacement)
 			while (video.currentTime < segment.endSeconds && !video.ended) {
 				signal.throwIfAborted()
 				onProgress((done + video.currentTime - segment.startSeconds) / total)
