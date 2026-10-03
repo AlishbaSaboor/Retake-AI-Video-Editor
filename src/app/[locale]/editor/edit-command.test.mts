@@ -15,7 +15,8 @@ const NONE = {
 	corner: null,
 	fromClip: null,
 	toClip: null,
-	rate: null
+	rate: null,
+	region: null
 }
 const SENTENCE = { startSeconds: 25.2, endSeconds: 27, text: 'Let me add a video here.' }
 /** A three-clip edit with something to clean up and to undo, but nothing to redo. */
@@ -105,6 +106,58 @@ test('a title command plans that text over that stretch of the edited video', ()
 	assert.deepEqual(title('  ', 0, 3), { ok: false, reason: 'unsupported' })
 	assert.deepEqual(title('Hi', 9, null), { ok: false, reason: 'out_of_range' })
 	assert.deepEqual(title('Hi', 3, 1), { ok: false, reason: 'out_of_range' })
+})
+
+test('a box or blur command covers a named region over that stretch of the edited video', () => {
+	const annotate = (
+		action: 'box' | 'blur',
+		region: EditCommand['region'],
+		start: number | null,
+		end: number | null
+	) =>
+		commandToPlan(
+			{ ...NONE, action, region, startSeconds: start, endSeconds: end },
+			{ ...CONTEXT, durationSeconds: 10, editedSeconds: 8 }
+		)
+	const third = 1 / 3
+	assert.deepEqual(annotate('blur', 'top-right', 5, 7), {
+		ok: true,
+		plan: {
+			kind: 'annotation',
+			region: 'top-right',
+			annotation: {
+				kind: 'blur',
+				rect: { x: 1 - third, y: 0, width: third, height: third },
+				startSeconds: 5,
+				endSeconds: 7
+			}
+		}
+	})
+	// A box is black; with no region named it covers the whole picture; no
+	// end runs to the end of the edited video (8 s), not the source (10 s).
+	assert.deepEqual(annotate('box', null, 2, null), {
+		ok: true,
+		plan: {
+			kind: 'annotation',
+			region: 'full',
+			annotation: {
+				kind: 'box',
+				color: '#000000',
+				rect: { x: 0, y: 0, width: 1, height: 1 },
+				startSeconds: 2,
+				endSeconds: 8
+			}
+		}
+	})
+	assert.deepEqual(annotate('blur', 'center', 2, 99), annotate('blur', 'center', 2, null))
+	// No time to show it in is refused.
+	assert.deepEqual(annotate('blur', 'center', 9, null), { ok: false, reason: 'out_of_range' })
+	assert.deepEqual(annotate('box', 'left', 4, 3), { ok: false, reason: 'out_of_range' })
+})
+
+test("a region the editor doesn't know is not a command", () => {
+	const parsed = editCommandSchema.safeParse({ ...NONE, action: 'blur', region: 'upper-middle' })
+	assert.equal(parsed.success, false)
 })
 
 test('a watermark command plans a corner, bottom-right when none is named', () => {

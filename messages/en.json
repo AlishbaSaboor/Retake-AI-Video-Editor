@@ -33,7 +33,7 @@
 			"undo": "Undo last change",
 			"redo": "Redo",
 			"reset": "Reset to original",
-			"resetConfirm": "Reset to the original take? This removes every trim, cut, clip change and re-recorded sentence. Undo brings them all back.",
+			"resetConfirm": "Reset to the original take? This removes every trim, cut, clip change, re-recorded sentence, graphic and annotation. Undo brings them all back.",
 			"resetApply": "Reset"
 		},
 		"fillerCut": {
@@ -91,6 +91,8 @@
 				"speed": "I'll preview at {rate}×. The export stays at normal speed.",
 				"rerecord": "I'll open the re-record panel for “{text}” at {at}.",
 				"export": "I'll export the edit as a video file. It takes as long as the edit plays.",
+				"box": "I'll cover the {region} with a black box from {start} to {end}. It stays in place: it won't follow anything that moves.",
+				"blur": "I'll blur the {region} from {start} to {end}. It stays in place: it won't follow anything that moves.",
 				"apply": "Apply",
 				"cancel": "Cancel"
 			},
@@ -100,6 +102,18 @@
 				"top-right": "top-right",
 				"bottom-left": "bottom-left",
 				"bottom-right": "bottom-right"
+			},
+			"regions": {
+				"top-left": "top-left corner",
+				"top-right": "top-right corner",
+				"bottom-left": "bottom-left corner",
+				"bottom-right": "bottom-right corner",
+				"top": "top half",
+				"bottom": "bottom half",
+				"left": "left half",
+				"right": "right half",
+				"center": "center",
+				"full": "whole picture"
 			},
 			"unsupported": {
 				"title": "I can't do that yet.",
@@ -117,9 +131,11 @@
 				"addTitle": "Add a title card: “add the title Welcome for the first 3 seconds”",
 				"addWatermark": "Add a logo watermark: “put my logo in the top-right corner”",
 				"captions": "Turn captions on or off: “turn captions on”",
+				"annotate": "Cover or blur part of the picture: “blur the top-right corner from 5 to 10 seconds”",
 				"editorIntro": "In the editor itself, you can also:",
 				"fillerCut": "Cut a single filler word by ear: click its flag on the timeline",
-				"compare": "Compare the edit with the original: Edited / Original above the player"
+				"compare": "Compare the edit with the original: Edited / Original above the player",
+				"annotations": "Draw boxes, blurs and text on the video, then move, resize and retime them: Annotations, under the clips"
 			},
 			"refused": {
 				"no_such_clip": "There's no clip with that number. The Clips strip numbers them from 1.",
@@ -184,6 +200,34 @@
 				"title": "That isn't a PNG",
 				"description": "{name} can't be used as a watermark. Choose a PNG image."
 			}
+		},
+		"annotations": {
+			"label": "Annotations",
+			"toolsLabel": "Annotation tool",
+			"tools": {
+				"select": "Select",
+				"box": "Box",
+				"blur": "Blur",
+				"text": "Text",
+				"erase": "Eraser"
+			},
+			"color": "Box color",
+			"text": "Text to add",
+			"hint": "Pick a tool and drag on the video to draw; Select moves an item, or resizes it from its corner. A new item shows for 3 seconds from the playhead.",
+			"originalHint": "Switch to Edited to draw.",
+			"staysPut": "Boxes and blurs stay where you put them: they don't follow anything that moves in the video.",
+			"empty": "Nothing drawn yet.",
+			"lane": "When each shows, in the edited video",
+			"kinds": {
+				"box": "Box",
+				"blur": "Blur",
+				"text": "Text"
+			},
+			"item": "{kind} {number}",
+			"bar": "{name}, {start}–{end}",
+			"barHint": "Drag to move it in time, or its edges to change when it starts and ends. Arrow keys move it; Delete removes it.",
+			"start": "{name} start",
+			"end": "{name} end"
 		},
 		"speed": {
 			"label": "Preview speed",

@@ -11,7 +11,7 @@ test('the edit right after upload is the original', () => {
 	assert.equal(isOriginalEdit(ORIGINAL_EDIT, DURATION), true)
 })
 
-test('any trim, cut, split, take, title, watermark or captions is something to reset', () => {
+test('any trim, cut, split, take, title, watermark, captions or annotation is something to reset', () => {
 	const split = splitClipAt(wholeTake(DURATION), 4, newId)
 	assert.equal(
 		isOriginalEdit({ ...original, trim: { startSeconds: 1, endSeconds: 10 } }, DURATION),
@@ -38,6 +38,14 @@ test('any trim, cut, split, take, title, watermark or captions is something to r
 		false
 	)
 	assert.equal(isOriginalEdit({ ...original, captionsOn: true }, DURATION), false)
+	const blur = {
+		id: 'a',
+		kind: 'blur',
+		rect: { x: 0, y: 0, width: 1, height: 1 },
+		startSeconds: 0,
+		endSeconds: 1
+	} as const
+	assert.equal(isOriginalEdit({ ...original, annotations: [blur] }, DURATION), false)
 })
 
 test('a trim dragged back to the edges, or a split merged again, is the original', () => {

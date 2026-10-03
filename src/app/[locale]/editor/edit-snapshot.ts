@@ -1,3 +1,4 @@
+import type { Annotation } from './annotations'
 import type { Cut } from './cleanup'
 import type { TitleCard, Watermark } from './overlays'
 import type { ReplacementTake } from './re-record'
@@ -13,6 +14,7 @@ export type EditSnapshot<R = ReplacementTake> = {
 	title: TitleCard | null
 	watermark: Watermark | null
 	captionsOn: boolean
+	annotations: Annotation[]
 }
 
 /** The edit right after upload: the whole take, untouched. */
@@ -23,7 +25,8 @@ export const ORIGINAL_EDIT: EditSnapshot = {
 	replacements: [],
 	title: null,
 	watermark: null,
-	captionsOn: false
+	captionsOn: false,
+	annotations: []
 }
 
 /**
@@ -43,6 +46,7 @@ export function isOriginalEdit<R>(edit: EditSnapshot<R>, durationSeconds: number
 		edit.title === null &&
 		edit.watermark === null &&
 		!edit.captionsOn &&
+		edit.annotations.length === 0 &&
 		(edit.clips === null ||
 			(otherClips.length === 0 &&
 				otherRanges.length === 0 &&
