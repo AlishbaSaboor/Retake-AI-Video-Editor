@@ -1,5 +1,5 @@
 import { drawOverlays, type Overlays } from './overlays'
-import type { ReplacementTake } from './re-record'
+import { scheduleTakeGain, type ReplacementTake } from './re-record'
 import { segmentSeconds, type Segment } from './sequence'
 
 // Exporting re-records the edit in real time: an offscreen copy of the take
@@ -111,7 +111,6 @@ const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve))
 /** Starts a re-recorded take playing into `destination`; `ended` turns true once it has played out. */
 function playTake(audio: AudioContext, destination: AudioNode, take: ReplacementTake) {
 	const level = audio.createGain()
-	level.gain.value = take.gain
 	const source = audio.createBufferSource()
 	source.buffer = take.audio
 	source.connect(level).connect(destination)
@@ -119,7 +118,9 @@ function playTake(audio: AudioContext, destination: AudioNode, take: Replacement
 	source.onended = () => {
 		playing.ended = true
 	}
-	source.start(0, take.offsetSeconds, take.takeSeconds)
+	const at = audio.currentTime
+	scheduleTakeGain(level.gain, take, at, 0, 1)
+	source.start(at, take.offsetSeconds, take.takeSeconds)
 	return playing
 }
 

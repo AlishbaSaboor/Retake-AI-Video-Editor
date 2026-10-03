@@ -14,6 +14,10 @@ import { FAKE_MIC_LAUNCH, recordTake } from './fake-mic'
 // re-record tests rather than after them in one long serial worker.
 test.use({ launchOptions: FAKE_MIC_LAUNCH })
 
+/** Every time the player was sought to, so far (logged by the page). */
+const seeks = async (page: Page): Promise<number[]> =>
+	JSON.parse((await page.evaluate(() => document.documentElement.dataset.seeks)) ?? '[]')
+
 /** How many takes the editor has started so far (logged by the page). */
 const takeStarts = async (page: Page): Promise<number> =>
 	JSON.parse((await page.evaluate(() => document.documentElement.dataset.takeStarts)) ?? '[]')
@@ -43,6 +47,11 @@ test('a sentence with no pause gets its joins set by ear, and its take records, 
 			},
 			set(this: HTMLMediaElement, value: number) {
 				sought.set(this, { target: value, at: performance.now() })
+				// Every seek of the player, for checking where playback seeks.
+				if (this === document.querySelector('video')) {
+					const seeks: number[] = JSON.parse(document.documentElement.dataset.seeks ?? '[]')
+					document.documentElement.dataset.seeks = JSON.stringify([...seeks, value])
+				}
 				set.call(this, value)
 			}
 		})
@@ -143,9 +152,12 @@ test('a sentence with no pause gets its joins set by ear, and its take records, 
 	await expect(page.getByText('re-recorded', { exact: true })).toHaveCount(1)
 
 	// The edited video plays through the replaced span and out the other
-	// side, starting the take once.
+	// side, starting the take once, and without seeking at the start join:
+	// the take's segment carries straight on from the one before (a seek
+	// there held an MP4's picture ~0.45 s while the take already spoke).
 	const startsBefore = await takeStarts(page)
 	await seekTo(page, 0.5)
+	const seeksBefore = (await seeks(page)).length
 	const reached = await video.evaluate(async (v: HTMLVideoElement) => {
 		v.muted = true
 		await v.play()
@@ -160,6 +172,10 @@ test('a sentence with no pause gets its joins set by ear, and its take records, 
 	})
 	expect(reached, 'playback passes the end join').toBeGreaterThan(joins.end + 0.2)
 	expect((await takeStarts(page)) - startsBefore, 'the take started once').toBe(1)
+	const atJoin = (await seeks(page))
+		.slice(seeksBefore)
+		.filter((target) => Math.abs(target - joins.start) < 0.01)
+	expect(atJoin, 'no seek at the start join').toEqual([])
 
 	// The export: 880 Hz from the start join for the take's 0.8 s, 440 Hz
 	// before it and after the end join; as long as the edit.

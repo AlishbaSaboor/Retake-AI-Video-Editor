@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import type { Edit } from './cleanup'
 import {
 	inputLevelPercent,
+	JOIN_FADE_SECONDS,
+	scheduleTakeGain,
 	matchingGain,
 	reRecordBlocker,
 	speechLevelDb,
@@ -158,4 +160,66 @@ test('a take Stop cut off mid-speech is caught, so it is recorded again rather t
 		[0.13, ROOM]
 	])
 	assert.equal(stoppedMidSpeech(paused), false)
+})
+
+/** A gain parameter that records its schedule as [value, at audio time] points. */
+function recordedGain() {
+	const points: Array<[string, number, number]> = []
+	const param = {
+		setValueAtTime: (value: number, at: number) =>
+			points.push(['set', +value.toFixed(4), +at.toFixed(4)]),
+		linearRampToValueAtTime: (value: number, at: number) =>
+			points.push(['ramp', +value.toFixed(4), +at.toFixed(4)])
+	}
+	return { param, points }
+}
+
+const fadedTake = { gain: 2, fadeSeconds: JOIN_FADE_SECONDS, takeSeconds: 1 }
+
+test('a by-ear take fades in from silence and out to silence at its own edges', () => {
+	const { param, points } = recordedGain()
+	scheduleTakeGain(param, fadedTake, 5, 0, 1)
+	assert.deepEqual(points, [
+		['set', 0, 5],
+		['ramp', 2, 5.01],
+		['set', 2, 5.99],
+		['ramp', 0, 6]
+	])
+})
+
+test('a take picked up partway, or at another speed, carries on its envelope from there', () => {
+	// Resumed in the middle: at full level, still fading out at its end.
+	const middle = recordedGain()
+	scheduleTakeGain(middle.param, fadedTake, 5, 0.5, 1)
+	assert.deepEqual(middle.points, [
+		['set', 2, 5],
+		['set', 2, 5.49],
+		['ramp', 0, 5.5]
+	])
+	// Resumed halfway through the fade-in, and halfway through the fade-out.
+	const fadingIn = recordedGain()
+	scheduleTakeGain(fadingIn.param, fadedTake, 5, 0.005, 1)
+	assert.deepEqual(fadingIn.points.slice(0, 2), [
+		['set', 1, 5],
+		['ramp', 2, 5.005]
+	])
+	const fadingOut = recordedGain()
+	scheduleTakeGain(fadingOut.param, fadedTake, 5, 0.995, 1)
+	assert.deepEqual(fadingOut.points.at(-1), ['ramp', 0, 5.005])
+	assert.equal(fadingOut.points[0]?.[1], 1)
+	// At 2× the take's second lasts half a second, and so does each fade.
+	const fast = recordedGain()
+	scheduleTakeGain(fast.param, fadedTake, 5, 0, 2)
+	assert.deepEqual(fast.points, [
+		['set', 0, 5],
+		['ramp', 2, 5.005],
+		['set', 2, 5.495],
+		['ramp', 0, 5.5]
+	])
+})
+
+test('a take between two pauses plays at its gain from the start, unfaded', () => {
+	const { param, points } = recordedGain()
+	scheduleTakeGain(param, { ...fadedTake, fadeSeconds: 0 }, 5, 0, 1)
+	assert.deepEqual(points, [['set', 2, 5]])
 })
