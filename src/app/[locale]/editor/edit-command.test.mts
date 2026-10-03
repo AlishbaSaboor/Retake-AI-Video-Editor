@@ -44,7 +44,8 @@ const CONTEXT: CommandContext = {
 				: null,
 	transform: IDENTITY_TRANSFORM,
 	picture: { width: 320, height: 180 },
-	clipAudio: [DEFAULT_CLIP_AUDIO, DEFAULT_CLIP_AUDIO, DEFAULT_CLIP_AUDIO]
+	clipAudio: [DEFAULT_CLIP_AUDIO, DEFAULT_CLIP_AUDIO, DEFAULT_CLIP_AUDIO],
+	clipTakes: [false, false, false]
 }
 const trim = (startSeconds: number | null, endSeconds: number | null): EditCommand => ({
 	...NONE,

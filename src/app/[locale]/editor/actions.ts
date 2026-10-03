@@ -43,16 +43,19 @@ function rethrowAsBusy(error: unknown): never {
 
 // Terse on purpose: every word is paid for on every command. Each line names
 // an action and its fields; examples only where the mapping isn't obvious.
-function systemInstruction(durationSeconds: number): string {
+function systemInstruction(durationSeconds: number, clipCount: number): string {
 	return [
-		`Turn one video-editing command into JSON. The video is ${durationSeconds.toFixed(1)} s long.`,
+		`Turn one video-editing command into JSON. The video is ${durationSeconds.toFixed(1)} s long,`,
+		`in ${clipCount} clips.`,
 		'Times are in seconds (convert minutes). Unused fields are null; null for an edge left open.',
 		'Clips count from 1. Actions:',
 		'trim: keep startSeconds to endSeconds ("cut from 2 to 5", "keep 1:05 to 1:20").',
 		'split at startSeconds. merge fromClip to toClip (both null: all clips).',
 		'move fromClip to position toClip (null: the end).',
 		'cleanup: remove silences and filler words. undo, redo, reset (start over), export (or download).',
-		'speed: preview rate ("play at 2x": 2). rerecord: the sentence at startSeconds.',
+		'speed: preview rate only, no clip named ("play at 2x": 2). rerecord: the sentence at startSeconds.',
+		'clip_speed: how fast clips really play, rate 0.25 to 4, fromClip (null: every clip)',
+		'("make clip 2 play at 2x", "slow the last clip to half speed", "speed the whole video up 1.5x").',
 		'title: text (the exact words) shown startSeconds to endSeconds ("the first 3 seconds": 0, 3).',
 		'watermark: a logo in corner top-left, top-right, bottom-left or bottom-right.',
 		'captions_on, captions_off (or subtitles).',
@@ -76,15 +79,16 @@ function systemInstruction(durationSeconds: number): string {
 export const parseEditCommand = validatedAction({
 	input: z.object({
 		command: z.string().trim().min(1).max(MAX_COMMAND_LENGTH),
-		durationSeconds: z.number().positive()
+		durationSeconds: z.number().positive(),
+		clipCount: z.number().int().positive()
 	}),
-	handler: async ({ command, durationSeconds }): Promise<EditCommand> => {
+	handler: async ({ command, durationSeconds, clipCount }): Promise<EditCommand> => {
 		const response = await generateContent(
 			{ feature: 'parse_edit_command', model: 'gemini-3.5-flash-lite' },
 			{
 				contents: command,
 				config: {
-					systemInstruction: systemInstruction(durationSeconds),
+					systemInstruction: systemInstruction(durationSeconds, clipCount),
 					responseMimeType: 'application/json',
 					responseJsonSchema: EDIT_COMMAND_JSON_SCHEMA,
 					temperature: 0

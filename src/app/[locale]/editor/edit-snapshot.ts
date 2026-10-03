@@ -58,6 +58,7 @@ export function isOriginalEdit<R>(edit: EditSnapshot<R>, durationSeconds: number
 				otherRanges.length === 0 &&
 				onlyRange !== undefined &&
 				isWhole(onlyRange) &&
-				isDefaultAudio(onlyClip?.audio)))
+				isDefaultAudio(onlyClip?.audio) &&
+				(onlyClip?.speed ?? 1) === 1))
 	)
 }

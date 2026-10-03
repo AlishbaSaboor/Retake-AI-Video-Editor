@@ -490,7 +490,7 @@ test("a clip's volume applies on top of a re-recorded take, which keeps its leve
 		)
 	}
 	const full = await strengths()
-	const slider = page.getByRole('region', { name: 'Clip sound' }).getByRole('slider')
+	const slider = page.getByRole('region', { name: 'Clip sound and speed' }).getByRole('slider')
 	await slider.fill('50')
 	await slider.blur()
 	const half = await strengths()

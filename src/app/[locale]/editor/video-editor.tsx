@@ -9,7 +9,7 @@ import { AnnotationLayer } from './annotation-layer'
 import { AnnotationPanel, useAnnotationTools } from './annotation-panel'
 import type { Annotation, NewAnnotation, Rect } from './annotations'
 import { keptSeconds, mergeCuts, planCleanup, type Cut, type Edit } from './cleanup'
-import { DEFAULT_CLIP_AUDIO, isDefaultAudio, type ClipAudio } from './clip-audio'
+import { DEFAULT_CLIP_AUDIO, type ClipAudio } from './clip-audio'
 import { ClipAudioPanel } from './clip-audio-panel'
 import { CleanupBar } from './cleanup-bar'
 import { ClipStrip } from './clip-strip'
@@ -60,11 +60,14 @@ import { SpeedToggle } from './speed-toggle'
 import { Timeline } from './timeline'
 import {
 	canSplitAt,
+	clampSpeed,
+	clipHasTake,
 	mergeClips,
 	moveClip,
 	playableSegments,
 	splitClipAt,
 	wholeTake,
+	withClipSettings,
 	type Clip,
 	type SourceRange
 } from './sequence'
@@ -612,17 +615,26 @@ export function VideoEditor() {
 	function setClipsAudio(audio: (clip: Clip, index: number) => ClipAudio | undefined) {
 		recordEdit()
 		setClips(
-			sequence.map((clip, index) => {
-				const next = audio(clip, index) ?? clip.audio
-				return isDefaultAudio(next)
-					? { id: clip.id, ranges: clip.ranges }
-					: { ...clip, audio: next }
-			})
+			sequence.map((clip, index) =>
+				withClipSettings(clip, audio(clip, index) ?? clip.audio, clip.speed)
+			)
 		)
 	}
 
 	function changeClipAudio(index: number, audio: ClipAudio) {
 		setClipsAudio((_, i) => (i === index ? audio : undefined))
+	}
+
+	/** Sets clips' speeds (null: every clip), one undo step; clips with a take keep theirs. */
+	function setClipsSpeed(speed: number, clipIndex: number | null) {
+		recordEdit()
+		setClips(
+			sequence.map((clip, index) =>
+				(clipIndex === null || index === clipIndex) && !clipHasTake(clip, replacements)
+					? withClipSettings(clip, clip.audio, clampSpeed(speed))
+					: clip
+			)
+		)
 	}
 
 	function changeTransform(next: PictureTransform) {
@@ -676,7 +688,8 @@ export function VideoEditor() {
 		sentenceAt,
 		transform,
 		picture: pictureSize,
-		clipAudio: sequence.map((clip) => clip.audio ?? DEFAULT_CLIP_AUDIO)
+		clipAudio: sequence.map((clip) => clip.audio ?? DEFAULT_CLIP_AUDIO),
+		clipTakes: sequence.map((clip) => clipHasTake(clip, replacements))
 	}
 
 	// Each runs what its button does, so each edit is the same one undo step.
@@ -730,6 +743,9 @@ export function VideoEditor() {
 				break
 			case 'clipAudio':
 				setClipsAudio((_, index) => plan.audio[index])
+				break
+			case 'clipSpeed':
+				setClipsSpeed(plan.speed, plan.clip === null ? null : plan.clip - 1)
 				break
 			case 'watermark':
 				if (watermark) moveWatermark(plan.corner)
@@ -951,7 +967,13 @@ export function VideoEditor() {
 				/>
 			)}
 			{video && hasDuration && (
-				<ClipAudioPanel clips={sequence} canEdit={!showOriginal} onChange={changeClipAudio} />
+				<ClipAudioPanel
+					clips={sequence}
+					withTake={sequence.map((clip) => clipHasTake(clip, replacements))}
+					canEdit={!showOriginal}
+					onChange={changeClipAudio}
+					onSpeedChange={(index, speed) => setClipsSpeed(speed, index)}
+				/>
 			)}
 			{video && hasDuration && picture && (
 				<TransformPanel

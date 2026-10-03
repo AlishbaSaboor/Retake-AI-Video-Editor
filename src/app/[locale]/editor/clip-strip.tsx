@@ -169,6 +169,11 @@ export function ClipStrip({
 							</span>
 							<span className="text-text-muted font-mono text-xs">
 								{formatTimecode(playedSeconds)}
+								{clip.speed !== undefined && (
+									<span className="text-accent ml-1.5 font-semibold">
+										{t('speed', { speed: clip.speed })}
+									</span>
+								)}
 							</span>
 						</li>
 					)

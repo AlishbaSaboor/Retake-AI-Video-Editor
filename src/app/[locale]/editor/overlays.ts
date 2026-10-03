@@ -95,7 +95,7 @@ export function editedSecondsAt(
 	const segment = segments[index]
 	if (!segment) return null
 	const before = segments.slice(0, index).reduce((sum, s) => sum + segmentSeconds(s), 0)
-	return before + sourceSeconds - segment.startSeconds
+	return before + (sourceSeconds - segment.startSeconds) / (segment.rate ?? 1)
 }
 
 /**
