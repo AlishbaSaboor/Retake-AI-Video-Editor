@@ -34,8 +34,8 @@ session with no memory of it can carry on. Read this whole file, then
 >   its own time in an Annotations lane; eraser; preview, Edited view and
 >   export; one undo step per change; typed "box"/"blur" commands. **Not
 >   built (the user picked the slice):** the freehand pencil, text color, a
->   text command. The new command shapes are **not yet checked against real
->   Gemini** (no spend approved for it).
+>   text command. Both new command shapes and a refusal were checked against
+>   real Gemini (3 calls, $0.001, approved).
 > - **Every editor action as a typed command** (section 3g, `4a7186d`): split, merge,
 >   move, clean-up, undo/redo/reset, preview speed, re-record (opens the
 >   panel or says why not) and export, each confirmed first; all 18 command
@@ -695,9 +695,20 @@ endSeconds }` plus `color` (box) or `text`. `rect` is fractions of the
   `full`, the default). Times in the edited video; no end runs to its end.
   A box from a command is black (no color in the schema). The prompt gained
   four lines, so each command's input tokens (and cost) rise a little.
-  **Not checked against real Gemini:** this task had no spend approved.
-  Checking the two shapes plus a regression command is ~3 calls,
-  ~$0.001.
+- **Checked against real Gemini** (2026-10-03, approved), through the app
+  on a 7.9 s test video, with only the command parse reaching the server:
+
+  | Command                                          | Parsed and shown                                                  | `ai_usage` row          |
+  | ------------------------------------------------ | ----------------------------------------------------------------- | ----------------------- |
+  | "blur the top-right corner from 1 to 2 seconds"  | blur, top-right, 0:01–0:02; applied: lane bar "Blur 1, 0:01–0:02" | 76, `ok`, 300 micro-USD |
+  | "cover the bottom half with a box"               | black box, bottom half, 0:00 to the end                           | 77, `ok`, 341 micro-USD |
+  | "blur the top-left corner from 20 to 25 seconds" | refused: "That range isn't in this clip.", no Apply               | 78, `ok`, 359 micro-USD |
+
+  Total 1,000 micro-USD ($0.001). Input tokens are now ~540 a command (was
+  ~438), from the four new prompt lines, so **each command costs ~300–360
+  micro-USD**. Script: `live-annotate.cjs` in session `de7ea219-…`'s
+  scratchpad.
+
 - The reset confirmation now names graphics and annotations among what it
   removes.
 
