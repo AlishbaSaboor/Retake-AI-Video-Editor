@@ -160,12 +160,9 @@ export function useSequencePlayback(
 			const level = clipLevelRef.current?.element === element ? clipLevelRef.current.gain : null
 			if (!level) return null
 			const audio = playing?.audio
-			const target = audio
-				? clipGainAt(
-						audio,
-						audio.offsetSeconds + element.currentTime - (playing?.startSeconds ?? 0)
-					)
-				: 1
+			// Played seconds into the segment: a sped clip's fades are in output time.
+			const into = (element.currentTime - (playing?.startSeconds ?? 0)) / (playing?.rate ?? 1)
+			const target = audio ? clipGainAt(audio, audio.offsetSeconds + into) : 1
 			level.gain.setTargetAtTime(target, level.context.currentTime, LEVEL_SMOOTHING_SECONDS)
 			return level
 		}
@@ -209,6 +206,9 @@ export function useSequencePlayback(
 				// Entering (or resuming inside) a re-recorded segment starts its take
 				// from the matching point; anywhere else, no take plays.
 				const playing = segments[playingIndexRef.current ?? -1]
+				// The clip's own speed times the preview's, set as each segment begins.
+				const wanted = rate * (playing?.rate ?? 1)
+				if (element.playbackRate !== wanted) element.playbackRate = wanted
 				const clipLevel = followClipLevel(element, playing)
 				const replacement = playing?.voiceOver?.replacement
 				if (replacement && !element.paused && voiceRef.current?.replacement !== replacement) {
@@ -235,12 +235,16 @@ export function useSequencePlayback(
 		return () => cancelAnimationFrame(frame)
 	}, [isPlaying, segments, rate, videoRef, onTime, onStop])
 
-	// The preview speed on the video. After every render, not on change only:
-	// a new video element starts at 1×, and the rate must be set before play
-	// starts, not on the first frame after it.
+	// The preview speed (times the playing clip's own) on the video, its pitch
+	// kept. After every render, not on change only: a new video element starts
+	// at 1×, and the rate must be set before play starts, not on the first
+	// frame after it.
 	useEffect(() => {
 		const element = videoRef.current
-		if (element && element.playbackRate !== rate) element.playbackRate = rate
+		if (!element) return
+		element.preservesPitch = true
+		const wanted = rate * (segments[playingIndexRef.current ?? -1]?.rate ?? 1)
+		if (element.playbackRate !== wanted) element.playbackRate = wanted
 	})
 
 	// The take and its audio context go with the editor.

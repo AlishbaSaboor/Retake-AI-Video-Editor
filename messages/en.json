@@ -58,7 +58,8 @@
 			"clipLabel": "Clip {number}: plays {duration}, from {source} of the take",
 			"reorderHint": "Drag a clip, or press Alt+← / Alt+→ on it, to change the order.",
 			"merge": "Merge clips",
-			"selectionHint": "Click a clip to select it, Shift+click to select a run of clips to merge."
+			"selectionHint": "Click a clip to select it, Shift+click to select a run of clips to merge.",
+			"speed": "{speed}×"
 		},
 		"transcript": {
 			"title": "Transcript",
@@ -90,7 +91,7 @@
 				"undo": "I'll undo the last change.",
 				"redo": "I'll redo the change you undid.",
 				"reset": "I'll reset to the original take, removing every edit. Undo brings them back.",
-				"speed": "I'll preview at {rate}×. The export stays at normal speed.",
+				"speed": "I'll preview at {rate}×. The export isn't affected: to change a clip's real speed, say “make clip 2 play at 2x”.",
 				"rerecord": "I'll open the re-record panel for “{text}” at {at}.",
 				"export": "I'll export the edit as a video file. It takes as long as the edit plays.",
 				"box": "I'll cover the {region} with a black box from {start} to {end}. It stays in place: it won't follow anything that moves.",
@@ -111,7 +112,9 @@
 				"fade_in": "I'll fade {which} in over its first {seconds} s.",
 				"fade_out": "I'll fade {which} out over its last {seconds} s.",
 				"apply": "Apply",
-				"cancel": "Cancel"
+				"cancel": "Cancel",
+				"clipSpeed": "I'll make {which} play at {speed}×, in the preview and the export, its pitch kept.",
+				"clipSpeedSkipping": "I'll make every clip play at {speed}×, in the preview and the export, its pitch kept. Clips with a re-recorded sentence stay at 1×."
 			},
 			"failed": "Couldn't run that command",
 			"clipNumber": "clip {number}",
@@ -157,7 +160,8 @@
 				"fillerCut": "Cut a single filler word by ear: click its flag on the timeline",
 				"compare": "Compare the edit with the original: Edited / Original above the player",
 				"annotations": "Draw boxes, blurs, pixelates and text on the video, then move, resize and retime them: Annotations, under the clips",
-				"transformByHand": "Drag a crop box or a rotation handle on the video: Picture, under the clips"
+				"transformByHand": "Drag a crop box or a rotation handle on the video: Picture, under the clips",
+				"clipSpeed": "Make a clip really play faster or slower: “make clip 2 play at 2x”, “slow the last clip to half speed”"
 			},
 			"refused": {
 				"no_such_clip": "There's no clip with that number. The Clips strip numbers them from 1.",
@@ -171,7 +175,9 @@
 				"no_sentence": "I can't find a sentence at that time in the transcript.",
 				"nothing_to_export": "Nothing plays in this edit, so there's nothing to export.",
 				"nothing_to_uncrop": "The video isn't cropped.",
-				"cannot_rerecord": "I can't re-record that sentence yet."
+				"cannot_rerecord": "I can't re-record that sentence yet.",
+				"unsupported_clip_speed": "A clip can play from 0.25× to 4×.",
+				"speed_with_take": "That clip has a re-recorded sentence, which plays as recorded, so its speed stays 1×."
 			},
 			"out_of_range": {
 				"title": "That range isn't in this clip.",
@@ -273,13 +279,15 @@
 			"end": "{name} end"
 		},
 		"clipAudio": {
-			"label": "Clip sound",
+			"label": "Clip sound and speed",
 			"clip": "Clip {number}",
 			"volume": "Volume {percent}%",
 			"mute": "Mute",
 			"fadeIn": "Fade in (s)",
 			"fadeOut": "Fade out (s)",
-			"hint": "Fades run over each clip's own playing time, cuts skipped. A re-recorded sentence keeps its own level matching; the clip's volume and fades apply on top. Over 100% can clip loud speech."
+			"hint": "Fades run over each clip's own playing time, cuts skipped. A re-recorded sentence keeps its own level matching; the clip's volume and fades apply on top. Over 100% can clip loud speech. Speed is 0.25× to 4×, the pitch kept; a clip with a re-recorded sentence stays at 1×.",
+			"speed": "Speed (×)",
+			"speedWithTake": "This clip has a re-recorded sentence, which plays as recorded: its speed stays 1×."
 		},
 		"transform": {
 			"label": "Picture",
@@ -330,7 +338,8 @@
 				"no_gap_after": "There is no clear pause after this sentence, so the join can’t be placed automatically. You can set it by ear.",
 				"trimmed": "Part of this sentence is trimmed away. Move the trim handles to include all of it first.",
 				"split": "This sentence is split between two clips. Merge them first.",
-				"overlaps": "This sentence overlaps one you’ve already re-recorded."
+				"overlaps": "This sentence overlaps one you’ve already re-recorded.",
+				"sped": "This sentence is in a sped-up or slowed clip. Set the clip back to 1× to re-record it."
 			},
 			"record": "Record",
 			"recordAgain": "Record again",

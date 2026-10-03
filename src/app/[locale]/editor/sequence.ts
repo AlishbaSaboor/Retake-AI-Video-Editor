@@ -8,8 +8,42 @@ import { DEFAULT_CLIP_AUDIO, isDefaultAudio, type ClipAudio, type SegmentAudio }
 // anything. Trim and cuts still decide what's removed, on top of this.
 
 export type SourceRange = { startSeconds: number; endSeconds: number }
-/** `audio` is the clip's volume, mute and fades; absent means as recorded. */
-export type Clip = { id: string; ranges: SourceRange[]; audio?: ClipAudio }
+/**
+ * `audio` is the clip's volume, mute and fades; `speed` how fast it really
+ * plays (0.25 to 4, pitch kept). Absent means as recorded.
+ */
+export type Clip = { id: string; ranges: SourceRange[]; audio?: ClipAudio; speed?: number }
+
+/** The slowest and fastest a clip may play: what the browser keeps sound and pitch for. */
+export const MIN_CLIP_SPEED = 0.25
+export const MAX_CLIP_SPEED = 4
+
+export function clampSpeed(speed: number): number {
+	return Math.min(MAX_CLIP_SPEED, Math.max(MIN_CLIP_SPEED, speed))
+}
+
+/** A clip with its sound and speed set, each left off when as recorded. */
+export function withClipSettings(
+	clip: Clip,
+	audio: ClipAudio | undefined,
+	speed: number | undefined
+): Clip {
+	return {
+		id: clip.id,
+		ranges: clip.ranges,
+		...(audio && !isDefaultAudio(audio) && { audio }),
+		...(speed !== undefined && speed !== 1 && { speed })
+	}
+}
+
+/** Whether a re-recorded take plays inside the clip: its speed then can't change. */
+export function clipHasTake(clip: Clip, replacements: readonly Replacement[]): boolean {
+	return replacements.some(({ span }) =>
+		clip.ranges.some(
+			(range) => span.startSeconds < range.endSeconds && span.endSeconds > range.startSeconds
+		)
+	)
+}
 
 /**
  * A span of the source whose sound a re-recorded take replaces. The span's
@@ -24,6 +58,8 @@ export type Segment<R extends Replacement = Replacement> = SourceRange & {
 	voiceOver?: { replacement: R; holdSeconds: number }
 	/** Its clip's volume and fades, and where in the clip it falls; absent at full, unfaded volume. */
 	audio?: SegmentAudio
+	/** How fast its clip plays; absent at 1. Its source plays (end - start) / rate seconds. */
+	rate?: number
 }
 
 /** Shortest piece a split may leave on either side, so no clip is a sliver. */
@@ -83,7 +119,8 @@ export function splitClipAt(
 			...clip.ranges.slice(0, rangeIndex),
 			{ startSeconds: range.startSeconds, endSeconds: seconds }
 		],
-		...(audio && { audio: { ...audio, fadeOutSeconds: 0 } })
+		...(audio && { audio: { ...audio, fadeOutSeconds: 0 } }),
+		...(clip.speed !== undefined && { speed: clip.speed })
 	}
 	const after: Clip = {
 		id: newId(),
@@ -91,7 +128,8 @@ export function splitClipAt(
 			{ startSeconds: seconds, endSeconds: range.endSeconds },
 			...clip.ranges.slice(rangeIndex + 1)
 		],
-		...(audio && { audio: { ...audio, fadeInSeconds: 0 } })
+		...(audio && { audio: { ...audio, fadeInSeconds: 0 } }),
+		...(clip.speed !== undefined && { speed: clip.speed })
 	}
 	return [...clips.slice(0, clipIndex), before, after, ...clips.slice(clipIndex + 1)]
 }
@@ -131,7 +169,13 @@ export function mergeClips(clips: Clip[], from: number, to: number): Clip[] {
 			: undefined
 	return [
 		...clips.slice(0, from),
-		{ id: first.id, ranges, ...(audio && !isDefaultAudio(audio) && { audio }) },
+		{
+			id: first.id,
+			ranges,
+			...(audio && !isDefaultAudio(audio) && { audio }),
+			// The first clip's speed: the merged clip plays at one.
+			...(first.speed !== undefined && { speed: first.speed })
+		},
 		...clips.slice(to + 1)
 	]
 }
@@ -198,7 +242,14 @@ export function playableSegments<R extends Replacement>(
 	replacements: readonly R[] = []
 ): Segment<R>[] {
 	return clips.flatMap((clip) => {
-		const pieces = clip.ranges.flatMap((range) => keptPieces(range, edit, replacements))
+		const kept = clip.ranges.flatMap((range) => keptPieces(range, edit, replacements))
+		const rate = clip.speed
+		// A take always plays at 1×, its pitch and length as recorded, even if a
+		// merge has put it in a sped clip.
+		const pieces =
+			rate === undefined || rate === 1
+				? kept
+				: kept.map((piece) => (piece.voiceOver ? piece : { ...piece, rate }))
 		const audio = clip.audio
 		if (!audio || isDefaultAudio(audio)) return pieces
 		const clipSeconds = pieces.reduce((sum, piece) => sum + segmentSeconds(piece), 0)
@@ -213,7 +264,10 @@ export function playableSegments<R extends Replacement>(
 
 /** How long a segment plays for, including any frame held under a longer take. */
 export function segmentSeconds(segment: Segment): number {
-	return segment.endSeconds - segment.startSeconds + (segment.voiceOver?.holdSeconds ?? 0)
+	return (
+		(segment.endSeconds - segment.startSeconds) / (segment.rate ?? 1) +
+		(segment.voiceOver?.holdSeconds ?? 0)
+	)
 }
 
 /** How long one clip plays for, after trim, cuts and replacements. */

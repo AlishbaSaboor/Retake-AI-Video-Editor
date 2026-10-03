@@ -6,7 +6,7 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **Read this first: where things stand right now**
 >
-> - Branch `main`. Updated 2026-10-03.
+> - Branch `main`. Updated 2026-10-04.
 > - **Full undo/redo** (section 3c, `f3c0de5`): Undo and Redo buttons,
 >   Ctrl+Z and Ctrl+Shift+Z / Ctrl+Y, a 50-step history over trim, cuts,
 >   clips and re-recorded takes.
@@ -29,6 +29,11 @@ session with no memory of it can carry on. Read this whole file, then
 > - **A failed AI call now records why** (section 3g): `error_type` and
 >   `error_status` in the `ai_usage` row's `meta`, never the message. Checked
 >   with a real failed Gemini call (row 74, `ApiError`, 400, no spend).
+> - **Clip speed** (section 3m): a clip really plays 0.25× to 4× in the
+>   preview, the Edited view and the export, its pitch kept (measured 440 Hz
+>   at 2× and ½×); the edit's length, captions and fades follow. A clip with
+>   a re-recorded sentence stays at 1×. Typed commands checked against real
+>   Gemini (9 calls, $0.0037); a command is now ~487 input tokens.
 > - **Clip volume and fades** (section 3l): volume 0–200%, mute, fade in and
 >   out per clip, in the preview (through a Web Audio gain) and the export;
 >   a re-recorded take keeps its level matching with the clip's on top.
@@ -186,8 +191,9 @@ separate `chore(logs)` commit.
 | Set a re-recorded sentence's joins by ear when it has no clean pause                                                       | `feat(editor): set a sentence's joins by ear when it has no clean pause` | Unit tests (`sentence-splice.test.mts`): a run-on sentence is refused and its joins start at the nearest dips; a side with a pause starts in it as an automatic splice would; bounds (a second either side, inside what plays, fenced by cuts and spans beside it, not by a cut inside); moving a join clamps to bounds and a 0.2 s minimum; a by-ear splice replaces exactly the joins and its take is its own speech; the views. Command: a no-pause sentence now opens the panel, a split one is still refused. e2e (`re-record-by-ear.spec.ts`, fake mic): refused, Set the join by ear, the warning line, Record enabled; the start join on a 20 ms dip; 10 ms arrow steps; the end join stops at 4.0 s and at its view's start; Play around the start plays that view and stops; record (0.8 s), apply; the export has 880 Hz only between the joins, 440 Hz either side, length within 0.25 s; Undo/Redo; reopening restores the joins. Real seam on `Cap.mp4`: section 3j. Full e2e 32/32 three times (with logging) and twice clean.                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Picture transforms (crop, rotate, flip) and pixelate, by hand or typed command                                             | `feat(editor): crop, rotate and flip the picture, and pixelate`          | Unit tests (`transform.test.mts`): identity; angles fold into (-180, 180]; a quarter turn swaps the frame and maps corners exactly, 15° frames the whole picture; flips, then flip-and-turn; crop size, shift and inverse; presets centred and refitted after a turn; resize keeps a preset shape; even canvas sizes. Commands (`edit-command.test.mts`): rotate is relative and folds, flip toggles (horizontal by default), crop presets and none, pixelate. A transform counts for reset. e2e (`transform.spec.ts`, real exports, one test at a time): rotate right 90° exports 180×320 with the square where a quarter turn puts it; flipped, it moves to its mirror place and the pinned red box turns with the picture; 1:1 crop exports 180×180; the preview's square is within 0.04 of the export's in each; the title's text runs across the middle of the cropped frame; one undo step each, reset clears. 15° exports 356×256 with black corners; the handle dragged a quarter round commits ~90° (undoable), arrow keys 1°. Pixelate leaves block-wide blended runs at the square's edges only in its time. Commands rotate, flip, crop, pixelate, one undo step each. Mutations: the export ignoring the turn and flip fails it; the preview turning the wrong way fails it. Real footage: `Cap.mp4` turned 90° and cropped 9:16 exports 1080×1920, 108.84 s, its frame correlating 0.98 with the preview's (upside down: -0.02). Full e2e 36/36 twice. |
 | Clip volume (0–200%), mute, and fade in and out, by hand or typed command                                                  | `feat(editor): clip volume, mute and fades`                              | Unit tests (`clip-audio.test.mts`): gain is the volume, 0 muted; fades are straight lines from and to silence, overlapping ones meet where they cross; a segment schedules its part of the envelope on the audio clock (whole clip, a later segment, overlapping fades); segments carry their clip's sound and offset, cuts skipped; a split shares it (fades stay at the ends) and merging back restores it; clip sound counts for reset. Commands (`edit-command.test.mts`): volume on a clip or all, capped at 200%; louder ×1.5; mute one clip; no such clip; fade out on the last clip and fade in on the first by default, 1 s unless timed. e2e (`audio.spec.ts`, real exports): clip at 50% measured 0.49–0.50 of the tone, muted under 0.02, 200% ~2.0; undo, redo, reset. Fades: levels 0.244/0.492/0.748/0.996 up and 0.771/0.512/0.265 down against 0.25/0.5/0.75/1 (fade out ~20 ms late); the preview's level rises from near 0 through ½ to 1. A take (`re-record.spec.ts`): at 50% both the original's 440 Hz and the take's 880 Hz halve and their ratio holds. Commands mute, fade out, louder, one undo step each. Mutations: no envelope in the export fails the level test; a take bypassing the clip level fails the take test. Full e2e 40/40 twice.                                                                                                                                                                                          |
+| Clip speed, 0.25× to 4×, pitch kept, by hand or typed command                                                              | `feat(editor): clip speed`                                               | Unit tests (`clip-speed.test.mts`): a sped clip plays length / speed, the others unchanged, 1× carries nothing; edited time at a source time divides by the speed; captions in a 2× clip run at 2×; a take in a sped clip still plays at 1×; fades use played time; split keeps the speed, merge takes the first clip's; clamp 0.25–4 and 1× leaves no trace (and resetting sound keeps speed); a clip with a take is detected and a sentence in a sped clip is blocked from re-recording (`sped`); speed counts for reset. Commands: one clip or every clip; 8× and 0.1× refused, not clamped; no such clip; a clip with a take refuses, every clip skips it (or refuses if all have one); the preview `speed` command unchanged. e2e (`clip-speed.spec.ts`, real exports): clip 2 at 2× exports 2.966–2.999 s for 3 s; clip 1 at ½× too, 5.029–5.131 s for 5 s; pitch 440 Hz at every probe; undo, redo, reset. Preview: `playbackRate` 0.5 in the ½× clip and 2 in the 2× one, `preservesPitch` on; the Original view plays at 1. Captions: "Second line." (2.3–3.1 s of source) in a 2× clip from 2 s shows at 2.35 s and is gone by 2.8 s of the 3 s export. Commands (mocked): "make clip 2 play at 2x", "slow the last clip to half speed", 8× refused, one undo step each. Mutation: the export without `preservesPitch` reads 880 Hz at 2× and fails. Full e2e 44/44 twice.                                                                                 |
 
-**Current totals:** 273 unit tests (`src/**/*.test.mts`) and 40 e2e tests.
+**Current totals:** 284 unit tests (`src/**/*.test.mts`) and 44 e2e tests.
 Everything passes locally. On the meter commit the full e2e suite passed
 18/18 in each of two runs.
 
@@ -1095,6 +1101,58 @@ fadeOutSeconds }` on the clip itself (`Clip.audio`, absent when as
 
 ---
 
+## 3m. Clip speed
+
+- **Model** (`sequence.ts`): `Clip.speed`, 0.25 to 4 (`MIN_CLIP_SPEED`,
+  `MAX_CLIP_SPEED`, `clampSpeed`), absent at 1, so it's in every snapshot:
+  one undo step per change, and reset clears it. `playableSegments` puts the
+  clip's speed on each of its segments (`Segment.rate`); `segmentSeconds`
+  is `(end - start) / rate` (+ any held frame), so everything built on it
+  follows: the edited length, the clip strip's widths, `editedSecondsAt`,
+  captions (`editedWord` scales by the segment's played length), and the
+  clip's fades (`SegmentAudio.clipSeconds` and offsets, in played time).
+- **Source time is unchanged:** the transcript, trim, cuts, splits and
+  re-record spans stay in source seconds. Annotations and the title stay at
+  their edited times (they belong to the output, as before).
+- **Pitch kept** (`preservesPitch`, also the browser default). Probed in
+  bundled Chromium and Chrome: a `<video>` keeps its sound from 0.25× to 4×,
+  440 Hz stays 434–445 Hz; with pitch keeping off it scales (113 Hz at
+  0.25×, 1758 Hz at 4×). Chosen over letting pitch change because speech
+  at 2× with chipmunk pitch is rarely what anyone wants.
+- **Export:** the offscreen video plays each segment at its rate, recorded
+  in real time, so a sped-up clip exports faster than its source and a
+  slowed one slower (export time = edited length). At 4× the browser must
+  decode four times as many frames; a 1080p source may drop frames there
+  (not measured on long 1080p video yet).
+- **Preview:** `playbackRate` is the preview speed times the playing clip's
+  speed, set each frame as a segment begins and after every render. The
+  Original view is the untouched take at 1× (times the preview speed).
+- **Re-recorded takes** play at 1× as recorded: re-recording a sentence in
+  a sped clip is blocked (`sped`: "set the clip back to 1×"), the Speed
+  field is disabled for a clip with a take, and a take that a merge puts
+  in a sped clip still plays at 1× (its segment carries no rate).
+- **Split and merge:** both halves keep the speed; a merge plays at the
+  first clip's.
+- **UI:** the clip panel is now "Clip sound and speed", with a Speed (×)
+  field per clip (0.05 steps; on Enter or leaving the field). The clip
+  strip shows a sped clip's speed ("2×") next to its played length.
+- **Commands:** `clip_speed` (`rate` 0.25–4, `fromClip`, null: every
+  clip). Out of range is refused ("A clip can play from 0.25× to 4×"), not
+  clamped. A clip with a take refuses; every clip skips such clips and
+  says so. The prompt now gives the clip count, so "the last clip"
+  resolves; `speed` stays the preview rate ("play at 2x"), and its confirm
+  points to the clip command.
+- **Real Gemini, 2026-10-04 (approved with the feature):** "make clip 2
+  play at 2x" (clip 2, 2×), "slow the last clip to half speed" (clip 3 of
+  3, 0.5×), "speed the whole video up to 1.5x" (every clip), "make clip 1
+  play at 8 times speed" (refused), and the regressions "play at 2x"
+  (preview), "mute clip 2", "cut from 2 to 5 seconds", "move clip 3 to the
+  start", "make the colours warmer" (unsupported): all right. Rows 104–112,
+  9 calls, 3,683 micro-USD ($0.0037); input ~487 tokens (was ~416), **a
+  command now costs ~410–424 micro-USD**.
+
+---
+
 ## 4. Unresolved issues
 
 ### 4a. The command-test regression from earlier instructions is solved
@@ -1478,6 +1536,7 @@ This explains the e2e export-length failures in section 4c (0.39 s long,
     is the last ear check.
 18. ~~Picture transforms (crop, rotate, flip) and pixelate~~: done (section 3k).
 19. ~~Clip volume, mute and fades~~: done (section 3l).
+20. ~~Clip speed~~: done (section 3m).
 
 Not yet queued by the user:
 

@@ -3,6 +3,7 @@ import { regionRect, REGIONS, type NewAnnotation, type Region } from './annotati
 import { clampVolume, DEFAULT_FADE_SECONDS, VOLUME_STEP, type ClipAudio } from './clip-audio'
 import { CORNERS, type Corner, type TitleCard } from './overlays'
 import { PREVIEW_RATES } from './preview-speed'
+import { MAX_CLIP_SPEED, MIN_CLIP_SPEED } from './sequence'
 import {
 	aspectRatio,
 	centredCrop,
@@ -51,6 +52,7 @@ const ACTIONS = [
 	'unmute',
 	'fade_in',
 	'fade_out',
+	'clip_speed',
 	'unsupported'
 ] as const
 const FLIP_AXES = ['horizontal', 'vertical'] as const
@@ -154,6 +156,8 @@ export type CommandPlan =
 	| { kind: 'annotation'; region: Region; annotation: NewAnnotation }
 	| { kind: 'transform'; transform: PictureTransform; change: TransformChange }
 	| { kind: 'clipAudio'; audio: ClipAudio[]; change: AudioChange }
+	/** `clip` counts from 1, null for every clip; `skipsTakes`: some clips keep 1× for their take. */
+	| { kind: 'clipSpeed'; clip: number | null; speed: number; skipsTakes: boolean }
 
 /** Why a command can't be done; each has its own plain answer. */
 export type RefusalReason =
@@ -167,6 +171,8 @@ export type RefusalReason =
 	| 'nothing_to_redo'
 	| 'nothing_to_reset'
 	| 'unsupported_speed'
+	| 'unsupported_clip_speed'
+	| 'speed_with_take'
 	| 'no_sentence'
 	| 'nothing_to_export'
 	| 'nothing_to_uncrop'
@@ -190,6 +196,8 @@ export type CommandContext = {
 	canReset: boolean
 	/** Each clip's volume, mute and fades now, in clip order. */
 	clipAudio: ClipAudio[]
+	/** Per clip, whether a re-recorded take plays in it: its speed stays 1×. */
+	clipTakes: boolean[]
 	/** The picture's flip, rotation and crop now, and the source picture's size. */
 	transform: PictureTransform
 	picture: Size
@@ -281,6 +289,8 @@ export function commandToPlan(command: EditCommand, context: CommandContext): Co
 		case 'fade_in':
 		case 'fade_out':
 			return audioCommand(command, context)
+		case 'clip_speed':
+			return clipSpeedCommand(command, context)
 		case 'rotate': {
 			if (command.degrees === null || normalizeDegrees(command.degrees) === 0) {
 				return refuse('unsupported')
@@ -415,6 +425,34 @@ function audioCommand(command: EditCommand, context: CommandContext): CommandOut
 			})
 		}
 	}
+}
+
+/**
+ * A clip's real speed, 0.25× to 4×: a named clip, or every clip. Out of
+ * range is refused, not clamped: "8x" isn't quietly 4×. A clip with a
+ * re-recorded take keeps 1×.
+ */
+function clipSpeedCommand(command: EditCommand, context: CommandContext): CommandOutcome {
+	const speed = command.rate
+	if (speed === null || speed < MIN_CLIP_SPEED || speed > MAX_CLIP_SPEED) {
+		return refuse('unsupported_clip_speed')
+	}
+	const named = command.fromClip
+	if (named === null) {
+		if (context.clipTakes.every(Boolean)) return refuse('speed_with_take')
+		return plan({
+			kind: 'clipSpeed',
+			clip: null,
+			speed,
+			skipsTakes: context.clipTakes.some(Boolean)
+		})
+	}
+	if (!Number.isInteger(named) || named < 1 || named > context.clipCount) {
+		return refuse('no_such_clip')
+	}
+	return context.clipTakes[named - 1]
+		? refuse('speed_with_take')
+		: plan({ kind: 'clipSpeed', clip: named, speed, skipsTakes: false })
 }
 
 /**

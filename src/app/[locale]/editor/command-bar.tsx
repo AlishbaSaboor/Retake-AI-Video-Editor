@@ -40,7 +40,8 @@ export function CommandBar({ context, hasWatermark, onApply }: CommandBarProps) 
 		mutationFn: async (text: string) => {
 			const result = await parseEditCommand({
 				command: text,
-				durationSeconds: context.durationSeconds
+				durationSeconds: context.durationSeconds,
+				clipCount: context.clipCount
 			})
 			if (!result.ok) throw new Error(result.error)
 			return result.data

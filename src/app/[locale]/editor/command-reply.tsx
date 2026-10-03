@@ -35,7 +35,8 @@ const COMMAND_ABILITIES = [
 	'captions',
 	'annotate',
 	'transform',
-	'audio'
+	'audio',
+	'clipSpeed'
 ] as const
 const EDITOR_ABILITIES = ['fillerCut', 'compare', 'annotations', 'transformByHand'] as const
 
@@ -112,6 +113,11 @@ export function CommandReply({
 					return t(`confirm.${change.kind}`, { which, seconds: change.seconds })
 				}
 				return t(`confirm.${change.kind}`, { which })
+			}
+			case 'clipSpeed': {
+				if (plan.skipsTakes) return t('confirm.clipSpeedSkipping', { speed: plan.speed })
+				const which = plan.clip === null ? t('everyClip') : t('clipNumber', { number: plan.clip })
+				return t('confirm.clipSpeed', { which, speed: plan.speed })
 			}
 			case 'transform': {
 				const { change } = plan

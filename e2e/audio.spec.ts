@@ -11,7 +11,9 @@ test.describe.configure({ mode: 'default' })
 
 const TONE_RMS = 0.5 / Math.SQRT2
 const clipRow = (page: Page, n: number) =>
-	page.getByRole('region', { name: 'Clip sound' }).getByRole('group', { name: `Clip ${n}` })
+	page
+		.getByRole('region', { name: 'Clip sound and speed' })
+		.getByRole('group', { name: `Clip ${n}` })
 
 async function openTwoClips(page: Page) {
 	await mockActions(page, { words: [] })
