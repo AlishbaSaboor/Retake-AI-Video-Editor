@@ -1,7 +1,8 @@
 import { scheduleClipGain } from './clip-audio'
 import { drawFrame, type Overlays } from './overlays'
 import { scheduleTakeGain, type ReplacementTake } from './re-record'
-import { segmentSeconds, type Segment } from './sequence'
+import { editedLength, editedStarts, joinsOf, segmentSeconds, type Segment } from './sequence'
+import { dissolveAt, fadeLevelAt, scheduleTransitionGain } from './transitions'
 import { evenPixels, outputSize, type PictureTransform } from './transform'
 
 // Exporting re-records the edit in real time: an offscreen copy of the take
@@ -41,9 +42,9 @@ export function exportFileName(sourceName: string, mimeType: string): string {
 	return `${base}-edited.${mimeType.startsWith('video/mp4') ? 'mp4' : 'webm'}`
 }
 
-/** How long the export plays for: the segments laid end to end. */
+/** How long the export plays for: the segments laid end to end, less any dissolves' overlap. */
 export function totalSeconds(segments: Segment[]): number {
-	return segments.reduce((sum, s) => sum + segmentSeconds(s), 0)
+	return editedLength(segments)
 }
 
 // How far an export's length may drift from the edit's before the user is
@@ -135,12 +136,54 @@ async function loadLogo(overlays: Overlays): Promise<HTMLImageElement | null> {
 	return logo
 }
 
+/** One player of the take, and its sound's way into the recording. */
+type Deck = {
+	video: HTMLVideoElement
+	/** Turned to 0 under a re-recorded take. */
+	sourceSound: GainNode
+	/** The clip's volume and fades, over the source's sound and any take alike. */
+	clipLevel: GainNode
+	/** The transitions: a fade's dip, a dissolve's crossfade. */
+	mix: GainNode
+}
+
+async function openDeck(url: string, audio: AudioContext, destination: AudioNode): Promise<Deck> {
+	const video = Object.assign(document.createElement('video'), {
+		src: url,
+		preload: 'auto',
+		playsInline: true,
+		// A sped-up or slowed clip keeps its pitch (measured: 440 Hz stays
+		// 434–445 Hz from 0.25x to 4x).
+		preservesPitch: true
+	})
+	await nextEvent(video, 'loadeddata')
+	const mix = audio.createGain()
+	const clipLevel = audio.createGain()
+	const sourceSound = audio.createGain()
+	audio.createMediaElementSource(video).connect(sourceSound).connect(clipLevel)
+	clipLevel.connect(mix).connect(destination)
+	return { video, sourceSound, clipLevel, mix }
+}
+
+function closeDeck(deck: Deck) {
+	deck.video.pause()
+	deck.video.removeAttribute('src')
+	deck.video.load()
+}
+
 /**
  * Plays `segments` of the video at `url` in order and records them into one
  * file, its picture through `transform` (flipped, turned, cropped) and with
  * `overlays` drawn over it. Only call where canExport() is true.
  * `onProgress` gets the fraction done; aborting `signal` stops early and
  * rejects with its reason.
+ *
+ * Two players ("decks") of the take take turns. A dissolve needs both
+ * clips at once: the other deck is sought to the clip coming in while the
+ * one before plays, starts when the overlap does, is drawn over it fading
+ * in while the sounds crossfade, and carries on alone from the join, the
+ * recorder never pausing. Every other join pauses the recorder across the
+ * seek, as a single deck would.
  */
 export async function recordEdit(
 	url: string,
@@ -151,21 +194,19 @@ export async function recordEdit(
 ): Promise<{ blob: Blob; mimeType: string }> {
 	const mimeType = pickMimeType((type) => MediaRecorder.isTypeSupported(type))
 	if (!mimeType) throw new Error('no recordable video format')
-	const video = Object.assign(document.createElement('video'), {
-		src: url,
-		preload: 'auto',
-		playsInline: true,
-		// A sped-up or slowed clip keeps its pitch (measured: 440 Hz stays
-		// 434–445 Hz from 0.25x to 4x).
-		preservesPitch: true
-	})
 	const audio = new AudioContext()
+	const destination = audio.createMediaStreamDestination()
+	const decks: Deck[] = []
 	let recorder: MediaRecorder | null = null
 	let drawing = true
 	try {
-		await nextEvent(video, 'loadeddata')
+		const hasDissolve = segments.some((s) => s.transition?.kind === 'dissolve')
+		decks.push(await openDeck(url, audio, destination))
+		if (hasDissolve) decks.push(await openDeck(url, audio, destination))
+		let [deck, spare] = decks
+		if (!deck) throw new Error('no video')
 		const logo = await loadLogo(overlays)
-		const picture = { width: video.videoWidth, height: video.videoHeight }
+		const picture = { width: deck.video.videoWidth, height: deck.video.videoHeight }
 		const canvas = Object.assign(
 			document.createElement('canvas'),
 			evenPixels(outputSize(picture, transform))
@@ -173,22 +214,27 @@ export async function recordEdit(
 		const context = canvas.getContext('2d')
 		if (!context) throw new Error('no 2d canvas context')
 		const blurScratch = document.createElement('canvas')
+		const starts = editedStarts(segments)
+		const joins = joinsOf(segments)
 		// Where the frame being drawn is in the edited video; set per segment below.
 		let editedSeconds = () => 0
+		// The deck dissolving in over this one, while it does.
+		let incoming: Deck | null = null
 		const paint = () => {
-			drawFrame(context, video, picture, transform, overlays, editedSeconds(), logo, blurScratch)
+			if (!deck) return
+			const seconds = editedSeconds()
+			const dissolve = incoming ? dissolveAt(joins, seconds) : null
+			drawFrame(context, deck.video, picture, transform, overlays, seconds, logo, blurScratch, {
+				incoming: dissolve && incoming ? incoming.video : null,
+				incomingAlpha: dissolve?.progress ?? 0,
+				light: fadeLevelAt(joins, seconds)
+			})
 		}
 		const draw = () => {
 			paint()
 			if (drawing) requestAnimationFrame(draw)
 		}
 		draw()
-		const destination = audio.createMediaStreamDestination()
-		// The clip's volume and fades, over the source's sound and any take alike.
-		const clipLevel = audio.createGain()
-		clipLevel.connect(destination)
-		const sourceSound = audio.createGain()
-		audio.createMediaElementSource(video).connect(sourceSound).connect(clipLevel)
 		await audio.resume()
 		recorder = new MediaRecorder(
 			new MediaStream([
@@ -201,38 +247,73 @@ export async function recordEdit(
 		recorder.ondataavailable = (event) => chunks.push(event.data)
 		const stopped = nextEvent(recorder, 'stop')
 
+		/** Segment `index`'s sound from now on `on`: its clip's level and its transitions. */
+		const scheduleSound = (on: Deck, index: number) => {
+			const segment = segments[index]
+			if (!segment) return
+			const at = audio.currentTime
+			const from = starts[index] ?? 0
+			on.clipLevel.gain.cancelScheduledValues(at)
+			if (segment.audio) {
+				scheduleClipGain(on.clipLevel.gain, segment.audio, at, 0, segmentSeconds(segment), 1)
+			} else {
+				on.clipLevel.gain.setValueAtTime(1, at)
+			}
+			on.mix.gain.cancelScheduledValues(at)
+			scheduleTransitionGain(on.mix.gain, joins, index, at, from, from + segmentSeconds(segment))
+		}
+
 		const total = totalSeconds(segments)
-		let done = 0
-		for (const segment of segments) {
-			const segmentStart = done
+		// Whether the segment about to start is already playing, dissolved in.
+		let carried = false
+		for (const [index, segment] of segments.entries()) {
+			if (!deck) break
+			const playing: Deck = deck
+			const segmentStart = starts[index] ?? 0
 			const span = segment.endSeconds - segment.startSeconds
 			const rate = segment.rate ?? 1
 			editedSeconds = () =>
-				segmentStart + Math.min(span, Math.max(0, video.currentTime - segment.startSeconds)) / rate
-			video.currentTime = segment.startSeconds
-			await nextEvent(video, 'seeked')
-			// The first frame of the segment, before the recorder sees anything.
-			paint()
-			if (recorder.state === 'inactive') recorder.start()
-			else recorder.resume()
-			sourceSound.gain.value = segment.voiceOver ? 0 : 1
-			video.playbackRate = rate
-			await video.play()
-			const at = audio.currentTime
-			clipLevel.gain.cancelScheduledValues(at)
-			if (segment.audio) {
-				scheduleClipGain(clipLevel.gain, segment.audio, at, 0, segmentSeconds(segment), 1)
-			} else {
-				clipLevel.gain.setValueAtTime(1, at)
+				segmentStart +
+				Math.min(span, Math.max(0, playing.video.currentTime - segment.startSeconds)) / rate
+			if (!carried) {
+				playing.video.currentTime = segment.startSeconds
+				await nextEvent(playing.video, 'seeked')
+				// The first frame of the segment, before the recorder sees anything.
+				paint()
+				if (recorder.state === 'inactive') recorder.start()
+				else recorder.resume()
+				playing.sourceSound.gain.value = segment.voiceOver ? 0 : 1
+				playing.video.playbackRate = rate
+				await playing.video.play()
+				scheduleSound(playing, index)
 			}
+			carried = false
+			// A dissolve into the next segment: the other deck waits at its start.
+			const next = segments[index + 1]
+			const dissolving = next?.transition?.kind === 'dissolve' && spare ? spare : null
+			let ready: Promise<void> | null = null
+			if (dissolving && next) {
+				dissolving.video.currentTime = next.startSeconds
+				dissolving.video.playbackRate = next.rate ?? 1
+				dissolving.sourceSound.gain.value = 1
+				ready = nextEvent(dissolving.video, 'seeked')
+			}
+			const overlapAt = starts[index + 1] ?? Infinity
 			// Started with the picture, so the two run together from here.
-			const take = segment.voiceOver && playTake(audio, clipLevel, segment.voiceOver.replacement)
-			while (video.currentTime < segment.endSeconds && !video.ended) {
+			const take =
+				segment.voiceOver && playTake(audio, playing.clipLevel, segment.voiceOver.replacement)
+			while (playing.video.currentTime < segment.endSeconds && !playing.video.ended) {
 				signal.throwIfAborted()
-				onProgress((done + (video.currentTime - segment.startSeconds) / rate) / total)
+				onProgress(Math.min(1, editedSeconds() / total))
+				if (dissolving && ready && !incoming && editedSeconds() >= overlapAt) {
+					await ready
+					await dissolving.video.play()
+					scheduleSound(dissolving, index + 1)
+					incoming = dissolving
+				}
 				await nextFrame()
 			}
-			video.pause()
+			playing.video.pause()
 			if (take) {
 				// The picture holds its last frame while the rest of the take plays.
 				const holdStart = performance.now()
@@ -242,8 +323,14 @@ export async function recordEdit(
 					await nextFrame()
 				}
 			}
-			recorder.pause()
-			done += segmentSeconds(segment)
+			if (incoming) {
+				// The next clip is already playing: it takes over, still recording.
+				;[deck, spare] = [incoming, playing]
+				incoming = null
+				carried = true
+			} else {
+				recorder.pause()
+			}
 		}
 		recorder.stop()
 		await stopped
@@ -252,9 +339,7 @@ export async function recordEdit(
 	} finally {
 		drawing = false
 		if (recorder && recorder.state !== 'inactive') recorder.stop()
-		video.pause()
-		video.removeAttribute('src')
-		video.load()
+		for (const deck of decks) closeDeck(deck)
 		void audio.close()
 	}
 }
