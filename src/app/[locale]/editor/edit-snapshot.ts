@@ -4,6 +4,7 @@ import type { TitleCard, Watermark } from './overlays'
 import type { ReplacementTake } from './re-record'
 import type { Clip, SourceRange } from './sequence'
 import { IDENTITY_TRANSFORM, isIdentity, type PictureTransform } from './transform'
+import { isDefaultAudio } from './clip-audio'
 import type { TrimRange } from './timeline-scale'
 
 /** One step of Undo/Redo: what's trimmed, cut, arranged, re-recorded and laid over. */
@@ -56,6 +57,7 @@ export function isOriginalEdit<R>(edit: EditSnapshot<R>, durationSeconds: number
 			(otherClips.length === 0 &&
 				otherRanges.length === 0 &&
 				onlyRange !== undefined &&
-				isWhole(onlyRange)))
+				isWhole(onlyRange) &&
+				isDefaultAudio(onlyClip?.audio)))
 	)
 }

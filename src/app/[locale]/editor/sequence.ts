@@ -1,4 +1,5 @@
 import type { Edit } from './cleanup'
+import { DEFAULT_CLIP_AUDIO, isDefaultAudio, type ClipAudio, type SegmentAudio } from './clip-audio'
 
 // The take as an ordered sequence of clips. A clip is one or more ranges of
 // the source file, played in order; clips are played in sequence order.
@@ -7,7 +8,8 @@ import type { Edit } from './cleanup'
 // anything. Trim and cuts still decide what's removed, on top of this.
 
 export type SourceRange = { startSeconds: number; endSeconds: number }
-export type Clip = { id: string; ranges: SourceRange[] }
+/** `audio` is the clip's volume, mute and fades; absent means as recorded. */
+export type Clip = { id: string; ranges: SourceRange[]; audio?: ClipAudio }
 
 /**
  * A span of the source whose sound a re-recorded take replaces. The span's
@@ -20,6 +22,8 @@ export type Replacement = { span: SourceRange; takeSeconds: number }
 export type Segment<R extends Replacement = Replacement> = SourceRange & {
 	/** The take heard instead of the source, and how long the last frame is held after the range. */
 	voiceOver?: { replacement: R; holdSeconds: number }
+	/** Its clip's volume and fades, and where in the clip it falls; absent at full, unfaded volume. */
+	audio?: SegmentAudio
 }
 
 /** Shortest piece a split may leave on either side, so no clip is a sliver. */
@@ -70,19 +74,24 @@ export function splitClipAt(
 	const split = findSplit(clips, seconds, replacements)
 	if (!split) return null
 	const { clipIndex, clip, rangeIndex, range } = split
+	// Both halves keep the volume and mute; the fade in stays with the
+	// first half, the fade out with the second.
+	const audio = clip.audio
 	const before: Clip = {
 		id: newId(),
 		ranges: [
 			...clip.ranges.slice(0, rangeIndex),
 			{ startSeconds: range.startSeconds, endSeconds: seconds }
-		]
+		],
+		...(audio && { audio: { ...audio, fadeOutSeconds: 0 } })
 	}
 	const after: Clip = {
 		id: newId(),
 		ranges: [
 			{ startSeconds: seconds, endSeconds: range.endSeconds },
 			...clip.ranges.slice(rangeIndex + 1)
-		]
+		],
+		...(audio && { audio: { ...audio, fadeInSeconds: 0 } })
 	}
 	return [...clips.slice(0, clipIndex), before, after, ...clips.slice(clipIndex + 1)]
 }
@@ -112,7 +121,19 @@ export function mergeClips(clips: Clip[], from: number, to: number): Clip[] {
 			ranges.push(range)
 		}
 	}
-	return [...clips.slice(0, from), { id: first.id, ranges }, ...clips.slice(to + 1)]
+	// The merged clip keeps the first one's volume and mute and fade in,
+	// and the last one's fade out.
+	const last = clips[to]
+	const fadeOutSeconds = last?.audio?.fadeOutSeconds ?? 0
+	const audio =
+		first.audio || fadeOutSeconds
+			? { ...(first.audio ?? DEFAULT_CLIP_AUDIO), fadeOutSeconds }
+			: undefined
+	return [
+		...clips.slice(0, from),
+		{ id: first.id, ranges, ...(audio && !isDefaultAudio(audio) && { audio }) },
+		...clips.slice(to + 1)
+	]
 }
 
 /**
@@ -166,15 +187,28 @@ function keptPieces<R extends Replacement>(
 	return pieces.sort((a, b) => a.startSeconds - b.startSeconds)
 }
 
-/** Everything that plays, in playback order: each clip's ranges, trimmed, cut and re-recorded. */
+/**
+ * Everything that plays, in playback order: each clip's ranges, trimmed, cut
+ * and re-recorded. A clip with its own volume or fades marks each of its
+ * segments with them and where in the clip the segment falls.
+ */
 export function playableSegments<R extends Replacement>(
 	clips: Clip[],
 	edit: Edit,
 	replacements: readonly R[] = []
 ): Segment<R>[] {
-	return clips.flatMap((clip) =>
-		clip.ranges.flatMap((range) => keptPieces(range, edit, replacements))
-	)
+	return clips.flatMap((clip) => {
+		const pieces = clip.ranges.flatMap((range) => keptPieces(range, edit, replacements))
+		const audio = clip.audio
+		if (!audio || isDefaultAudio(audio)) return pieces
+		const clipSeconds = pieces.reduce((sum, piece) => sum + segmentSeconds(piece), 0)
+		let offsetSeconds = 0
+		return pieces.map((piece) => {
+			const marked = { ...piece, audio: { ...audio, clipSeconds, offsetSeconds } }
+			offsetSeconds += segmentSeconds(piece)
+			return marked
+		})
+	})
 }
 
 /** How long a segment plays for, including any frame held under a longer take. */

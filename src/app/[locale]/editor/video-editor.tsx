@@ -9,6 +9,8 @@ import { AnnotationLayer } from './annotation-layer'
 import { AnnotationPanel, useAnnotationTools } from './annotation-panel'
 import type { Annotation, NewAnnotation, Rect } from './annotations'
 import { keptSeconds, mergeCuts, planCleanup, type Cut, type Edit } from './cleanup'
+import { DEFAULT_CLIP_AUDIO, isDefaultAudio, type ClipAudio } from './clip-audio'
+import { ClipAudioPanel } from './clip-audio-panel'
 import { CleanupBar } from './cleanup-bar'
 import { ClipStrip } from './clip-strip'
 import { CompareToggle } from './compare-toggle'
@@ -606,6 +608,23 @@ export function VideoEditor() {
 		return outputToPicture(pictureSize, shownTransform, toFrame(clientX, clientY))
 	}
 
+	/** Clips' volume, mute and fades, all in one change. A take never split becomes one clip. */
+	function setClipsAudio(audio: (clip: Clip, index: number) => ClipAudio | undefined) {
+		recordEdit()
+		setClips(
+			sequence.map((clip, index) => {
+				const next = audio(clip, index) ?? clip.audio
+				return isDefaultAudio(next)
+					? { id: clip.id, ranges: clip.ranges }
+					: { ...clip, audio: next }
+			})
+		)
+	}
+
+	function changeClipAudio(index: number, audio: ClipAudio) {
+		setClipsAudio((_, i) => (i === index ? audio : undefined))
+	}
+
 	function changeTransform(next: PictureTransform) {
 		recordEdit()
 		setTransform(next)
@@ -656,7 +675,8 @@ export function VideoEditor() {
 		canReset: !isOriginalEdit(snapshot, durationSeconds),
 		sentenceAt,
 		transform,
-		picture: pictureSize
+		picture: pictureSize,
+		clipAudio: sequence.map((clip) => clip.audio ?? DEFAULT_CLIP_AUDIO)
 	}
 
 	// Each runs what its button does, so each edit is the same one undo step.
@@ -707,6 +727,9 @@ export function VideoEditor() {
 				break
 			case 'transform':
 				changeTransform(plan.transform)
+				break
+			case 'clipAudio':
+				setClipsAudio((_, index) => plan.audio[index])
 				break
 			case 'watermark':
 				if (watermark) moveWatermark(plan.corner)
@@ -926,6 +949,9 @@ export function VideoEditor() {
 					onMove={(from, to) => arrangeClips(moveClip(sequence, from, to))}
 					onMerge={(from, to) => arrangeClips(mergeClips(sequence, from, to))}
 				/>
+			)}
+			{video && hasDuration && (
+				<ClipAudioPanel clips={sequence} canEdit={!showOriginal} onChange={changeClipAudio} />
 			)}
 			{video && hasDuration && picture && (
 				<TransformPanel
