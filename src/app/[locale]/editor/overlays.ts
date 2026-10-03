@@ -7,7 +7,7 @@ import {
 	type ObscureKind
 } from './annotations'
 import { captionAt, type Caption } from './captions'
-import { segmentSeconds, type Segment } from './sequence'
+import { editedStarts, type Segment } from './sequence'
 import { outputSize, pictureMatrix, type PictureTransform, type Size } from './transform'
 
 // Motion graphics, v1: one title card, one watermark and captions, laid over the
@@ -94,7 +94,7 @@ export function editedSecondsAt(
 				: segments.findIndex((s) => sourceSeconds === s.endSeconds)
 	const segment = segments[index]
 	if (!segment) return null
-	const before = segments.slice(0, index).reduce((sum, s) => sum + segmentSeconds(s), 0)
+	const before = editedStarts(segments)[index] ?? 0
 	return before + (sourceSeconds - segment.startSeconds) / (segment.rate ?? 1)
 }
 
@@ -219,12 +219,21 @@ function drawAnnotations(
 }
 
 /**
+ * Mid-transition: the clip dissolving in over the picture, how far (0 to 1),
+ * and how much of the picture comes through a fade (1 all, 0 black).
+ */
+export type FrameMix = { incoming: CanvasImageSource | null; incomingAlpha: number; light: number }
+const NO_MIX: FrameMix = { incoming: null, incomingAlpha: 0, light: 1 }
+const HALF = 0.5
+
+/**
  * Draws one frame of the edited video at `seconds` onto `context`, whose
  * canvas is the output's size: black, the picture through its transform
- * (pictureMatrix), the annotations pinned to the picture with it, then the
- * captions, title and logo, which belong to the output frame, over them. A
- * blur blurs the video, not the captions. `scratch` is a spare canvas the
- * blur and pixelate work in.
+ * (pictureMatrix) with any clip dissolving in over it, the annotations
+ * pinned to the picture with it, a fade's black, then the captions, title
+ * and logo, which belong to the output frame, over them. A blur blurs the
+ * video, not the captions, and a fade takes the picture to black, not the
+ * captions. `scratch` is a spare canvas the blur and pixelate work in.
  */
 export function drawFrame(
 	context: CanvasRenderingContext2D,
@@ -234,7 +243,8 @@ export function drawFrame(
 	overlays: Overlays,
 	seconds: number,
 	logo: HTMLImageElement | null,
-	scratch: HTMLCanvasElement
+	scratch: HTMLCanvasElement,
+	mix: FrameMix = NO_MIX
 ) {
 	const { width, height } = context.canvas
 	const output = outputSize(picture, transform)
@@ -247,8 +257,20 @@ export function drawFrame(
 	context.fillRect(0, 0, width, height)
 	context.setTransform(m.a, m.b, m.c, m.d, m.e, m.f)
 	context.drawImage(source, 0, 0, picture.width, picture.height)
-	drawAnnotations(context, overlays.annotations, seconds, source, picture, transform, scratch)
+	const { incoming, incomingAlpha, light } = mix
+	if (incoming && incomingAlpha > 0) {
+		context.globalAlpha = Math.min(1, incomingAlpha)
+		context.drawImage(incoming, 0, 0, picture.width, picture.height)
+		context.globalAlpha = 1
+	}
+	// A blur samples whichever clip shows most.
+	const sampled = incoming && incomingAlpha > HALF ? incoming : source
+	drawAnnotations(context, overlays.annotations, seconds, sampled, picture, transform, scratch)
 	context.setTransform(1, 0, 0, 1, 0, 0)
+	if (light < 1) {
+		context.fillStyle = `rgba(0, 0, 0, ${1 - Math.max(0, light)})`
+		context.fillRect(0, 0, width, height)
+	}
 	drawFrameOverlays(context, overlays, seconds, logo)
 }
 

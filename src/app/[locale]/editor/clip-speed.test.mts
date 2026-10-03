@@ -170,7 +170,8 @@ const CONTEXT: CommandContext = {
 	transform: IDENTITY_TRANSFORM,
 	picture: { width: 320, height: 180 },
 	clipAudio: [DEFAULT_CLIP_AUDIO, DEFAULT_CLIP_AUDIO, DEFAULT_CLIP_AUDIO],
-	clipTakes: [false, false, false]
+	clipTakes: [false, false, false],
+	joinLimits: [0, 1, 1]
 }
 const clipSpeed = (rate: number | null, fromClip: number | null, context = CONTEXT) =>
 	commandToPlan({ ...NONE, action: 'clip_speed', rate, fromClip }, context)

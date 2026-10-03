@@ -3,25 +3,29 @@
 import { useId, useState, type KeyboardEvent } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-import { MergeIcon, SplitIcon } from '@/components/ui/icons'
+import { CopyIcon, MergeIcon, SplitIcon, TrashIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import type { Edit } from './cleanup'
-import { clipIndexAt, clipPlayedSeconds, type Clip, type Replacement } from './sequence'
+import { clipPlayedSeconds, type Clip, type Replacement } from './sequence'
 import { formatTimecode } from './timeline-scale'
 
 type ClipStripProps = {
 	clips: Clip[]
 	edit: Edit
 	replacements: readonly Replacement[]
-	currentTimeSeconds: number
+	/** The clip playing, by index: with a duplicate, a source time is in two clips. */
+	currentIndex: number
 	canSplit: boolean
 	onSplit: () => void
 	onMove: (from: number, to: number) => void
 	onMerge: (from: number, to: number) => void
+	onDelete: (from: number, to: number) => void
+	onDuplicate: (from: number, to: number) => void
 }
 
 const MOVE_KEYS: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1 }
 const SELECT_KEYS = new Set([' ', 'Enter'])
+const DELETE_KEYS = new Set(['Delete', 'Backspace'])
 
 /**
  * Selection is a run from an anchor clip to a focus clip, kept by id so it
@@ -40,14 +44,15 @@ export function ClipStrip({
 	clips,
 	edit,
 	replacements,
-	currentTimeSeconds,
+	currentIndex,
 	canSplit,
 	onSplit,
 	onMove,
-	onMerge
+	onMerge,
+	onDelete,
+	onDuplicate
 }: ClipStripProps) {
 	const t = useTranslations('Editor.clips')
-	const currentIndex = clipIndexAt(clips, currentTimeSeconds)
 	const hintId = useId()
 	const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
 	const [selection, setSelection] = useState<Selection | null>(null)
@@ -72,6 +77,12 @@ export function ClipStrip({
 			select(clip, event.shiftKey)
 			return
 		}
+		if (DELETE_KEYS.has(event.key) && clips.length > 1) {
+			event.preventDefault()
+			onDelete(index, index)
+			setSelection(null)
+			return
+		}
 		const step = MOVE_KEYS[event.key]
 		if (!event.altKey || step === undefined) return
 		event.preventDefault()
@@ -83,6 +94,9 @@ export function ClipStrip({
 		onMerge(selected.from, selected.to)
 		setSelection(null)
 	}
+
+	// Never every clip: something has to play.
+	const canDelete = selected !== null && selected.to - selected.from + 1 < clips.length
 
 	return (
 		<section
@@ -101,6 +115,28 @@ export function ClipStrip({
 					>
 						<MergeIcon />
 						{t('merge')}
+					</Button>
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={!selected}
+						onClick={() => selected && onDuplicate(selected.from, selected.to)}
+					>
+						<CopyIcon />
+						{t('duplicate')}
+					</Button>
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={!canDelete}
+						onClick={() => {
+							if (!selected) return
+							onDelete(selected.from, selected.to)
+							setSelection(null)
+						}}
+					>
+						<TrashIcon />
+						{t('delete')}
 					</Button>
 					<Button variant="outline" size="sm" disabled={!canSplit} onClick={onSplit}>
 						<SplitIcon />

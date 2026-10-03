@@ -58,10 +58,21 @@ import {
 } from './sentence-splice'
 import { SpeedToggle } from './speed-toggle'
 import { Timeline } from './timeline'
+import { TransitionPanel } from './transition-panel'
+import { fadeLevelAt, type TransitionKind } from './transitions'
 import {
 	canSplitAt,
 	clampSpeed,
 	clipHasTake,
+	clipIndexAt,
+	deleteClips,
+	isInSegment,
+	duplicateClips,
+	joinLimit,
+	joinsOf,
+	segmentClips,
+	setTransition,
+	transitionInto,
 	mergeClips,
 	moveClip,
 	playableSegments,
@@ -93,6 +104,8 @@ const overlaps = (a: SourceRange, b: SourceRange) =>
 export function VideoEditor() {
 	const t = useTranslations('Editor')
 	const videoRef = useRef<HTMLVideoElement>(null)
+	// The second player, over the first: the clip dissolving in.
+	const deckRef = useRef<HTMLVideoElement>(null)
 	const [video, setVideo] = useState<LoadedVideo | null>(null)
 	const [durationSeconds, setDurationSeconds] = useState(0)
 	const [currentTimeSeconds, setCurrentTimeSeconds] = useState(0)
@@ -238,6 +251,7 @@ export function VideoEditor() {
 						: editedSegments
 	const playback = useSequencePlayback(
 		videoRef,
+		deckRef,
 		segments,
 		isPlaying,
 		previewRate,
@@ -250,6 +264,21 @@ export function VideoEditor() {
 		segments === editedSegments
 			? editedSecondsAt(currentTimeSeconds, editedSegments, segmentIndex)
 			: null
+	// Which clip is playing, from the segment: a duplicated clip shares its source times.
+	const editedClips = segmentClips(sequence, edit, replacements)
+	// Only while that segment holds the playhead: an edit (a split) can leave
+	// the index pointing at a segment that has since changed.
+	const playingSegment = segmentIndex === null ? undefined : editedSegments[segmentIndex]
+	const currentClip =
+		segments === editedSegments &&
+		segmentIndex !== null &&
+		playingSegment &&
+		isInSegment(currentTimeSeconds, playingSegment)
+			? (editedClips[segmentIndex] ?? clipIndexAt(sequence, currentTimeSeconds))
+			: clipIndexAt(sequence, currentTimeSeconds)
+	const hasDissolve = editedSegments.some((s) => s.transition?.kind === 'dissolve')
+	// Through a fade, the picture goes to black (the captions and title stay).
+	const fadeLight = editedNow === null ? 1 : fadeLevelAt(joinsOf(editedSegments), editedNow)
 	// The preview's picture size, a 16:9 stand-in until the video's metadata is in.
 	const pictureSize = picture ?? { width: 16, height: 9 }
 	// The Original view is the untouched take. Setting a crop or a rotation by
@@ -486,8 +515,30 @@ export function VideoEditor() {
 	// Splitting never moves the playhead or changes what plays — it only
 	// divides the clip under the playhead into two that can be rearranged.
 	function splitAt(seconds: number) {
-		const next = splitClipAt(sequence, seconds, () => crypto.randomUUID(), replacements)
+		const next = splitClipAt(
+			sequence,
+			seconds,
+			() => crypto.randomUUID(),
+			replacements,
+			currentClip
+		)
 		if (next) arrangeClips(next)
+	}
+
+	function deleteClipRun(from: number, to: number) {
+		arrangeClips(deleteClips(sequence, from, to))
+	}
+
+	function duplicateClipRun(from: number, to: number) {
+		arrangeClips(duplicateClips(sequence, from, to, () => crypto.randomUUID()))
+	}
+
+	/** Sets or removes the transition into clip `index`, one undo step. */
+	function changeTransition(
+		index: number,
+		transition: { kind: TransitionKind; seconds: number } | null
+	) {
+		arrangeClips(setTransition(sequence, index, transition))
 	}
 
 	// Reorder and merge hand back the same clips when nothing moves.
@@ -680,7 +731,8 @@ export function VideoEditor() {
 		durationSeconds,
 		editedSeconds,
 		clipCount: sequence.length,
-		canSplitAt: (seconds) => canSplitAt(sequence, seconds, replacements),
+		canSplitAt: (seconds) => canSplitAt(sequence, seconds, replacements, currentClip),
+		joinLimits: sequence.map((_, index) => joinLimit(sequence, index, edit, replacements) ?? 0),
 		cleanupSeconds: removableSeconds,
 		canUndo: history.past.length > 0,
 		canRedo: history.future.length > 0,
@@ -746,6 +798,25 @@ export function VideoEditor() {
 				break
 			case 'clipSpeed':
 				setClipsSpeed(plan.speed, plan.clip === null ? null : plan.clip - 1)
+				break
+			case 'transition':
+				arrangeClips(
+					plan.joins.reduce(
+						(clips, index) =>
+							setTransition(
+								clips,
+								index,
+								plan.transition === null ? null : { kind: plan.transition, seconds: plan.seconds }
+							),
+						sequence
+					)
+				)
+				break
+			case 'deleteClip':
+				deleteClipRun(plan.clip - 1, plan.clip - 1)
+				break
+			case 'duplicateClip':
+				duplicateClipRun(plan.clip - 1, plan.clip - 1)
 				break
 			case 'watermark':
 				if (watermark) moveWatermark(plan.corner)
@@ -818,32 +889,49 @@ export function VideoEditor() {
 						transform={shownTransform}
 						frameRef={frameRef}
 						video={
-							<video
-								key={video.url}
-								ref={videoRef}
-								src={video.url}
-								controls={!pictureTransformed}
-								// One speed control: the preview speed below, not the player's own menu.
-								controlsList="noplaybackrate"
-								playsInline
-								className="absolute inset-0 block h-full w-full bg-black"
-								onLoadedMetadata={(event) => handleLoadedMetadata(event.currentTarget)}
-								onDurationChange={(event) => handleDurationChange(event.currentTarget)}
-								onTimeUpdate={(event) => handleTimeUpdate(event.currentTarget)}
-								onPlay={(event) => handlePlay(event.currentTarget)}
-								onPause={() => {
-									// Pausing on purpose to hold a frame under a longer take isn't stopping.
-									if (!playback.isHolding()) stopPlaying()
-								}}
-								onError={() => {
-									toast({
-										variant: 'destructive',
-										title: t('unplayable.title'),
-										description: t('unplayable.description', { name: video.name })
-									})
-									setVideo(null)
-								}}
-							/>
+							<>
+								<video
+									key={video.url}
+									ref={videoRef}
+									src={video.url}
+									controls={!pictureTransformed}
+									// One speed control: the preview speed below, not the player's own menu.
+									controlsList="noplaybackrate"
+									playsInline
+									className="absolute inset-0 block h-full w-full bg-black"
+									onLoadedMetadata={(event) => handleLoadedMetadata(event.currentTarget)}
+									onDurationChange={(event) => handleDurationChange(event.currentTarget)}
+									onTimeUpdate={(event) => handleTimeUpdate(event.currentTarget)}
+									onPlay={(event) => handlePlay(event.currentTarget)}
+									onPause={() => {
+										// Pausing on purpose to hold a frame under a longer take isn't stopping.
+										if (!playback.isHolding()) stopPlaying()
+									}}
+									onError={() => {
+										toast({
+											variant: 'destructive',
+											title: t('unplayable.title'),
+											description: t('unplayable.description', { name: video.name })
+										})
+										setVideo(null)
+									}}
+								/>
+								{/* The clip dissolving in, shown only through a dissolve: there only
+								    while the edit has one, so it loads ahead of it. */}
+								{hasDissolve && (
+									<video
+										key={`${video.url}-deck`}
+										ref={deckRef}
+										src={video.url}
+										preload="auto"
+										playsInline
+										aria-hidden
+										tabIndex={-1}
+										data-testid="dissolve-player"
+										className="pointer-events-none absolute inset-0 block h-full w-full opacity-0"
+									/>
+								)}
+							</>
 						}
 						onPicture={
 							<>
@@ -875,6 +963,14 @@ export function VideoEditor() {
 						}
 						onFrame={
 							<>
+								{fadeLight < 1 && (
+									<div
+										data-testid="fade-black"
+										aria-hidden
+										className="pointer-events-none absolute inset-0 bg-black"
+										style={{ opacity: 1 - fadeLight }}
+									/>
+								)}
 								{editedNow !== null && picture && !transformMode && (
 									<OverlayPreview
 										overlays={overlays}
@@ -959,11 +1055,23 @@ export function VideoEditor() {
 					clips={sequence}
 					edit={edit}
 					replacements={replacements}
-					currentTimeSeconds={currentTimeSeconds}
-					canSplit={canSplitAt(sequence, currentTimeSeconds, replacements)}
+					currentIndex={currentClip}
+					canSplit={canSplitAt(sequence, currentTimeSeconds, replacements, currentClip)}
 					onSplit={() => splitAt(currentTimeSeconds)}
 					onMove={(from, to) => arrangeClips(moveClip(sequence, from, to))}
 					onMerge={(from, to) => arrangeClips(mergeClips(sequence, from, to))}
+					onDelete={deleteClipRun}
+					onDuplicate={duplicateClipRun}
+				/>
+			)}
+			{video && hasDuration && (
+				<TransitionPanel
+					joins={sequence.slice(1).map((_, i) => ({
+						transition: transitionInto(sequence, i + 1),
+						limit: joinLimit(sequence, i + 1, edit, replacements) ?? 0
+					}))}
+					canEdit={!showOriginal}
+					onChange={changeTransition}
 				/>
 			)}
 			{video && hasDuration && (

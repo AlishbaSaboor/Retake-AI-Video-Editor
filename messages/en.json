@@ -59,7 +59,9 @@
 			"reorderHint": "Drag a clip, or press Alt+← / Alt+→ on it, to change the order.",
 			"merge": "Merge clips",
 			"selectionHint": "Click a clip to select it, Shift+click to select a run of clips to merge.",
-			"speed": "{speed}×"
+			"speed": "{speed}×",
+			"duplicate": "Duplicate",
+			"delete": "Delete"
 		},
 		"transcript": {
 			"title": "Transcript",
@@ -114,7 +116,12 @@
 				"apply": "Apply",
 				"cancel": "Cancel",
 				"clipSpeed": "I'll make {which} play at {speed}×, in the preview and the export, its pitch kept.",
-				"clipSpeedSkipping": "I'll make every clip play at {speed}×, in the preview and the export, its pitch kept. Clips with a re-recorded sentence stay at 1×."
+				"clipSpeedSkipping": "I'll make every clip play at {speed}×, in the preview and the export, its pitch kept. Clips with a re-recorded sentence stay at 1×.",
+				"transition": "I'll add a {kind, select, fade {fade through black} other {dissolve}} of {seconds} s between {which}.",
+				"transitionShortened": "Where the clips either side are short, it plays shorter.",
+				"removeTransition": "I'll take the transition off between {which}: a plain cut.",
+				"deleteClip": "I'll delete clip {number}: its part of the video won't play. Undo brings it back.",
+				"duplicateClip": "I'll duplicate clip {number}, with its sound and speed, and put the copy right after it."
 			},
 			"failed": "Couldn't run that command",
 			"clipNumber": "clip {number}",
@@ -161,7 +168,9 @@
 				"compare": "Compare the edit with the original: Edited / Original above the player",
 				"annotations": "Draw boxes, blurs, pixelates and text on the video, then move, resize and retime them: Annotations, under the clips",
 				"transformByHand": "Drag a crop box or a rotation handle on the video: Picture, under the clips",
-				"clipSpeed": "Make a clip really play faster or slower: “make clip 2 play at 2x”, “slow the last clip to half speed”"
+				"clipSpeed": "Make a clip really play faster or slower: “make clip 2 play at 2x”, “slow the last clip to half speed”",
+				"transitions": "Add a transition between clips: “add a fade between clips 1 and 2”, “dissolve between all clips”",
+				"deleteDuplicate": "Delete or duplicate a clip: “delete clip 3”, “duplicate the first clip”"
 			},
 			"refused": {
 				"no_such_clip": "There's no clip with that number. The Clips strip numbers them from 1.",
@@ -177,12 +186,18 @@
 				"nothing_to_uncrop": "The video isn't cropped.",
 				"cannot_rerecord": "I can't re-record that sentence yet.",
 				"unsupported_clip_speed": "A clip can play from 0.25× to 4×.",
-				"speed_with_take": "That clip has a re-recorded sentence, which plays as recorded, so its speed stays 1×."
+				"speed_with_take": "That clip has a re-recorded sentence, which plays as recorded, so its speed stays 1×.",
+				"not_adjacent": "A transition goes between two clips side by side, like clips 1 and 2.",
+				"no_join": "There's only one clip, so there's no join for a transition. Split it first.",
+				"transition_blocked": "There's a re-recorded sentence or a very short clip at that join, so a transition can't go there.",
+				"only_clip": "That's the only clip: deleting it would leave nothing to play."
 			},
 			"out_of_range": {
 				"title": "That range isn't in this clip.",
 				"description": "Pick a start before the end, both within 0:00–{duration}."
-			}
+			},
+			"joinPair": "clips {from} and {to}",
+			"everyJoin": "every pair of clips"
 		},
 		"timeline": {
 			"label": "Timeline",
@@ -339,7 +354,8 @@
 				"trimmed": "Part of this sentence is trimmed away. Move the trim handles to include all of it first.",
 				"split": "This sentence is split between two clips. Merge them first.",
 				"overlaps": "This sentence overlaps one you’ve already re-recorded.",
-				"sped": "This sentence is in a sped-up or slowed clip. Set the clip back to 1× to re-record it."
+				"sped": "This sentence is in a sped-up or slowed clip. Set the clip back to 1× to re-record it.",
+				"deleted": "This sentence is in a deleted clip, so it doesn’t play. Undo the delete to re-record it."
 			},
 			"record": "Record",
 			"recordAgain": "Record again",
@@ -374,6 +390,20 @@
 				}
 			},
 			"stoppedMidSpeech": "Stop was pressed while you were still speaking, so the end of the take would be cut off. Record again, and pause a moment before pressing Stop."
+		},
+		"transitions": {
+			"label": "Transitions",
+			"join": "Clip {from} to clip {to}",
+			"kinds": {
+				"cut": "None",
+				"fade": "Fade",
+				"dissolve": "Dissolve"
+			},
+			"seconds": "Length (s)",
+			"upTo": "Up to {seconds} s here.",
+			"shortened": "Plays {seconds} s here: the clips either side are short.",
+			"notPossible": "Not here: a re-recorded sentence or a very short clip is at this join.",
+			"hint": "A fade goes through black and keeps the video's length; a dissolve blends one clip into the next and shortens it by the dissolve's length. Moving or deleting a clip takes the transitions at its joins with it."
 		}
 	}
 }

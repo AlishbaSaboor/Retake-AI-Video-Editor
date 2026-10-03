@@ -5,6 +5,12 @@ import { CORNERS, type Corner, type TitleCard } from './overlays'
 import { PREVIEW_RATES } from './preview-speed'
 import { MAX_CLIP_SPEED, MIN_CLIP_SPEED } from './sequence'
 import {
+	clampTransitionSeconds,
+	DEFAULT_TRANSITION_SECONDS,
+	MIN_TRANSITION_SECONDS,
+	type TransitionKind
+} from './transitions'
+import {
 	aspectRatio,
 	centredCrop,
 	normalizeDegrees,
@@ -53,6 +59,11 @@ const ACTIONS = [
 	'fade_in',
 	'fade_out',
 	'clip_speed',
+	'fade_transition',
+	'dissolve',
+	'remove_transition',
+	'delete_clip',
+	'duplicate_clip',
 	'unsupported'
 ] as const
 const FLIP_AXES = ['horizontal', 'vertical'] as const
@@ -158,6 +169,22 @@ export type CommandPlan =
 	| { kind: 'clipAudio'; audio: ClipAudio[]; change: AudioChange }
 	/** `clip` counts from 1, null for every clip; `skipsTakes`: some clips keep 1× for their take. */
 	| { kind: 'clipSpeed'; clip: number | null; speed: number; skipsTakes: boolean }
+	/**
+	 * `joins`: the clips (by index, from 0) each transition leads into; one
+	 * pair named as `pair` (from 1), or null for every join. `transition`
+	 * null takes them off. `shortened`: some join allows less than `seconds`.
+	 */
+	| {
+			kind: 'transition'
+			transition: TransitionKind | null
+			seconds: number
+			joins: number[]
+			pair: { from: number; to: number } | null
+			shortened: boolean
+	  }
+	/** `clip` counts from 1. */
+	| { kind: 'deleteClip'; clip: number }
+	| { kind: 'duplicateClip'; clip: number }
 
 /** Why a command can't be done; each has its own plain answer. */
 export type RefusalReason =
@@ -173,6 +200,10 @@ export type RefusalReason =
 	| 'unsupported_speed'
 	| 'unsupported_clip_speed'
 	| 'speed_with_take'
+	| 'not_adjacent'
+	| 'no_join'
+	| 'transition_blocked'
+	| 'only_clip'
 	| 'no_sentence'
 	| 'nothing_to_export'
 	| 'nothing_to_uncrop'
@@ -198,6 +229,8 @@ export type CommandContext = {
 	clipAudio: ClipAudio[]
 	/** Per clip, whether a re-recorded take plays in it: its speed stays 1×. */
 	clipTakes: boolean[]
+	/** Per clip, how long a transition into it from the clip before can be (0: none). */
+	joinLimits: number[]
 	/** The picture's flip, rotation and crop now, and the source picture's size. */
 	transform: PictureTransform
 	picture: Size
@@ -291,6 +324,20 @@ export function commandToPlan(command: EditCommand, context: CommandContext): Co
 			return audioCommand(command, context)
 		case 'clip_speed':
 			return clipSpeedCommand(command, context)
+		case 'fade_transition':
+		case 'dissolve':
+		case 'remove_transition':
+			return transitionCommand(command, context)
+		case 'delete_clip':
+		case 'duplicate_clip': {
+			const clip = command.fromClip
+			if (clip === null) return refuse('unsupported')
+			if (!Number.isInteger(clip) || clip < 1 || clip > context.clipCount) {
+				return refuse('no_such_clip')
+			}
+			if (command.action === 'duplicate_clip') return plan({ kind: 'duplicateClip', clip })
+			return context.clipCount > 1 ? plan({ kind: 'deleteClip', clip }) : refuse('only_clip')
+		}
 		case 'rotate': {
 			if (command.degrees === null || normalizeDegrees(command.degrees) === 0) {
 				return refuse('unsupported')
@@ -453,6 +500,45 @@ function clipSpeedCommand(command: EditCommand, context: CommandContext): Comman
 	return context.clipTakes[named - 1]
 		? refuse('speed_with_take')
 		: plan({ kind: 'clipSpeed', clip: named, speed, skipsTakes: false })
+}
+
+/**
+ * A transition between two clips side by side (fromClip and toClip, or
+ * just fromClip: the join after it), or every join when none is named. A
+ * join with no room for one (a re-recorded sentence or very short clips
+ * there) is refused when named, skipped when it's every join.
+ */
+function transitionCommand(command: EditCommand, context: CommandContext): CommandOutcome {
+	if (context.clipCount < 2) return refuse('no_join')
+	const transition: TransitionKind | null =
+		command.action === 'fade_transition'
+			? 'fade'
+			: command.action === 'dissolve'
+				? 'dissolve'
+				: null
+	const exists = (clip: number) => Number.isInteger(clip) && clip >= 1 && clip <= context.clipCount
+	let pair: { from: number; to: number } | null = null
+	if (command.fromClip !== null) {
+		const from = command.fromClip
+		const to = command.toClip ?? from + 1
+		if (!exists(from) || !exists(to)) return refuse('no_such_clip')
+		if (Math.abs(to - from) !== 1) return refuse('not_adjacent')
+		pair = { from: Math.min(from, to), to: Math.max(from, to) }
+	}
+	const named = pair ? [pair.to - 1] : context.joinLimits.slice(1).map((_, i) => i + 1)
+	const seconds = clampTransitionSeconds(command.seconds ?? DEFAULT_TRANSITION_SECONDS)
+	const limit = (index: number) => context.joinLimits[index] ?? 0
+	const joins =
+		transition === null ? named : named.filter((index) => limit(index) >= MIN_TRANSITION_SECONDS)
+	if (joins.length === 0) return refuse('transition_blocked')
+	return plan({
+		kind: 'transition',
+		transition,
+		seconds,
+		joins,
+		pair,
+		shortened: transition !== null && joins.some((index) => limit(index) < seconds)
+	})
 }
 
 /**

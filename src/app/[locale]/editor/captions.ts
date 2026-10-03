@@ -1,4 +1,4 @@
-import { segmentSeconds, type Segment } from './sequence'
+import { editedStarts, segmentSeconds, type Segment } from './sequence'
 import { SENTENCE_END, type TranscriptWord } from './transcript'
 
 // Automatic captions, from the transcript's word timings: no new
@@ -17,29 +17,27 @@ const MAX_LINES = 2
 /** A pause this long ends a caption, so text doesn't sit on screen through silence. */
 const MAX_GAP_SECONDS = 0.7
 
-/** A word's times in the edited video, or null when what's under it doesn't play. */
-function editedWord(word: TranscriptWord, segments: Segment[]) {
+/**
+ * A word's times in the edited video: none when what's under it doesn't
+ * play, more than one when a duplicated clip plays it twice.
+ */
+function editedWord(word: TranscriptWord, segments: Segment[], starts: number[]) {
 	const middle = (word.startSeconds + word.endSeconds) / 2
-	let before = 0
-	for (const segment of segments) {
+	return segments.flatMap((segment, index) => {
+		const before = starts[index] ?? 0
 		const length = segmentSeconds(segment)
 		// A re-recorded segment stands for its whole sentence, however long the take.
 		const range = segment.voiceOver?.replacement.span ?? segment
-		if (middle >= range.startSeconds && middle < range.endSeconds) {
-			const scale = length / (range.endSeconds - range.startSeconds)
-			const at = (seconds: number) =>
-				before +
-				(Math.min(Math.max(seconds, range.startSeconds), range.endSeconds) - range.startSeconds) *
-					scale
-			return {
-				text: word.text,
-				startSeconds: at(word.startSeconds),
-				endSeconds: at(word.endSeconds)
-			}
-		}
-		before += length
-	}
-	return null
+		if (middle < range.startSeconds || middle >= range.endSeconds) return []
+		const scale = length / (range.endSeconds - range.startSeconds)
+		const at = (seconds: number) =>
+			before +
+			(Math.min(Math.max(seconds, range.startSeconds), range.endSeconds) - range.startSeconds) *
+				scale
+		return [
+			{ text: word.text, startSeconds: at(word.startSeconds), endSeconds: at(word.endSeconds) }
+		]
+	})
 }
 
 /**
@@ -48,8 +46,9 @@ function editedWord(word: TranscriptWord, segments: Segment[]) {
  * pause, or two full lines.
  */
 export function editedCaptions(words: TranscriptWord[], segments: Segment[]): Caption[] {
+	const starts = editedStarts(segments)
 	const playing = words
-		.flatMap((word) => editedWord(word, segments) ?? [])
+		.flatMap((word) => editedWord(word, segments, starts))
 		.sort((a, b) => a.startSeconds - b.startSeconds)
 	const captions: Caption[] = []
 	let current: Caption | null = null

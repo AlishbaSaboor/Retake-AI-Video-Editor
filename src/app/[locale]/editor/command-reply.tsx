@@ -36,7 +36,9 @@ const COMMAND_ABILITIES = [
 	'annotate',
 	'transform',
 	'audio',
-	'clipSpeed'
+	'clipSpeed',
+	'transitions',
+	'deleteDuplicate'
 ] as const
 const EDITOR_ABILITIES = ['fillerCut', 'compare', 'annotations', 'transformByHand'] as const
 
@@ -114,6 +116,22 @@ export function CommandReply({
 				}
 				return t(`confirm.${change.kind}`, { which })
 			}
+			case 'transition': {
+				const which = plan.pair
+					? t('joinPair', { from: plan.pair.from, to: plan.pair.to })
+					: t('everyJoin')
+				if (plan.transition === null) return t('confirm.removeTransition', { which })
+				const added = t('confirm.transition', {
+					kind: plan.transition,
+					seconds: plan.seconds,
+					which
+				})
+				return plan.shortened ? `${added} ${t('confirm.transitionShortened')}` : added
+			}
+			case 'deleteClip':
+				return t('confirm.deleteClip', { number: plan.clip })
+			case 'duplicateClip':
+				return t('confirm.duplicateClip', { number: plan.clip })
 			case 'clipSpeed': {
 				if (plan.skipsTakes) return t('confirm.clipSpeedSkipping', { speed: plan.speed })
 				const which = plan.clip === null ? t('everyClip') : t('clipNumber', { number: plan.clip })

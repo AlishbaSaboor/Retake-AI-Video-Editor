@@ -1,7 +1,15 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import { clipGainAt } from './clip-audio'
 import { scheduleTakeGain, type ReplacementTake } from './re-record'
-import { isInSegment, playbackPosition, SEEK_TOLERANCE_SECONDS, type Segment } from './sequence'
+import {
+	editedStarts,
+	isInSegment,
+	joinsOf,
+	playbackPosition,
+	SEEK_TOLERANCE_SECONDS,
+	type Segment
+} from './sequence'
+import { crossfadeGains, transitionGainAt } from './transitions'
 
 // Pressing play this close to the end counts as "at the end" and restarts
 // from the beginning, rather than playing a frame and stopping.
@@ -12,6 +20,29 @@ const END_TOLERANCE_SECONDS = 0.05
 const SEGMENT_END_SLACK_SECONDS = 0.25
 /** How quickly the preview's clip level follows the fades between frames. */
 const LEVEL_SMOOTHING_SECONDS = 0.015
+/**
+ * At a dissolve's join the main video jumps to where the incoming clip has
+ * got to, this far ahead of it (in source seconds at 1×), and takes over
+ * once the dissolving player catches up: the seek itself never shows.
+ */
+const HANDOFF_LEAD_SECONDS = 0.2
+/** How far the dissolving player may be from where it should be before it's sought there. */
+const DECK_DRIFT_SECONDS = 0.1
+
+/**
+ * A dissolve in the preview: the second player, over the main one, plays
+ * segment `index` coming in. `handoff` once the main video has jumped
+ * ahead into that segment and the second player covers it until it's there.
+ */
+type Dissolve = { index: number; started: boolean; handoff: boolean }
+
+/** Hides the dissolving player and stops it. */
+function hideDeck(deck: HTMLVideoElement | null) {
+	if (!deck) return
+	deck.pause()
+	deck.style.opacity = '0'
+	deck.volume = 0
+}
 
 /** A re-recorded take playing over the video, and whether the picture is holding for it. */
 type VoiceOver = {
@@ -94,6 +125,8 @@ function stopVoice(
  */
 export function useSequencePlayback(
 	videoRef: RefObject<HTMLVideoElement | null>,
+	/** A second player over the first, for dissolves: the clip coming in. */
+	deckRef: RefObject<HTMLVideoElement | null>,
 	segments: Segment<ReplacementTake>[],
 	isPlaying: boolean,
 	rate: number,
@@ -109,13 +142,25 @@ export function useSequencePlayback(
 	// <video> can't go above 100%), made the first time a clip needs it.
 	// A media element can be routed only once, so it stays routed.
 	const clipLevelRef = useRef<{ element: HTMLVideoElement; gain: GainNode } | null>(null)
+	const dissolveRef = useRef<Dissolve | null>(null)
 
 	// `timeupdate` only fires a few times a second, which makes the playhead
 	// stutter and segment jumps land late, so follow every animation frame.
 	useEffect(() => {
 		if (!isPlaying) {
 			stopVoice(voiceRef, videoRef)
+			dissolveRef.current = null
+			hideDeck(deckRef.current)
 			return
+		}
+		const starts = editedStarts(segments)
+		const joins = joinsOf(segments)
+		/** The edited video's time at the main video's time, in segment `index`. */
+		const editedAt = (index: number, seconds: number) => {
+			const segment = segments[index]
+			if (!segment) return 0
+			const into = Math.max(0, Math.min(seconds, segment.endSeconds) - segment.startSeconds)
+			return (starts[index] ?? 0) + into / (segment.rate ?? 1)
 		}
 
 		/** Moves on from segment `index`: to the start of the next, or stops after the last. */
@@ -123,7 +168,20 @@ export function useSequencePlayback(
 			stopVoice(voiceRef, videoRef)
 			const current = segments[index]
 			const next = segments[index + 1]
-			if (next) {
+			const deck = deckRef.current
+			const dissolve = dissolveRef.current
+			if (next && deck && dissolve?.started && dissolve.index === index + 1) {
+				// The incoming clip is already playing on top: jump ahead of it and
+				// let it cover the seek until the main video is there.
+				element.currentTime = Math.min(
+					next.endSeconds,
+					deck.currentTime + HANDOFF_LEAD_SECONDS * (next.rate ?? 1)
+				)
+				deck.style.opacity = '1'
+				dissolve.handoff = true
+				playingIndexRef.current = index + 1
+				if (element.paused) void element.play()
+			} else if (next) {
 				// Where the next segment carries straight on from this one (a
 				// re-recorded span's start), the picture plays on: seeking there
 				// anyway held it ~0.45 s on an MP4 while the take already spoke.
@@ -149,7 +207,10 @@ export function useSequencePlayback(
 		 * while the video plays straight to the speakers.
 		 */
 		const followClipLevel = (element: HTMLVideoElement, playing: Segment | undefined) => {
-			if (clipLevelRef.current?.element !== element && segments.some((s) => s.audio)) {
+			if (
+				clipLevelRef.current?.element !== element &&
+				segments.some((s) => s.audio || s.transition)
+			) {
 				const audio = audioRef.current ?? new AudioContext()
 				audioRef.current = audio
 				void audio.resume()
@@ -162,9 +223,64 @@ export function useSequencePlayback(
 			const audio = playing?.audio
 			// Played seconds into the segment: a sped clip's fades are in output time.
 			const into = (element.currentTime - (playing?.startSeconds ?? 0)) / (playing?.rate ?? 1)
-			const target = audio ? clipGainAt(audio, audio.offsetSeconds + into) : 1
+			const index = playingIndexRef.current ?? -1
+			// Silent while the dissolving player covers the jump at a join.
+			const transition = dissolveRef.current?.handoff
+				? 0
+				: transitionGainAt(joins, index, editedAt(index, element.currentTime))
+			const target = (audio ? clipGainAt(audio, audio.offsetSeconds + into) : 1) * transition
 			level.gain.setTargetAtTime(target, level.context.currentTime, LEVEL_SMOOTHING_SECONDS)
 			return level
+		}
+
+		/**
+		 * Plays a dissolve on the second player: sought to the incoming clip
+		 * while the one before plays, started when the overlap begins, faded in
+		 * over the main video with its sound crossfading; after the join, hidden
+		 * once the main video has caught up with it.
+		 */
+		const followDissolve = (element: HTMLVideoElement, index: number) => {
+			const deck = deckRef.current
+			if (!deck) return
+			const dissolve = dissolveRef.current
+			if (dissolve?.handoff) {
+				if (!element.seeking && element.currentTime >= deck.currentTime) {
+					dissolveRef.current = null
+					hideDeck(deck)
+				}
+				return
+			}
+			const next = segments[index + 1]
+			if (next?.transition?.kind !== 'dissolve' || element.paused) {
+				if (dissolve) {
+					dissolveRef.current = null
+					hideDeck(deck)
+				}
+				return
+			}
+			const current = dissolve?.index === index + 1 ? dissolve : null
+			const state: Dissolve = current ?? { index: index + 1, started: false, handoff: false }
+			dissolveRef.current = state
+			const nextRate = next.rate ?? 1
+			const into = editedAt(index, element.currentTime) - (starts[index + 1] ?? 0)
+			const wanted = next.startSeconds + Math.max(0, into) * nextRate
+			deck.preservesPitch = true
+			if (deck.playbackRate !== rate * nextRate) deck.playbackRate = rate * nextRate
+			if (into < 0) {
+				// Waiting at the incoming clip's start for the overlap.
+				if (!current && Math.abs(deck.currentTime - next.startSeconds) > DECK_DRIFT_SECONDS) {
+					deck.currentTime = next.startSeconds
+				}
+				return
+			}
+			if (!state.started) {
+				if (Math.abs(deck.currentTime - wanted) > DECK_DRIFT_SECONDS) deck.currentTime = wanted
+				void deck.play()
+				state.started = true
+			}
+			const progress = into / next.transition.seconds
+			deck.style.opacity = String(Math.min(1, progress))
+			deck.volume = Math.min(1, crossfadeGains(progress).in)
 		}
 
 		let frame = 0
@@ -209,6 +325,7 @@ export function useSequencePlayback(
 				// The clip's own speed times the preview's, set as each segment begins.
 				const wanted = rate * (playing?.rate ?? 1)
 				if (element.playbackRate !== wanted) element.playbackRate = wanted
+				followDissolve(element, playingIndexRef.current ?? -1)
 				const clipLevel = followClipLevel(element, playing)
 				const replacement = playing?.voiceOver?.replacement
 				if (replacement && !element.paused && voiceRef.current?.replacement !== replacement) {
@@ -233,7 +350,7 @@ export function useSequencePlayback(
 		}
 		frame = requestAnimationFrame(follow)
 		return () => cancelAnimationFrame(frame)
-	}, [isPlaying, segments, rate, videoRef, onTime, onStop])
+	}, [isPlaying, segments, rate, videoRef, deckRef, onTime, onStop])
 
 	// The preview speed (times the playing clip's own) on the video, its pitch
 	// kept. After every render, not on change only: a new video element starts
@@ -261,6 +378,8 @@ export function useSequencePlayback(
 		const element = videoRef.current
 		if (!element) return
 		stopVoice(voiceRef, videoRef)
+		dissolveRef.current = null
+		hideDeck(deckRef.current)
 		const at = playbackPosition(seconds, segments)
 		const target = at?.seconds ?? segments.at(-1)?.endSeconds ?? seconds
 		playingIndexRef.current = at?.index ?? null
