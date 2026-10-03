@@ -1,12 +1,14 @@
 import {
 	annotationsAt,
-	blurGridSize,
+	obscureGridSize,
 	TEXT_HEIGHT_FRACTION,
 	toPixels,
-	type Annotation
+	type Annotation,
+	type ObscureKind
 } from './annotations'
 import { captionAt, type Caption } from './captions'
 import { segmentSeconds, type Segment } from './sequence'
+import { outputSize, pictureMatrix, type PictureTransform, type Size } from './transform'
 
 // Motion graphics, v1: one title card, one watermark and captions, laid over the
 // edited video. Both are part of the edit (undoable, cleared by reset) and
@@ -32,14 +34,14 @@ export type Overlays = {
 	annotations: Annotation[]
 }
 
-/** The title's text height, as a fraction of the picture's height. */
+/** The title's text height, as a fraction of the frame's shorter side. */
 export const TITLE_FONT_FRACTION = 0.08
 /** The dark band behind the title, as a multiple of the text height. */
 export const TITLE_BAND_SCALE = 2
 /** The widest the title's text may be, as a fraction of the picture's width. */
 const TITLE_MAX_WIDTH_FRACTION = 0.9
 export const TITLE_BAND_COLOR = 'rgba(0, 0, 0, 0.6)'
-/** Caption text height, and the gap below the last line, as fractions of the picture's height. */
+/** Caption text height (of the frame's shorter side), and the gap below the last line (of its height). */
 export const CAPTION_FONT_FRACTION = 0.06
 export const CAPTION_BOTTOM_FRACTION = 0.06
 /** Caption line spacing, as a multiple of the text height. */
@@ -122,27 +124,33 @@ export async function readLogo(file: File): Promise<Pick<Watermark, 'image' | 'a
 }
 
 /**
- * Blurs a patch of what's already drawn, cheaply enough to run every frame:
- * the patch is shrunk into `scratch` (one pixel per blur block, averaged
- * properly so it doesn't shimmer) and stretched back bilinearly. Two image
- * copies and no per-pixel work in JavaScript. Measured in headless Chromium
- * on half a 1080p frame: ~3 ms a frame, against ~10–13 ms with high-quality
+ * Blurs or pixelates a patch of the picture, cheaply enough to run every
+ * frame: the patch of the source is shrunk into `scratch` (one pixel per
+ * block, averaged properly so it doesn't shimmer) and stretched back over
+ * it, bilinearly for a blur, in hard blocks for a pixelate. Two image copies
+ * and no per-pixel work in JavaScript. Measured in headless Chromium on half
+ * of a 1080p frame: ~3 ms a frame, against ~10–13 ms with high-quality
  * stretching too and ~26–31 ms for `filter: blur()`, which convolves every
- * pixel. PROGRESS_NOTES.md section 3h.
+ * pixel. PROGRESS_NOTES.md section 3h. `context` is already in picture
+ * space, and the patch is read from the source, so it turns and flips with
+ * the picture.
  */
-function drawBlur(
+function drawObscured(
 	context: CanvasRenderingContext2D,
+	source: CanvasImageSource,
 	pixels: { x: number; y: number; width: number; height: number },
+	pictureWidth: number,
+	kind: ObscureKind,
 	scratch: HTMLCanvasElement
 ) {
-	const grid = blurGridSize(pixels, context.canvas.width)
+	const grid = obscureGridSize(pixels, pictureWidth, kind)
 	if (scratch.width !== grid.width) scratch.width = grid.width
 	if (scratch.height !== grid.height) scratch.height = grid.height
 	const small = scratch.getContext('2d')
 	if (!small) return
 	small.imageSmoothingQuality = 'high'
 	small.drawImage(
-		context.canvas,
+		source,
 		pixels.x,
 		pixels.y,
 		pixels.width,
@@ -154,7 +162,7 @@ function drawBlur(
 	)
 	// 'low' is bilinear, and the default: nothing else drawn on this canvas
 	// is left at a costlier setting.
-	context.imageSmoothingEnabled = true
+	context.imageSmoothingEnabled = kind === 'blur'
 	context.imageSmoothingQuality = 'low'
 	context.drawImage(
 		scratch,
@@ -167,20 +175,27 @@ function drawBlur(
 		pixels.width,
 		pixels.height
 	)
+	context.imageSmoothingEnabled = true
 }
 
-/** Boxes, blurs and text due at `seconds`, in the order they were added. */
+/**
+ * Boxes, blurs, pixelates and text due at `seconds`, in the order they were
+ * added, in picture space: `context` is set up to draw the source picture.
+ * Text is unmirrored about its own centre, so a flip never reverses it.
+ */
 function drawAnnotations(
 	context: CanvasRenderingContext2D,
 	annotations: Annotation[],
 	seconds: number,
+	source: CanvasImageSource,
+	picture: Size,
+	transform: PictureTransform,
 	scratch: HTMLCanvasElement
 ) {
-	const { width, height } = context.canvas
 	for (const item of annotationsAt(annotations, seconds)) {
-		const pixels = toPixels(item.rect, width, height)
-		if (item.kind === 'blur') {
-			drawBlur(context, pixels, scratch)
+		const pixels = toPixels(item.rect, picture.width, picture.height)
+		if (item.kind === 'blur' || item.kind === 'pixelate') {
+			drawObscured(context, source, pixels, picture.width, item.kind, scratch)
 			continue
 		}
 		context.fillStyle = item.kind === 'box' ? item.color : TITLE_BAND_COLOR
@@ -191,35 +206,69 @@ function drawAnnotations(
 			context.beginPath()
 			context.rect(pixels.x, pixels.y, pixels.width, pixels.height)
 			context.clip()
+			context.translate(pixels.x + pixels.width / 2, pixels.y + pixels.height / 2)
+			context.scale(transform.flipH ? -1 : 1, transform.flipV ? -1 : 1)
 			context.font = `bold ${Math.round(pixels.height * TEXT_HEIGHT_FRACTION)}px sans-serif`
 			context.textAlign = 'center'
 			context.textBaseline = 'middle'
 			context.fillStyle = '#ffffff'
-			context.fillText(item.text, pixels.x + pixels.width / 2, pixels.y + pixels.height / 2)
+			context.fillText(item.text, 0, 0)
 			context.restore()
 		}
 	}
 }
 
 /**
- * Draws the overlays due at `seconds` of the edited video onto a frame
- * already drawn: annotations first, as part of the picture (a blur blurs
- * the video, not the captions), then captions, title and logo over them.
- * `scratch` is a spare canvas the blur works in.
+ * Draws one frame of the edited video at `seconds` onto `context`, whose
+ * canvas is the output's size: black, the picture through its transform
+ * (pictureMatrix), the annotations pinned to the picture with it, then the
+ * captions, title and logo, which belong to the output frame, over them. A
+ * blur blurs the video, not the captions. `scratch` is a spare canvas the
+ * blur and pixelate work in.
  */
-export function drawOverlays(
+export function drawFrame(
 	context: CanvasRenderingContext2D,
+	source: CanvasImageSource,
+	picture: Size,
+	transform: PictureTransform,
 	overlays: Overlays,
 	seconds: number,
 	logo: HTMLImageElement | null,
 	scratch: HTMLCanvasElement
 ) {
 	const { width, height } = context.canvas
-	const { title, watermark, captions, annotations } = overlays
-	drawAnnotations(context, annotations, seconds, scratch)
+	const output = outputSize(picture, transform)
+	const m = pictureMatrix(picture, transform, {
+		x: width / output.width,
+		y: height / output.height
+	})
+	context.setTransform(1, 0, 0, 1, 0, 0)
+	context.fillStyle = '#000000'
+	context.fillRect(0, 0, width, height)
+	context.setTransform(m.a, m.b, m.c, m.d, m.e, m.f)
+	context.drawImage(source, 0, 0, picture.width, picture.height)
+	drawAnnotations(context, overlays.annotations, seconds, source, picture, transform, scratch)
+	context.setTransform(1, 0, 0, 1, 0, 0)
+	drawFrameOverlays(context, overlays, seconds, logo)
+}
+
+/**
+ * The captions, title and logo, in the output frame. Text is sized against
+ * the frame's shorter side, so a portrait crop doesn't push a caption line
+ * past its edges.
+ */
+function drawFrameOverlays(
+	context: CanvasRenderingContext2D,
+	overlays: Overlays,
+	seconds: number,
+	logo: HTMLImageElement | null
+) {
+	const { width, height } = context.canvas
+	const shorter = Math.min(width, height)
+	const { title, watermark, captions } = overlays
 	const caption = captionAt(captions, seconds)
 	if (caption) {
-		const fontPixels = Math.round(height * CAPTION_FONT_FRACTION)
+		const fontPixels = Math.round(shorter * CAPTION_FONT_FRACTION)
 		const lineHeight = fontPixels * CAPTION_LINE_SCALE
 		const padding = fontPixels * CAPTION_PADDING_SCALE
 		context.font = `bold ${fontPixels}px sans-serif`
@@ -236,7 +285,7 @@ export function drawOverlays(
 		}
 	}
 	if (title && titleShownAt(title, seconds)) {
-		const fontPixels = Math.round(height * TITLE_FONT_FRACTION)
+		const fontPixels = Math.round(shorter * TITLE_FONT_FRACTION)
 		const band = fontPixels * TITLE_BAND_SCALE
 		context.fillStyle = TITLE_BAND_COLOR
 		context.fillRect(0, (height - band) / 2, width, band)

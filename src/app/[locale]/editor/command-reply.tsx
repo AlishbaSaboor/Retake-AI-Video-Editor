@@ -33,9 +33,10 @@ const COMMAND_ABILITIES = [
 	'addTitle',
 	'addWatermark',
 	'captions',
-	'annotate'
+	'annotate',
+	'transform'
 ] as const
-const EDITOR_ABILITIES = ['fillerCut', 'compare', 'annotations'] as const
+const EDITOR_ABILITIES = ['fillerCut', 'compare', 'annotations', 'transformByHand'] as const
 
 /**
  * The bar's answer to a parsed command: the plan to confirm, or — when the
@@ -97,12 +98,29 @@ export function CommandReply({
 			}
 			case 'captions':
 				return plan.on ? t('confirm.captionsOn') : t('confirm.captionsOff')
+			case 'transform': {
+				const { change } = plan
+				if (change.kind === 'rotate') {
+					return t('confirm.rotate', {
+						degrees: Math.abs(change.degrees),
+						direction: change.degrees > 0 ? 'clockwise' : 'anticlockwise',
+						to: change.to
+					})
+				}
+				if (change.kind === 'flip') return t(`confirm.flip.${change.axis}`)
+				return change.aspect === 'none'
+					? t('confirm.uncrop')
+					: t('confirm.crop', { aspect: change.aspect })
+			}
 			case 'annotation':
-				return t(`confirm.${plan.annotation.kind === 'box' ? 'box' : 'blur'}`, {
-					region: t(`regions.${plan.region}`),
-					start: formatTimecode(plan.annotation.startSeconds),
-					end: formatTimecode(plan.annotation.endSeconds)
-				})
+				return t(
+					`confirm.${plan.annotation.kind === 'box' ? 'box' : plan.annotation.kind === 'pixelate' ? 'pixelate' : 'blur'}`,
+					{
+						region: t(`regions.${plan.region}`),
+						start: formatTimecode(plan.annotation.startSeconds),
+						end: formatTimecode(plan.annotation.endSeconds)
+					}
+				)
 		}
 	}
 

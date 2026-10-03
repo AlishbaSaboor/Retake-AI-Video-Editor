@@ -46,6 +46,16 @@ test('any trim, cut, split, take, title, watermark, captions or annotation is so
 		endSeconds: 1
 	} as const
 	assert.equal(isOriginalEdit({ ...original, annotations: [blur] }, DURATION), false)
+	for (const transform of [
+		{ ...ORIGINAL_EDIT.transform, rotation: 15 },
+		{ ...ORIGINAL_EDIT.transform, flipH: true },
+		{
+			...ORIGINAL_EDIT.transform,
+			crop: { rect: { x: 0, y: 0, width: 0.5, height: 1 }, aspect: 'free' as const }
+		}
+	]) {
+		assert.equal(isOriginalEdit({ ...original, transform }, DURATION), false)
+	}
 })
 
 test('a trim dragged back to the edges, or a split merged again, is the original', () => {

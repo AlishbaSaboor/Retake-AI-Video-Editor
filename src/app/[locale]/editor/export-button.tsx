@@ -17,6 +17,7 @@ import {
 import type { Overlays } from './overlays'
 import type { ReplacementTake } from './re-record'
 import type { Segment } from './sequence'
+import type { PictureTransform } from './transform'
 
 type ExportSource = {
 	videoUrl: string
@@ -24,6 +25,7 @@ type ExportSource = {
 	/** What the edit plays, in order — captured when the export starts. */
 	segments: Segment<ReplacementTake>[]
 	overlays: Overlays
+	transform: PictureTransform
 }
 
 const PERCENT = 100
@@ -60,7 +62,13 @@ function describeMismatch(off: number) {
  * `percent` is how far it's got (null when idle), `cancel` stops it. Shared
  * by the Export button and the typed "export" command.
  */
-export function useVideoExport({ videoUrl, videoName, segments, overlays }: ExportSource) {
+export function useVideoExport({
+	videoUrl,
+	videoName,
+	segments,
+	overlays,
+	transform
+}: ExportSource) {
 	const t = useTranslations('Editor.export')
 	const [percent, setPercent] = useState<number | null>(null)
 	const controllerRef = useRef<AbortController | null>(null)
@@ -79,7 +87,7 @@ export function useVideoExport({ videoUrl, videoName, segments, overlays }: Expo
 		controllerRef.current = controller
 		setPercent(0)
 		try {
-			const { blob, mimeType } = await recordEdit(videoUrl, segments, overlays, {
+			const { blob, mimeType } = await recordEdit(videoUrl, segments, overlays, transform, {
 				onProgress: (fraction) => setPercent(Math.floor(fraction * PERCENT)),
 				signal: controller.signal
 			})

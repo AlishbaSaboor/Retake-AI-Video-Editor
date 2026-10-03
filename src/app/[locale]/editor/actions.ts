@@ -22,7 +22,10 @@ const UNSUPPORTED: EditCommand = {
 	fromClip: null,
 	toClip: null,
 	rate: null,
-	region: null
+	region: null,
+	degrees: null,
+	axis: null,
+	aspect: null
 }
 
 // Gemini and Deepgram both answer 429 (rate-limited) or 503 (overloaded)
@@ -60,7 +63,13 @@ function systemInstruction(durationSeconds: number): string {
 		'blurring part of it is action "blur", each with region one of "top-left", "top-right",',
 		'"bottom-left", "bottom-right" (corners), "top", "bottom", "left", "right" (halves),',
 		'"center" or "full" (null if none is named), and startSeconds/endSeconds when it shows',
-		'(null for an edge left open).',
+		'(null for an edge left open). Pixelating part of the picture is action "pixelate", with',
+		'region and times as for "blur". Turning the picture ("rotate the video 15 degrees",',
+		'"turn it left 90 degrees") is action "rotate" with degrees how far to turn it,',
+		'clockwise; negative for anticlockwise or left. Mirroring it is action "flip" with axis',
+		'"horizontal" (left and right swap, the default) or "vertical" (upside down). Cropping',
+		'it to a shape is action "crop" with aspect one of "16:9", "9:16", "1:1", "4:5", or',
+		'"none" to remove the crop.',
 		'Unused fields are null. Anything else — removing a middle section, other effects,',
 		'audio — is action "unsupported" with every other field null.'
 	].join(' ')

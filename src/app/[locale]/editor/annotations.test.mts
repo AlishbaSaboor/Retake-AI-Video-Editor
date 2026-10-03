@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
 	annotationsAt,
-	blurGridSize,
+	obscureGridSize,
 	isBigEnough,
 	MIN_ANNOTATION_SECONDS,
 	MIN_ANNOTATION_SIZE,
@@ -111,11 +111,11 @@ test('named regions: corners are a third of each side, halves are halves', () =>
 test("a blur averages blocks 1/40 of the picture's width, whatever the box's size", () => {
 	// 1920×1080: 48 px blocks. A 960×540 box is 20 × 11.25 blocks, rounded.
 	const half = { x: 0, y: 0, width: 0.5, height: 0.5 }
-	assert.deepEqual(blurGridSize(toPixels(half, 1920, 1080), 1920), { width: 20, height: 11 })
+	assert.deepEqual(obscureGridSize(toPixels(half, 1920, 1080), 1920), { width: 20, height: 11 })
 	// The same box on a 320-wide picture has the same blocks across it.
-	assert.deepEqual(blurGridSize(toPixels(half, 320, 180), 320), { width: 20, height: 11 })
+	assert.deepEqual(obscureGridSize(toPixels(half, 320, 180), 320), { width: 20, height: 11 })
 	// A box smaller than a block is still averaged, down to one.
-	assert.deepEqual(blurGridSize({ x: 0, y: 0, width: 10, height: 10 }, 1920), {
+	assert.deepEqual(obscureGridSize({ x: 0, y: 0, width: 10, height: 10 }, 1920), {
 		width: 1,
 		height: 1
 	})

@@ -20,7 +20,7 @@ import {
 import { formatTimecode, timeToPercent, type TrimEdge } from './timeline-scale'
 import { TrimHandle } from './trim-handle'
 
-const TOOLS: AnnotationTool[] = ['select', 'box', 'blur', 'text', 'erase']
+const TOOLS: AnnotationTool[] = ['select', 'box', 'blur', 'pixelate', 'text', 'erase']
 // Arrow keys on a bar move it a tenth of a second, Shift+arrow a second, as trims do.
 const STEPS = { small: 0.1, large: 1 }
 
@@ -34,7 +34,7 @@ export function useAnnotationTools() {
 	function drawn(rect: Rect, seconds: number, editedSeconds: number): NewAnnotation | null {
 		const shape = { rect, ...newSpan(seconds, editedSeconds) }
 		if (tool === 'box') return { kind: 'box', color, ...shape }
-		if (tool === 'blur') return { kind: 'blur', ...shape }
+		if (tool === 'blur' || tool === 'pixelate') return { kind: tool, ...shape }
 		if (tool === 'text' && text.trim()) return { kind: 'text', text: text.trim(), ...shape }
 		return null
 	}

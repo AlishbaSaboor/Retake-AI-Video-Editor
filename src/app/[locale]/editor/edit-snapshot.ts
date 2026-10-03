@@ -3,6 +3,7 @@ import type { Cut } from './cleanup'
 import type { TitleCard, Watermark } from './overlays'
 import type { ReplacementTake } from './re-record'
 import type { Clip, SourceRange } from './sequence'
+import { IDENTITY_TRANSFORM, isIdentity, type PictureTransform } from './transform'
 import type { TrimRange } from './timeline-scale'
 
 /** One step of Undo/Redo: what's trimmed, cut, arranged, re-recorded and laid over. */
@@ -15,6 +16,8 @@ export type EditSnapshot<R = ReplacementTake> = {
 	watermark: Watermark | null
 	captionsOn: boolean
 	annotations: Annotation[]
+	/** Flip, rotation and crop of the whole picture. */
+	transform: PictureTransform
 }
 
 /** The edit right after upload: the whole take, untouched. */
@@ -26,7 +29,8 @@ export const ORIGINAL_EDIT: EditSnapshot = {
 	title: null,
 	watermark: null,
 	captionsOn: false,
-	annotations: []
+	annotations: [],
+	transform: IDENTITY_TRANSFORM
 }
 
 /**
@@ -47,6 +51,7 @@ export function isOriginalEdit<R>(edit: EditSnapshot<R>, durationSeconds: number
 		edit.watermark === null &&
 		!edit.captionsOn &&
 		edit.annotations.length === 0 &&
+		isIdentity(edit.transform) &&
 		(edit.clips === null ||
 			(otherClips.length === 0 &&
 				otherRanges.length === 0 &&

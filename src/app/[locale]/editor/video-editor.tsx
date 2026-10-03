@@ -3,7 +3,7 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-import { ReplaceIcon } from '@/components/ui/icons'
+import { PauseIcon, PlayIcon, ReplaceIcon } from '@/components/ui/icons'
 import { toast } from '@/lib/toast'
 import { AnnotationLayer } from './annotation-layer'
 import { AnnotationPanel, useAnnotationTools } from './annotation-panel'
@@ -23,6 +23,17 @@ import { GraphicsPanel } from './graphics-panel'
 import { cutEditorWindow, initialCutRange, moveCutEdge, type FillerPlan } from './filler-cuts'
 import { emptyHistory, record, redo, reset, undo, type Step } from './history'
 import { OverlayPreview } from './overlay-preview'
+import { PictureFrame } from './picture-frame'
+import {
+	IDENTITY_TRANSFORM,
+	isIdentity,
+	outputSize,
+	outputToPicture,
+	rotatedFrame,
+	withRotation,
+	type PictureTransform
+} from './transform'
+import { CropBox, RotateHandle, TransformPanel, type TransformMode } from './transform-panel'
 import {
 	editedSecondsAt,
 	readLogo,
@@ -126,6 +137,13 @@ export function VideoEditor() {
 	// Boxes, blurs and text over the edited video (annotations.ts).
 	const [annotations, setAnnotations] = useState<Annotation[]>([])
 	const annotationTools = useAnnotationTools()
+	// Flip, rotation and crop of the whole picture (transform.ts), and the
+	// on-picture tool setting it by hand, if any. While the rotation handle is
+	// dragged, the preview follows a draft that becomes one change on release.
+	const [transform, setTransform] = useState<PictureTransform>(IDENTITY_TRANSFORM)
+	const [transformMode, setTransformMode] = useState<TransformMode | null>(null)
+	const [rotationDraft, setRotationDraft] = useState<number | null>(null)
+	const frameRef = useRef<HTMLDivElement>(null)
 	const logoInputRef = useRef<HTMLInputElement>(null)
 	const logoCornerRef = useRef<Corner>('bottom-right')
 	// Every edit records the snapshot from just before it, so Undo and Redo
@@ -140,7 +158,8 @@ export function VideoEditor() {
 		title,
 		watermark,
 		captionsOn,
-		annotations
+		annotations,
+		transform
 	}
 	const trimDragRef = useRef<{ recorded: boolean } | null>(null)
 	// The filler cut editor: which filler is open and where its handles sit.
@@ -186,7 +205,8 @@ export function VideoEditor() {
 		videoUrl: video?.url ?? '',
 		videoName: video?.name ?? '',
 		segments: editedSegments,
-		overlays
+		overlays,
+		transform
 	})
 	const segments =
 		preview && cutWindow && cutEditor
@@ -225,6 +245,20 @@ export function VideoEditor() {
 		segments === editedSegments
 			? editedSecondsAt(currentTimeSeconds, editedSegments, segmentIndex)
 			: null
+	// The preview's picture size, a 16:9 stand-in until the video's metadata is in.
+	const pictureSize = picture ?? { width: 16, height: 9 }
+	// The Original view is the untouched take. Setting a crop or a rotation by
+	// hand shows the whole rotated frame, so the crop box has room to move.
+	const shownTransform: PictureTransform = showOriginal
+		? IDENTITY_TRANSFORM
+		: {
+				...transform,
+				rotation: rotationDraft ?? transform.rotation,
+				crop: transformMode ? null : transform.crop
+			}
+	// Turned or flipped, the player's own controls would turn too: they're
+	// hidden, and a Play button under the player stands in.
+	const pictureTransformed = !isIdentity(shownTransform)
 
 	const videoUrl = video?.url
 	// An object URL pins the whole file in memory until it's revoked, so each
@@ -252,6 +286,8 @@ export function VideoEditor() {
 		setWatermark(null)
 		setCaptionsOn(false)
 		setAnnotations([])
+		setTransform(IDENTITY_TRANSFORM)
+		setTransformMode(null)
 		setPicture(null)
 		setHistory(emptyHistory())
 		setCutEditor(null)
@@ -489,6 +525,7 @@ export function VideoEditor() {
 		setWatermark(step.restore.watermark)
 		setCaptionsOn(step.restore.captionsOn)
 		setAnnotations(step.restore.annotations)
+		setTransform(step.restore.transform)
 		applyTrim(step.restore.trim, step.restore.trim?.startSeconds ?? 0)
 	}
 
@@ -557,6 +594,23 @@ export function VideoEditor() {
 		setWatermark({ ...watermark, corner })
 	}
 
+	/** A pointer's screen position as fractions of the output frame. */
+	function toFrame(clientX: number, clientY: number) {
+		const box = frameRef.current?.getBoundingClientRect()
+		if (!box || box.width === 0 || box.height === 0) return { x: 0, y: 0 }
+		return { x: (clientX - box.left) / box.width, y: (clientY - box.top) / box.height }
+	}
+
+	/** A pointer's screen position as fractions of the source picture, through the shown transform. */
+	function toPicture(clientX: number, clientY: number) {
+		return outputToPicture(pictureSize, shownTransform, toFrame(clientX, clientY))
+	}
+
+	function changeTransform(next: PictureTransform) {
+		recordEdit()
+		setTransform(next)
+	}
+
 	function addAnnotation(item: NewAnnotation) {
 		recordEdit()
 		setAnnotations([...annotations, { ...item, id: crypto.randomUUID() }])
@@ -600,7 +654,9 @@ export function VideoEditor() {
 		canUndo: history.past.length > 0,
 		canRedo: history.future.length > 0,
 		canReset: !isOriginalEdit(snapshot, durationSeconds),
-		sentenceAt
+		sentenceAt,
+		transform,
+		picture: pictureSize
 	}
 
 	// Each runs what its button does, so each edit is the same one undo step.
@@ -648,6 +704,9 @@ export function VideoEditor() {
 				break
 			case 'annotation':
 				addAnnotation(plan.annotation)
+				break
+			case 'transform':
+				changeTransform(plan.transform)
 				break
 			case 'watermark':
 				if (watermark) moveWatermark(plan.corner)
@@ -715,51 +774,108 @@ export function VideoEditor() {
 							onApply={applyCommand}
 						/>
 					)}
-					<div className="border-border relative mx-auto w-full max-w-3xl overflow-hidden rounded-2xl border bg-black shadow-2xl">
-						<video
-							key={video.url}
-							ref={videoRef}
-							src={video.url}
-							controls
-							// One speed control: the preview speed below, not the player's own menu.
-							controlsList="noplaybackrate"
-							playsInline
-							className="block aspect-video w-full bg-black"
-							onLoadedMetadata={(event) => handleLoadedMetadata(event.currentTarget)}
-							onDurationChange={(event) => handleDurationChange(event.currentTarget)}
-							onTimeUpdate={(event) => handleTimeUpdate(event.currentTarget)}
-							onPlay={(event) => handlePlay(event.currentTarget)}
-							onPause={() => {
-								// Pausing on purpose to hold a frame under a longer take isn't stopping.
-								if (!playback.isHolding()) stopPlaying()
-							}}
-							onError={() => {
-								toast({
-									variant: 'destructive',
-									title: t('unplayable.title'),
-									description: t('unplayable.description', { name: video.name })
-								})
-								setVideo(null)
-							}}
-						/>
-						{editedNow !== null && picture && (
-							<AnnotationLayer
-								annotations={annotations}
-								editedSeconds={editedNow}
-								picture={picture}
-								tool={annotationTools.tool}
-								onPointerStart={() => videoRef.current?.pause()}
-								onDraw={drawAnnotation}
-								onChange={changeAnnotation}
-								onErase={removeAnnotation}
+					<PictureFrame
+						picture={pictureSize}
+						transform={shownTransform}
+						frameRef={frameRef}
+						video={
+							<video
+								key={video.url}
+								ref={videoRef}
+								src={video.url}
+								controls={!pictureTransformed}
+								// One speed control: the preview speed below, not the player's own menu.
+								controlsList="noplaybackrate"
+								playsInline
+								className="absolute inset-0 block h-full w-full bg-black"
+								onLoadedMetadata={(event) => handleLoadedMetadata(event.currentTarget)}
+								onDurationChange={(event) => handleDurationChange(event.currentTarget)}
+								onTimeUpdate={(event) => handleTimeUpdate(event.currentTarget)}
+								onPlay={(event) => handlePlay(event.currentTarget)}
+								onPause={() => {
+									// Pausing on purpose to hold a frame under a longer take isn't stopping.
+									if (!playback.isHolding()) stopPlaying()
+								}}
+								onError={() => {
+									toast({
+										variant: 'destructive',
+										title: t('unplayable.title'),
+										description: t('unplayable.description', { name: video.name })
+									})
+									setVideo(null)
+								}}
 							/>
-						)}
-						{editedNow !== null && picture && (
-							<OverlayPreview overlays={overlays} editedSeconds={editedNow} picture={picture} />
-						)}
-					</div>
+						}
+						onPicture={
+							<>
+								{editedNow !== null && picture && (
+									<AnnotationLayer
+										annotations={annotations}
+										editedSeconds={editedNow}
+										picture={picture}
+										videoRef={videoRef}
+										toPicture={toPicture}
+										flip={{ x: transform.flipH ? -1 : 1, y: transform.flipV ? -1 : 1 }}
+										tool={transformMode ? null : annotationTools.tool}
+										onPointerStart={() => videoRef.current?.pause()}
+										onDraw={drawAnnotation}
+										onChange={changeAnnotation}
+										onErase={removeAnnotation}
+									/>
+								)}
+								{transformMode === 'rotate' && !showOriginal && picture && (
+									<RotateHandle
+										rotation={transform.rotation}
+										onDraft={setRotationDraft}
+										onCommit={(rotation) =>
+											changeTransform(withRotation(transform, rotation, picture))
+										}
+									/>
+								)}
+							</>
+						}
+						onFrame={
+							<>
+								{editedNow !== null && picture && !transformMode && (
+									<OverlayPreview
+										overlays={overlays}
+										editedSeconds={editedNow}
+										frame={outputSize(pictureSize, shownTransform)}
+									/>
+								)}
+								{transformMode === 'crop' && !showOriginal && transform.crop && picture && (
+									<CropBox
+										crop={transform.crop}
+										frame={rotatedFrame(picture, transform.rotation)}
+										toFrame={toFrame}
+										onChange={(rect) =>
+											transform.crop &&
+											changeTransform({ ...transform, crop: { ...transform.crop, rect } })
+										}
+									/>
+								)}
+							</>
+						}
+					/>
 					{hasDuration && (
-						<div className="mx-auto flex w-full max-w-3xl justify-end">
+						<div className="mx-auto flex w-full max-w-3xl items-center justify-end gap-3">
+							{pictureTransformed && (
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="mr-auto"
+									onClick={() => {
+										const element = videoRef.current
+										if (!element) return
+										if (element.paused) void element.play()
+										else element.pause()
+									}}
+								>
+									{isPlaying ? <PauseIcon /> : <PlayIcon />}
+									{isPlaying ? t('pause') : t('play')}
+								</Button>
+							)}
 							<SpeedToggle rate={previewRate} onChange={setPreviewRate} />
 						</div>
 					)}
@@ -809,6 +925,17 @@ export function VideoEditor() {
 					onSplit={() => splitAt(currentTimeSeconds)}
 					onMove={(from, to) => arrangeClips(moveClip(sequence, from, to))}
 					onMerge={(from, to) => arrangeClips(mergeClips(sequence, from, to))}
+				/>
+			)}
+			{video && hasDuration && picture && (
+				<TransformPanel
+					key={JSON.stringify(transform)}
+					transform={transform}
+					picture={picture}
+					mode={transformMode}
+					canEdit={!showOriginal}
+					onModeChange={setTransformMode}
+					onChange={changeTransform}
 				/>
 			)}
 			{video && hasDuration && (

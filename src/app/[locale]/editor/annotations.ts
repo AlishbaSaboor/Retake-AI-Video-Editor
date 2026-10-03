@@ -6,7 +6,9 @@
 // the export at the video's own resolution. An item stays where it is put:
 // nothing here follows what moves in the video.
 
-export const ANNOTATION_KINDS = ['box', 'blur', 'text'] as const
+export const ANNOTATION_KINDS = ['box', 'blur', 'pixelate', 'text'] as const
+/** The kinds that hide what's under them by sampling the picture. */
+export type ObscureKind = 'blur' | 'pixelate'
 export type AnnotationKind = (typeof ANNOTATION_KINDS)[number]
 
 /** A rectangle on the picture, as fractions of its width and height. */
@@ -16,7 +18,10 @@ export type Rect = { x: number; y: number; width: number; height: number }
 export type Span = { startSeconds: number; endSeconds: number }
 
 export type Annotation = Span & { id: string; rect: Rect } & (
-		{ kind: 'box'; color: string } | { kind: 'blur' } | { kind: 'text'; text: string }
+		| { kind: 'box'; color: string }
+		| { kind: 'blur' }
+		| { kind: 'pixelate' }
+		| { kind: 'text'; text: string }
 	)
 
 // Omit over each kind of item separately: over the union as a whole it
@@ -36,6 +41,8 @@ export const MIN_ANNOTATION_SECONDS = 0.1
 export const MIN_ANNOTATION_SIZE = 0.02
 /** A blur's grain: one averaged block per this fraction of the picture's width. */
 export const BLUR_BLOCK_FRACTION = 1 / 40
+/** A pixelate's blocks: coarser than a blur's, and left hard-edged. */
+export const PIXELATE_BLOCK_FRACTION = 1 / 30
 /** Text height, as a fraction of its box's height: the band keeps a margin above and below. */
 export const TEXT_HEIGHT_FRACTION = 0.6
 export const DEFAULT_BOX_COLOR = '#000000'
@@ -153,12 +160,12 @@ export function toPixels(rect: Rect, width: number, height: number): Rect {
 }
 
 /**
- * The size of the small copy a blur is averaged through: one pixel per
- * BLUR_BLOCK_FRACTION of the picture's width, so the grain is the same for
- * any box, and at least one pixel each way.
+ * The size of the small copy a blur or pixelate is averaged through: one
+ * pixel per block (a fraction of the picture's width), so the grain is the
+ * same for any box, and at least one pixel each way.
  */
-export function blurGridSize(pixels: Rect, pictureWidth: number) {
-	const block = pictureWidth * BLUR_BLOCK_FRACTION
+export function obscureGridSize(pixels: Rect, pictureWidth: number, kind: ObscureKind = 'blur') {
+	const block = pictureWidth * (kind === 'blur' ? BLUR_BLOCK_FRACTION : PIXELATE_BLOCK_FRACTION)
 	return {
 		width: Math.max(1, Math.round(pixels.width / block)),
 		height: Math.max(1, Math.round(pixels.height / block))
