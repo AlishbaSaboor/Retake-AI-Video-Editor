@@ -53,9 +53,12 @@ import {
 	Plus,
 	Scissors,
 	SignOut,
+	SpeakerLow,
 	Trash,
 	User,
 	Warning,
+	Waveform,
+	WaveSquare,
 	X
 } from '@phosphor-icons/react/ssr'
 import type { Icon } from '@phosphor-icons/react'
@@ -114,6 +117,7 @@ export const ChevronLeftIcon = (props: IconProps) => <Glyph source={CaretLeft} {
 export const ChevronRightIcon = (props: IconProps) => <Glyph source={CaretRight} {...props} />
 export const ChevronUpIcon = (props: IconProps) => <Glyph source={CaretUp} {...props} />
 export const CleanupIcon = (props: IconProps) => <Glyph source={Broom} {...props} />
+export const ClippingIcon = (props: IconProps) => <Glyph source={WaveSquare} {...props} />
 export const CloseIcon = (props: IconProps) => <Glyph source={X} {...props} />
 export const CopyIcon = (props: IconProps) => <Glyph source={Copy} {...props} />
 export const DownloadIcon = (props: IconProps) => <Glyph source={DownloadSimple} {...props} />
@@ -127,7 +131,9 @@ export const MergeIcon = (props: IconProps) => <Glyph source={ArrowsInLineHorizo
 export const MicIcon = (props: IconProps) => <Glyph source={Microphone} {...props} />
 export const MinusIcon = (props: IconProps) => <Glyph source={Minus} {...props} />
 export const MoreIcon = (props: IconProps) => <Glyph source={DotsThreeVertical} {...props} />
+export const NoiseIcon = (props: IconProps) => <Glyph source={Waveform} {...props} />
 export const PlusIcon = (props: IconProps) => <Glyph source={Plus} {...props} />
+export const QuietIcon = (props: IconProps) => <Glyph source={SpeakerLow} {...props} />
 export const RedoIcon = (props: IconProps) => <Glyph source={ArrowUUpRight} {...props} />
 export const ReplaceIcon = (props: IconProps) => <Glyph source={ArrowsClockwise} {...props} />
 export const ResetIcon = (props: IconProps) => <Glyph source={ArrowCounterClockwise} {...props} />

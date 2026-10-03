@@ -717,6 +717,7 @@ export function VideoEditor() {
 				replacedSpans={replacedSpans}
 				silences={analysis.silences}
 				fillerPlans={analysis.fillerPlans}
+				audioIssues={analysis.audioIssues}
 				onSeek={playback.seek}
 				onTrimChange={handleTrimChange}
 				onTrimDraggingChange={(dragging) => {

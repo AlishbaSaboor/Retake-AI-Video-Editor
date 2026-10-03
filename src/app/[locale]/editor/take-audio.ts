@@ -176,15 +176,6 @@ export async function decodeAudio(file: Blob): Promise<AudioBuffer | null> {
 	}
 }
 
-/**
- * Decodes a video file's audio track to mono samples at ANALYSIS_SAMPLE_RATE,
- * or null when it has none (see decodeAudio). Browser-only.
- */
-export async function decodeTakeAudio(file: File): Promise<Float32Array | null> {
-	const decoded = await decodeAudio(file)
-	return decoded && analysisSamples(decoded)
-}
-
 /** Mixes decoded audio to mono at ANALYSIS_SAMPLE_RATE, for measuring. Browser-only. */
 export async function analysisSamples(decoded: AudioBuffer): Promise<Float32Array> {
 	const frames = Math.max(1, Math.ceil(decoded.duration * ANALYSIS_SAMPLE_RATE))
