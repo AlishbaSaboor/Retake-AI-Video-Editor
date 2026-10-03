@@ -173,12 +173,14 @@ test('clean-up, undo, redo, reset, speed, export and re-record work as commands,
 		'Reorder clips',
 		'Undo, redo',
 		'Export the edit',
-		'Cover or blur part of the picture'
+		'Cover, blur or pixelate part of the picture',
+		'Rotate, flip or crop the video'
 	]) {
 		await expect(unsupported).toContainText(ability)
 	}
 	await expect(unsupported).toContainText('Compare the edit with the original')
-	await expect(unsupported).toContainText('Draw boxes, blurs and text on the video')
+	await expect(unsupported).toContainText('Draw boxes, blurs, pixelates and text on the video')
+	await expect(unsupported).toContainText('Drag a crop box or a rotation handle on the video')
 })
 
 test('split, move and merge work as commands, each one undo step; re-record opens its panel', async ({

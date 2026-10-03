@@ -1,6 +1,7 @@
-import { drawOverlays, type Overlays } from './overlays'
+import { drawFrame, type Overlays } from './overlays'
 import { scheduleTakeGain, type ReplacementTake } from './re-record'
 import { segmentSeconds, type Segment } from './sequence'
+import { evenPixels, outputSize, type PictureTransform } from './transform'
 
 // Exporting re-records the edit in real time: an offscreen copy of the take
 // plays each kept segment in order while a MediaRecorder captures its frames
@@ -135,7 +136,8 @@ async function loadLogo(overlays: Overlays): Promise<HTMLImageElement | null> {
 
 /**
  * Plays `segments` of the video at `url` in order and records them into one
- * file, with `overlays` drawn over it. Only call where canExport() is true.
+ * file, its picture through `transform` (flipped, turned, cropped) and with
+ * `overlays` drawn over it. Only call where canExport() is true.
  * `onProgress` gets the fraction done; aborting `signal` stops early and
  * rejects with its reason.
  */
@@ -143,6 +145,7 @@ export async function recordEdit(
 	url: string,
 	segments: Segment<ReplacementTake>[],
 	overlays: Overlays,
+	transform: PictureTransform,
 	{ onProgress, signal }: { onProgress: (fraction: number) => void; signal: AbortSignal }
 ): Promise<{ blob: Blob; mimeType: string }> {
 	const mimeType = pickMimeType((type) => MediaRecorder.isTypeSupported(type))
@@ -158,18 +161,18 @@ export async function recordEdit(
 	try {
 		await nextEvent(video, 'loadeddata')
 		const logo = await loadLogo(overlays)
-		const canvas = Object.assign(document.createElement('canvas'), {
-			width: video.videoWidth,
-			height: video.videoHeight
-		})
+		const picture = { width: video.videoWidth, height: video.videoHeight }
+		const canvas = Object.assign(
+			document.createElement('canvas'),
+			evenPixels(outputSize(picture, transform))
+		)
 		const context = canvas.getContext('2d')
 		if (!context) throw new Error('no 2d canvas context')
 		const blurScratch = document.createElement('canvas')
 		// Where the frame being drawn is in the edited video; set per segment below.
 		let editedSeconds = () => 0
 		const paint = () => {
-			context.drawImage(video, 0, 0, canvas.width, canvas.height)
-			drawOverlays(context, overlays, editedSeconds(), logo, blurScratch)
+			drawFrame(context, video, picture, transform, overlays, editedSeconds(), logo, blurScratch)
 		}
 		const draw = () => {
 			paint()

@@ -7,6 +7,7 @@ import {
 	type CommandContext,
 	type EditCommand
 } from './edit-command'
+import { IDENTITY_TRANSFORM, outputSize } from './transform'
 
 const NONE = {
 	startSeconds: null,
@@ -16,7 +17,10 @@ const NONE = {
 	fromClip: null,
 	toClip: null,
 	rate: null,
-	region: null
+	region: null,
+	degrees: null,
+	axis: null,
+	aspect: null
 }
 const SENTENCE = { startSeconds: 25.2, endSeconds: 27, text: 'Let me add a video here.' }
 /** A three-clip edit with something to clean up and to undo, but nothing to redo. */
@@ -34,7 +38,9 @@ const CONTEXT: CommandContext = {
 			? { sentence: SENTENCE, blocker: null }
 			: seconds >= 40 && seconds < 42
 				? { sentence: { ...SENTENCE, startSeconds: 40 }, blocker: 'no_gap_after' }
-				: null
+				: null,
+	transform: IDENTITY_TRANSFORM,
+	picture: { width: 320, height: 180 }
 }
 const trim = (startSeconds: number | null, endSeconds: number | null): EditCommand => ({
 	...NONE,
@@ -309,4 +315,73 @@ test('export plans unless nothing plays', () => {
 		ok: false,
 		reason: 'nothing_to_export'
 	})
+})
+
+test('rotate turns the picture by that much from where it is, clockwise positive', () => {
+	const fifteen = commandToPlan({ ...NONE, action: 'rotate', degrees: 15 }, CONTEXT)
+	assert.ok(fifteen.ok && fifteen.plan.kind === 'transform')
+	if (!fifteen.ok || fifteen.plan.kind !== 'transform') return
+	assert.equal(fifteen.plan.transform.rotation, 15)
+	assert.deepEqual(fifteen.plan.change, { kind: 'rotate', degrees: 15, to: 15 })
+	// From 170°, another 30° is -160°; left 90° from 0 is -90°.
+	const turned = { ...CONTEXT, transform: { ...IDENTITY_TRANSFORM, rotation: 170 } }
+	const more = commandToPlan({ ...NONE, action: 'rotate', degrees: 30 }, turned)
+	assert.ok(more.ok && more.plan.kind === 'transform' && more.plan.transform.rotation === -160)
+	const left = commandToPlan({ ...NONE, action: 'rotate', degrees: -90 }, CONTEXT)
+	assert.ok(left.ok && left.plan.kind === 'transform' && left.plan.transform.rotation === -90)
+	// No amount, or a whole turn, is nothing to do.
+	assert.deepEqual(commandToPlan({ ...NONE, action: 'rotate' }, CONTEXT), {
+		ok: false,
+		reason: 'unsupported'
+	})
+	assert.deepEqual(commandToPlan({ ...NONE, action: 'rotate', degrees: 360 }, CONTEXT), {
+		ok: false,
+		reason: 'unsupported'
+	})
+})
+
+test('flip toggles one axis, horizontal when none is named', () => {
+	const flip = (axis: EditCommand['axis'], context = CONTEXT) =>
+		commandToPlan({ ...NONE, action: 'flip', axis }, context)
+	const h = flip(null)
+	assert.ok(h.ok && h.plan.kind === 'transform')
+	if (!h.ok || h.plan.kind !== 'transform') return
+	assert.equal(h.plan.transform.flipH, true)
+	assert.equal(h.plan.transform.flipV, false)
+	const v = flip('vertical')
+	assert.ok(v.ok && v.plan.kind === 'transform' && v.plan.transform.flipV)
+	// Flipping a flipped picture again puts it back.
+	const back = flip('horizontal', { ...CONTEXT, transform: h.plan.transform })
+	assert.ok(back.ok && back.plan.kind === 'transform' && !back.plan.transform.flipH)
+})
+
+test('crop centres the largest rectangle of that shape; none takes the crop off', () => {
+	const crop = commandToPlan({ ...NONE, action: 'crop', aspect: '9:16' }, CONTEXT)
+	assert.ok(crop.ok && crop.plan.kind === 'transform')
+	if (!crop.ok || crop.plan.kind !== 'transform') return
+	const out = outputSize(CONTEXT.picture, crop.plan.transform)
+	assert.ok(Math.abs(out.width / out.height - 9 / 16) < 1e-9)
+	assert.equal(out.height, 180)
+	assert.equal(crop.plan.transform.crop?.aspect, '9:16')
+	const off = commandToPlan(
+		{ ...NONE, action: 'crop', aspect: 'none' },
+		{ ...CONTEXT, transform: crop.plan.transform }
+	)
+	assert.ok(off.ok && off.plan.kind === 'transform' && off.plan.transform.crop === null)
+	assert.deepEqual(commandToPlan({ ...NONE, action: 'crop', aspect: 'none' }, CONTEXT), {
+		ok: false,
+		reason: 'nothing_to_uncrop'
+	})
+})
+
+test('pixelate covers a region over a stretch of the edited video, like blur', () => {
+	const pixelate = commandToPlan(
+		{ ...NONE, action: 'pixelate', region: 'top-left', startSeconds: 2, endSeconds: 5 },
+		CONTEXT
+	)
+	assert.ok(pixelate.ok && pixelate.plan.kind === 'annotation')
+	if (!pixelate.ok || pixelate.plan.kind !== 'annotation') return
+	assert.equal(pixelate.plan.annotation.kind, 'pixelate')
+	assert.equal(pixelate.plan.annotation.startSeconds, 2)
+	assert.equal(pixelate.plan.annotation.endSeconds, 5)
 })

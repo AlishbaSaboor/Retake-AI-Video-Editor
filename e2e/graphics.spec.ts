@@ -107,7 +107,7 @@ async function exportFrames(page: Page, times: number[]) {
 	)
 }
 
-const player = (page: Page) => page.locator('video').locator('..')
+const player = (page: Page) => page.getByTestId('player')
 const titleOver = (page: Page, text: string) => player(page).getByText(text, { exact: true })
 const watermarkOver = (page: Page) => player(page).getByRole('img', { name: 'Watermark' })
 

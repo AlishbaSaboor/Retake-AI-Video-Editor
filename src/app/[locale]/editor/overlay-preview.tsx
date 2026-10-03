@@ -7,7 +7,6 @@ import {
 	CAPTION_FONT_FRACTION,
 	CAPTION_LINE_SCALE,
 	CAPTION_PADDING_SCALE,
-	fitInside,
 	TITLE_BAND_COLOR,
 	TITLE_BAND_SCALE,
 	TITLE_FONT_FRACTION,
@@ -16,43 +15,36 @@ import {
 	type Overlays
 } from './overlays'
 
-/** The editor's player frame, `aspect-video`. */
-const FRAME_RATIO = 16 / 9
 const PERCENT = 100
 
 type OverlayPreviewProps = {
 	overlays: Overlays
 	/** Where playback is in the edited video. */
 	editedSeconds: number
-	picture: { width: number; height: number }
+	/** The output frame's size (after any crop or rotation), for placing the watermark. */
+	frame: { width: number; height: number }
 }
 
 /**
- * The title, captions and watermark over the player, where the export draws them:
- * the same geometry, sized against the picture's own box (container query
- * units), so they scale with the player and skip its letterbox bars.
+ * The title, captions and watermark over the output frame, where the export
+ * draws them: the same geometry, sized against the frame (container query
+ * units: text against its shorter side, `cqmin`, as the export does), so
+ * they scale with the player, skip its letterbox bars and stay put through
+ * a crop or rotation. Render inside PictureFrame's output frame.
  */
-export function OverlayPreview({ overlays, editedSeconds, picture }: OverlayPreviewProps) {
+export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPreviewProps) {
 	const t = useTranslations('Editor.graphics')
-	const box = fitInside(picture.width / picture.height, FRAME_RATIO)
 	const { title, watermark, captions } = overlays
 	const caption = captionAt(captions, editedSeconds)
-	const logo = watermark && watermarkRect(watermark, picture.width, picture.height)
+	const logo = watermark && watermarkRect(watermark, frame.width, frame.height)
 	return (
-		<div
-			className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-			style={{
-				width: `${box.widthPercent}%`,
-				height: `${box.heightPercent}%`,
-				containerType: 'size'
-			}}
-		>
+		<div className="pointer-events-none absolute inset-0" style={{ containerType: 'size' }}>
 			{title && titleShownAt(title, editedSeconds) && (
 				<div
 					className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center font-sans font-bold text-white"
 					style={{
-						height: `${TITLE_FONT_FRACTION * TITLE_BAND_SCALE * PERCENT}cqh`,
-						fontSize: `${TITLE_FONT_FRACTION * PERCENT}cqh`,
+						height: `${TITLE_FONT_FRACTION * TITLE_BAND_SCALE * PERCENT}cqmin`,
+						fontSize: `${TITLE_FONT_FRACTION * PERCENT}cqmin`,
 						background: TITLE_BAND_COLOR
 					}}
 				>
@@ -64,7 +56,7 @@ export function OverlayPreview({ overlays, editedSeconds, picture }: OverlayPrev
 					className="absolute inset-x-0 flex flex-col items-center font-sans font-bold text-white"
 					style={{
 						bottom: `${CAPTION_BOTTOM_FRACTION * PERCENT}cqh`,
-						fontSize: `${CAPTION_FONT_FRACTION * PERCENT}cqh`,
+						fontSize: `${CAPTION_FONT_FRACTION * PERCENT}cqmin`,
 						lineHeight: CAPTION_LINE_SCALE
 					}}
 				>
@@ -88,10 +80,10 @@ export function OverlayPreview({ overlays, editedSeconds, picture }: OverlayPrev
 					alt={t('watermarkAlt')}
 					className="absolute"
 					style={{
-						left: `${(logo.x / picture.width) * PERCENT}%`,
-						top: `${(logo.y / picture.height) * PERCENT}%`,
-						width: `${(logo.width / picture.width) * PERCENT}%`,
-						height: `${(logo.height / picture.height) * PERCENT}%`
+						left: `${(logo.x / frame.width) * PERCENT}%`,
+						top: `${(logo.y / frame.height) * PERCENT}%`,
+						width: `${(logo.width / frame.width) * PERCENT}%`,
+						height: `${(logo.height / frame.height) * PERCENT}%`
 					}}
 				/>
 			)}

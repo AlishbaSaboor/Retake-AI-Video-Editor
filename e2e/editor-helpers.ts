@@ -121,6 +121,9 @@ export const editCommand = (
 	toClip: null,
 	rate: null,
 	region: null,
+	degrees: null,
+	axis: null,
+	aspect: null,
 	...fields
 })
 

@@ -2,6 +2,15 @@ import { z } from 'zod'
 import { regionRect, REGIONS, type NewAnnotation, type Region } from './annotations'
 import { CORNERS, type Corner, type TitleCard } from './overlays'
 import { PREVIEW_RATES } from './preview-speed'
+import {
+	aspectRatio,
+	centredCrop,
+	normalizeDegrees,
+	rotatedFrame,
+	withRotation,
+	type PictureTransform,
+	type Size
+} from './transform'
 import type { ReRecordBlocker } from './re-record'
 import { moveTrimEdge, type TrimRange } from './timeline-scale'
 import type { TranscriptSegment } from './transcript'
@@ -30,8 +39,24 @@ const ACTIONS = [
 	'captions_off',
 	'box',
 	'blur',
+	'pixelate',
+	'rotate',
+	'flip',
+	'crop',
 	'unsupported'
 ] as const
+const FLIP_AXES = ['horizontal', 'vertical'] as const
+/** "Flip it" with no axis named mirrors left and right. */
+const DEFAULT_FLIP_AXIS = 'horizontal'
+/** The crop presets a command can name, or 'none' to take the crop off. */
+const COMMAND_ASPECTS = ['16:9', '9:16', '1:1', '4:5', 'none'] as const
+
+/** What a transform command changes, for its confirmation. */
+export type TransformChange =
+	| { kind: 'rotate'; degrees: number; to: number }
+	| { kind: 'flip'; axis: (typeof FLIP_AXES)[number] }
+	| { kind: 'crop'; aspect: (typeof COMMAND_ASPECTS)[number] }
+
 export const editCommandSchema = z.object({
 	action: z.enum(ACTIONS),
 	startSeconds: z.number().nullable(),
@@ -41,7 +66,11 @@ export const editCommandSchema = z.object({
 	fromClip: z.number().nullable(),
 	toClip: z.number().nullable(),
 	rate: z.number().nullable(),
-	region: z.enum(REGIONS).nullable()
+	region: z.enum(REGIONS).nullable(),
+	/** How far to turn the picture, clockwise; negative is anticlockwise. */
+	degrees: z.number().nullable(),
+	axis: z.enum(FLIP_AXES).nullable(),
+	aspect: z.enum(COMMAND_ASPECTS).nullable()
 })
 export type EditCommand = z.infer<typeof editCommandSchema>
 
@@ -61,7 +90,11 @@ export const EDIT_COMMAND_JSON_SCHEMA = {
 		toClip: NULLABLE_NUMBER,
 		rate: NULLABLE_NUMBER,
 		// Named in the prompt and checked by the schema above, as corners are.
-		region: { type: ['string', 'null'] }
+		region: { type: ['string', 'null'] },
+		degrees: NULLABLE_NUMBER,
+		// Named in the prompt and checked by the schema above, as corners are.
+		axis: { type: ['string', 'null'] },
+		aspect: { type: ['string', 'null'] }
 	},
 	required: [
 		'action',
@@ -72,7 +105,10 @@ export const EDIT_COMMAND_JSON_SCHEMA = {
 		'fromClip',
 		'toClip',
 		'rate',
-		'region'
+		'region',
+		'degrees',
+		'axis',
+		'aspect'
 	]
 }
 
@@ -100,6 +136,7 @@ export type CommandPlan =
 	| { kind: 'watermark'; corner: Corner }
 	| { kind: 'captions'; on: boolean }
 	| { kind: 'annotation'; region: Region; annotation: NewAnnotation }
+	| { kind: 'transform'; transform: PictureTransform; change: TransformChange }
 
 /** Why a command can't be done; each has its own plain answer. */
 export type RefusalReason =
@@ -115,6 +152,7 @@ export type RefusalReason =
 	| 'unsupported_speed'
 	| 'no_sentence'
 	| 'nothing_to_export'
+	| 'nothing_to_uncrop'
 type Refusal =
 	| { ok: false; reason: RefusalReason }
 	| { ok: false; reason: 'cannot_rerecord'; blocker: ReRecordBlocker }
@@ -133,6 +171,9 @@ export type CommandContext = {
 	canUndo: boolean
 	canRedo: boolean
 	canReset: boolean
+	/** The picture's flip, rotation and crop now, and the source picture's size. */
+	transform: PictureTransform
+	picture: Size
 	/** The transcript's sentence at a source time, and why it can't be re-recorded, if so. */
 	sentenceAt: (
 		seconds: number
@@ -213,8 +254,54 @@ export function commandToPlan(command: EditCommand, context: CommandContext): Co
 				title: { text: command.text.trim(), startSeconds: start, durationSeconds: end - start }
 			})
 		}
+		case 'rotate': {
+			if (command.degrees === null || normalizeDegrees(command.degrees) === 0) {
+				return refuse('unsupported')
+			}
+			const transform = withRotation(
+				context.transform,
+				context.transform.rotation + command.degrees,
+				context.picture
+			)
+			return plan({
+				kind: 'transform',
+				transform,
+				change: { kind: 'rotate', degrees: command.degrees, to: transform.rotation }
+			})
+		}
+		case 'flip': {
+			const axis = command.axis ?? DEFAULT_FLIP_AXIS
+			const flip = axis === 'horizontal' ? 'flipH' : 'flipV'
+			return plan({
+				kind: 'transform',
+				transform: { ...context.transform, [flip]: !context.transform[flip] },
+				change: { kind: 'flip', axis }
+			})
+		}
+		case 'crop': {
+			const aspect = command.aspect ?? 'none'
+			if (aspect === 'none') {
+				return context.transform.crop
+					? plan({
+							kind: 'transform',
+							transform: { ...context.transform, crop: null },
+							change: { kind: 'crop', aspect }
+						})
+					: refuse('nothing_to_uncrop')
+			}
+			const frame = rotatedFrame(context.picture, context.transform.rotation)
+			return plan({
+				kind: 'transform',
+				transform: {
+					...context.transform,
+					crop: { rect: centredCrop(aspectRatio(aspect) ?? 1, frame), aspect }
+				},
+				change: { kind: 'crop', aspect }
+			})
+		}
 		case 'box':
-		case 'blur': {
+		case 'blur':
+		case 'pixelate': {
 			const start = command.startSeconds ?? 0
 			const end = Math.min(command.endSeconds ?? context.editedSeconds, context.editedSeconds)
 			if (start < 0 || start >= end) return refuse('out_of_range')
@@ -226,7 +313,7 @@ export function commandToPlan(command: EditCommand, context: CommandContext): Co
 				annotation:
 					command.action === 'box'
 						? { kind: 'box', color: COMMAND_BOX_COLOR, ...shape }
-						: { kind: 'blur', ...shape }
+						: { kind: command.action, ...shape }
 			})
 		}
 		case 'unsupported':

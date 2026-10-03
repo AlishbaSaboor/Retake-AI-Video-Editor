@@ -47,9 +47,11 @@ import {
 	Lightning,
 	List,
 	MagnifyingGlass,
+	Pause,
 	Microphone,
 	Minus,
 	PencilSimple,
+	Play,
 	Plus,
 	Scissors,
 	SignOut,
@@ -132,6 +134,8 @@ export const MicIcon = (props: IconProps) => <Glyph source={Microphone} {...prop
 export const MinusIcon = (props: IconProps) => <Glyph source={Minus} {...props} />
 export const MoreIcon = (props: IconProps) => <Glyph source={DotsThreeVertical} {...props} />
 export const NoiseIcon = (props: IconProps) => <Glyph source={Waveform} {...props} />
+export const PauseIcon = (props: IconProps) => <Glyph source={Pause} {...props} />
+export const PlayIcon = (props: IconProps) => <Glyph source={Play} {...props} />
 export const PlusIcon = (props: IconProps) => <Glyph source={Plus} {...props} />
 export const QuietIcon = (props: IconProps) => <Glyph source={SpeakerLow} {...props} />
 export const RedoIcon = (props: IconProps) => <Glyph source={ArrowUUpRight} {...props} />

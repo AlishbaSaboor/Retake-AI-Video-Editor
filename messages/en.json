@@ -21,6 +21,8 @@
 			"description": "{name} may use a format or codec your browser doesn't support. Try an MP4 (H.264) or WebM file."
 		},
 		"replace": "Replace video",
+		"play": "Play",
+		"pause": "Pause",
 		"cleanup": {
 			"button": "Clean up recording",
 			"hint": "Removes flagged silences and filler words in one step.",
@@ -93,6 +95,14 @@
 				"export": "I'll export the edit as a video file. It takes as long as the edit plays.",
 				"box": "I'll cover the {region} with a black box from {start} to {end}. It stays in place: it won't follow anything that moves.",
 				"blur": "I'll blur the {region} from {start} to {end}. It stays in place: it won't follow anything that moves.",
+				"pixelate": "I'll pixelate the {region} from {start} to {end}. It stays in place: it won't follow anything that moves.",
+				"rotate": "I'll turn the video {degrees}° {direction, select, clockwise {clockwise} other {anticlockwise}}, to {to}°. The corners it leaves are black: crop them away if you like.",
+				"flip": {
+					"horizontal": "I'll flip the video horizontally: left and right swap.",
+					"vertical": "I'll flip the video vertically: it turns upside down."
+				},
+				"crop": "I'll crop the video to {aspect}, centred. You can move the crop box afterwards.",
+				"uncrop": "I'll take the crop off.",
 				"apply": "Apply",
 				"cancel": "Cancel"
 			},
@@ -131,11 +141,13 @@
 				"addTitle": "Add a title card: “add the title Welcome for the first 3 seconds”",
 				"addWatermark": "Add a logo watermark: “put my logo in the top-right corner”",
 				"captions": "Turn captions on or off: “turn captions on”",
-				"annotate": "Cover or blur part of the picture: “blur the top-right corner from 5 to 10 seconds”",
+				"annotate": "Cover, blur or pixelate part of the picture: “pixelate the top-left corner from 2 to 5 seconds”",
+				"transform": "Rotate, flip or crop the video: “rotate the video 15 degrees”, “flip it horizontally”, “crop to 9:16”",
 				"editorIntro": "In the editor itself, you can also:",
 				"fillerCut": "Cut a single filler word by ear: click its flag on the timeline",
 				"compare": "Compare the edit with the original: Edited / Original above the player",
-				"annotations": "Draw boxes, blurs and text on the video, then move, resize and retime them: Annotations, under the clips"
+				"annotations": "Draw boxes, blurs, pixelates and text on the video, then move, resize and retime them: Annotations, under the clips",
+				"transformByHand": "Drag a crop box or a rotation handle on the video: Picture, under the clips"
 			},
 			"refused": {
 				"no_such_clip": "There's no clip with that number. The Clips strip numbers them from 1.",
@@ -148,6 +160,7 @@
 				"unsupported_speed": "The preview plays at 0.5×, 1×, 1.5× or 2×.",
 				"no_sentence": "I can't find a sentence at that time in the transcript.",
 				"nothing_to_export": "Nothing plays in this edit, so there's nothing to export.",
+				"nothing_to_uncrop": "The video isn't cropped.",
 				"cannot_rerecord": "I can't re-record that sentence yet."
 			},
 			"out_of_range": {
@@ -226,6 +239,7 @@
 				"select": "Select",
 				"box": "Box",
 				"blur": "Blur",
+				"pixelate": "Pixelate",
 				"text": "Text",
 				"erase": "Eraser"
 			},
@@ -239,6 +253,7 @@
 			"kinds": {
 				"box": "Box",
 				"blur": "Blur",
+				"pixelate": "Pixelate",
 				"text": "Text"
 			},
 			"item": "{kind} {number}",
@@ -246,6 +261,24 @@
 			"barHint": "Drag to move it in time, or its edges to change when it starts and ends. Arrow keys move it; Delete removes it.",
 			"start": "{name} start",
 			"end": "{name} end"
+		},
+		"transform": {
+			"label": "Picture",
+			"degrees": "Rotation (°)",
+			"left90": "Rotate left 90°",
+			"right90": "Rotate right 90°",
+			"rotateMode": "Rotate by dragging",
+			"rotateHandle": "Rotation",
+			"flipH": "Flip horizontally",
+			"flipV": "Flip vertically",
+			"crop": "Crop",
+			"cropShape": "Crop shape",
+			"free": "Free",
+			"cropMode": "Adjust crop",
+			"noCrop": "No crop",
+			"cropBox": "Crop box",
+			"hint": "Applies to the whole video. Rotating leaves black corners; a crop takes them away. Annotations stay on the picture; the title, captions and logo stay in the frame.",
+			"originalHint": "Switch to Edited to change the picture."
 		},
 		"speed": {
 			"label": "Preview speed",
