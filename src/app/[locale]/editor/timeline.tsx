@@ -12,6 +12,7 @@ import {
 	type TrimEdge,
 	type TrimRange
 } from './timeline-scale'
+import { AUDIO_ISSUE_KINDS, type AudioIssue } from './audio-quality'
 import { keptSeconds, type Cut } from './cleanup'
 import type { FillerPlan } from './filler-cuts'
 import type { SourceRange } from './sequence'
@@ -33,6 +34,8 @@ type TimelineProps = {
 	silences: Silence[]
 	/** Filler words found in the transcript: cuttable, or left for review. */
 	fillerPlans: FillerPlan[]
+	/** Clipping, quiet speech and loud background found in the audio: flags only. */
+	audioIssues: AudioIssue[]
 	/** Ranges removed by clean-up, shown struck out on the track. */
 	cuts: Cut[]
 	/** Spans whose sound a re-recorded take replaces. */
@@ -49,7 +52,8 @@ type TimelineProps = {
  * drag anywhere on it to scrub; it's also a keyboard-operable slider. The
  * dashed outline is the whole source file and the bar inside it is the
  * trimmed clip, with a handle on each edge. Silences are shaded amber, with
- * a flag above each one that jumps to it; filler words get their own flags.
+ * a flag above each one that jumps to it; filler words and audio problems
+ * get their own flags, and a line under the track says what those mean.
  */
 export function Timeline({
 	clipName,
@@ -58,6 +62,7 @@ export function Timeline({
 	trim,
 	silences,
 	fillerPlans,
+	audioIssues,
 	cuts,
 	replacedSpans,
 	onSeek,
@@ -69,6 +74,10 @@ export function Timeline({
 	const trackRef = useRef<HTMLDivElement>(null)
 	const hasClip = clipName !== null && isKnownDuration(durationSeconds)
 	const trimmedSeconds = keptSeconds({ trim, cuts })
+	const issueCounts = AUDIO_ISSUE_KINDS.map((kind) => ({
+		kind,
+		count: audioIssues.filter((issue) => issue.kind === kind).length
+	})).filter(({ count }) => count > 0)
 
 	function timeAtPointer(clientX: number): number {
 		const track = trackRef.current
@@ -98,7 +107,7 @@ export function Timeline({
 			<div className="border-border mb-2 flex items-center gap-1.5 border-b pb-3">
 				<TimelineIcon className="text-accent" />
 				<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
-				{hasClip && (silences.length > 0 || fillerPlans.length > 0) && (
+				{hasClip && (silences.length > 0 || fillerPlans.length > 0 || audioIssues.length > 0) && (
 					<div className="ml-auto flex items-center gap-2 text-xs">
 						{silences.length > 0 && (
 							<span className="border-warning/20 bg-warning/10 text-warning rounded border px-2 py-0.5">
@@ -110,6 +119,14 @@ export function Timeline({
 								{t('fillerCount', { count: fillerPlans.length })}
 							</span>
 						)}
+						{issueCounts.map(({ kind, count }) => (
+							<span
+								key={kind}
+								className="border-border bg-surface-inset text-text-muted rounded border px-2 py-0.5"
+							>
+								{t(`audio.${kind}.count`, { count })}
+							</span>
+						))}
 					</div>
 				)}
 			</div>
@@ -249,9 +266,30 @@ export function Timeline({
 							onJump={() => onEditFiller(plan)}
 						/>
 					))}
+					{audioIssues.map((issue) => (
+						<TimelineFlag
+							key={`${issue.kind}-${issue.startSeconds}`}
+							kind={issue.kind}
+							atSeconds={issue.startSeconds}
+							durationSeconds={durationSeconds}
+							label={t(`audio.${issue.kind}.pin`, {
+								start: formatTimecode(issue.startSeconds),
+								end: formatTimecode(issue.endSeconds)
+							})}
+							onJump={onSeek}
+						/>
+					))}
 				</div>
 			) : (
 				<p className="text-text-faint py-8 text-center text-sm">{t('empty')}</p>
+			)}
+			{hasClip && issueCounts.length > 0 && (
+				<ul className="text-text-muted mt-3 flex flex-col gap-0.5 text-xs">
+					{issueCounts.map(({ kind }) => (
+						<li key={kind}>{t(`audio.${kind}.meaning`)}</li>
+					))}
+					<li>{t('audio.note')}</li>
+				</ul>
 			)}
 		</section>
 	)

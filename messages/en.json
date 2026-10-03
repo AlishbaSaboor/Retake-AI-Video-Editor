@@ -166,6 +166,24 @@
 			"fillerPinLabel": "Filler word \"{word}\" at {at}. Open the cut editor",
 			"fillerReviewPinLabel": "Filler word \"{word}\" at {at}, needs a manual cut (no clear pause around it). Open the cut editor",
 			"empty": "Your timeline appears here once a video loads.",
+			"audio": {
+				"clipping": {
+					"count": "{count, plural, one {# clipped stretch} other {# clipped stretches}}",
+					"pin": "Clipping from {start} to {end}: the sound hit the maximum level and may crackle or distort. Jump there",
+					"meaning": "Clipping: the sound hit the maximum level the recording can hold, so it may crackle or distort there."
+				},
+				"quiet": {
+					"count": "{count, plural, one {# quiet stretch} other {# quiet stretches}}",
+					"pin": "Quiet speech from {start} to {end}: much quieter than the rest of the recording, and may be hard to hear. Jump there",
+					"meaning": "Quiet speech: at least 15 dB quieter than the rest of the recording for a few seconds, so it may be hard to hear."
+				},
+				"noise": {
+					"count": "{count, plural, one {# noisy stretch} other {# noisy stretches}}",
+					"pin": "Loud background from {start} to {end}: the background is nearly as loud as the speech. Jump there",
+					"meaning": "Loud background: the sound between words is close to the level of the speech, so the speech may be hard to follow."
+				},
+				"note": "These flags only point things out: nothing has been changed, and the editor can't fix them yet."
+			},
 			"clipLabel": "{name}, {duration}"
 		},
 		"compare": {

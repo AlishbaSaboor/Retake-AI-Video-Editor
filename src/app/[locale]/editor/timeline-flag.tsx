@@ -1,21 +1,35 @@
 'use client'
 
-import { FillerWordIcon } from '@/components/ui/icons'
+import { ClippingIcon, FillerWordIcon, NoiseIcon, QuietIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
+import type { AudioIssueKind } from './audio-quality'
 import { timeToPercent } from './timeline-scale'
 
-export type FlagKind = 'silence' | 'filler' | 'fillerReview'
+export type FlagKind = 'silence' | 'filler' | 'fillerReview' | AudioIssueKind
 
-// Silences and filler words differ in colour, shape and glyph, so the two
-// read apart at a glance — not by colour alone. A filler clean-up can't cut
-// safely (no clear gap around it) is outlined rather than filled.
+// Each kind differs in colour, shape and glyph, so they read apart at a
+// glance — not by colour alone. A filler clean-up can't cut safely (no
+// clear gap around it) is outlined rather than filled. Audio problems
+// (clipping, quiet speech, loud background) only point something out.
 const KIND_STYLES: Record<FlagKind, string> = {
 	silence: 'bg-warning rounded-full',
 	filler: 'bg-filler rounded-sm',
-	fillerReview: 'bg-surface text-filler border-filler rounded-sm border-dashed'
+	fillerReview: 'bg-surface text-filler border-filler rounded-sm border-dashed',
+	clipping: 'bg-danger rounded-sm',
+	quiet: 'bg-surface text-text border-text-muted rounded-full',
+	noise: 'bg-accent-secondary rounded-sm'
 }
 
-const FILLER_ICON_SIZE = 10
+const GLYPH_SIZE = 10
+
+const GLYPHS: Record<FlagKind, React.ReactNode> = {
+	silence: '!',
+	filler: <FillerWordIcon size={GLYPH_SIZE} />,
+	fillerReview: <FillerWordIcon size={GLYPH_SIZE} />,
+	clipping: <ClippingIcon size={GLYPH_SIZE} />,
+	quiet: <QuietIcon size={GLYPH_SIZE} />,
+	noise: <NoiseIcon size={GLYPH_SIZE} />
+}
 
 type TimelineFlagProps = {
 	kind: FlagKind
@@ -46,7 +60,7 @@ export function TimelineFlag({
 			style={{ left: timeToPercent(atSeconds, durationSeconds) }}
 			onClick={() => onJump(atSeconds)}
 		>
-			{kind === 'silence' ? '!' : <FillerWordIcon size={FILLER_ICON_SIZE} />}
+			{GLYPHS[kind]}
 		</button>
 	)
 }
