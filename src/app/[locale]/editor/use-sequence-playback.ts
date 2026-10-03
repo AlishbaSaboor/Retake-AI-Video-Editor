@@ -1,6 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import type { ReplacementTake } from './re-record'
-import { playbackPosition, type Segment } from './sequence'
+import { isInSegment, playbackPosition, SEEK_TOLERANCE_SECONDS, type Segment } from './sequence'
 
 // Pressing play this close to the end counts as "at the end" and restarts
 // from the beginning, rather than playing a frame and stopping.
@@ -149,7 +149,7 @@ export function useSequencePlayback(
 					} else {
 						advance(element, index)
 					}
-				} else if (!current || seconds < current.startSeconds || seconds >= current.endSeconds) {
+				} else if (!current || !isInSegment(seconds, current)) {
 					stopVoice(voiceRef, videoRef)
 					const at = playbackPosition(seconds, segments)
 					if (at) {
@@ -171,7 +171,8 @@ export function useSequencePlayback(
 						audio,
 						element,
 						replacement,
-						element.currentTime - playing.startSeconds,
+						// A hair before the start reads as the start (SEEK_TOLERANCE_SECONDS).
+						Math.max(0, element.currentTime - playing.startSeconds),
 						rate
 					)
 				} else if (!replacement && voiceRef.current) {
@@ -222,7 +223,9 @@ export function useSequencePlayback(
 	 */
 	function settle(element: HTMLVideoElement) {
 		const seconds = element.currentTime
-		const onSegment = segments.some((s) => seconds >= s.startSeconds && seconds <= s.endSeconds)
+		const onSegment = segments.some(
+			(s) => seconds >= s.startSeconds - SEEK_TOLERANCE_SECONDS && seconds <= s.endSeconds
+		)
 		if (element.paused && !onSegment) {
 			const target = playbackPosition(seconds, segments)?.seconds ?? segments.at(-1)?.endSeconds
 			if (target !== undefined) element.currentTime = target

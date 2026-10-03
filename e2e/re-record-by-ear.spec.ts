@@ -1,16 +1,63 @@
 import { readFile } from 'node:fs/promises'
-import { test, expect } from '@playwright/test'
-import { mockActions, openEditorWithVideo, reRecordButton, ROOM_TONE, w } from './editor-helpers'
+import { test, expect, type Page } from '@playwright/test'
+import {
+	mockActions,
+	openEditorWithVideo,
+	reRecordButton,
+	ROOM_TONE,
+	seekTo,
+	w
+} from './editor-helpers'
 import { FAKE_MIC_LAUNCH, recordTake } from './fake-mic'
 
 // Its own file, so its real-time recording and export run beside the other
 // re-record tests rather than after them in one long serial worker.
 test.use({ launchOptions: FAKE_MIC_LAUNCH })
 
+/** How many takes the editor has started so far (logged by the page). */
+const takeStarts = async (page: Page): Promise<number> =>
+	JSON.parse((await page.evaluate(() => document.documentElement.dataset.takeStarts)) ?? '[]')
+		.length
+
 test('a sentence with no pause gets its joins set by ear, and its take records, plays, exports and undoes like any other', async ({
 	page
 }) => {
 	test.setTimeout(180_000)
+	// The video behaves as Chrome does with an MP4 source (measured on
+	// Cap.mp4): it reports time to the microsecond, and a seek takes a while,
+	// reporting the target meanwhile (sought to 29.080000000000002, it said
+	// 29.08 for ~500 ms). The WebM test video otherwise seeks within a frame
+	// and reports exactly what was written, which hid the loop this catches.
+	await page.addInitScript(() => {
+		const time = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime')
+		if (!time?.get || !time.set) return
+		const { get, set } = time
+		const SEEK_MS = 100
+		const sought = new WeakMap<HTMLMediaElement, { target: number; at: number }>()
+		const micro = (seconds: number) => Math.round(seconds * 1e6) / 1e6
+		Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
+			get(this: HTMLMediaElement) {
+				const seek = sought.get(this)
+				if (seek && performance.now() - seek.at < SEEK_MS) return micro(seek.target)
+				return micro(get.call(this))
+			},
+			set(this: HTMLMediaElement, value: number) {
+				sought.set(this, { target: value, at: performance.now() })
+				set.call(this, value)
+			}
+		})
+	})
+	// Counts every take the editor starts, with where the video was.
+	await page.addInitScript(() => {
+		const starts: number[] = []
+		const save = () => (document.documentElement.dataset.takeStarts = JSON.stringify(starts))
+		const start = AudioBufferSourceNode.prototype.start
+		AudioBufferSourceNode.prototype.start = function (when, offset, duration) {
+			starts.push(document.querySelector('video')?.currentTime ?? -1)
+			save()
+			return start.call(this, when, offset, duration)
+		}
+	})
 	// A (0–1 s) runs straight into B (1–3 s): a 440 Hz tone that dips for
 	// just 20 ms between them, too short to be a pause (40 ms is the least),
 	// as words run together. So B has no pause before it. Then a pause, and C.
@@ -82,8 +129,37 @@ test('a sentence with no pause gets its joins set by ear, and its take records, 
 
 	// Record, then use it: the same take path as an automatic sentence.
 	await recordTake(page, '0.8')
+
+	// Play with new take plays on through the start join. The join is a
+	// computed time (1.0050000000000001 s) that the video reports back a hair
+	// earlier (1.005): read exactly, playback froze at the preview's start, or
+	// looped at the join restarting the take.
+	await panel.getByRole('button', { name: 'Play with new take' }).click()
+	await expect
+		.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 4000 })
+		.toBeGreaterThan(joins.start + 0.3)
+	await video.evaluate((v: HTMLVideoElement) => v.pause())
 	await panel.getByRole('button', { name: 'Use new take' }).click()
 	await expect(page.getByText('re-recorded', { exact: true })).toHaveCount(1)
+
+	// The edited video plays through the replaced span and out the other
+	// side, starting the take once.
+	const startsBefore = await takeStarts(page)
+	await seekTo(page, 0.5)
+	const reached = await video.evaluate(async (v: HTMLVideoElement) => {
+		v.muted = true
+		await v.play()
+		let furthest = v.currentTime
+		const t0 = performance.now()
+		while (performance.now() - t0 < 4000) {
+			furthest = Math.max(furthest, v.currentTime)
+			await new Promise((resolve) => setTimeout(resolve, 20))
+		}
+		v.pause()
+		return furthest
+	})
+	expect(reached, 'playback passes the end join').toBeGreaterThan(joins.end + 0.2)
+	expect((await takeStarts(page)) - startsBefore, 'the take started once').toBe(1)
 
 	// The export: 880 Hz from the start join for the take's 0.8 s, 440 Hz
 	// before it and after the end join; as long as the edit.
