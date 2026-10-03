@@ -274,8 +274,8 @@
 			"original": "Original: “{text}”",
 			"hint": "Say the sentence again. Your new take replaces the original sound; the picture keeps playing underneath, so say it to match what is on screen.",
 			"blocked": {
-				"no_gap_before": "There is no clear pause before this sentence, so a new take can’t be joined in without cutting into speech.",
-				"no_gap_after": "There is no clear pause after this sentence, so a new take can’t be joined in without cutting into speech.",
+				"no_gap_before": "There is no clear pause before this sentence, so the join can’t be placed automatically. You can set it by ear.",
+				"no_gap_after": "There is no clear pause after this sentence, so the join can’t be placed automatically. You can set it by ear.",
 				"trimmed": "Part of this sentence is trimmed away. Move the trim handles to include all of it first.",
 				"split": "This sentence is split between two clips. Merge them first.",
 				"overlaps": "This sentence overlaps one you’ve already re-recorded."
@@ -297,6 +297,21 @@
 				"description": "Allow microphone access for this site and check a microphone is connected, then try again."
 			},
 			"inputLevel": "Microphone level",
+			"setByEar": "Set the join by ear",
+			"byEarNote": "A join set by ear isn’t guaranteed to be clean: play the new take in place before you use it.",
+			"join": {
+				"hint": "Drag each handle to where the sentence starts and ends. The shaded part is what the new take replaces; dips below the dashed line are the quietest moments.",
+				"start": {
+					"label": "Join before the sentence, at {at}",
+					"handle": "Join before the sentence",
+					"play": "Play around the start"
+				},
+				"end": {
+					"label": "Join after the sentence, at {at}",
+					"handle": "Join after the sentence",
+					"play": "Play around the end"
+				}
+			},
 			"stoppedMidSpeech": "Stop was pressed while you were still speaking, so the end of the take would be cut off. Record again, and pause a moment before pressing Stop."
 		}
 	}

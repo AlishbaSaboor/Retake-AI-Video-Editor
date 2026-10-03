@@ -190,8 +190,10 @@ export function commandToPlan(command: EditCommand, context: CommandContext): Co
 		case 'rerecord': {
 			const found = command.startSeconds === null ? null : context.sentenceAt(command.startSeconds)
 			if (!found) return refuse('no_sentence')
-			return found.blocker
-				? { ok: false, reason: 'cannot_rerecord', blocker: found.blocker }
+			// No clean pause isn't a refusal: the panel offers setting the join by ear.
+			const { blocker } = found
+			return blocker && blocker !== 'no_gap_before' && blocker !== 'no_gap_after'
+				? { ok: false, reason: 'cannot_rerecord', blocker }
 				: plan({ kind: 'rerecord', sentence: found.sentence })
 		}
 		case 'export':

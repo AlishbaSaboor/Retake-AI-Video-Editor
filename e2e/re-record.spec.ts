@@ -1,7 +1,4 @@
-import { writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { test, expect, type Page } from '@playwright/test'
 import {
 	mockActions,
@@ -12,82 +9,14 @@ import {
 	seekTo,
 	w
 } from './editor-helpers'
+import { FAKE_MIC_LAUNCH, recordTake } from './fake-mic'
 
-/**
- * What the fake microphone "says", looped by Chromium: 0.4 s of silence, an
- * 880 Hz tone for 0.8 s (the re-recorded sentence — an octave above the test
- * video's 440 Hz, so the two can be told apart in the export), then silence.
- */
-function fakeMicWav(): string {
-	const rate = 48_000
-	const pieces: Array<[number, number]> = [
-		[0.4, 0],
-		[0.8, 0.3],
-		[3, 0]
-	]
-	const samples: number[] = []
-	for (const [seconds, amplitude] of pieces) {
-		for (let i = 0; i < Math.round(seconds * rate); i++) {
-			samples.push(amplitude * Math.sin((2 * Math.PI * 880 * samples.length) / rate))
-		}
-	}
-	const wav = Buffer.alloc(44 + samples.length * 2)
-	wav.write('RIFF', 0)
-	wav.writeUInt32LE(36 + samples.length * 2, 4)
-	wav.write('WAVEfmt ', 8)
-	wav.writeUInt32LE(16, 16)
-	wav.writeUInt16LE(1, 20)
-	wav.writeUInt16LE(1, 22)
-	wav.writeUInt32LE(rate, 24)
-	wav.writeUInt32LE(rate * 2, 28)
-	wav.writeUInt16LE(2, 32)
-	wav.writeUInt16LE(16, 34)
-	wav.write('data', 36)
-	wav.writeUInt32LE(samples.length * 2, 40)
-	for (const [i, sample] of samples.entries()) {
-		wav.writeInt16LE(Math.round(sample * 0x7fff), 44 + i * 2)
-	}
-	const path = join(tmpdir(), 'retake-e2e-fake-mic.wav')
-	writeFileSync(path, wav)
-	return path
-}
-
-test.use({
-	launchOptions: {
-		args: [
-			'--use-fake-device-for-media-stream',
-			'--use-fake-ui-for-media-stream',
-			`--use-file-for-fake-audio-capture=${fakeMicWav()}`
-		]
-	}
-})
+test.use({ launchOptions: FAKE_MIC_LAUNCH })
 
 // One test at a time: takes are recorded against the clock, and the undo
 // test's nine real-time exports beside the other test starved its page (a
 // 50 ms meter poll answered 370 ms late) and came out a take of 0.9 s, not 1.0.
 test.describe.configure({ mode: 'default' })
-
-/** Records a take for the open re-record panel: about 2 s, so one 0.8 s tone, watching the meter. */
-async function recordTake(page: Page) {
-	const panel = page.getByRole('region', { name: /^Re-record the sentence/ })
-	const started = Date.now()
-	await panel.getByRole('button', { name: /^Record/ }).click()
-	await expect(panel.getByText(/^Recording…/)).toBeVisible()
-	// The meter follows the mic: from silence to clearly above it (louder than
-	// -42 dBFS) for the fake mic's tone, which the browser's noise suppression
-	// then fades, as it does any steady tone; real speech isn't faded.
-	const meter = panel.getByRole('meter', { name: 'Microphone level' })
-	await expect
-		.poll(async () => Number(await meter.getAttribute('aria-valuenow')), {
-			intervals: [50],
-			timeout: 2000
-		})
-		.toBeGreaterThan(30)
-	await page.waitForTimeout(Math.max(0, 2000 - (Date.now() - started)))
-	await panel.getByRole('button', { name: 'Stop' }).click()
-	await expect(panel.getByText(/^New take: 1\.0 s/)).toBeVisible({ timeout: 10_000 })
-	return panel
-}
 
 test('a re-recorded take replaces only its sentence, in playback and export, and cancel or undo restore it', async ({
 	page
@@ -122,11 +51,13 @@ test('a re-recorded take replaces only its sentence, in playback and export, and
 	await expect(reRecord('0:01')).toBeVisible({ timeout: 30_000 })
 	const clip = page.getByRole('region', { name: 'Clips' }).getByRole('option')
 
-	// A sentence with no pause before it can't be re-recorded, and says why.
+	// A sentence with no pause before it says why, and can't be recorded
+	// until its join is set by ear.
 	await reRecord('0:00').click()
 	const blocked = page.getByRole('region', { name: 'Re-record the sentence at 0:00' })
 	await expect(blocked.getByText(/no clear pause before this sentence/)).toBeVisible()
 	await expect(blocked.getByRole('button', { name: 'Record' })).toBeDisabled()
+	await expect(blocked.getByRole('button', { name: 'Set the join by ear' })).toBeVisible()
 	await blocked.getByRole('button', { name: 'Cancel' }).click()
 
 	// Cancel after recording leaves everything as it was.
@@ -408,18 +339,20 @@ async function playAndSample(page: Page, maxSeconds: number): Promise<Sample[]> 
 	return page.locator('video').evaluate(async (element: HTMLVideoElement, maxSeconds) => {
 		element.muted = true
 		await element.play()
+		const STOPPED_FOR_GOOD_MS = 500
 		const seen: Sample[] = []
 		const started = performance.now()
+		let pausedSince: number | null = null
 		while (performance.now() - started < maxSeconds * 1000) {
 			const paused = element.paused
-			seen.push({
-				wall: performance.now(),
-				at: element.currentTime,
-				rate: element.playbackRate,
-				paused
-			})
-			// Stopped for good: paused at the end, not holding a frame under a take.
-			if (paused && element.volume !== 0 && seen.length > 5) break
+			const now = performance.now()
+			seen.push({ wall: now, at: element.currentTime, rate: element.playbackRate, paused })
+			// Stopped for good: paused, not holding a frame under a take, for
+			// 0.5 s. At the end of the source the browser pauses the video itself
+			// until the editor's next frame jumps on, which a slow frame makes
+			// visible: that isn't the end of the edit.
+			pausedSince = paused && element.volume !== 0 ? (pausedSince ?? now) : null
+			if (pausedSince !== null && now - pausedSince >= STOPPED_FOR_GOOD_MS && seen.length > 5) break
 			await new Promise((resolve) => setTimeout(resolve, 20))
 		}
 		element.pause()

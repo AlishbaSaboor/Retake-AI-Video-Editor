@@ -124,14 +124,19 @@ test('clean-up, undo, redo, reset, speed, export and re-record work as commands,
 	)
 	await refused(page, 'play at 3x', { action: 'speed', rate: 3 }, 'The preview plays at 0.5×')
 
-	// Re-record: the first sentence starts the take, so there's no pause to join in.
-	await refused(
+	// Re-record: the first sentence starts the take, so there's no pause to
+	// join in. The command still opens it: its join can be set by ear there.
+	await apply(
 		page,
 		're-record the sentence at 0:00',
 		{ action: 'rerecord', startSeconds: 0 },
-		'There is no clear pause before this sentence'
+		"I'll open the re-record panel for “Hello, um, world.” at 0:00."
 	)
-	await expect(page.getByRole('region', { name: /^Re-record the sentence/ })).toHaveCount(0)
+	const noPause = page.getByRole('region', { name: 'Re-record the sentence at 0:00' })
+	await expect(noPause).toContainText('There is no clear pause before this sentence')
+	await expect(noPause.getByRole('button', { name: 'Set the join by ear' })).toBeVisible()
+	await expect(noPause.getByRole('button', { name: 'Record' })).toBeDisabled()
+	await noPause.getByRole('button', { name: 'Cancel' }).click()
 	await refused(
 		page,
 		're-record the sentence at 0:30',

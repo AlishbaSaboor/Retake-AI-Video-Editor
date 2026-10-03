@@ -35,12 +35,18 @@ type ReRecordPanelProps = {
 	onPlay: (withTake: boolean) => void
 	onApply: () => void
 	onCancel: () => void
+	/** Offered when the sentence has no clean pause on a side: set the joins by listening instead. */
+	onSetByEar?: () => void
+	/** The by-ear join editor, once the joins are being set by ear. */
+	children?: React.ReactNode
 }
 
 /**
  * Re-record one sentence: say it again into the mic, listen to the original
  * and the new take in place, then use it or cancel. Nothing changes until
- * the take is applied.
+ * the take is applied. A sentence with no clean pause can have its joins
+ * set by ear first; such a join is not promised to be clean, and the panel
+ * says so.
  */
 export function ReRecordPanel({
 	sentence,
@@ -51,7 +57,9 @@ export function ReRecordPanel({
 	onTake,
 	onPlay,
 	onApply,
-	onCancel
+	onCancel,
+	onSetByEar,
+	children
 }: ReRecordPanelProps) {
 	const t = useTranslations('Editor.reRecord')
 	const [status, setStatus] = useState<
@@ -168,7 +176,11 @@ export function ReRecordPanel({
 				</h2>
 				<p className="text-text text-sm">{t('original', { text: sentence.text })}</p>
 				<p className="text-text-muted text-xs">{blocker ? t(`blocked.${blocker}`) : t('hint')}</p>
+				{plan.kind === 'splice' && plan.byEar && (
+					<p className="text-warning text-xs">{t('byEarNote')}</p>
+				)}
 			</div>
+			{children && <div className="mb-3">{children}</div>}
 			<div className="flex flex-wrap items-center gap-2" role="status">
 				{status === 'recording' && (
 					<div className="mr-auto flex items-center gap-2">
@@ -230,6 +242,11 @@ export function ReRecordPanel({
 							{t('playWithTake')}
 						</Button>
 					</>
+				)}
+				{onSetByEar && (
+					<Button variant="outline" size="sm" onClick={onSetByEar}>
+						{t('setByEar')}
+					</Button>
 				)}
 				<Button variant="ghost" size="sm" onClick={onCancel}>
 					{t('cancel')}

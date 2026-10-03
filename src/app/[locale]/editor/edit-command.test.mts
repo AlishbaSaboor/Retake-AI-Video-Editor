@@ -283,10 +283,19 @@ test('re-record opens the sentence at that time, or says why it cannot', () => {
 		ok: true,
 		plan: { kind: 'rerecord', sentence: SENTENCE }
 	})
+	// No clean pause opens the panel too: its join can be set by ear there.
 	assert.deepEqual(run({ action: 'rerecord', startSeconds: 40 }), {
+		ok: true,
+		plan: { kind: 'rerecord', sentence: { ...SENTENCE, startSeconds: 40 } }
+	})
+	const split: CommandContext = {
+		...CONTEXT,
+		sentenceAt: () => ({ sentence: SENTENCE, blocker: 'split' })
+	}
+	assert.deepEqual(run({ action: 'rerecord', startSeconds: 25 }, split), {
 		ok: false,
 		reason: 'cannot_rerecord',
-		blocker: 'no_gap_after'
+		blocker: 'split'
 	})
 	assert.deepEqual(run({ action: 'rerecord', startSeconds: 5 }), {
 		ok: false,
