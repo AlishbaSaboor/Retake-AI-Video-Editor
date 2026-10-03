@@ -24,6 +24,53 @@ export type ReplacementTake = Replacement & {
 	offsetSeconds: number
 	/** Linear gain that brings the take's speech to the original's level. */
 	gain: number
+	/** How long it fades in at its start and out at its end; 0 for none. */
+	fadeSeconds: number
+}
+
+/**
+ * A take whose joins were set by ear starts and ends inside speech: cut
+ * there, it stops dead mid-waveform (a real one ended at -26 dB, dropping
+ * 0.044 to 0 in one sample: a click). Fading its edges this long removes
+ * the step without a dip you'd hear between words. A take between two
+ * pauses starts and ends on room tone, and its seams measured clean, so it
+ * isn't faded.
+ */
+export const JOIN_FADE_SECONDS = 0.01
+
+/** The scheduling half of an AudioParam, so a take's envelope can be set (and tested) without Web Audio. */
+type GainSchedule = {
+	setValueAtTime: (value: number, at: number) => unknown
+	linearRampToValueAtTime: (value: number, at: number) => unknown
+}
+
+/**
+ * Sets a take's level from `at` (audio clock seconds) as it plays from
+ * `intoSeconds` into it at `rate`: its matching gain, faded in over
+ * fadeSeconds from its start and out over fadeSeconds to its end. Starting
+ * partway in picks the envelope up where it would be.
+ */
+export function scheduleTakeGain(
+	param: GainSchedule,
+	take: Pick<ReplacementTake, 'gain' | 'fadeSeconds' | 'takeSeconds'>,
+	at: number,
+	intoSeconds: number,
+	rate: number
+) {
+	const { gain, fadeSeconds: fade, takeSeconds } = take
+	if (fade <= 0) {
+		param.setValueAtTime(gain, at)
+		return
+	}
+	// Envelope level at a point in the take, and the audio-clock time it plays at.
+	const levelAt = (seconds: number) =>
+		gain * Math.min(1, seconds / fade, Math.max(0, (takeSeconds - seconds) / fade))
+	const when = (seconds: number) => at + (seconds - intoSeconds) / rate
+	param.setValueAtTime(levelAt(intoSeconds), at)
+	if (intoSeconds < fade) param.linearRampToValueAtTime(levelAt(fade), when(fade))
+	const fadeOutFrom = Math.max(intoSeconds, fade, takeSeconds - fade)
+	param.setValueAtTime(levelAt(fadeOutFrom), when(fadeOutFrom))
+	param.linearRampToValueAtTime(0, when(takeSeconds))
 }
 
 /** The most the take's level is moved: past this it's a bad take, not a quiet one. */
@@ -153,6 +200,7 @@ export async function prepareTake(
 		takeSeconds: range.endSeconds - range.startSeconds,
 		audio,
 		offsetSeconds: range.startSeconds,
+		fadeSeconds: plan.byEar ? JOIN_FADE_SECONDS : 0,
 		gain: matchingGain(speechLevelDb(original, plan.speech), speechLevelDb(loudness, speech))
 	}
 }

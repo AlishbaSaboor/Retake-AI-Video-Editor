@@ -1,5 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react'
-import type { ReplacementTake } from './re-record'
+import { scheduleTakeGain, type ReplacementTake } from './re-record'
 import { isInSegment, playbackPosition, SEEK_TOLERANCE_SECONDS, type Segment } from './sequence'
 
 // Pressing play this close to the end counts as "at the end" and restarts
@@ -30,7 +30,6 @@ function startVoice(
 ): VoiceOver {
 	void audio.resume()
 	const level = audio.createGain()
-	level.gain.value = replacement.gain
 	const source = audio.createBufferSource()
 	source.buffer = replacement.audio
 	source.playbackRate.value = rate
@@ -45,8 +44,10 @@ function startVoice(
 	source.onended = () => {
 		voice.ended = true
 	}
+	const at = audio.currentTime
+	scheduleTakeGain(level.gain, replacement, at, intoSeconds, rate)
 	source.start(
-		0,
+		at,
 		replacement.offsetSeconds + intoSeconds,
 		Math.max(0, replacement.takeSeconds - intoSeconds)
 	)
@@ -112,7 +113,14 @@ export function useSequencePlayback(
 			const current = segments[index]
 			const next = segments[index + 1]
 			if (next) {
-				element.currentTime = next.startSeconds
+				// Where the next segment carries straight on from this one (a
+				// re-recorded span's start), the picture plays on: seeking there
+				// anyway held it ~0.45 s on an MP4 while the take already spoke.
+				const carriesOn =
+					current !== undefined &&
+					Math.abs(next.startSeconds - current.endSeconds) <= SEEK_TOLERANCE_SECONDS &&
+					isInSegment(element.currentTime, next)
+				if (!carriesOn) element.currentTime = next.startSeconds
 				playingIndexRef.current = index + 1
 				if (element.paused) void element.play()
 			} else {

@@ -62,10 +62,11 @@ session with no memory of it can carry on. Read this whole file, then
 > - **Joins set by ear** (section 3j) now cover sentences with no clean
 >   pause (19 of 30 on `Cap.mp4`): two zoomed waveforms with a handle each,
 >   then the same record/preview/apply/undo/export path. The UI says a
->   by-ear join isn't guaranteed clean. **With the user's own voice the
->   speech-to-speech join clicks** (section 3j). Two playback bugs the user
->   found (preview froze, edited playback looped on the first word) are
->   fixed: a video reports a computed join a hair early.
+>   by-ear join isn't guaranteed clean. A by-ear take now fades in and out
+>   over 10 ms at its own edges: on the user's real export, that takes the
+>   seam-2 click away with no added dip (section 3j). The editor no longer
+>   holds the picture ~0.45 s at a take's start join. Two playback bugs the
+>   user found (preview froze, edited playback looped) are fixed.
 > - **Export (queue item 7) is committed and pushed** in `2c2f0a5`. Before
 >   committing: 166 unit tests, Prettier, lint, typecheck and the production
 >   build passed, and the full e2e suite passed 17/17 in each of two runs,
@@ -874,9 +875,7 @@ byear-real`, joins left at the start candidates, export aligned at r =
 
   So a real, different performance joined straight into speech ("here" →
   "Now") clicks, where the dry run with the sentence's own audio didn't.
-  The UI already says a by-ear join isn't guaranteed clean; nothing smooths
-  it yet. A short crossfade at by-ear joins is the obvious next step, not
-  built or measured. WAVs: `byear-real-{seam1,seam2,sentence}-{before,after}.wav`;
+  Fixed since by fading the take's edges (below). WAVs: `byear-real-{seam1,seam2,sentence}-{before,after}.wav`;
   the user's take, cut back out of that export: `user-take.wav`.
 
 - **Two bugs the user found in that session, fixed:**
@@ -908,11 +907,50 @@ byear-real`, joins left at the start candidates, export aligned at r =
     0.015 s, and (preview step removed) edited playback stopped at 1.08 s
     for a 3.1 s end join. On the user's take after the fix: the preview
     plays 28.08 → 29.85, edited playback 28.6 → through the take → 33.8.
-- **Flagged, not fixed:** at the start join the editor's picture holds at
-  29.08 for ~0.45 s while the take already plays: the frame loop seeks into
-  the take's segment even though it starts where the previous one ends,
-  and an MP4 seek takes that long. Automatic splices too; editor preview
-  only, not export.
+- **The click, found and fixed:** in the user's export the take itself
+  stopped dead: 2 ms before seam 2 it was still at -26 dB and dropped from
+  0.044 to 0 in one sample; the original's side resumed smoothly from its
+  own dip (-48 dB) where the end join started. Why: a by-ear take keeps no
+  pause after its speech, so `takeRange` ends it at its last loud 10 ms
+  window, mid-decay. Fix: `fadeSeconds` on a take (`JOIN_FADE_SECONDS`, 10
+  ms, by-ear takes only; 0 for automatic ones, which start and end on room
+  tone and whose seams measured clean), applied by `scheduleTakeGain` on
+  the audio clock in both the export (`playTake`) and the editor
+  (`startVoice`): in from 0 at the take's start, out to 0 at its end,
+  picked up partway when playback starts inside it, scaled by the preview
+  speed. No crossfade with the original is needed for this click, and
+  there's no overlap to do one with (the export records segments one after
+  another). **Limit:** a handle dragged into loud speech cuts the original
+  itself mid-waveform on its side; the take's fade doesn't smooth that.
+  The handles start at the quietest moment.
+- **Verified on the user's real export** (`fade-model.mjs`): the fade is
+  only a gain on the take's samples, so it was applied to the take's last
+  10 ms in that export and measured:
+
+  | Seam 2                          | Original        | User's export   | With the fade   |
+  | ------------------------------- | --------------- | --------------- | --------------- |
+  | Max step at seam (around)       | 0.0018 (0.0056) | 0.0269 (0.0128) | 0.0047 (0.0128) |
+  | High-frequency energy vs around | 0.73×           | 3.87×           | 0.75×           |
+  | Quietest 5 ms within 15 ms      | -50 dB          | -46 dB          | -49 dB          |
+
+  No click, and the dip is the original's own valley between "here" and
+  "Now". WAV: `byear-real-seam2-after-faded.wav`. **Not done:** a fresh
+  export of a new real-mic take with the fade. Through the fake mic the
+  click doesn't reproduce at all, even with the user's take and its decay
+  restored (`user-take-tail.wav`): Chrome's capture processing reshapes the
+  ending so the trim lands in quiet. Those A/B runs (fade off / on) show
+  the fade changes nothing else: length 108.78 / 108.84 s, take level
+  -16.4 dBFS both, pauses 1.88 s both, alignment r >= 0.9985.
+
+- **Picture hold at the start join, fixed:** `advance` no longer seeks when
+  the next segment starts where the current one ends and playback is
+  already in it (a take's start join): the picture plays on. It used to
+  seek anyway, holding an MP4's picture ~0.45 s while the take already
+  spoke (automatic splices too). The by-ear e2e checks no seek happens at
+  the start join (an unconditional seek fails it: 3 seeks there).
+- **Unit tests** for the envelope (`re-record.test.mts`): from the start,
+  resumed in the middle, halfway into either fade, at 2×, and unfaded for
+  automatic takes.
 
 ---
 
@@ -1280,8 +1318,9 @@ This explains the e2e export-length failures in section 4c (0.39 s long,
 15. ~~Annotation layer, 80/20 slice~~: done (section 3h). Not built: the
     freehand pencil, text color, a text command.
 16. ~~Audio problem flags~~: done (section 3i).
-17. ~~Set-by-ear splice joins~~: done (section 3j). With the user's voice
-    the speech-to-speech join clicks; a crossfade is not built.
+17. ~~Set-by-ear splice joins~~: done (section 3j), with a 10 ms fade at a
+    by-ear take's edges. A re-record with the fade in the user's own voice
+    is the last ear check.
 
 Not yet queued by the user:
 
