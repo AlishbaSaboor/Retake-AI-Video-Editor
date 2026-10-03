@@ -62,9 +62,10 @@ session with no memory of it can carry on. Read this whole file, then
 > - **Joins set by ear** (section 3j) now cover sentences with no clean
 >   pause (19 of 30 on `Cap.mp4`): two zoomed waveforms with a handle each,
 >   then the same record/preview/apply/undo/export path. The UI says a
->   by-ear join isn't guaranteed clean. Seam measured on `Cap.mp4` with the
->   sentence's own voice as the take; **a take in the user's own voice is
->   still to be measured.**
+>   by-ear join isn't guaranteed clean. **With the user's own voice the
+>   speech-to-speech join clicks** (section 3j). Two playback bugs the user
+>   found (preview froze, edited playback looped on the first word) are
+>   fixed: a video reports a computed join a hair early.
 > - **Export (queue item 7) is committed and pushed** in `2c2f0a5`. Before
 >   committing: 166 unit tests, Prettier, lint, typecheck and the production
 >   build passed, and the full e2e suite passed 17/17 in each of two runs,
@@ -858,8 +859,60 @@ endSeconds }` plus `color` (box) or `text`. `rect` is fractions of the
   WAVs: `byear-dry2-{seam1,seam2,sentence}-{before,after}.wav` in that
   scratchpad. An earlier run with ~1.6 GB free produced a corrupted export
   (127 s, alignment r 0.02–0.18) and was discarded, as in section 4d.
-  **Still to do: the same with a take in the user's own voice**
-  (`seam-check-byear.mts real <label>`).
+
+- **With the user's own voice** (2026-10-03, `seam-check-byear.mts real
+byear-real`, joins left at the start candidates, export aligned at r =
+  0.9984 / 0.9998, 108.78 s):
+
+  | Check                            | Seam 1 (in a pause)                      | Seam 2 (speech into speech)                      |
+  | -------------------------------- | ---------------------------------------- | ------------------------------------------------ |
+  | Clicks: max step at seam / 40 ms | 0.0031 / 0.047: none                     | **0.027 / 0.013: a click** (2× its surroundings) |
+  | High-frequency energy vs around  | 1.67×                                    | **3.9×**                                         |
+  | Dead air                         | pause 1.95 → 1.89 s                      | 0 → 0: none added                                |
+  | Level                            | take −16.3 dBFS vs sentence −16.4        |                                                  |
+  | Room tone                        | take −52.3 vs original −59.3 (7 dB more) | none after (speech)                              |
+
+  So a real, different performance joined straight into speech ("here" →
+  "Now") clicks, where the dry run with the sentence's own audio didn't.
+  The UI already says a by-ear join isn't guaranteed clean; nothing smooths
+  it yet. A short crossfade at by-ear joins is the obvious next step, not
+  built or measured. WAVs: `byear-real-{seam1,seam2,sentence}-{before,after}.wav`;
+  the user's take, cut back out of that export: `user-take.wav`.
+
+- **Two bugs the user found in that session, fixed:**
+  1. "Play with new take" seemed dead: the preview froze at its start
+     (28.080 s). 2. After applying, the edited video looped on the take's
+     first word ("so so so") and never got past the start join (29.080 s).
+  - **Cause (one for both), measured:** the start join was a computed time,
+    29.080000000000002; sought there, Chrome reports 29.08 for an MP4 (time
+    to the microsecond) for the whole ~500 ms seek. Compared exactly, that
+    is before the take's segment, so the frame loop took playback to be in
+    the segment before, found it over, sought to the join again (restarting
+    the take each time); and the preview, starting a second before the
+    join, sought "forward" to its own start forever. Every write came from
+    the frame loop (logged with callers); the buttons themselves were
+    enabled and clickable (a trial click found nothing over them), and "Use
+    new take" applied normally in the reproduction.
+  - **Fix:** `isInSegment` / `SEEK_TOLERANCE_SECONDS` (1 ms) in
+    `sequence.ts`: a time a hair before a segment's start counts as in it,
+    in `playbackPosition`, the frame loop and `settle`; a take started at a
+    hair before its start starts at 0. Automatic splices could hit it too
+    (their starts are computed the same way).
+  - **Tests that catch it:** a unit test (`sequence.test.mts`; fails without
+    the tolerance), and the by-ear e2e now plays "Play with new take" past
+    the join and plays the edited video through the span, the take started
+    once. The WebM test video had hidden it (it reports exactly what was
+    written and seeks within a frame), so that spec makes the video behave
+    as Chrome does with an MP4: time to the microsecond, and the target
+    reported for 100 ms after a seek. Without the fix: the preview froze at
+    0.015 s, and (preview step removed) edited playback stopped at 1.08 s
+    for a 3.1 s end join. On the user's take after the fix: the preview
+    plays 28.08 → 29.85, edited playback 28.6 → through the take → 33.8.
+- **Flagged, not fixed:** at the start join the editor's picture holds at
+  29.08 for ~0.45 s while the take already plays: the frame loop seeks into
+  the take's segment even though it starts where the previous one ends,
+  and an MP4 seek takes that long. Automatic splices too; editor preview
+  only, not export.
 
 ---
 
@@ -1227,8 +1280,8 @@ This explains the e2e export-length failures in section 4c (0.39 s long,
 15. ~~Annotation layer, 80/20 slice~~: done (section 3h). Not built: the
     freehand pencil, text color, a text command.
 16. ~~Audio problem flags~~: done (section 3i).
-17. ~~Set-by-ear splice joins~~: done (section 3j); a seam check with the
-    user's own voice is still to be run.
+17. ~~Set-by-ear splice joins~~: done (section 3j). With the user's voice
+    the speech-to-speech join clicks; a crossfade is not built.
 
 Not yet queued by the user:
 

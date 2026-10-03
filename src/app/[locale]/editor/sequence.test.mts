@@ -266,3 +266,26 @@ test('a split inside a replaced span is refused, but at its edges it is fine', (
 	assert.equal(canSplitAt(wholeTake(DURATION), 4, [replaced]), true)
 	assert.equal(canSplitAt(wholeTake(DURATION), 6, [replaced]), true)
 })
+
+test('a time a hair before a segment starts counts as in it, as a video reports a computed start', () => {
+	// Sought to a by-ear join of 29.080000000000002 s, Chrome reports 29.08.
+	const segments = [
+		{ startSeconds: 0, endSeconds: 29.080000000000002 },
+		{ startSeconds: 29.080000000000002, endSeconds: 31.2 }
+	]
+	// Not "the end of the segment before, so seek to this one's start" again (it looped).
+	assert.deepEqual(playbackPosition(29.08, segments.slice(1)), { index: 0, seconds: 29.08 })
+	// Nor "before the first, so seek to its start" (the take preview froze there).
+	assert.deepEqual(
+		playbackPosition(0.015, [{ startSeconds: 0.015000000000000124, endSeconds: 2 }]),
+		{
+			index: 0,
+			seconds: 0.015
+		}
+	)
+	// A real gap is still a gap: 2 ms before is before.
+	assert.deepEqual(playbackPosition(29.078, segments.slice(1)), {
+		index: 0,
+		seconds: 29.080000000000002
+	})
+})

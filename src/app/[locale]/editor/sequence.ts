@@ -192,6 +192,20 @@ export function clipPlayedSeconds(
 }
 
 /**
+ * How far before a segment's start a time still counts as in it. A video
+ * sought to a computed start reports it to the microsecond (sought to
+ * 29.080000000000002, Chrome reports 29.08 for an MP4): read exactly, that is
+ * before the segment, and playback sought back to its start, froze there, or
+ * looped restarting a take.
+ */
+export const SEEK_TOLERANCE_SECONDS = 0.001
+
+/** Whether a source time is in a segment, counting a hair before its start as in it. */
+export function isInSegment(seconds: number, segment: SourceRange): boolean {
+	return seconds >= segment.startSeconds - SEEK_TOLERANCE_SECONDS && seconds < segment.endSeconds
+}
+
+/**
  * Where playback stands at a source time: the segment containing it, or —
  * when it falls in something removed — the start of the next segment in the
  * source, the same way a cut is skipped. Null past the last of them.
@@ -200,7 +214,7 @@ export function playbackPosition(
 	seconds: number,
 	segments: SourceRange[]
 ): { index: number; seconds: number } | null {
-	const inside = segments.findIndex((s) => seconds >= s.startSeconds && seconds < s.endSeconds)
+	const inside = segments.findIndex((s) => isInSegment(seconds, s))
 	if (inside >= 0) return { index: inside, seconds }
 	let next: { index: number; seconds: number } | null = null
 	for (const [index, s] of segments.entries()) {
