@@ -120,6 +120,7 @@ export const editCommand = (
 	fromClip: null,
 	toClip: null,
 	rate: null,
+	region: null,
 	...fields
 })
 

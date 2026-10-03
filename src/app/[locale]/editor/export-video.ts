@@ -15,8 +15,9 @@ import { segmentSeconds, type Segment } from './sequence'
 // into the same recording instead; where the take runs longer than the
 // segment's picture, recording carries on over the paused last frame.
 //
-// The title and watermark are drawn onto each frame after the picture, at
-// the edited video's time, so they're in the recording itself.
+// The annotations, captions, title and watermark are drawn onto each frame
+// after the picture, at the edited video's time, so they're in the recording
+// itself.
 
 // Best first. WebM is what Chromium and Firefox record; Safari records MP4.
 const MIME_TYPES = [
@@ -162,11 +163,12 @@ export async function recordEdit(
 		})
 		const context = canvas.getContext('2d')
 		if (!context) throw new Error('no 2d canvas context')
+		const blurScratch = document.createElement('canvas')
 		// Where the frame being drawn is in the edited video; set per segment below.
 		let editedSeconds = () => 0
 		const paint = () => {
 			context.drawImage(video, 0, 0, canvas.width, canvas.height)
-			drawOverlays(context, overlays, editedSeconds(), logo)
+			drawOverlays(context, overlays, editedSeconds(), logo, blurScratch)
 		}
 		const draw = () => {
 			paint()

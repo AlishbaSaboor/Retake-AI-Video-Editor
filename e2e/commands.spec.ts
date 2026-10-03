@@ -163,10 +163,17 @@ test('clean-up, undo, redo, reset, speed, export and re-record work as commands,
 	// What it can't do, it says, and lists what it can.
 	const unsupported = await ask(page, 'make the colours warmer', { action: 'unsupported' })
 	await expect(unsupported).toContainText("I can't do that yet.")
-	for (const ability of ['Split a clip', 'Reorder clips', 'Undo, redo', 'Export the edit']) {
+	for (const ability of [
+		'Split a clip',
+		'Reorder clips',
+		'Undo, redo',
+		'Export the edit',
+		'Cover or blur part of the picture'
+	]) {
 		await expect(unsupported).toContainText(ability)
 	}
 	await expect(unsupported).toContainText('Compare the edit with the original')
+	await expect(unsupported).toContainText('Draw boxes, blurs and text on the video')
 })
 
 test('split, move and merge work as commands, each one undo step; re-record opens its panel', async ({

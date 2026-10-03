@@ -21,7 +21,8 @@ const UNSUPPORTED: EditCommand = {
 	corner: null,
 	fromClip: null,
 	toClip: null,
-	rate: null
+	rate: null,
+	region: null
 }
 
 // Gemini and Deepgram both answer 429 (rate-limited) or 503 (overloaded)
@@ -55,7 +56,11 @@ function systemInstruction(durationSeconds: number): string {
 		'"cleanup". "Undo", "redo" and "reset to the original" (start over) are actions "undo",',
 		'"redo" and "reset". "Play at 2x" is action "speed" with rate 2. "Re-record the sentence',
 		'at 0:25" is action "rerecord" with startSeconds 25. Exporting or downloading the video',
-		'is action "export".',
+		'is action "export". Covering part of the picture with a solid box is action "box", and',
+		'blurring part of it is action "blur", each with region one of "top-left", "top-right",',
+		'"bottom-left", "bottom-right" (corners), "top", "bottom", "left", "right" (halves),',
+		'"center" or "full" (null if none is named), and startSeconds/endSeconds when it shows',
+		'(null for an edge left open).',
 		'Unused fields are null. Anything else — removing a middle section, other effects,',
 		'audio — is action "unsupported" with every other field null.'
 	].join(' ')

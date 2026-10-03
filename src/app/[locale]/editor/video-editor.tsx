@@ -5,6 +5,9 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { ReplaceIcon } from '@/components/ui/icons'
 import { toast } from '@/lib/toast'
+import { AnnotationLayer } from './annotation-layer'
+import { AnnotationPanel, useAnnotationTools } from './annotation-panel'
+import type { Annotation, NewAnnotation, Rect } from './annotations'
 import { keptSeconds, mergeCuts, planCleanup, type Cut, type Edit } from './cleanup'
 import { CleanupBar } from './cleanup-bar'
 import { ClipStrip } from './clip-strip'
@@ -111,6 +114,9 @@ export function VideoEditor() {
 	const [watermark, setWatermark] = useState<Watermark | null>(null)
 	// Captions come from the transcript; whether they show is the edit's.
 	const [captionsOn, setCaptionsOn] = useState(false)
+	// Boxes, blurs and text over the edited video (annotations.ts).
+	const [annotations, setAnnotations] = useState<Annotation[]>([])
+	const annotationTools = useAnnotationTools()
 	const logoInputRef = useRef<HTMLInputElement>(null)
 	const logoCornerRef = useRef<Corner>('bottom-right')
 	// Every edit records the snapshot from just before it, so Undo and Redo
@@ -124,7 +130,8 @@ export function VideoEditor() {
 		replacements,
 		title,
 		watermark,
-		captionsOn
+		captionsOn,
+		annotations
 	}
 	const trimDragRef = useRef<{ recorded: boolean } | null>(null)
 	// The filler cut editor: which filler is open and where its handles sit.
@@ -155,9 +162,11 @@ export function VideoEditor() {
 	// its history or the export.
 	const [previewRate, setPreviewRate] = useState(1)
 	const editedSegments = playableSegments(sequence, edit, replacements)
+	const editedSeconds = totalSeconds(editedSegments)
 	const overlays: Overlays = {
 		title,
 		watermark,
+		annotations,
 		captions:
 			captionsOn && analysis.transcript.status === 'ready'
 				? editedCaptions(analysis.transcript.transcript.words, editedSegments)
@@ -230,6 +239,7 @@ export function VideoEditor() {
 		setTitle(null)
 		setWatermark(null)
 		setCaptionsOn(false)
+		setAnnotations([])
 		setPicture(null)
 		setHistory(emptyHistory())
 		setCutEditor(null)
@@ -405,6 +415,7 @@ export function VideoEditor() {
 		setTitle(step.restore.title)
 		setWatermark(step.restore.watermark)
 		setCaptionsOn(step.restore.captionsOn)
+		setAnnotations(step.restore.annotations)
 		applyTrim(step.restore.trim, step.restore.trim?.startSeconds ?? 0)
 	}
 
@@ -473,6 +484,26 @@ export function VideoEditor() {
 		setWatermark({ ...watermark, corner })
 	}
 
+	function addAnnotation(item: NewAnnotation) {
+		recordEdit()
+		setAnnotations([...annotations, { ...item, id: crypto.randomUUID() }])
+	}
+
+	function drawAnnotation(rect: Rect) {
+		const item = annotationTools.drawn(rect, editedNow ?? 0, editedSeconds)
+		if (item) addAnnotation(item)
+	}
+
+	function changeAnnotation(next: Annotation) {
+		recordEdit()
+		setAnnotations(annotations.map((item) => (item.id === next.id ? next : item)))
+	}
+
+	function removeAnnotation(id: string) {
+		recordEdit()
+		setAnnotations(annotations.filter((item) => item.id !== id))
+	}
+
 	// The transcript's sentence for "the sentence at 0:25": the one the
 	// transcript labels 0:25 (its start, in whole seconds), else the one
 	// being spoken then; and why it can't be re-recorded, if it can't.
@@ -489,7 +520,7 @@ export function VideoEditor() {
 
 	const commandContext: CommandContext = {
 		durationSeconds,
-		editedSeconds: totalSeconds(editedSegments),
+		editedSeconds,
 		clipCount: sequence.length,
 		canSplitAt: (seconds) => canSplitAt(sequence, seconds, replacements),
 		cleanupSeconds: removableSeconds,
@@ -541,6 +572,9 @@ export function VideoEditor() {
 				break
 			case 'captions':
 				changeCaptions(plan.on)
+				break
+			case 'annotation':
+				addAnnotation(plan.annotation)
 				break
 			case 'watermark':
 				if (watermark) moveWatermark(plan.corner)
@@ -635,6 +669,18 @@ export function VideoEditor() {
 							}}
 						/>
 						{editedNow !== null && picture && (
+							<AnnotationLayer
+								annotations={annotations}
+								editedSeconds={editedNow}
+								picture={picture}
+								tool={annotationTools.tool}
+								onPointerStart={() => videoRef.current?.pause()}
+								onDraw={drawAnnotation}
+								onChange={changeAnnotation}
+								onErase={removeAnnotation}
+							/>
+						)}
+						{editedNow !== null && picture && (
 							<OverlayPreview overlays={overlays} editedSeconds={editedNow} picture={picture} />
 						)}
 					</div>
@@ -688,6 +734,16 @@ export function VideoEditor() {
 					onSplit={() => splitAt(currentTimeSeconds)}
 					onMove={(from, to) => arrangeClips(moveClip(sequence, from, to))}
 					onMerge={(from, to) => arrangeClips(mergeClips(sequence, from, to))}
+				/>
+			)}
+			{video && hasDuration && (
+				<AnnotationPanel
+					tools={annotationTools}
+					annotations={annotations}
+					editedSeconds={editedSeconds}
+					playheadSeconds={editedNow}
+					onChange={changeAnnotation}
+					onErase={removeAnnotation}
 				/>
 			)}
 			{video && hasDuration && (

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { regionRect, REGIONS, type NewAnnotation, type Region } from './annotations'
 import { CORNERS, type Corner, type TitleCard } from './overlays'
 import { PREVIEW_RATES } from './preview-speed'
 import type { ReRecordBlocker } from './re-record'
@@ -7,8 +8,9 @@ import type { TranscriptSegment } from './transcript'
 
 // What Gemini turns a typed command into. A new command adds an enum value
 // here, a branch in commandToPlan, and nothing else. A null edge means "the
-// clip's own start/end" ("cut from 3s to the end"). A title's times are in
-// the edited video; a trim's, a split's and a sentence's, in the source.
+// clip's own start/end" ("cut from 3s to the end"). A title's, box's and
+// blur's times are in the edited video; a trim's, a split's and a
+// sentence's, in the source.
 // Clips are numbered from 1, as the Clips strip shows them.
 const ACTIONS = [
 	'trim',
@@ -26,6 +28,8 @@ const ACTIONS = [
 	'watermark',
 	'captions_on',
 	'captions_off',
+	'box',
+	'blur',
 	'unsupported'
 ] as const
 export const editCommandSchema = z.object({
@@ -36,7 +40,8 @@ export const editCommandSchema = z.object({
 	corner: z.enum(CORNERS).nullable(),
 	fromClip: z.number().nullable(),
 	toClip: z.number().nullable(),
-	rate: z.number().nullable()
+	rate: z.number().nullable(),
+	region: z.enum(REGIONS).nullable()
 })
 export type EditCommand = z.infer<typeof editCommandSchema>
 
@@ -54,13 +59,29 @@ export const EDIT_COMMAND_JSON_SCHEMA = {
 		corner: { type: ['string', 'null'] },
 		fromClip: NULLABLE_NUMBER,
 		toClip: NULLABLE_NUMBER,
-		rate: NULLABLE_NUMBER
+		rate: NULLABLE_NUMBER,
+		// Named in the prompt and checked by the schema above, as corners are.
+		region: { type: ['string', 'null'] }
 	},
-	required: ['action', 'startSeconds', 'endSeconds', 'text', 'corner', 'fromClip', 'toClip', 'rate']
+	required: [
+		'action',
+		'startSeconds',
+		'endSeconds',
+		'text',
+		'corner',
+		'fromClip',
+		'toClip',
+		'rate',
+		'region'
+	]
 }
 
 /** Where a watermark goes when the command doesn't say. */
 const DEFAULT_CORNER: Corner = 'bottom-right'
+/** What a box or blur covers when the command doesn't say: the whole picture. */
+const DEFAULT_REGION: Region = 'full'
+/** A box from a command is black: the command names no color. */
+const COMMAND_BOX_COLOR = '#000000'
 
 /** What a confirmed command does. Clip indexes here count from 0. */
 export type CommandPlan =
@@ -78,6 +99,7 @@ export type CommandPlan =
 	| { kind: 'title'; title: TitleCard }
 	| { kind: 'watermark'; corner: Corner }
 	| { kind: 'captions'; on: boolean }
+	| { kind: 'annotation'; region: Region; annotation: NewAnnotation }
 
 /** Why a command can't be done; each has its own plain answer. */
 export type RefusalReason =
@@ -187,6 +209,22 @@ export function commandToPlan(command: EditCommand, context: CommandContext): Co
 			return plan({
 				kind: 'title',
 				title: { text: command.text.trim(), startSeconds: start, durationSeconds: end - start }
+			})
+		}
+		case 'box':
+		case 'blur': {
+			const start = command.startSeconds ?? 0
+			const end = Math.min(command.endSeconds ?? context.editedSeconds, context.editedSeconds)
+			if (start < 0 || start >= end) return refuse('out_of_range')
+			const region = command.region ?? DEFAULT_REGION
+			const shape = { rect: regionRect(region), startSeconds: start, endSeconds: end }
+			return plan({
+				kind: 'annotation',
+				region,
+				annotation:
+					command.action === 'box'
+						? { kind: 'box', color: COMMAND_BOX_COLOR, ...shape }
+						: { kind: 'blur', ...shape }
 			})
 		}
 		case 'unsupported':

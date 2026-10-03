@@ -1,3 +1,10 @@
+import {
+	annotationsAt,
+	blurGridSize,
+	TEXT_HEIGHT_FRACTION,
+	toPixels,
+	type Annotation
+} from './annotations'
 import { captionAt, type Caption } from './captions'
 import { segmentSeconds, type Segment } from './sequence'
 
@@ -18,7 +25,12 @@ export type TitleCard = { text: string; startSeconds: number; durationSeconds: n
 export type Watermark = { image: string; aspect: number; corner: Corner }
 
 /** `captions` is empty when they're off. */
-export type Overlays = { title: TitleCard | null; watermark: Watermark | null; captions: Caption[] }
+export type Overlays = {
+	title: TitleCard | null
+	watermark: Watermark | null
+	captions: Caption[]
+	annotations: Annotation[]
+}
 
 /** The title's text height, as a fraction of the picture's height. */
 export const TITLE_FONT_FRACTION = 0.08
@@ -109,15 +121,102 @@ export async function readLogo(file: File): Promise<Pick<Watermark, 'image' | 'a
 	return { image, aspect: element.naturalWidth / element.naturalHeight }
 }
 
-/** Draws the overlays due at `seconds` of the edited video onto a frame already drawn. */
+/**
+ * Blurs a patch of what's already drawn, cheaply enough to run every frame:
+ * the patch is shrunk into `scratch` (one pixel per blur block, averaged
+ * properly so it doesn't shimmer) and stretched back bilinearly. Two image
+ * copies and no per-pixel work in JavaScript. Measured in headless Chromium
+ * on half a 1080p frame: ~3 ms a frame, against ~10–13 ms with high-quality
+ * stretching too and ~26–31 ms for `filter: blur()`, which convolves every
+ * pixel. PROGRESS_NOTES.md section 3h.
+ */
+function drawBlur(
+	context: CanvasRenderingContext2D,
+	pixels: { x: number; y: number; width: number; height: number },
+	scratch: HTMLCanvasElement
+) {
+	const grid = blurGridSize(pixels, context.canvas.width)
+	if (scratch.width !== grid.width) scratch.width = grid.width
+	if (scratch.height !== grid.height) scratch.height = grid.height
+	const small = scratch.getContext('2d')
+	if (!small) return
+	small.imageSmoothingQuality = 'high'
+	small.drawImage(
+		context.canvas,
+		pixels.x,
+		pixels.y,
+		pixels.width,
+		pixels.height,
+		0,
+		0,
+		grid.width,
+		grid.height
+	)
+	// 'low' is bilinear, and the default: nothing else drawn on this canvas
+	// is left at a costlier setting.
+	context.imageSmoothingEnabled = true
+	context.imageSmoothingQuality = 'low'
+	context.drawImage(
+		scratch,
+		0,
+		0,
+		grid.width,
+		grid.height,
+		pixels.x,
+		pixels.y,
+		pixels.width,
+		pixels.height
+	)
+}
+
+/** Boxes, blurs and text due at `seconds`, in the order they were added. */
+function drawAnnotations(
+	context: CanvasRenderingContext2D,
+	annotations: Annotation[],
+	seconds: number,
+	scratch: HTMLCanvasElement
+) {
+	const { width, height } = context.canvas
+	for (const item of annotationsAt(annotations, seconds)) {
+		const pixels = toPixels(item.rect, width, height)
+		if (item.kind === 'blur') {
+			drawBlur(context, pixels, scratch)
+			continue
+		}
+		context.fillStyle = item.kind === 'box' ? item.color : TITLE_BAND_COLOR
+		context.fillRect(pixels.x, pixels.y, pixels.width, pixels.height)
+		if (item.kind === 'text') {
+			// Clipped to its band, as the preview's overflow is.
+			context.save()
+			context.beginPath()
+			context.rect(pixels.x, pixels.y, pixels.width, pixels.height)
+			context.clip()
+			context.font = `bold ${Math.round(pixels.height * TEXT_HEIGHT_FRACTION)}px sans-serif`
+			context.textAlign = 'center'
+			context.textBaseline = 'middle'
+			context.fillStyle = '#ffffff'
+			context.fillText(item.text, pixels.x + pixels.width / 2, pixels.y + pixels.height / 2)
+			context.restore()
+		}
+	}
+}
+
+/**
+ * Draws the overlays due at `seconds` of the edited video onto a frame
+ * already drawn: annotations first, as part of the picture (a blur blurs
+ * the video, not the captions), then captions, title and logo over them.
+ * `scratch` is a spare canvas the blur works in.
+ */
 export function drawOverlays(
 	context: CanvasRenderingContext2D,
 	overlays: Overlays,
 	seconds: number,
-	logo: HTMLImageElement | null
+	logo: HTMLImageElement | null,
+	scratch: HTMLCanvasElement
 ) {
 	const { width, height } = context.canvas
-	const { title, watermark, captions } = overlays
+	const { title, watermark, captions, annotations } = overlays
+	drawAnnotations(context, annotations, seconds, scratch)
 	const caption = captionAt(captions, seconds)
 	if (caption) {
 		const fontPixels = Math.round(height * CAPTION_FONT_FRACTION)

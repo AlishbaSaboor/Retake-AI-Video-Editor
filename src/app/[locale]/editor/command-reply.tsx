@@ -32,9 +32,10 @@ const COMMAND_ABILITIES = [
 	'export',
 	'addTitle',
 	'addWatermark',
-	'captions'
+	'captions',
+	'annotate'
 ] as const
-const EDITOR_ABILITIES = ['fillerCut', 'compare'] as const
+const EDITOR_ABILITIES = ['fillerCut', 'compare', 'annotations'] as const
 
 /**
  * The bar's answer to a parsed command: the plan to confirm, or — when the
@@ -96,6 +97,12 @@ export function CommandReply({
 			}
 			case 'captions':
 				return plan.on ? t('confirm.captionsOn') : t('confirm.captionsOff')
+			case 'annotation':
+				return t(`confirm.${plan.annotation.kind === 'box' ? 'box' : 'blur'}`, {
+					region: t(`regions.${plan.region}`),
+					start: formatTimecode(plan.annotation.startSeconds),
+					end: formatTimecode(plan.annotation.endSeconds)
+				})
 		}
 	}
 
