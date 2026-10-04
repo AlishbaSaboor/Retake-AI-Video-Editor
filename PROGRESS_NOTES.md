@@ -266,11 +266,26 @@ separate `chore(logs)` commit.
 Everything passes locally. On the meter commit the full e2e suite passed
 18/18 in each of two runs.
 
-`pnpm test` also runs the repo's `scripts/*.test.mjs`. On this Windows
-machine 41 of those (all in `check-standards.test.mjs`) fail with `EPERM`
-on `symlinkSync`, because creating symlinks needs Developer Mode or admin.
-They fail identically on a clean checkout, aren't about the editor, and CI
-runs them on Linux.
+`pnpm test` also runs the repo's `scripts/*.test.mjs`. **Fixed 2026-10-05
+(`fix/check-standards-windows`):** on Windows, 41 of them (all in
+`check-standards.test.mjs`) failed, and `pnpm check:standards` reported
+17/24, since the template's first commit (`a3d5205`, 2026-09-29); CI runs
+on Linux, so it never showed. Three Windows-only causes, none about the
+app:
+
+- `check-standards.mjs` ran `node_modules/.bin/eslint` and `tsc` directly;
+  on Windows those shims are `.cmd` scripts (ENOENT). Now run through the
+  shell as one command line on Windows.
+- It required the hooks to be executable on disk; Windows has no execute
+  bit and git there ignores it (`core.filemode=false`). Skipped on Windows;
+  the index check (`100755`, what a clone gets) still runs everywhere.
+- The test fixtures symlink `node_modules`, which on Windows needs admin
+  or Developer Mode (EPERM): directories are now junctions (no rights
+  needed), the odd file copied; a fresh fixture's `git add` records the
+  hooks 100644 there, so they're marked +x in its index as in the repo's.
+
+Now 413 pass, 1 skipped on Windows (the on-disk execute-bit test: nothing
+to take away there), and all 24 standards are met.
 
 **How to run the checks:**
 
@@ -1695,9 +1710,9 @@ atSeconds (edited time), volume (0–2), muted }`, in the snapshot
   editor-starts-empty test moved there from `editor.spec.ts`.
 - **Checked in the browser:** every page, dark and light, at 1440 and 390
   px wide (screenshots); the light editor (its old layout) reads fine.
-- **Known, unchanged:** `pnpm test` on this Windows machine fails 41
-  `check-standards` self-tests and `check:standards` reports 17/24, exactly
-  as on `main` (Windows file modes and hooks; CI on Linux passes them).
+- **Known at the time:** `pnpm test` on this Windows machine failed 41
+  `check-standards` self-tests and `check:standards` reported 17/24, as on
+  `main`. Fixed since: see "Current totals" in section 2.
 
 ---
 
