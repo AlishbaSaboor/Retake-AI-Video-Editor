@@ -2022,6 +2022,32 @@ is the zoom at ~3.53 s), so it could have read 1.5. The zoom is now 3.1–3.9
 s and the frames 1, 3.5 and 4.3 s (0.4 s past the drop): 3/3 locally, worst
 error 0.05 of the 0.12 allowed.
 
+**CI run 61 (2026-10-05, a logs-only commit, same code as green run 60):
+the export drops frames under load, and two tests read frames as if it
+didn't.** `transform.spec.ts`'s flip/turn/crop test failed in all 3 tries
+(the cropped square 0.057–0.087 of the frame off the preview's, 0.04
+allowed), and the sped-clip zoom test failed once (a frame read at 4.3 s
+was the one at 4.005 s, and still showed the 1.5 zoom that ends at 3.9 s).
+Reproduced locally with Chrome's CPU throttled 4× (3/3 failures). **Not a
+crop or export bug:** seeking the exported file to 1.5 s landed on a frame
+from 1.377–1.441 s, the square (moving 80 px/s) correspondingly lower;
+moved back by the frame's own time, export and preview agree within ~0.02
+at 1× and 4×. The real-time export just drops frames when the CPU is
+starved, and a dropped frame's picture can also be older than its
+timestamp (up to 0.16 s at 8×; at least 0.105 s on CI).
+
+- Transform test: reads each export frame's time (`requestVideoFrameCallback`)
+  and compares the square's position moved back to 1.5 s; pixel probes at
+  the square's centre (holds 0.375 s either way); "not where it would be
+  unflipped" is now the corrected centre within 10 px of 150 (measured
+  145–151; unflipped would be 170).
+- Zoom test: a frame may show the zoom of any time up to 0.25 s before its
+  timestamp, within 0.05.
+- Both: 4/4 at 8× and 4/4 at 4× throttling, and the full spec files pass
+  unthrottled. The other three tests that failed once in run 61 (multi-video
+  export length, re-record, dissolve) passed on retry: flaky under the same
+  load, recorded, not changed.
+
 ### 4d. Low memory on this machine (observed 2026-10-02)
 
 - The machine has 7.5 GB of RAM. With many apps open (Edge WebView2 apps,
