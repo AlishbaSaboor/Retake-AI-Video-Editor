@@ -5,6 +5,7 @@ import { drawFrame, type Overlays } from './overlays'
 import { scheduleTakeGain, type ReplacementTake } from './re-record'
 import { editedLength, editedStarts, joinsOf, segmentSeconds, type Segment } from './sequence'
 import { dissolveAt, fadeLevelAt, scheduleTransitionGain } from './transitions'
+import { fitRect } from './sources'
 import { evenPixels, outputSize, type PictureTransform } from './transform'
 
 // Exporting re-records the edit in real time: an offscreen copy of the take
@@ -138,9 +139,12 @@ async function loadLogo(overlays: Overlays): Promise<HTMLImageElement | null> {
 	return logo
 }
 
-/** One player of the take, and its sound's way into the recording. */
+/** One player of a video, and its sound's way into the recording. */
 type Deck = {
+	url: string
 	video: HTMLVideoElement
+	/** Where a picture of another shape than the main one is fitted into its frame. */
+	fitted: HTMLCanvasElement | null
 	/** Turned to 0 under a re-recorded take. */
 	sourceSound: GainNode
 	/** The clip's volume and fades, over the source's sound and any take alike. */
@@ -164,7 +168,7 @@ async function openDeck(url: string, audio: AudioContext, destination: AudioNode
 	const sourceSound = audio.createGain()
 	audio.createMediaElementSource(video).connect(sourceSound).connect(clipLevel)
 	clipLevel.connect(mix).connect(destination)
-	return { video, sourceSound, clipLevel, mix }
+	return { url, video, fitted: null, sourceSound, clipLevel, mix }
 }
 
 function closeDeck(deck: Deck) {
@@ -180,7 +184,10 @@ function closeDeck(deck: Deck) {
  * `onProgress` gets the fraction done; aborting `signal` stops early and
  * rejects with its reason.
  *
- * Two players ("decks") of the take take turns. A dissolve needs both
+ * Each video plays on players ("decks") of its own, opened before recording
+ * starts: one per video, and a second where a dissolve joins two clips of
+ * the same one. A video of another shape than the main one is drawn fitted
+ * into its frame (sources.ts). Players take turns. A dissolve needs both
  * clips at once: the other deck is sought to the clip coming in while the
  * one before plays, starts when the overlap does, is drawn over it fading
  * in while the sounds crossfade, and carries on alone from the join, the
@@ -188,7 +195,7 @@ function closeDeck(deck: Deck) {
  * seek, as a single deck would.
  */
 export async function recordEdit(
-	url: string,
+	urls: { main: string; added: Readonly<Record<string, string>> },
 	segments: Segment<ReplacementTake>[],
 	overlays: Overlays,
 	transform: PictureTransform,
@@ -211,13 +218,41 @@ export async function recordEdit(
 	let recorder: MediaRecorder | null = null
 	let drawing = true
 	try {
-		const hasDissolve = segments.some((s) => s.transition?.kind === 'dissolve')
-		decks.push(await openDeck(url, audio, destination))
-		if (hasDissolve) decks.push(await openDeck(url, audio, destination))
-		let [deck, spare] = decks
-		if (!deck) throw new Error('no video')
+		const urlOf = (segment: Segment | undefined) =>
+			(segment?.source && urls.added[segment.source]) || urls.main
+		/** A player of `url` other than `not`: one already open, or a new one. */
+		const deckFor = async (url: string, not: Deck | null = null) => {
+			const open = decks.find((d) => d.url === url && d !== not)
+			if (open) return open
+			const opened = await openDeck(url, audio, destination)
+			decks.push(opened)
+			return opened
+		}
+		// The main video's player first: its picture is the frame.
+		let deck = await deckFor(urls.main)
+		for (const [index, segment] of segments.entries()) {
+			const player = await deckFor(urlOf(segment))
+			const before = segments[index - 1]
+			if (segment.transition?.kind === 'dissolve' && urlOf(before) === urlOf(segment)) {
+				await deckFor(urlOf(segment), player)
+			}
+		}
 		const logo = await loadLogo(overlays)
 		const picture = { width: deck.video.videoWidth, height: deck.video.videoHeight }
+		/** A player's picture as drawn: itself, or fitted into the main one's frame. */
+		const frameOf = (of: Deck): CanvasImageSource => {
+			const { video } = of
+			if (video.videoWidth === picture.width && video.videoHeight === picture.height) return video
+			const fitted = of.fitted ?? Object.assign(document.createElement('canvas'), picture)
+			of.fitted = fitted
+			const into = fitted.getContext('2d')
+			if (!into) return video
+			const rect = fitRect({ width: video.videoWidth, height: video.videoHeight }, picture)
+			into.fillStyle = '#000000'
+			into.fillRect(0, 0, picture.width, picture.height)
+			into.drawImage(video, rect.x, rect.y, rect.width, rect.height)
+			return fitted
+		}
 		const canvas = Object.assign(
 			document.createElement('canvas'),
 			evenPixels(outputSize(picture, transform))
@@ -237,8 +272,8 @@ export async function recordEdit(
 			if (!deck) return
 			const seconds = editedSeconds()
 			const dissolve = incoming ? dissolveAt(joins, seconds) : null
-			drawFrame(context, deck.video, picture, transform, overlays, seconds, logo, blurScratch, {
-				incoming: dissolve && incoming ? incoming.video : null,
+			drawFrame(context, frameOf(deck), picture, transform, overlays, seconds, logo, blurScratch, {
+				incoming: dissolve && incoming ? frameOf(incoming) : null,
 				incomingAlpha: dissolve?.progress ?? 0,
 				light: fadeLevelAt(joins, seconds),
 				filter: filters[showing] ?? null,
@@ -286,7 +321,8 @@ export async function recordEdit(
 		// clock doesn't).
 		let stopLane = () => {}
 		for (const [index, segment] of segments.entries()) {
-			if (!deck) break
+			// Its video's player, unless it's already playing, dissolved in.
+			if (!carried) deck = await deckFor(urlOf(segment))
 			showing = index
 			const playing: Deck = deck
 			const segmentStart = starts[index] ?? 0
@@ -318,7 +354,8 @@ export async function recordEdit(
 			carried = false
 			// A dissolve into the next segment: the other deck waits at its start.
 			const next = segments[index + 1]
-			const dissolving = next?.transition?.kind === 'dissolve' && spare ? spare : null
+			const dissolving =
+				next?.transition?.kind === 'dissolve' ? await deckFor(urlOf(next), playing) : null
 			let ready: Promise<void> | null = null
 			if (dissolving && next) {
 				dissolving.video.currentTime = next.startSeconds
@@ -353,7 +390,7 @@ export async function recordEdit(
 			}
 			if (incoming) {
 				// The next clip is already playing: it takes over, still recording.
-				;[deck, spare] = [incoming, playing]
+				deck = incoming
 				incoming = null
 				carried = true
 			} else {

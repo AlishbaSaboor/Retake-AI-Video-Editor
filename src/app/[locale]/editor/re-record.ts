@@ -243,11 +243,13 @@ export function reRecordBlocker(
 	const inside = (outer: SourceRange) =>
 		plan.startSeconds >= outer.startSeconds && plan.endSeconds <= outer.endSeconds
 	if (!inside(edit.trim)) return 'trimmed'
-	const clip = clips.find((c) => c.ranges.some(inside))
+	// Sentences are the main video's: only its clips count.
+	const own = clips.filter((c) => !c.source)
+	const clip = own.find((c) => c.ranges.some(inside))
 	const touches = (range: SourceRange) =>
 		range.startSeconds < plan.endSeconds && range.endSeconds > plan.startSeconds
 	// No clip plays any of it: its clip was deleted.
-	if (!clip && !clips.some((c) => c.ranges.some(touches))) return 'deleted'
+	if (!clip && !own.some((c) => c.ranges.some(touches))) return 'deleted'
 	if (!clip) return 'split'
 	// A take can't keep pace with a sped-up or slowed picture and keep its pitch.
 	if ((clip.speed ?? 1) !== 1) return 'sped'

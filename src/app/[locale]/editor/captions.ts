@@ -24,6 +24,8 @@ const MAX_GAP_SECONDS = 0.7
 function editedWord(word: TranscriptWord, segments: Segment[], starts: number[]) {
 	const middle = (word.startSeconds + word.endSeconds) / 2
 	return segments.flatMap((segment, index) => {
+		// The transcript is the main video's: an added video's clips have no words.
+		if (segment.source) return []
 		const before = starts[index] ?? 0
 		const length = segmentSeconds(segment)
 		// A re-recorded segment stands for its whole sentence, however long the take.

@@ -67,6 +67,7 @@ function systemInstruction(durationSeconds: number, clipCount: number): string {
 		'add_audio: add music or a sound file at startSeconds (null: the playhead).',
 		'extract_audio: take clip fromClip\'s sound out to its own audio track ("detach the audio").',
 		'delete_audio: the audio track numbered fromClip (null: the last one added).',
+		'add_video: add another video file to the project, after the clips.',
 		'color: property brightness, contrast or saturation with percent the change (more: 20,',
 		'less: -20), or property black_and_white, warm, cool, or normal (colors back to normal);',
 		'fromClip (null: whole video).',

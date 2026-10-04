@@ -53,6 +53,48 @@ function hideDeck(deck: HTMLVideoElement | null) {
 	deck.volume = 0
 }
 
+/** Where each video plays from: for a dissolve's player to load the clip coming in. */
+export type SourceUrls = { added: Readonly<Record<string, string>>; main: string }
+
+/**
+ * The players: the main one, the added videos' (over it, by id, each shown
+ * only while it plays), and which one is showing ("away" when it isn't the
+ * main one).
+ */
+type Players = {
+	videoRef: RefObject<HTMLVideoElement | null>
+	sourceElementsRef: RefObject<Map<string, HTMLVideoElement>>
+	activeRef: RefObject<HTMLVideoElement | null>
+	awayRef: RefObject<boolean>
+}
+
+/** The player for a video: an added one's, or the main one. */
+function elementFor(players: Players, source: string | undefined): HTMLVideoElement | null {
+	return source ? (players.sourceElementsRef.current.get(source) ?? null) : players.videoRef.current
+}
+
+/** Shows `element`'s picture: an added player over the main one, or none of them. */
+function showActive(players: Players, element: HTMLVideoElement) {
+	players.activeRef.current = element
+	players.awayRef.current = element !== players.videoRef.current
+	for (const added of players.sourceElementsRef.current.values()) {
+		added.style.opacity = added === element ? '1' : '0'
+	}
+}
+
+/** Puts a player at a time. */
+function startAt(element: HTMLVideoElement, seconds: number) {
+	element.currentTime = seconds
+}
+
+/** Hands playback from one player to another: the old one paused, the new one shown. */
+function switchTo(players: Players, from: HTMLVideoElement, to: HTMLVideoElement) {
+	if (from === to) return
+	// Away first: pausing the main player must not read as stopping.
+	showActive(players, to)
+	from.pause()
+}
+
 /** A re-recorded take playing over the video, and whether the picture is holding for it. */
 type VoiceOver = {
 	replacement: ReplacementTake
@@ -131,11 +173,18 @@ function stopVoice(
  * video, so it stays in sync and a held frame lasts as long as the take.
  * Web Audio has no pitch correction, so a take sounds higher when sped up,
  * unlike the video's own sound.
+ *
+ * A clip of an added video plays on that video's own player, shown over the
+ * main one; the main player is paused meanwhile ("away"), which isn't
+ * stopping. Moving between videos switches players at the join.
  */
 export function useSequencePlayback(
 	videoRef: RefObject<HTMLVideoElement | null>,
 	/** A second player over the first, for dissolves: the clip coming in. */
 	deckRef: RefObject<HTMLVideoElement | null>,
+	/** The added videos' players, by id. */
+	sourceElementsRef: RefObject<Map<string, HTMLVideoElement>>,
+	urls: SourceUrls,
 	segments: Segment<ReplacementTake>[],
 	/** The Audio lane's sounds, in the edited video's time: [] when `segments` aren't the edit's. */
 	laneItems: AudioItem[],
@@ -144,7 +193,9 @@ export function useSequencePlayback(
 	/** The playhead's source time, and which segment it's in: a time can end one segment and start another. */
 	onTime: (seconds: number, segmentIndex: number | null) => void,
 	/** Playback ended while the video was already paused (holding under a take): no `pause` event comes. */
-	onStop: () => void
+	onStop: () => void,
+	/** Playback started on an added video's player: the main one sends no `play` event. */
+	onStart: () => void
 ) {
 	const playingIndexRef = useRef<number | null>(null)
 	const audioRef = useRef<AudioContext | null>(null)
@@ -152,7 +203,10 @@ export function useSequencePlayback(
 	// Clip volume and fades: the video's sound routed through a gain (a
 	// <video> can't go above 100%), made the first time a clip needs it.
 	// A media element can be routed only once, so it stays routed.
-	const clipLevelRef = useRef<{ element: HTMLVideoElement; gain: GainNode } | null>(null)
+	const clipLevelsRef = useRef(new Map<HTMLVideoElement, GainNode>())
+	// The player showing: the main one, or an added video's (then the main one is "away").
+	const activeRef = useRef<HTMLVideoElement | null>(null)
+	const awayRef = useRef(false)
 	const dissolveRef = useRef<Dissolve | null>(null)
 	// The Audio lane's sounds playing: from which segment's stretch, of which
 	// items, up to where, at what speed, and their stop. Kept across this
@@ -168,8 +222,10 @@ export function useSequencePlayback(
 			stopVoice(voiceRef, videoRef)
 			dissolveRef.current = null
 			hideDeck(deckRef.current)
+			for (const added of sourceElementsRef.current.values()) added.pause()
 			return
 		}
+		const players: Players = { videoRef, sourceElementsRef, activeRef, awayRef }
 		const starts = editedStarts(segments)
 		const joins = joinsOf(segments)
 		/** The edited video's time at the main video's time, in segment `index`. */
@@ -187,17 +243,25 @@ export function useSequencePlayback(
 			const next = segments[index + 1]
 			const deck = deckRef.current
 			const dissolve = dissolveRef.current
+			const nextElement = next ? (elementFor(players, next.source) ?? element) : element
 			if (next && deck && dissolve?.started && dissolve.index === index + 1) {
 				// The incoming clip is already playing on top: jump ahead of it and
-				// let it cover the seek until the main video is there.
-				element.currentTime = Math.min(
+				// let it cover the seek until its own player is there.
+				deck.style.opacity = '1'
+				nextElement.currentTime = Math.min(
 					next.endSeconds,
 					deck.currentTime + HANDOFF_LEAD_SECONDS * (next.rate ?? 1)
 				)
-				deck.style.opacity = '1'
+				switchTo(players, element, nextElement)
 				dissolve.handoff = true
 				playingIndexRef.current = index + 1
-				if (element.paused) void element.play()
+				if (nextElement.paused) void nextElement.play()
+			} else if (next && nextElement !== element) {
+				// Into another video: its player, from the clip's start.
+				nextElement.currentTime = next.startSeconds
+				switchTo(players, element, nextElement)
+				playingIndexRef.current = index + 1
+				void nextElement.play()
 			} else if (next) {
 				// Where the next segment carries straight on from this one (a
 				// re-recorded span's start), the picture plays on: seeking there
@@ -210,7 +274,7 @@ export function useSequencePlayback(
 				playingIndexRef.current = index + 1
 				if (element.paused) void element.play()
 			} else {
-				const wasHolding = element.paused
+				const wasHolding = element.paused || element !== videoRef.current
 				element.pause()
 				if (current) element.currentTime = current.endSeconds
 				if (wasHolding) onStop()
@@ -224,18 +288,16 @@ export function useSequencePlayback(
 		 * while the video plays straight to the speakers.
 		 */
 		const followClipLevel = (element: HTMLVideoElement, playing: Segment | undefined) => {
-			if (
-				clipLevelRef.current?.element !== element &&
-				segments.some((s) => s.audio || s.transition)
-			) {
+			const levels = clipLevelsRef.current
+			if (!levels.has(element) && segments.some((s) => s.audio || s.transition)) {
 				const audio = audioRef.current ?? new AudioContext()
 				audioRef.current = audio
 				void audio.resume()
 				const gain = audio.createGain()
 				audio.createMediaElementSource(element).connect(gain).connect(audio.destination)
-				clipLevelRef.current = { element, gain }
+				levels.set(element, gain)
 			}
-			const level = clipLevelRef.current?.element === element ? clipLevelRef.current.gain : null
+			const level = levels.get(element)
 			if (!level) return null
 			const audio = playing?.audio
 			// Played seconds into the segment: a sped clip's fades are in output time.
@@ -278,6 +340,12 @@ export function useSequencePlayback(
 			const current = dissolve?.index === index + 1 ? dissolve : null
 			const state: Dissolve = current ?? { index: index + 1, started: false, handoff: false }
 			dissolveRef.current = state
+			// The dissolving player plays the incoming clip's video.
+			const url = next.source ? (urls.added[next.source] ?? urls.main) : urls.main
+			if (deck.dataset.url !== url) {
+				deck.src = url
+				deck.dataset.url = url
+			}
 			const nextRate = next.rate ?? 1
 			const into = editedAt(index, element.currentTime) - (starts[index + 1] ?? 0)
 			const wanted = next.startSeconds + Math.max(0, into) * nextRate
@@ -345,7 +413,12 @@ export function useSequencePlayback(
 
 		let frame = 0
 		const follow = () => {
-			const element = videoRef.current
+			// The player of the clip playing (the main one before any is known).
+			const known = segments[playingIndexRef.current ?? -1]
+			const element =
+				(known ? elementFor(players, known.source) : activeRef.current) ?? videoRef.current
+			if (element && element !== (activeRef.current ?? videoRef.current))
+				showActive(players, element)
 			if (element) {
 				// A take keeps the video's rate when the speed changes while it plays.
 				const voicing = voiceRef.current?.source.playbackRate
@@ -371,7 +444,7 @@ export function useSequencePlayback(
 					}
 				} else if (!current || !isInSegment(seconds, current)) {
 					stopVoice(voiceRef, videoRef)
-					const at = playbackPosition(seconds, segments)
+					const at = playbackPosition(seconds, segments, current?.source)
 					if (at) {
 						if (at.seconds !== seconds) element.currentTime = at.seconds
 						playingIndexRef.current = at.index
@@ -411,14 +484,27 @@ export function useSequencePlayback(
 		}
 		frame = requestAnimationFrame(follow)
 		return () => cancelAnimationFrame(frame)
-	}, [isPlaying, segments, laneItems, rate, videoRef, deckRef, onTime, onStop])
+	}, [
+		isPlaying,
+		segments,
+		laneItems,
+		rate,
+		videoRef,
+		deckRef,
+		sourceElementsRef,
+		urls,
+		onTime,
+		onStop
+	])
 
 	// The preview speed (times the playing clip's own) on the video, its pitch
 	// kept. After every render, not on change only: a new video element starts
 	// at 1×, and the rate must be set before play starts, not on the first
 	// frame after it.
 	useEffect(() => {
-		const element = videoRef.current
+		// A new main player (a new video loaded) is the one showing.
+		if (!activeRef.current?.isConnected) activeRef.current = videoRef.current
+		const element = activeRef.current ?? videoRef.current
 		if (!element) return
 		element.preservesPitch = true
 		const wanted = rate * (segments[playingIndexRef.current ?? -1]?.rate ?? 1)
@@ -435,15 +521,27 @@ export function useSequencePlayback(
 		[videoRef]
 	)
 
-	/** Moves to a source time, or to what plays next if that time was removed. */
-	function seek(seconds: number) {
-		const element = videoRef.current
+	const players: Players = { videoRef, sourceElementsRef, activeRef, awayRef }
+
+	/**
+	 * Moves to a time in a video (`source`, absent for the main one), or to
+	 * what plays next of it if that time was removed. A move into another
+	 * video switches players, playing on if it was.
+	 */
+	function seek(seconds: number, source?: string) {
+		const element = elementFor(players, source)
 		if (!element) return
 		stopVoice(voiceRef, videoRef)
 		dissolveRef.current = null
 		hideDeck(deckRef.current)
 		stopLane(laneRef)
-		const at = playbackPosition(seconds, segments)
+		const previous = activeRef.current ?? videoRef.current
+		if (previous && previous !== element) {
+			const wasPlaying = !previous.paused
+			switchTo(players, previous, element)
+			if (wasPlaying) void element.play()
+		}
+		const at = playbackPosition(seconds, segments, source)
 		const target = at?.seconds ?? segments.at(-1)?.endSeconds ?? seconds
 		playingIndexRef.current = at?.index ?? null
 		element.currentTime = target
@@ -457,6 +555,8 @@ export function useSequencePlayback(
 	 * While playing, the frame loop above owns this, in sequence order.
 	 */
 	function settle(element: HTMLVideoElement) {
+		// Away, the main player's time isn't the playhead's.
+		if (awayRef.current) return
 		const seconds = element.currentTime
 		const onSegment = segments.some(
 			(s) => seconds >= s.startSeconds - SEEK_TOLERANCE_SECONDS && seconds <= s.endSeconds
@@ -472,16 +572,66 @@ export function useSequencePlayback(
 	function restartIfAtEnd(element: HTMLVideoElement) {
 		const last = segments.at(-1)
 		const first = segments[0]
-		if (last && first && Math.abs(element.currentTime - last.endSeconds) <= END_TOLERANCE_SECONDS) {
+		if (
+			last &&
+			first &&
+			!last.source &&
+			!first.source &&
+			Math.abs(element.currentTime - last.endSeconds) <= END_TOLERANCE_SECONDS
+		) {
 			playingIndexRef.current = 0
 			element.currentTime = first.startSeconds
 		}
 	}
 
-	/** Whether the video is paused on purpose, holding its last frame under a longer take. */
+	/**
+	 * Whether the main player is paused on purpose: holding its last frame
+	 * under a longer take, or away while an added video plays.
+	 */
 	function isHolding() {
-		return voiceRef.current?.holding ?? false
+		return (voiceRef.current?.holding ?? false) || awayRef.current
 	}
 
-	return { seek, settle, restartIfAtEnd, isHolding }
+	/** Plays from where the playhead is, on its video's player; from the start when it's at the end. */
+	function play() {
+		const current = activeRef.current ?? videoRef.current
+		if (!current) return
+		const lastIndex = segments.length - 1
+		const last = segments[lastIndex]
+		const first = segments[0]
+		const index = playingIndexRef.current
+		const atEnd =
+			last !== undefined &&
+			(index === null || index === lastIndex) &&
+			elementFor(players, last.source) === current &&
+			Math.abs(current.currentTime - last.endSeconds) <= END_TOLERANCE_SECONDS
+		const element = (atEnd && first && elementFor(players, first.source)) || current
+		if (atEnd && first) {
+			playingIndexRef.current = 0
+			startAt(element, first.startSeconds)
+			switchTo(players, current, element)
+		}
+		void element.play()
+		if (element !== videoRef.current) onStart()
+	}
+
+	/** Pauses whichever player is playing. */
+	function pause() {
+		const element = activeRef.current ?? videoRef.current
+		if (!element) return
+		element.pause()
+		if (element !== videoRef.current) onStop()
+	}
+
+	/**
+	 * Back to the main player, paused, for what plays the main video directly
+	 * (a cut, take or join preview, a trim of it).
+	 */
+	function returnToMain() {
+		const main = videoRef.current
+		const active = activeRef.current
+		if (main && active && active !== main) switchTo(players, active, main)
+	}
+
+	return { seek, settle, restartIfAtEnd, isHolding, play, pause, activeRef, returnToMain }
 }

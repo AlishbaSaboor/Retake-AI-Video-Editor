@@ -29,6 +29,13 @@ session with no memory of it can carry on. Read this whole file, then
 > - **A failed AI call now records why** (section 3g): `error_type` and
 >   `error_status` in the `ai_usage` row's `meta`, never the message. Checked
 >   with a real failed Gemini call (row 74, `ApiError`, 400, no spend).
+> - **Several videos in one project** (section 3q): add another video (a
+>   button, or "add another video"), placed as a clip after the others;
+>   trim (its own), split, reorder, speed, color and transitions work on its
+>   clips; a video of another shape is letterboxed into the first one's
+>   frame. The transcript, captions, clean-up and re-recording stay the
+>   first video's. Undo and reset take added videos away. Real exports: each
+>   video's picture and sound in place. Real Gemini: 10 calls, $0.0058.
 > - **Separate audio: the Audio lane** (section 3p): add an audio file at a
 >   chosen time, or take a clip's sound out into its own track (the clip goes
 >   silent); move, trim, volume, mute, delete; mixed over the video in the
@@ -218,8 +225,9 @@ separate `chore(logs)` commit.
 | Transitions (fade through black, dissolve) between adjacent clips; delete and duplicate clips; by hand or typed command                                                                                                  | `feat(editor): transitions between clips, delete and duplicate`          | Unit tests (`transitions.test.mts`): a fade keeps the length and dips to 0 at the join, ½ a quarter of its length either side; a dissolve shortens by its length, moves later segments' starts, edited times and captions up by it; a transition is at most half the picture either side (a nearby cut shortens it), none against a take; moving or deleting a clip drops the transitions at its joins (moving back restores them), split and merge keep them; delete never removes every clip, a deleted clip's sentence says so (`deleted`); a duplicate plays after the original with its sound and speed, starts with a cut, the next clip's transition follows it, its words caption twice, and a split divides the clip playing; equal-power crossfade; the transition gain scheduled on the audio clock (fade ramps, a dissolve's curve rising monotonically through √½). Commands: a pair side by side, every pair (a short join shortened), not adjacent, no such clip, blocked, one clip only, remove; delete and duplicate, the only clip kept. e2e (`transitions.spec.ts`, real exports of a red/440 Hz then blue/880 Hz video split in two): fade 1 s: 3.943–3.958 s for 4 s, red 252 → 133 → 14 (black) → blue 109–116 → 247, 440 Hz 1.0 → 0.52–0.57 → ~0.02–0.05 → 880 Hz 0.48–0.50 → 1.0; dissolve 1 s: 2.980–2.982 s for 3 s, half way red 132–133 / blue 116–118 and 440 Hz 0.73–0.74 / 880 Hz 0.65–0.67 (√½ = 0.71); the preview's second player plays and fades in through the overlap, hidden and stopped after the join. Duplicate of a 2× red clip: 3.975–3.999 s for 4 s, red, red (440 Hz, pitch kept), blue; delete the blue: 2.006 s, red only; undo each, reset. Commands (mocked) with confirm and undo. Mutation: the export without the transition mix fails both the fade and dissolve tests (red 252 where 128 is due). Full e2e: 47/48 (the by-ear take's recording step, section 4c), then 48/48 twice. |
 | Color adjustments (brightness, contrast, saturation, black and white, warm, cool) for the whole video or a clip; text styling (font, size, color, background) for the title, captions and on-video text; freehand pencil | `feat(editor): color adjustments, text styling and a pencil`             | Unit tests (`color-grade.test.mts`): brightness scales, contrast pivots on mid-grey, saturation leaves grey grey and at 0 gives luma; black and white is grey, warm/cool shift grey red/blue; a clip's grade on top of the video's, none set is no filter; filter ids stable by numbers; a clip's colors through split and merge, onto its segments, and counted for reset (as are the video's colors and the caption style); the default band is the old one; a pencil stroke's points kept inside its rect, a dot not a stroke; color commands (a level ±20 unless told, capped; a look; back to normal or already normal; no such clip); text style commands (only what's named; a color name or #rrggbb; no title / no text); a command with fields left out parses with them null. e2e (`color-and-text.spec.ts`, real exports of a grey/blue video split in two): whole video black and white, clip 2 also 150%: export 128/95 and 192/143 exactly as calculated, and the preview's screenshots the same (128/95, 192/143); the Original view ungraded; undo, redo, Reset colors, reset. Warm grey (147,131,103), then cool on top (126,134,124). Title red, serif, no band: 228 red pixels, the band row the video's grey; captions yellow at 150%: 385 pixels against 125 at 100%; on-video text cyan: 260 pixels. Pencil: export stroke centred at x 79 of 320 (drawn 32–128), preview 79, flipped 239 (pinned to the picture); eraser and undo. Commands (mocked) with confirm and undo. Mutation: the export without the grade fails (blue stays (49,97,221) for grey 95). Full e2e 53/53 twice.                                                                                                                                                                                                                                                                                                                                |
 | Separate audio: an Audio lane of added files and extracted clip sounds, moved, trimmed, at their own volume                                                                                                              | `feat(editor): separate audio clips in an Audio lane`                    | Unit tests (`audio-lane.test.mts`): an item plays its sound from where it starts, only in the asked stretch; moving keeps what plays, trimming the start skips more of the sound, the end plays less, neither past the source; volume capped at 200%; an extracted clip keeps its kept pieces (cuts skipped) where the clip starts, and moved plays the same sound earlier; a clip in the lane is silent itself, blocks re-recording (`in_lane`) and counts for reset; only a clip at 1×, without a take, not already out can be extracted; a stretch runs through dissolves to the next seek; commands (add at a time or the playhead, past the end refused; extract, sped refused, no such clip; delete the last or a named one, none / no such). e2e (`audio-lane.spec.ts`, real exports of a red/440 Hz, blue/880 Hz video split in two, and a 1.5 s 660 Hz WAV): the file at 1 s: 660 Hz 0 at 0.5 s, 1.003 at 1.75 s with the video's 440 Hz still 1.0, 0 at 2.9 s; at 50% 0.498; muted 0; undo, reset. Clip 2's sound taken out: 880 Hz 0.999 in place; moved to 0 s: 880 Hz 1.003 over clip 1's 440 Hz 1.004, and 0 at 3 s where clip 2's picture still plays; a sped clip can't be extracted; undo puts the sound back. Preview: one lane start per stretch, from the file's start or 0.6 s in when played from 1.6 s; none in the Original view. Commands (mocked): add opens the picker, extract, delete, already-out refused, undo each. Mutation: the export without the lane fails (no 660 Hz). Full e2e locally: 56/57 (the new preview test played 0.4 s from 1.6 s, across the clips' join at 2 s, where the lane rightly starts again: now played from 1.3 s), 56/57 (`re-record-by-ear.spec.ts:26`, watched) and 56/57 (`annotations.spec.ts:156`, watched); the lane spec 4/4 alone and in the full runs after the fix.                                                                                                 |
+| Several videos in one project: add another, after the clips; the clip tools work on its clips                                                                                                                            | `feat(editor): combine several videos into one project`                  | Unit tests (`sources.test.mts`): an added video's clip plays its own video with its own trim and none of the main one's cuts; a time is looked for in one video (seek, clip under it, edited time); a split divides the playing clip in its own video, a merge needs one video, settings keep the source; captions, takes and re-recording are the main video's own; fitting another shape centred; an added video counts for reset. e2e (`multi-video.spec.ts`, real exports of a red 320×180 / 440 Hz main video and a green 240×240 / 660 Hz added one): 6.88–6.91 s for 7 s, red with 440 Hz then green with 660 Hz, the green letterboxed (the left edge black); the preview plays on into the added player (shown, playing, the main one paused, away), the editor's Pause stops it, and the timeline names the green video. The green clip first and at 2×: 5.41–5.44 s for 5.5 s, 660 Hz kept; black and white on it: grey 182; a dissolve into the red (0.75 s, half the 1.5 s clip): 4.67 s, half way red over grey with both tones. The green video's own trim, a second off its end from its timeline, and a split inside it: 5.88 s. The command (mocked) opens the picker; merging clips of two videos refused; undo, redo, reset. Full e2e 61/61 twice.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
-**Current totals:** 311 unit tests (`src/**/*.test.mts`) and 57 e2e tests.
+**Current totals:** 317 unit tests (`src/**/*.test.mts`) and 61 e2e tests.
 Everything passes locally. On the meter commit the full e2e suite passed
 18/18 in each of two runs.
 
@@ -1378,6 +1386,64 @@ atSeconds (edited time), volume (0–2), muted }`, in the snapshot
 
 ---
 
+## 3q. Several videos in one project
+
+- **The design** (told to the user first; no decision needed): the first
+  video uploaded stays the main one. Added videos (`sources.ts`:
+  `AddedVideo = { id, name, file, url, durationSeconds, width, height }`)
+  and each one's trim (`sourceTrims`) are in the snapshot: adding a video is
+  one undo step, undo takes it away, reset removes them all. Adding one
+  appends a clip of its whole length after the others, with `source: id`
+  (`Clip.source`, absent for the main video).
+- **Clips of any video:** `playableSegments(…, sourceEdits)` plays an added
+  video's clip with its own trim and none of the main video's cuts or takes;
+  segments carry `source`. Split, reorder, speed, color, transitions,
+  delete, duplicate and the Audio lane work per clip. A split divides the
+  playing clip in its own video; a merge refuses clips of two videos (one
+  clip is one video), by hand (Merge disabled) and as a command
+  (`merge_videos`). Lookups by a source time (`playbackPosition`,
+  `clipIndexAt`, `editedSecondsAt`) are within one video.
+- **The main video's own:** transcript, captions, clean-up, filler cuts,
+  re-recording and the audio checks. Transcribing an added video would cost
+  a Deepgram call each, and its analysis more memory: left out.
+- **Timeline:** shows the video the playhead is in, named; its trim handles
+  trim that video. The typed "cut from 2 to 5" trims the main one only.
+- **Preview:** each added video has its own <video> over the main one
+  (`data-testid="added-player"`), shown only while it plays. The playback
+  hook finds each clip's player (`elementFor`), switches players at a join
+  between videos (the main one paused meanwhile, "away", which isn't
+  stopping) and hands a dissolve across videos to the right players (the
+  dissolve player loads the incoming clip's video). With more than one
+  video, the editor's Play/Pause stands in for the player's own controls
+  (they only play the main video). A clip's volume and fades route each
+  player through its own gain. Preview pixelates read an added player's
+  own pixels where it's fitted.
+- **Another shape:** fitted whole into the main video's frame (`fitRect`,
+  centred, black bars): `object-fit: contain` in the preview; in the export
+  drawn into a frame-sized canvas first, so blurs and pixelates sample the
+  fitted picture. Rotate, crop and annotations apply to that frame.
+- **Export:** a player per video (and a second for a dissolve between two
+  clips of one video), all opened before recording starts; each clip plays
+  on its video's player; recording pauses across a switch as across any
+  seek. The main video's player opens first: its picture is the frame.
+- **Risks, as told:** memory (a decoder per added video in the preview,
+  up to two per video in the export: fine for two or three on this laptop);
+  the export is still real time; undo keeps an added video's file and URL
+  alive (released when the main video is replaced or the editor closes).
+- **Commands:** `add_video` (no fields; the file picker opens on Apply).
+  **Real Gemini, 2026-10-04:** "add another video", "append a second video
+  file at the end", "import another clip from my computer" (all add_video),
+  and the regressions "add music at 0:05" (still add_audio), "extract the
+  audio of clip 2", "merge clips 1 and 2", "make it black and white",
+  "delete clip 2", "make clip 2 play at 2x", "add a sticker of a cat"
+  (unsupported): all right. Rows 201–210, 10 calls, 5,776 micro-USD
+  ($0.0058); ~732 input tokens, **~572–586 micro-USD a command**.
+- **Left out:** transcripts and captions of added videos, a timeline of all
+  videos at once, typed trims of added videos, removing a video other than
+  by deleting its clips, undo or reset.
+
+---
+
 ## 4. Unresolved issues
 
 ### 4a. The command-test regression from earlier instructions is solved
@@ -1661,6 +1727,9 @@ more full runs: 48/48 (2.4 GB free) and 48/48 (2.5 GB free). Watch it.
 - **Local full runs for the Audio lane (2026-10-04):** `re-record-by-ear.spec.ts:26`
   and `annotations.spec.ts:156` each missed once (both already watched,
   untouched code); recorded and carried on.
+- **Run #54 (`3b54ed9`, the Audio lane): green, 2 flaky** (passed on
+  retry, both watched): `clip-speed.spec.ts:227` and `re-record.spec.ts:21`.
+  The new `audio-lane.spec.ts` passed first time.
 
 **Measured 2026-10-04, picture transforms work: two more watched misses.**
 In four full runs after the feature was finished (2.3–2.7 GB free), two
@@ -1858,6 +1927,7 @@ This explains the e2e export-length failures in section 4c (0.39 s long,
 21. ~~Transitions between clips; delete and duplicate~~: done (section 3n).
 22. ~~Color adjustments, text styling and the pencil~~: done (section 3o).
 23. ~~Separate audio clips (the Audio lane)~~: done (section 3p).
+24. ~~Several videos in one project~~: done (section 3q).
 
 Not yet queued by the user:
 

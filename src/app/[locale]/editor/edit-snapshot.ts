@@ -1,5 +1,6 @@
 import type { Annotation } from './annotations'
 import type { AudioItem } from './audio-lane'
+import type { AddedVideo } from './sources'
 import type { Cut } from './cleanup'
 import type { TitleCard, Watermark } from './overlays'
 import type { ReplacementTake } from './re-record'
@@ -27,6 +28,9 @@ export type EditSnapshot<R = ReplacementTake> = {
 	captionStyle: TextStyle
 	/** The Audio lane's sounds. */
 	audioItems: AudioItem[]
+	/** Videos added after the main one, and each one's trim, by id. */
+	addedVideos: AddedVideo[]
+	sourceTrims: Readonly<Record<string, TrimRange>>
 }
 
 /** The edit right after upload: the whole take, untouched. */
@@ -42,7 +46,9 @@ export const ORIGINAL_EDIT: EditSnapshot = {
 	transform: IDENTITY_TRANSFORM,
 	color: NEUTRAL_GRADE,
 	captionStyle: DEFAULT_TEXT_STYLE,
-	audioItems: []
+	audioItems: [],
+	addedVideos: [],
+	sourceTrims: {}
 }
 
 /**
@@ -67,6 +73,7 @@ export function isOriginalEdit<R>(edit: EditSnapshot<R>, durationSeconds: number
 		isNeutral(edit.color) &&
 		isDefaultStyle(edit.captionStyle) &&
 		edit.audioItems.length === 0 &&
+		edit.addedVideos.length === 0 &&
 		(edit.clips === null ||
 			(otherClips.length === 0 &&
 				otherRanges.length === 0 &&
