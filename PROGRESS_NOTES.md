@@ -29,6 +29,13 @@ session with no memory of it can carry on. Read this whole file, then
 > - **A failed AI call now records why** (section 3g): `error_type` and
 >   `error_status` in the `ai_usage` row's `meta`, never the message. Checked
 >   with a real failed Gemini call (row 74, `ApiError`, 400, no spend).
+> - **The logo by hand** (section 3t): drag it anywhere on the preview,
+>   drag its corner to resize it (shape kept), or use the arrow keys, + and
+>   −, or a "Logo size (%)" field; PNG or JPG. A corner button or a logo
+>   command puts it back in a corner (bottom-right when none is named).
+>   Checked on a real 1080p recording: the export puts it where the preview
+>   shows it. Captions were already right: off by default, at the bottom.
+>   No new API call.
 > - **Motion graphics: entrances, exits, a lower third, a zoom** (section
 >   3s): the title and on-video text come in and go out with a fade, a slide
 >   (from a side) or a pop, over a set time; a lower third (name and
@@ -245,8 +252,9 @@ separate `chore(logs)` commit.
 | Several videos in one project: add another, after the clips; the clip tools work on its clips                                                                                                                            | `feat(editor): combine several videos into one project`                  | Unit tests (`sources.test.mts`): an added video's clip plays its own video with its own trim and none of the main one's cuts; a time is looked for in one video (seek, clip under it, edited time); a split divides the playing clip in its own video, a merge needs one video, settings keep the source; captions, takes and re-recording are the main video's own; fitting another shape centred; an added video counts for reset. e2e (`multi-video.spec.ts`, real exports of a red 320×180 / 440 Hz main video and a green 240×240 / 660 Hz added one): 6.88–6.91 s for 7 s, red with 440 Hz then green with 660 Hz, the green letterboxed (the left edge black); the preview plays on into the added player (shown, playing, the main one paused, away), the editor's Pause stops it, and the timeline names the green video. The green clip first and at 2×: 5.41–5.44 s for 5.5 s, 660 Hz kept; black and white on it: grey 182; a dissolve into the red (0.75 s, half the 1.5 s clip): 4.67 s, half way red over grey with both tones. The green video's own trim, a second off its end from its timeline, and a split inside it: 5.88 s. The command (mocked) opens the picker; merging clips of two videos refused; undo, redo, reset. Full e2e 61/61 twice.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Save and reopen projects: Save with a name, autosave, My projects (open, delete), typed save/open                                                                                                                        | `feat(editor): save and reopen projects in the browser`                  | Unit tests (`projects.test.mts`): a typed name finds its project (the same name, else the latest containing it, none, empty); media kept once per file, a picked file stands in only if it's the same one; save and open as commands (a name or the current one, unsaved changes warned, unknown refused, none saved). e2e (`projects.spec.ts`): a project with split, 2× speed, black and white on a clip, a red title, captions on, a box, an audio file at 0.5 s and an added video: exported (4.43–4.45 s: grey 55 with 440 + 660 Hz, blue at 2× with 880 Hz, green with 330 Hz, 136 red title pixels, the black box), saved, the page reloaded, reopened from My projects: the same clips, lane, title, speed and captions; no transcription request; no undo history; a second export the same (4.43 s; every colour within 0, title 134 for 136, every tone within 0.01). Autosave: a change after saving, a reload, the change there. A lost video (the browser's media cleared): reopening asks for the file, refuses another one, opens with the same one; delete asks first, then the project is gone, after a reload too. Commands (mocked): save as Demo; open Demo over an unsaved edit warns; an unknown project refused. Full e2e 65/65, then 64/65 (`transform.spec.ts:160`, watched).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Motion graphics: title/text entrances and exits (fade, slide, pop), a lower third, an animated zoom                                                                                                                      | `feat(editor): animated text, a lower third and zoom`                    | Unit tests for the easing, the half-time cap, the zoom matrix and the commands. e2e measures real exports: the zoom (square width, centred, with a crop and a sped clip), the title sliding and fading, the lower third at the lower left sliding in and gone outside its time, a text pop; typed commands, save/reopen, undo.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| The logo by hand: drag anywhere, resize by its corner, keys, a size field; PNG or JPG                                                                                                                                    | `feat(editor): place and resize the logo by hand, PNG or JPG`            | Unit tests for placing, moving, resizing and clamping. e2e drags and resizes a JPG logo, checks the export puts it at the same place and size, the keys, the size field, undo per step, corners and the default-corner command.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
-**Current totals:** 328 unit tests (`src/**/*.test.mts`) and 69 e2e tests.
+**Current totals:** 333 unit tests (`src/**/*.test.mts`) and 70 e2e tests.
 Everything passes locally. On the meter commit the full e2e suite passed
 18/18 in each of two runs.
 
@@ -1583,6 +1591,45 @@ atSeconds (edited time), volume (0–2), muted }`, in the snapshot
 
 ---
 
+## 3t. The logo by hand
+
+- **Asked (2026-10-04):** drag the logo anywhere and resize it by hand;
+  PNG and JPG; a logo command still puts it in a corner by default; and
+  captions at the bottom of the video, off by default. Checked first on a
+  real recording (`Cap Recording - 26 September 2026.mp4`, 1080p, with a
+  mocked transcript so no Deepgram call).
+- **Already there:** captions off by default (`captionsOn: false`) and
+  drawn 6% up from the bottom, centred, in the preview and the export;
+  measured on the real video, the caption's bottom was 26 px above the
+  video's in a 430 px player. The logo command with no corner gives
+  bottom-right (`DEFAULT_CORNER`). Nothing changed for either.
+- **Added:** `Watermark` gains `size` (its width as a fraction of the
+  frame's; absent: 15%) and `at` (its top-left as fractions of the frame,
+  once placed; absent: in its corner). `watermarkRect` reads them, so the
+  export and the preview agree, and keeps a placed logo inside the frame
+  even after a later crop. `logo.ts` holds the pure moves (move, resize by
+  the corner keeping the shape, resize from the field, back to a corner)
+  and the limits: 5–60% of the frame's width, never taller than the frame.
+  `LogoBox` (`logo-box.tsx`) is a button over the logo on the Edited
+  preview: drag it to move, drag its corner grip to resize, arrow keys
+  move 1% (Shift: 5%), + and − resize by 1%. The preview follows the drag
+  live (a draft, not an edit); letting go is one undo step, as is each key
+  or a typed "Logo size (%)". A corner button (or the command) puts a
+  placed logo back in that corner at its size; no corner shows pressed
+  while it's placed by hand. Replacing the image keeps its size and place.
+  JPG: `LOGO_TYPES` = PNG and JPEG, for the picker's `accept` and the check.
+- **On the logo, the box takes the pointer:** an annotation can't be
+  started on top of the logo. The logo sits on the frame, not the
+  picture: it doesn't zoom with a push-in, as before.
+- **Verified on the real video:** dragged from the corner to (0.225,
+  0.233), resized to 30% wide; the 1920×1080 export's green logo measured
+  (0.225, 0.233), 0.300 × 0.267 of the frame, the same as the preview.
+  `e2e/logo.spec.ts` does the same on the synthetic video in CI.
+- **Left out:** rotating the logo, its opacity, more than one logo, a
+  logo for part of the video only.
+
+---
+
 ## 4. Unresolved issues
 
 ### 4a. The command-test regression from earlier instructions is solved
@@ -1947,6 +1994,12 @@ at one fixed time, and failed when an export frame landed a few
 hundredths early; they now compare against the eased value at the frame's
 actual time, or sample several frames through the pop.
 
+**Logo runs (2026-10-04, local, full suite ×2, ~1.4 GB free):** 5 and 3
+failures, all different, none touching the logo: export lengths 0.25 s off
+(section 4f), an export's tone missing at one probe, elements not shown
+in time (transform ×3, re-record ×2, projects). All 8 passed when rerun
+together (2 workers). Memory pressure, as in section 4d; not changed.
+
 ### 4d. Low memory on this machine (observed 2026-10-02)
 
 - The machine has 7.5 GB of RAM. With many apps open (Edge WebView2 apps,
@@ -2094,6 +2147,8 @@ This explains the e2e export-length failures in section 4c (0.39 s long,
 25. ~~Save and reopen projects~~: done (section 3r).
 26. ~~Motion graphics: entrances and exits, a lower third, a zoom~~: done
     (section 3s).
+27. ~~The logo by hand (drag, resize, PNG or JPG); captions checked~~: done
+    (section 3t).
 
 Not yet queued by the user:
 

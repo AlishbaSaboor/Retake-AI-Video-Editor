@@ -41,8 +41,19 @@ export type TitleCard = {
 	animation?: Animation
 }
 
-/** A PNG logo, as a data URL, kept in one corner for the whole video. */
-export type Watermark = { image: string; aspect: number; corner: Corner }
+/**
+ * A PNG or JPG logo, as a data URL, for the whole video: in `corner`, or
+ * where it was dragged (`at`); 15% of the frame's width unless resized.
+ */
+export type Watermark = {
+	image: string
+	aspect: number
+	corner: Corner
+	/** Its width, as a fraction of the frame's; absent: `WATERMARK_WIDTH_FRACTION`. */
+	size?: number
+	/** Its top-left corner, as fractions of the frame, once placed by hand; absent: in `corner`. */
+	at?: { x: number; y: number }
+}
 
 /** `captions` is empty when they're off. */
 export type Overlays = {
@@ -82,7 +93,7 @@ export const CAPTION_LINE_SCALE = 1.4
 /** Space either side of a caption line's text, as a multiple of the text height. */
 export const CAPTION_PADDING_SCALE = 0.3
 /** The watermark's width, and its distance from the edges, as fractions of the picture's width. */
-const WATERMARK_WIDTH_FRACTION = 0.15
+export const WATERMARK_WIDTH_FRACTION = 0.15
 const WATERMARK_MARGIN_FRACTION = 0.03
 
 export function titleShownAt(title: TitleCard, seconds: number): boolean {
@@ -91,8 +102,17 @@ export function titleShownAt(title: TitleCard, seconds: number): boolean {
 
 /** Where the watermark sits in a `width`×`height` picture, in its pixels. */
 export function watermarkRect(watermark: Watermark, width: number, height: number) {
-	const w = width * WATERMARK_WIDTH_FRACTION
+	const w = width * (watermark.size ?? WATERMARK_WIDTH_FRACTION)
 	const h = w / watermark.aspect
+	if (watermark.at) {
+		// Kept inside the frame, even if a later crop made the frame narrower.
+		return {
+			x: Math.min(Math.max(watermark.at.x * width, 0), Math.max(width - w, 0)),
+			y: Math.min(Math.max(watermark.at.y * height, 0), Math.max(height - h, 0)),
+			width: w,
+			height: h
+		}
+	}
 	const margin = width * WATERMARK_MARGIN_FRACTION
 	return {
 		x: watermark.corner.endsWith('left') ? margin : width - margin - w,
@@ -144,7 +164,7 @@ export function fitInside(pictureRatio: number, frameRatio: number) {
 		: { widthPercent: (pictureRatio / frameRatio) * 100, heightPercent: 100 }
 }
 
-/** Reads a PNG the user picked into what a watermark keeps: a data URL and its shape. */
+/** Reads a PNG or JPG the user picked into what a watermark keeps: a data URL and its shape. */
 export async function readLogo(file: File): Promise<Pick<Watermark, 'image' | 'aspect'>> {
 	const image = await new Promise<string>((resolve, reject) => {
 		const reader = new FileReader()

@@ -79,6 +79,8 @@ import {
 	type Motion,
 	type Zoom
 } from './motion'
+import { inCorner, LOGO_TYPES } from './logo'
+import { LogoBox } from './logo-box'
 import { ZoomPanel } from './motion-panels'
 import { ProjectList, ProjectPanel, RelinkPanel, type SaveStatus } from './project-panel'
 import {
@@ -220,6 +222,8 @@ export function VideoEditor() {
 	const [captionStyle, setCaptionStyle] = useState<TextStyle>(DEFAULT_TEXT_STYLE)
 	// The lower third and the zoom (motion.ts), in the edited video's time.
 	const [lowerThird, setLowerThird] = useState<LowerThird | null>(null)
+	/** The logo while it's being dragged on the preview; not an edit until it's let go. */
+	const [logoDraft, setLogoDraft] = useState<Watermark | null>(null)
 	const [zoom, setZoom] = useState<Zoom | null>(null)
 	// The Audio lane (audio-lane.ts), and the take's own sound, decoded the
 	// first time a clip's sound is taken out into it.
@@ -936,17 +940,28 @@ export function VideoEditor() {
 				title: t('graphics.notAPng.title'),
 				description: t('graphics.notAPng.description', { name: file.name })
 			})
-		if (file.type !== 'image/png') return notAPng()
+		if (!LOGO_TYPES.includes(file.type)) return notAPng()
 		const logo = await readLogo(file).catch(() => null)
 		if (!logo) return notAPng()
 		recordEdit()
-		setWatermark({ ...logo, corner: logoCornerRef.current })
+		// A replaced logo keeps the old one's size and, if placed by hand, its place.
+		setWatermark({
+			...logo,
+			corner: logoCornerRef.current,
+			size: watermark?.size,
+			at: watermark?.at
+		})
 	}
 
 	function moveWatermark(corner: Corner) {
-		if (!watermark || watermark.corner === corner) return
+		if (!watermark || (watermark.corner === corner && !watermark.at)) return
 		recordEdit()
-		setWatermark({ ...watermark, corner })
+		setWatermark(inCorner(watermark, corner))
+	}
+
+	function changeWatermark(next: Watermark) {
+		recordEdit()
+		setWatermark(next)
 	}
 
 	/** A pointer's screen position as fractions of the output frame. */
@@ -1584,9 +1599,18 @@ export function VideoEditor() {
 								)}
 								{editedNow !== null && picture && !transformMode && (
 									<OverlayPreview
-										overlays={overlays}
+										overlays={logoDraft ? { ...overlays, watermark: logoDraft } : overlays}
 										editedSeconds={editedNow}
 										frame={outputSize(pictureSize, shownTransform)}
+									/>
+								)}
+								{editedNow !== null && picture && !transformMode && !showOriginal && watermark && (
+									<LogoBox
+										watermark={watermark}
+										frame={outputSize(pictureSize, shownTransform)}
+										toFrame={toFrame}
+										onDraft={setLogoDraft}
+										onChange={changeWatermark}
 									/>
 								)}
 								{transformMode === 'crop' && !showOriginal && transform.crop && picture && (
@@ -1815,6 +1839,8 @@ export function VideoEditor() {
 						onTitleChange={changeTitle}
 						onPickLogo={pickLogo}
 						onCornerChange={moveWatermark}
+						onLogoChange={changeWatermark}
+						frame={outputSize(pictureSize, transform)}
 						onRemoveWatermark={() => {
 							recordEdit()
 							setWatermark(null)
@@ -1843,7 +1869,7 @@ export function VideoEditor() {
 					<input
 						ref={logoInputRef}
 						type="file"
-						accept="image/png"
+						accept={LOGO_TYPES.join(',')}
 						aria-label={t('graphics.logoInput')}
 						className="sr-only"
 						tabIndex={-1}

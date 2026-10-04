@@ -141,7 +141,7 @@ test('a title and a watermark set by hand show in the preview and the export, at
 	await graphics.getByRole('button', { name: 'Add title' }).click()
 	await chooseLogo(
 		page,
-		() => graphics.getByRole('button', { name: 'Add logo (PNG)' }).click(),
+		() => graphics.getByRole('button', { name: 'Add logo (PNG or JPG)' }).click(),
 		logo
 	)
 
@@ -203,13 +203,13 @@ test('a title and a watermark set by hand show in the preview and the export, at
 	await undo.click()
 	await expect(watermarkOver(page)).toBeVisible()
 
-	// Only a PNG becomes a watermark.
+	// Only a PNG or a JPG becomes a watermark.
 	const choosing = page.waitForEvent('filechooser')
 	await graphics.getByRole('button', { name: 'Replace logo' }).click()
 	await (
 		await choosing
-	).setFiles({ name: 'logo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('not a png') })
-	await expect(page.getByText("That isn't a PNG", { exact: true })).toBeVisible()
+	).setFiles({ name: 'logo.gif', mimeType: 'image/gif', buffer: Buffer.from('not a png') })
+	await expect(page.getByText("That isn't a PNG or JPG", { exact: true })).toBeVisible()
 	expect(await watermarkCorner(page)).toBe('top-left')
 })
 
