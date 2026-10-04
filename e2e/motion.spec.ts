@@ -236,13 +236,16 @@ test('a zoom works on the cropped picture and on the edited timeline, past a spe
 		.getByLabel('Speed (×)')
 	await speed.fill('2')
 	await speed.press('Enter')
-	// In edited time: 3.2–4.2 s is inside the sped clip.
-	await setZoom(page, 3.2, 4.2, 150)
-	const result = await exportFrames(page, [1, 3.7, 4.3])
+	// In edited time: 3.1–3.9 s is inside the sped clip. The zoom drops from 1.5
+	// to 1 at its end, and the export's picture lags its timestamps by up to
+	// ~70 ms (CI run 59: 1.13 at 3.604 s, the zoom of 3.53 s), so the frame after
+	// it is read 0.4 s past the drop, not right at it.
+	await setZoom(page, 3.1, 3.9, 150)
+	const result = await exportFrames(page, [1, 3.5, 4.3])
 	expect(result.width, 'the 1:1 crop').toBe(result.height)
 	expect(Math.abs(result.seconds - 4.5), `length ${result.seconds}`).toBeLessThan(0.25)
 	for (const frame of result.frames) {
-		const want = expectedZoom(frame.shown, 3.2, 4.2, 1.5)
+		const want = expectedZoom(frame.shown, 3.1, 3.9, 1.5)
 		const got = zoomOf(frame)
 		expect(
 			Math.abs(got - want),
