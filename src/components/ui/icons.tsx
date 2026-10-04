@@ -22,9 +22,9 @@ import {
 	ArrowRight,
 	ArrowsClockwise,
 	ArrowsInLineHorizontal,
+	ArrowSquareOut,
 	ArrowUUpLeft,
 	ArrowUUpRight,
-	ArrowSquareOut,
 	Broom,
 	Calendar,
 	CaretDown,
@@ -40,22 +40,34 @@ import {
 	Copy,
 	DotsThreeVertical,
 	DownloadSimple,
+	Envelope,
 	FilmStrip,
+	FolderOpen,
 	FunnelSimple,
 	Gear,
+	House,
 	Info,
+	Keyboard,
 	Lightning,
 	List,
 	MagnifyingGlass,
-	Pause,
 	Microphone,
 	Minus,
+	Moon,
+	Paperclip,
+	PaperPlaneRight,
+	Pause,
 	PencilSimple,
 	Play,
 	Plus,
 	Scissors,
+	SidebarSimple,
+	SignIn,
 	SignOut,
+	Sparkle,
 	SpeakerLow,
+	Stop,
+	Sun,
 	Trash,
 	User,
 	Warning,
@@ -112,6 +124,7 @@ function Glyph({ source: Source, size = DEFAULT_SIZE, className }: IconProps & {
 export const AiIcon = (props: IconProps) => <Glyph source={Lightning} {...props} />
 export const AlertIcon = (props: IconProps) => <Glyph source={Warning} {...props} />
 export const ArrowRightIcon = (props: IconProps) => <Glyph source={ArrowRight} {...props} />
+export const AttachIcon = (props: IconProps) => <Glyph source={Paperclip} {...props} />
 export const CalendarIcon = (props: IconProps) => <Glyph source={Calendar} {...props} />
 export const CheckIcon = (props: IconProps) => <Glyph source={Check} {...props} />
 export const ChevronDownIcon = (props: IconProps) => <Glyph source={CaretDown} {...props} />
@@ -122,29 +135,40 @@ export const CleanupIcon = (props: IconProps) => <Glyph source={Broom} {...props
 export const ClippingIcon = (props: IconProps) => <Glyph source={WaveSquare} {...props} />
 export const CloseIcon = (props: IconProps) => <Glyph source={X} {...props} />
 export const CopyIcon = (props: IconProps) => <Glyph source={Copy} {...props} />
+export const DarkModeIcon = (props: IconProps) => <Glyph source={Moon} {...props} />
 export const DownloadIcon = (props: IconProps) => <Glyph source={DownloadSimple} {...props} />
 export const EditIcon = (props: IconProps) => <Glyph source={PencilSimple} {...props} />
 export const ExternalLinkIcon = (props: IconProps) => <Glyph source={ArrowSquareOut} {...props} />
 export const FillerWordIcon = (props: IconProps) => <Glyph source={ChatCircleDots} {...props} />
 export const FilterIcon = (props: IconProps) => <Glyph source={FunnelSimple} {...props} />
+export const HomeIcon = (props: IconProps) => <Glyph source={House} {...props} />
 export const InfoIcon = (props: IconProps) => <Glyph source={Info} {...props} />
+export const KeyboardIcon = (props: IconProps) => <Glyph source={Keyboard} {...props} />
+export const LightModeIcon = (props: IconProps) => <Glyph source={Sun} {...props} />
+export const MailIcon = (props: IconProps) => <Glyph source={Envelope} {...props} />
 export const MenuIcon = (props: IconProps) => <Glyph source={List} {...props} />
 export const MergeIcon = (props: IconProps) => <Glyph source={ArrowsInLineHorizontal} {...props} />
 export const MicIcon = (props: IconProps) => <Glyph source={Microphone} {...props} />
 export const MinusIcon = (props: IconProps) => <Glyph source={Minus} {...props} />
 export const MoreIcon = (props: IconProps) => <Glyph source={DotsThreeVertical} {...props} />
 export const NoiseIcon = (props: IconProps) => <Glyph source={Waveform} {...props} />
+export const PanelIcon = (props: IconProps) => <Glyph source={SidebarSimple} {...props} />
 export const PauseIcon = (props: IconProps) => <Glyph source={Pause} {...props} />
 export const PlayIcon = (props: IconProps) => <Glyph source={Play} {...props} />
 export const PlusIcon = (props: IconProps) => <Glyph source={Plus} {...props} />
+export const ProjectsIcon = (props: IconProps) => <Glyph source={FolderOpen} {...props} />
 export const QuietIcon = (props: IconProps) => <Glyph source={SpeakerLow} {...props} />
 export const RedoIcon = (props: IconProps) => <Glyph source={ArrowUUpRight} {...props} />
 export const ReplaceIcon = (props: IconProps) => <Glyph source={ArrowsClockwise} {...props} />
 export const ResetIcon = (props: IconProps) => <Glyph source={ArrowCounterClockwise} {...props} />
 export const SearchIcon = (props: IconProps) => <Glyph source={MagnifyingGlass} {...props} />
+export const SendIcon = (props: IconProps) => <Glyph source={PaperPlaneRight} {...props} />
 export const SettingsIcon = (props: IconProps) => <Glyph source={Gear} {...props} />
+export const SignInIcon = (props: IconProps) => <Glyph source={SignIn} {...props} />
 export const SignOutIcon = (props: IconProps) => <Glyph source={SignOut} {...props} />
+export const SparkleIcon = (props: IconProps) => <Glyph source={Sparkle} {...props} />
 export const SplitIcon = (props: IconProps) => <Glyph source={Scissors} {...props} />
+export const StopIcon = (props: IconProps) => <Glyph source={Stop} {...props} />
 export const SuccessIcon = (props: IconProps) => <Glyph source={CheckCircle} {...props} />
 export const TimelineIcon = (props: IconProps) => <Glyph source={Clock} {...props} />
 export const TrashIcon = (props: IconProps) => <Glyph source={Trash} {...props} />

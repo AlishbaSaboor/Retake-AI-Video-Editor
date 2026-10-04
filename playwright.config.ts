@@ -19,7 +19,16 @@ export default defineConfig({
 		trace: 'on-first-retry',
 		screenshot: 'only-on-failure'
 	},
-	projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+	// Every test starts signed in (e2e/auth.setup.ts); a test of the signed-out
+	// site clears it with test.use({ storageState: { cookies: [], origins: [] } }).
+	projects: [
+		{ name: 'setup', testMatch: /auth\.setup\.ts/ },
+		{
+			name: 'chromium',
+			use: { ...devices['Desktop Chrome'], storageState: 'e2e/.auth/user.json' },
+			dependencies: ['setup']
+		}
+	],
 	// Boots the app itself for local runs; CI (and any review skill running
 	// against an already-live URL via E2E_BASE_URL) should skip this by
 	// setting E2E_BASE_URL and leaving webServer unused — see

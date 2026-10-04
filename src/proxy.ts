@@ -16,6 +16,9 @@ export default async function proxy(request: NextRequest) {
 
 	const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 	const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+	// Signed in, signed out, or unknown (accounts off, or Supabase unreachable:
+	// then nothing is guarded, as nothing could be checked).
+	let signedIn: boolean | null = null
 
 	if (supabaseUrl && supabasePublishableKey) {
 		// Typed to the auth surface like the wrappers in src/lib/supabase/ —
@@ -46,10 +49,20 @@ export default async function proxy(request: NextRequest) {
 		// should still serve pages; it just means the session isn't refreshed
 		// on this request.
 		try {
-			await supabase.auth.getUser()
+			const { data, error } = await supabase.auth.getUser()
+			// Only an unreachable Supabase leaves it unknown; no session, or a
+			// bad one, is signed out.
+			signedIn = data.user ? true : error?.name === 'AuthRetryableFetchError' ? null : false
 		} catch {
 			// Fail open — see comment above.
 		}
+	}
+
+	const redirectTo = guardRedirect(request, signedIn)
+	if (redirectTo) {
+		const response = NextResponse.redirect(redirectTo)
+		supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie))
+		return response
 	}
 
 	const intlResponse = intlProxy(request)
@@ -61,6 +74,29 @@ export default async function proxy(request: NextRequest) {
 	})
 
 	return intlResponse
+}
+
+// The pages behind a sign-in, and where signing in lands.
+const SIGNED_IN_PAGES = ['/home', '/projects', '/editor']
+const SIGN_IN_PAGE = '/login'
+const AFTER_SIGN_IN = '/home'
+
+/** Where a request should go instead, if anywhere: signed-out visitors to sign in, signed-in ones past it. */
+function guardRedirect(request: NextRequest, signedIn: boolean | null): URL | null {
+	if (signedIn === null) return null
+	// The default locale is unprefixed; strip any other locale's prefix to match.
+	const { pathname, search } = request.nextUrl
+	const [, first] = pathname.split('/')
+	const prefix = first && (routing.locales as readonly string[]).includes(first) ? `/${first}` : ''
+	const path = pathname.slice(prefix.length) || '/'
+	const under = (page: string) => path === page || path.startsWith(`${page}/`)
+	if (!signedIn && SIGNED_IN_PAGES.some(under)) {
+		const url = new URL(`${prefix}${SIGN_IN_PAGE}`, request.url)
+		url.searchParams.set('next', `${path}${search}`)
+		return url
+	}
+	if (signedIn && under(SIGN_IN_PAGE)) return new URL(`${prefix}${AFTER_SIGN_IN}`, request.url)
+	return null
 }
 
 export const config = {

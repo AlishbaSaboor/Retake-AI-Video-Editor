@@ -253,6 +253,14 @@ async function mediaFile(ref: MediaRef): Promise<File> {
 	return new File([blob], ref.name, { type: ref.type || blob.type })
 }
 
+/** A project's main video, for a preview picture; null when the project or the video is gone. */
+export async function projectVideo(id: string): Promise<File | null> {
+	const project = await withStore<StoredProject | undefined>(PROJECTS, 'readonly', (store) =>
+		store.get(id)
+	)
+	return project ? mediaFile(project.main).catch(() => null) : null
+}
+
 /** A project opened: its main video, its transcript, and its edit as the editor holds it. */
 export type OpenedProject = {
 	id: string
