@@ -7,6 +7,10 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-05.
+> - **Redesign, stage 2: the editor** (section 3v): chat left, video and
+>   timeline centre, searchable tools right, hideable sides, saved sign and
+>   job progress, keyboard shortcuts; new: logo and text rotation, a zoom
+>   aimed on the video, chat attach by file type.
 > - **Redesign, stage 1: the website** (section 3u): one design system, dark
 >   and light mode, public pages, local accounts (Supabase Auth), a home page
 >   that starts a project (type, attach, speak), a Saved projects page, and
@@ -1697,6 +1701,87 @@ atSeconds (edited time), volume (0–2), muted }`, in the snapshot
 
 ---
 
+## 3v. Redesign, stage 2: the editor (2026-10-05)
+
+- **Asked:** chat on the left (type, attach, speak; a reply with Apply
+  changes / Cancel; nothing changes before Apply; Deepgram for voice); the
+  video with the timeline in the middle, edited directly on the picture
+  (drag, resize and rotate the logo and text, zoom and crop, the pencil);
+  the tools on the right, a panel each with a heading, and a search; both
+  sides can be hidden; a saved sign and progress for long jobs; keyboard
+  shortcuts with a help list.
+- **The user's choices (2026-10-05):** add **rotation** for the logo and
+  on-video text; **aim the zoom** by dragging an area on the video (a zoom
+  used to always centre on the frame); chat **attach routes by file type**
+  (video → added, PNG/JPG → logo, audio → Audio lane).
+- **New behaviour (only these):**
+  - `Watermark.rotation` (degrees, clockwise): drawn about the logo's
+    centre in the export (`drawFrameOverlays`) and the preview (CSS
+    `rotate`). `LogoBox`: a handle above it (drag), `[` / `]` (1°, Shift
+    15°), and a "Logo rotation (°)" field (`DegreesField`). Angles are
+    measured in the frame's pixels (`angleTo`), so a wide frame doesn't
+    skew them; a turned logo's corner resize is unturned first
+    (`unturned`). A turned logo can pass the frame's edge and is cut off
+    there (it isn't pushed back in).
+  - Text annotations' `rotation`: in picture space, after the unmirroring
+    scale, so on screen it turns as dragged whatever the flips; the band
+    and the clip turn with it. Preview: `rotate(±θ)` on the item (−θ under
+    one flip). A round handle at the top of the selected text, and "Text
+    rotation (°)". Verified flipped: preview and export put the turned band
+    in the same place (mean x 125.4 vs 125.5 px).
+  - `Zoom.focus` (frame fractions): `zoomViewAt` gives the scale and a
+    centre moving from the frame's to the focus as the zoom grows, which
+    keeps the shown area inside the frame all the way (unit-tested);
+    `clampFocus` moves an edge focus in. Export: `zoomedMatrix` takes the
+    view. Preview: `scale(s) translate(…)` on the zoom layer (still starts
+    `scale(`). Clicks map back with `unzoomedPoint`. "Set area on video"
+    (Zoom panel) shows the whole frame with the area (`ZoomBox`): drag to
+    aim, corner to zoom closer (area width = 1/amount); one undo step each.
+- **Layout** (`editor-shell.tsx`): a three-column grid under the site's top
+  bar, the page no longer scrolls; each column scrolls. The grid needs
+  `lg:flex-none` (flex-1 overrode its height) and `grid-rows-[minmax(0,1fr)]`
+  (else the row grows to the tallest column), and the scrolling columns are
+  `relative`, or the visually hidden file inputs (absolute) stretch the
+  page. Hidden columns stay mounted (`hidden`), so the chat history and
+  half-typed fields survive. Open/closed is remembered per browser
+  (`editor-layout-store.ts`, a `useSyncExternalStore` that reports "open"
+  during hydration: reading storage in a state initializer caused a
+  hydration mismatch that broke the grid).
+- **Chat** (`command-bar.tsx`, still `CommandBar`): a message list. Only
+  the latest answer is open (`role="status"`, "You asked…", Apply changes /
+  Cancel); answered ones stay as a record without the status role or
+  buttons ("Applied" / "Cancelled — nothing changed"). Enter sends,
+  Shift+Enter is a new line. Attach and the voice button sit in the box.
+- **Toolbar:** the file name, Edited/Original, then running jobs (loading
+  video, reading the sound, transcribing), the saved badge (Saved / Saving…
+  / Not saved / Save failed), Undo / Redo / Reset (`HistoryControls`, moved
+  out of the clean-up bar; same names, same only-when-possible rule),
+  shortcuts, add video, replace video, Export (primary; its progress now has
+  a bar), and the column toggles.
+- **Tools** (`tool-panels.tsx`): Project, Clean up, Transcript, Clip sound
+  and speed, Audio, Picture, Zoom, Color, Transitions, Annotations,
+  Graphics, each the existing panel; search matches the start of words in
+  a panel's name and keywords (`messages: Editor.tools.keywords`).
+- **Shortcuts:** Space (play/pause; not on a button), S (split at the
+  playhead), Delete (the selected clips, else the one at the playhead;
+  never all), Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y, `[` chat, `]` tools, `/`
+  find a tool, `?` the list. Ignored while typing and when a focused control
+  already used the key. Clip selection moved up into the editor
+  (`ClipSelection`) for Delete.
+- **Tests:** new `editor-layout.spec.ts` (chat record, search, hiding,
+  shortcuts, saved badge), logo turned by typing/keys/handle and exported
+  (attached through the chat), text turned and exported (and undone), zoom
+  aimed and resized on the video and exported. Changed for the layout:
+  two tests clicked an exact "Apply" (now "Apply changes"); the blur
+  preview check is now relative to the same edge unblurred (the screenshot
+  is downscaled less now that the player is ~575 px, not 768: 68–72 sharp,
+  20.7 blurred; it was 56 and 10).
+- **Checked in the browser:** the editor at 1440 and 1280 wide and on a
+  phone (the columns stack), dark and light; a reply in the chat; the
+  search narrowed; the shortcut list.
+
+---
+
 ## 4. Unresolved issues
 
 ### 4a. The command-test regression from earlier instructions is solved
@@ -2088,6 +2173,11 @@ lags its timestamps by up to ~70 ms (the same run: 1.13 at 3.604 s, which
 is the zoom at ~3.53 s), so it could have read 1.5. The zoom is now 3.1–3.9
 s and the frames 1, 3.5 and 4.3 s (0.4 s past the drop): 3/3 locally, worst
 error 0.05 of the 0.12 allowed.
+
+**Redesign stage 2 runs (2026-10-05, ~1.3–1.8 GB free):** full suite
+84 tests: `re-record.spec.ts:21` failed once (a take's "New take" line not
+shown in time) and `clip-speed.spec.ts:142` once (exported 3.31 s for 3 s,
+section 4f); both passed alone (1/1, 2/2). Recorded, not changed.
 
 **CI run 61 (2026-10-05, a logs-only commit, same code as green run 60):
 the export drops frames under load, and two tests read frames as if it

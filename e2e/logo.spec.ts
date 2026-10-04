@@ -190,3 +190,70 @@ test('a JPG logo is dragged anywhere and resized by hand, in the preview and the
 	const back = await previewBox(page)
 	expect(back.x + back.width).toBeCloseTo(0.97, 2)
 })
+
+test('a logo attached in the chat turns by typing, by keys and by its handle, and the export turns it the same', async ({
+	page
+}) => {
+	test.setTimeout(150_000)
+	await mockActions(page, { words: [] })
+	await openEditorWithVideo(page)
+	// Attached in the chat: an image becomes the logo, and the chat says so.
+	await page
+		.getByLabel('Attach a file')
+		.setInputFiles({ name: 'logo.jpg', mimeType: 'image/jpeg', buffer: await greenJpg(page) })
+	await expect(page.getByText('Using logo.jpg as the logo.')).toBeVisible()
+	await expect(logoImage(page)).toBeVisible()
+	const size = graphics(page).getByLabel('Logo size (%)')
+	await size.fill('30')
+	await size.press('Enter')
+	// In the middle, so the turned logo stays inside the frame (past its edges, it's cut off).
+	const placed = await previewBox(page)
+	await dragInFrame(page, [placed.x + placed.width / 2, placed.y + placed.height / 2], [0.5, 0.5])
+
+	// A quarter turn, typed: the 2:1 logo now stands tall, about the same centre.
+	const upright = await previewBox(page)
+	const rotation = graphics(page).getByLabel('Logo rotation (°)')
+	await rotation.fill('90')
+	await rotation.press('Enter')
+	const turned = await previewBox(page)
+	// In pixels: 96×48 upright, 48×96 turned (the frame is 320×180).
+	expect(turned.width * 320).toBeCloseTo(upright.height * 180, 0)
+	expect(turned.height * 180).toBeCloseTo(upright.width * 320, 0)
+	expect(turned.x + turned.width / 2).toBeCloseTo(upright.x + upright.width / 2, 2)
+
+	const exported = await exportedLogo(page)
+	expect(Math.abs(exported.logo.width - 48), JSON.stringify(exported)).toBeLessThan(3)
+	expect(Math.abs(exported.logo.height - 96)).toBeLessThan(3)
+	expect(
+		Math.abs(exported.logo.x + exported.logo.width / 2 - (turned.x + turned.width / 2) * 320)
+	).toBeLessThan(3)
+
+	// Keys: ] turns it a degree further, Shift+[ 15 back.
+	await logoBox(page).focus()
+	await page.keyboard.press(']')
+	await expect(rotation).toHaveValue('91')
+	await page.keyboard.press('Shift+[')
+	await expect(rotation).toHaveValue('76')
+
+	// The handle: dragged to straight left of the logo's centre, it turns to −90°.
+	const handle = await logoBox(page).locator('[data-logo-rotate]').boundingBox()
+	const box = await logoBox(page).boundingBox()
+	if (!handle || !box) throw new Error('no layout box')
+	const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+	await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+	await page.mouse.down()
+	await page.mouse.move(centre.x - 40, centre.y - 20)
+	await page.mouse.move(centre.x - 80, centre.y)
+	await page.mouse.up()
+	await expect(rotation).toHaveValue('-90')
+
+	// Each turn was one step.
+	const undo = page.getByRole('button', { name: 'Undo last change' })
+	await undo.click()
+	await expect(rotation).toHaveValue('76')
+	await undo.click()
+	await undo.click()
+	await expect(rotation).toHaveValue('90')
+	await undo.click()
+	await expect(rotation).toHaveValue('0')
+})

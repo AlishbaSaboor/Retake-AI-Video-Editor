@@ -147,7 +147,8 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 						left: `${(logo.x / frame.width) * PERCENT}%`,
 						top: `${(logo.y / frame.height) * PERCENT}%`,
 						width: `${(logo.width / frame.width) * PERCENT}%`,
-						height: `${(logo.height / frame.height) * PERCENT}%`
+						height: `${(logo.height / frame.height) * PERCENT}%`,
+						transform: watermark.rotation ? `rotate(${watermark.rotation}deg)` : undefined
 					}}
 				/>
 			)}

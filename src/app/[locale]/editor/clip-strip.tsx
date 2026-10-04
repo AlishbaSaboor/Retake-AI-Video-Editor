@@ -31,6 +31,9 @@ type ClipStripProps = {
 	onMerge: (from: number, to: number) => void
 	onDelete: (from: number, to: number) => void
 	onDuplicate: (from: number, to: number) => void
+	/** Which clips are selected: held by the editor, whose Delete shortcut acts on them. */
+	selection: ClipSelection | null
+	onSelectionChange: (selection: ClipSelection | null) => void
 }
 
 const MOVE_KEYS: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1 }
@@ -42,7 +45,16 @@ const DELETE_KEYS = new Set(['Delete', 'Backspace'])
  * survives a reorder or split elsewhere — and always contiguous, so whatever
  * is selected can be merged.
  */
-type Selection = { anchorId: string; focusId: string }
+export type ClipSelection = { anchorId: string; focusId: string }
+
+/** The selected run, as clip indexes; null when nothing (still there) is selected. */
+export function selectedRun(clips: readonly Clip[], selection: ClipSelection | null) {
+	const anchor = clips.findIndex((c) => c.id === selection?.anchorId)
+	const focus = clips.findIndex((c) => c.id === selection?.focusId)
+	return anchor >= 0 && focus >= 0
+		? { from: Math.min(anchor, focus), to: Math.max(anchor, focus) }
+		: null
+}
 
 /**
  * The take as its clips, in playback order, each as wide as it plays for
@@ -62,25 +74,20 @@ export function ClipStrip({
 	onMove,
 	onMerge,
 	onDelete,
-	onDuplicate
+	onDuplicate,
+	selection,
+	onSelectionChange: setSelection
 }: ClipStripProps) {
 	const t = useTranslations('Editor.clips')
 	const hintId = useId()
 	const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
-	const [selection, setSelection] = useState<Selection | null>(null)
-
-	const anchor = clips.findIndex((c) => c.id === selection?.anchorId)
-	const focus = clips.findIndex((c) => c.id === selection?.focusId)
-	const selected =
-		anchor >= 0 && focus >= 0
-			? { from: Math.min(anchor, focus), to: Math.max(anchor, focus) }
-			: null
+	const selected = selectedRun(clips, selection)
 
 	function select(clip: Clip, extend: boolean) {
-		setSelection((current) => ({
-			anchorId: extend && current ? current.anchorId : clip.id,
+		setSelection({
+			anchorId: extend && selection ? selection.anchorId : clip.id,
 			focusId: clip.id
-		}))
+		})
 	}
 
 	function handleKeyDown(event: KeyboardEvent, clip: Clip, index: number) {
@@ -116,14 +123,11 @@ export function ClipStrip({
 	const canDelete = selected !== null && selected.to - selected.from + 1 < clips.length
 
 	return (
-		<section
-			aria-label={t('label')}
-			className="border-border bg-surface rounded-2xl border p-4 shadow-xl"
-		>
-			<div className="border-border mb-3 flex items-center gap-2 border-b pb-3">
+		<section aria-label={t('label')} className="border-border bg-surface rounded-lg border p-4">
+			<div className="border-border mb-3 flex flex-wrap items-center gap-2 border-b pb-3">
 				<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
 				<span className="text-text-muted text-xs">{t('count', { count: clips.length })}</span>
-				<div className="ml-auto flex gap-2">
+				<div className="ml-auto flex flex-wrap gap-2">
 					<Button variant="outline" size="sm" disabled={!canMerge} onClick={merge}>
 						<MergeIcon />
 						{t('merge')}

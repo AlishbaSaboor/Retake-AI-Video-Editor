@@ -17,7 +17,7 @@ export default async function EditorPage({
 	const projectId = typeof project === 'string' ? project : null
 
 	return (
-		<main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 p-4 md:p-6">
+		<main className="flex flex-1 flex-col">
 			<h1 className="sr-only">{t('title')}</h1>
 			<VideoEditor key={projectId ?? 'new'} openProjectId={projectId} />
 		</main>

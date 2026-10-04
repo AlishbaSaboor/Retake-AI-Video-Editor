@@ -14,6 +14,8 @@ type CommandReplyProps = {
 	hasWatermark: boolean
 	onApply: () => void
 	onDismiss: () => void
+	/** Answered already, kept in the chat as a record: no buttons, and not announced. */
+	resolved?: 'applied' | 'cancelled'
 }
 
 // What the editor can really do today, for the "I can't do that yet" reply.
@@ -64,7 +66,8 @@ export function CommandReply({
 	durationSeconds,
 	hasWatermark,
 	onApply,
-	onDismiss
+	onDismiss,
+	resolved
 }: CommandReplyProps) {
 	const t = useTranslations('Editor.command')
 	const tReRecord = useTranslations('Editor.reRecord')
@@ -241,11 +244,15 @@ export function CommandReply({
 
 	return (
 		<div
-			role="status"
-			className="border-accent/50 bg-surface flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 shadow-lg"
+			role={resolved ? undefined : 'status'}
+			className={
+				resolved
+					? 'border-border bg-surface-inset flex flex-col gap-2 rounded-lg rounded-tl-sm border px-3 py-2.5 opacity-80'
+					: 'border-accent/50 bg-surface flex flex-col gap-3 rounded-lg rounded-tl-sm border px-3 py-3 shadow-md'
+			}
 		>
 			<div className="flex flex-col gap-1">
-				<p className="text-text-muted text-xs">{t('asked', { command })}</p>
+				{!resolved && <p className="text-text-muted text-xs">{t('asked', { command })}</p>}
 				{outcome.ok ? (
 					<p className="text-text text-sm font-medium">{describe(outcome.plan)}</p>
 				) : outcome.reason === 'out_of_range' ? (
@@ -280,22 +287,26 @@ export function CommandReply({
 					</>
 				)}
 			</div>
-			<div className="ml-auto flex gap-2">
-				{outcome.ok ? (
-					<>
+			{resolved ? (
+				<p className="text-text-faint text-xs font-medium">{t(`resolved.${resolved}`)}</p>
+			) : (
+				<div className="flex justify-end gap-2">
+					{outcome.ok ? (
+						<>
+							<Button variant="outline" size="sm" onClick={onDismiss}>
+								{t('confirm.cancel')}
+							</Button>
+							<Button size="sm" onClick={onApply}>
+								{t('confirm.apply')}
+							</Button>
+						</>
+					) : (
 						<Button variant="outline" size="sm" onClick={onDismiss}>
-							{t('confirm.cancel')}
+							{t('dismiss')}
 						</Button>
-						<Button size="sm" onClick={onApply}>
-							{t('confirm.apply')}
-						</Button>
-					</>
-				) : (
-					<Button variant="outline" size="sm" onClick={onDismiss}>
-						{t('dismiss')}
-					</Button>
-				)}
-			</div>
+					)}
+				</div>
+			)}
 		</div>
 	)
 }

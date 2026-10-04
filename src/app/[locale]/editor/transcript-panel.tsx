@@ -26,7 +26,7 @@ export function TranscriptPanel({
 	const t = useTranslations('Editor.transcript')
 
 	return (
-		<section className="border-border bg-surface rounded-2xl border p-4 shadow-xl">
+		<section className="border-border bg-surface rounded-lg border p-4">
 			<h2 className="text-text border-border mb-3 border-b pb-3 text-xs font-bold tracking-wider uppercase">
 				{t('title')}
 			</h2>

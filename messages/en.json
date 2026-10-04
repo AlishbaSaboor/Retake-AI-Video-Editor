@@ -31,7 +31,8 @@
 			"redo": "Redo",
 			"reset": "Reset to original",
 			"resetConfirm": "Reset to the original take? This removes every trim, cut, clip change, re-recorded sentence, graphic and annotation. Undo brings them all back.",
-			"resetApply": "Reset"
+			"resetApply": "Reset",
+			"resetShort": "Reset"
 		},
 		"fillerCut": {
 			"label": "Cut editor for \"{word}\"",
@@ -109,7 +110,7 @@
 				"unmute": "I'll unmute {which}.",
 				"fade_in": "I'll fade {which} in over its first {seconds} s.",
 				"fade_out": "I'll fade {which} out over its last {seconds} s.",
-				"apply": "Apply",
+				"apply": "Apply changes",
 				"cancel": "Cancel",
 				"clipSpeed": "I'll make {which} play at {speed}×, in the preview and the export, its pitch kept.",
 				"clipSpeedSkipping": "I'll make every clip play at {speed}×, in the preview and the export, its pitch kept. Clips with a re-recorded sentence stay at 1×.",
@@ -254,6 +255,29 @@
 				"noBackground": "no background",
 				"font": "{font} font",
 				"size": "size {percent}%"
+			},
+			"resolved": {
+				"applied": "Applied",
+				"cancelled": "Cancelled — nothing changed"
+			},
+			"chat": {
+				"label": "Chat",
+				"intro": "Tell me what to change, in your own words, or speak it. I’ll say what I understood first; nothing changes until you press Apply changes.",
+				"thinking": "Reading your command…",
+				"attach": "Attach a file",
+				"attachHint": "A video is added to the project, a PNG or JPG becomes the logo, and an audio file goes on the Audio lane.",
+				"attached": {
+					"video": "Added {name} as another video, after the others.",
+					"logo": "Using {name} as the logo.",
+					"audio": "Put {name} on the Audio lane at the playhead.",
+					"unknown": "I can’t use {name}: attach a video, a PNG or JPG image, or an audio file."
+				},
+				"examples": "Try",
+				"example": {
+					"cleanup": "Remove the filler words and long silences",
+					"captions": "Turn captions on",
+					"title": "Add a title that says Welcome"
+				}
 			}
 		},
 		"timeline": {
@@ -310,7 +334,7 @@
 			},
 			"addLogo": "Add logo (PNG or JPG)",
 			"logoSize": "Logo size (%)",
-			"logoBox": "Logo: drag to move it, drag its corner to resize it; arrow keys move it, + and − resize it",
+			"logoBox": "Logo: drag to move it, drag its corner to resize it, drag the handle above to turn it; arrow keys move it, + and − resize it, [ and ] turn it",
 			"logoHint": "Drag the logo on the video to place it anywhere, and its corner to resize it.",
 			"replaceLogo": "Replace logo",
 			"removeWatermark": "Remove watermark",
@@ -333,7 +357,8 @@
 			"addLowerThird": "Add lower third",
 			"updateLowerThird": "Update lower third",
 			"removeLowerThird": "Remove lower third",
-			"lowerThirdStyle": "Lower third style"
+			"lowerThirdStyle": "Lower third style",
+			"logoRotation": "Logo rotation (°)"
 		},
 		"annotations": {
 			"label": "Annotations",
@@ -368,7 +393,8 @@
 			"end": "{name} end",
 			"newTextStyle": "New text style",
 			"selectedTextStyle": "Selected text style",
-			"selectedTextMotion": "Selected text motion"
+			"selectedTextMotion": "Selected text motion",
+			"selectedTextRotation": "Text rotation (°)"
 		},
 		"clipAudio": {
 			"label": "Clip sound and speed",
@@ -614,7 +640,11 @@
 			"add": "Add zoom",
 			"update": "Update zoom",
 			"remove": "Remove zoom",
-			"hint": "A slow push-in from the whole picture to the zoom, or a pull-out back from it, between two times of the edited video, about the frame’s centre. Annotations zoom with the picture; the title, captions, lower third and logo stay put."
+			"hint": "A slow push-in from the whole picture to the zoom, or a pull-out back from it, between two times of the edited video, about the frame’s centre. Annotations zoom with the picture; the title, captions, lower third and logo stay put.",
+			"aim": "Set area on video",
+			"aimHint": "Set area on video shows the whole picture with the zoom’s area on it: drag the area to aim the zoom, drag its corner to zoom closer or wider.",
+			"aimNeedsZoom": "Add a zoom first, then set its area on the video.",
+			"area": "Zoom area, {percent}%"
 		},
 		"voice": {
 			"start": "Speak a command",
@@ -627,6 +657,73 @@
 				"title": "No microphone",
 				"description": "Allow microphone access in your browser to speak a command."
 			}
+		},
+		"status": {
+			"saved": "Saved",
+			"saving": "Saving…",
+			"unsaved": "Not saved",
+			"failed": "Save failed",
+			"savedAt": "Saved at {when}",
+			"loading": "Loading video…",
+			"transcribing": "Transcribing…",
+			"analyzing": "Reading the sound…"
+		},
+		"tools": {
+			"label": "Editing tools",
+			"search": "Find a tool",
+			"searchPlaceholder": "Find a tool… (crop, captions, sound)",
+			"clear": "Clear the search",
+			"found": "{count, plural, one {# tool} other {# tools}} found",
+			"none": "No tool matches “{query}”.",
+			"cleanup": "Clean up",
+			"names": {
+				"project": "Project",
+				"cleanup": "Clean up",
+				"transcript": "Transcript",
+				"sound": "Clip sound and speed",
+				"audio": "Audio",
+				"picture": "Picture",
+				"zoom": "Zoom",
+				"color": "Color",
+				"transitions": "Transitions",
+				"annotations": "Annotations",
+				"graphics": "Graphics"
+			},
+			"keywords": {
+				"project": "save name open my projects autosave",
+				"cleanup": "remove silences filler words ums pauses tidy",
+				"transcript": "words text sentences re-record retake speech",
+				"sound": "volume mute fade in out speed slow fast loud quiet audio",
+				"audio": "music voice-over soundtrack track lane add audio file extract",
+				"picture": "crop rotate turn flip mirror size aspect frame",
+				"zoom": "push in pull out magnify close area",
+				"color": "brightness contrast saturation black white warm cool look grade",
+				"transitions": "fade dissolve black between clips join",
+				"annotations": "draw pencil box blur pixelate text eraser hide cover",
+				"graphics": "title captions subtitles logo watermark lower third name text style font"
+			}
+		},
+		"layout": {
+			"toolbar": "Editor toolbar",
+			"showChat": "Show the chat",
+			"hideChat": "Hide the chat",
+			"showTools": "Show the tools",
+			"hideTools": "Hide the tools",
+			"chatWaits": "The chat opens once a video is in."
+		},
+		"shortcuts": {
+			"button": "Keyboard shortcuts",
+			"title": "Keyboard shortcuts",
+			"close": "Close",
+			"play": "Play or pause",
+			"split": "Split at the playhead",
+			"delete": "Delete the selected clip (or the one at the playhead)",
+			"undo": "Undo",
+			"redo": "Redo",
+			"chat": "Show or hide the chat",
+			"tools": "Show or hide the tools",
+			"find": "Find a tool",
+			"help": "Show this list"
 		}
 	},
 	"Site": {

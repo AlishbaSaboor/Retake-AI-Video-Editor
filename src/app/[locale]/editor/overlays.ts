@@ -12,11 +12,12 @@ import { editedStarts, type Segment } from './sequence'
 import {
 	animationAt,
 	LOWER_THIRD_ANIMATION,
-	zoomAt,
+	zoomViewAt,
 	type Animation,
 	type LowerThird,
 	type MotionState,
-	type Zoom
+	type Zoom,
+	type ZoomView
 } from './motion'
 import { bandColor, canvasFont, DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
 import { outputSize, pictureMatrix, type PictureTransform, type Size } from './transform'
@@ -53,6 +54,8 @@ export type Watermark = {
 	size?: number
 	/** Its top-left corner, as fractions of the frame, once placed by hand; absent: in `corner`. */
 	at?: { x: number; y: number }
+	/** Turned clockwise about its centre, in degrees; absent: upright. */
+	rotation?: number
 }
 
 /** `captions` is empty when they're off. */
@@ -280,25 +283,25 @@ function drawAnnotations(
 			{ x: picture.width, y: picture.height },
 			{ x: pixels.x + pixels.width / 2, y: pixels.y + pixels.height / 2 }
 		)
+		// About its centre: unmirrored, then turned, so it turns the way it was
+		// dragged on screen whatever the flips; its band turns with it.
+		context.translate(pixels.x + pixels.width / 2, pixels.y + pixels.height / 2)
+		context.scale(transform.flipH ? -1 : 1, transform.flipV ? -1 : 1)
+		context.rotate(((item.rotation ?? 0) * Math.PI) / 180)
+		const band = { x: -pixels.width / 2, y: -pixels.height / 2, w: pixels.width, h: pixels.height }
 		if (style.background) {
 			context.fillStyle = bandColor(style.background)
-			context.fillRect(pixels.x, pixels.y, pixels.width, pixels.height)
+			context.fillRect(band.x, band.y, band.w, band.h)
 		}
-		{
-			// Clipped to its band, as the preview's overflow is.
-			context.save()
-			context.beginPath()
-			context.rect(pixels.x, pixels.y, pixels.width, pixels.height)
-			context.clip()
-			context.translate(pixels.x + pixels.width / 2, pixels.y + pixels.height / 2)
-			context.scale(transform.flipH ? -1 : 1, transform.flipV ? -1 : 1)
-			context.font = canvasFont(style, pixels.height * TEXT_HEIGHT_FRACTION * style.size)
-			context.textAlign = 'center'
-			context.textBaseline = 'middle'
-			context.fillStyle = style.color
-			context.fillText(item.text, 0, 0)
-			context.restore()
-		}
+		// Clipped to its band, as the preview's overflow is.
+		context.beginPath()
+		context.rect(band.x, band.y, band.w, band.h)
+		context.clip()
+		context.font = canvasFont(style, pixels.height * TEXT_HEIGHT_FRACTION * style.size)
+		context.textAlign = 'center'
+		context.textBaseline = 'middle'
+		context.fillStyle = style.color
+		context.fillText(item.text, 0, 0)
 		context.restore()
 	}
 }
@@ -320,24 +323,23 @@ function applyMotion(
 }
 
 /**
- * The picture's matrix with a zoom of `zoom` about the frame's centre: the
- * crop and rotation first, then the push-in, so it magnifies what the
- * output shows.
+ * The picture's matrix under a zoom: the crop and rotation first, then the
+ * push-in, so it magnifies what the output shows, with the view's centre
+ * (fractions of the frame) moved to the middle.
  */
 export function zoomedMatrix(
 	m: { a: number; b: number; c: number; d: number; e: number; f: number },
-	zoom: number,
+	view: ZoomView,
 	frame: { width: number; height: number }
 ) {
-	const cx = frame.width / 2
-	const cy = frame.height / 2
+	const { scale, centre } = view
 	return {
-		a: m.a * zoom,
-		b: m.b * zoom,
-		c: m.c * zoom,
-		d: m.d * zoom,
-		e: (m.e - cx) * zoom + cx,
-		f: (m.f - cy) * zoom + cy
+		a: m.a * scale,
+		b: m.b * scale,
+		c: m.c * scale,
+		d: m.d * scale,
+		e: (m.e - centre.x * frame.width) * scale + frame.width / 2,
+		f: (m.f - centre.y * frame.height) * scale + frame.height / 2
 	}
 }
 
@@ -407,8 +409,8 @@ export function drawFrame(
 	context.setTransform(1, 0, 0, 1, 0, 0)
 	context.fillStyle = '#000000'
 	context.fillRect(0, 0, width, height)
-	const zoom = zoomAt(overlays.zoom, seconds)
-	const z = zoom === 1 ? m : zoomedMatrix(m, zoom, { width, height })
+	const view = zoomViewAt(overlays.zoom, seconds)
+	const z = view.scale === 1 ? m : zoomedMatrix(m, view, { width, height })
 	context.setTransform(z.a, z.b, z.c, z.d, z.e, z.f)
 	const { incoming, incomingAlpha, light, filter = null, incomingFilter = null } = mix
 	// The grade only where there is one: an ungraded frame costs nothing extra.
@@ -548,6 +550,10 @@ function drawFrameOverlays(
 	if (overlays.lowerThird) drawLowerThird(context, overlays.lowerThird, seconds)
 	if (watermark && logo) {
 		const rect = watermarkRect(watermark, width, height)
-		context.drawImage(logo, rect.x, rect.y, rect.width, rect.height)
+		context.save()
+		context.translate(rect.x + rect.width / 2, rect.y + rect.height / 2)
+		context.rotate(((watermark.rotation ?? 0) * Math.PI) / 180)
+		context.drawImage(logo, -rect.width / 2, -rect.height / 2, rect.width, rect.height)
+		context.restore()
 	}
 }

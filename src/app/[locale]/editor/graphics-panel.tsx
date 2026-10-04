@@ -12,7 +12,8 @@ import {
 	type TitleCard,
 	type Watermark
 } from './overlays'
-import { MAX_LOGO_SIZE, MIN_LOGO_SIZE, resizedLogo } from './logo'
+import { DegreesField } from './degrees-field'
+import { MAX_LOGO_SIZE, MIN_LOGO_SIZE, resizedLogo, rotatedLogo } from './logo'
 import type { Size } from './transform'
 import { DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
 import { TextStyleFields } from './text-style-fields'
@@ -76,7 +77,7 @@ export function GraphicsPanel({
 	return (
 		<section
 			aria-label={t('label')}
-			className="border-border bg-surface flex flex-col gap-4 rounded-2xl border p-4 shadow-xl"
+			className="border-border bg-surface flex flex-col gap-4 rounded-lg border p-4"
 		>
 			<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
 			<div className="flex flex-wrap items-center gap-3">
@@ -196,6 +197,14 @@ export function GraphicsPanel({
 						watermark={watermark}
 						frame={frame}
 						onChange={onLogoChange}
+					/>
+				)}
+				{watermark && (
+					<DegreesField
+						key={watermark.rotation ?? 0}
+						label={t('logoRotation')}
+						degrees={watermark.rotation ?? 0}
+						onChange={(degrees) => onLogoChange(rotatedLogo(watermark, degrees))}
 					/>
 				)}
 			</div>

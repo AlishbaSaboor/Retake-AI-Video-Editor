@@ -111,14 +111,21 @@ export function splitLowerThird(text: string): { name: string; subtitle: string 
 /**
  * A slow push-in (`in`: from the whole picture to `amount` times it) or
  * pull-out (`out`: from `amount` back to the whole) between two edited
- * times, about the frame's centre.
+ * times, towards `focus`: at full zoom, the frame shows the area `amount`
+ * times smaller centred there (kept inside the frame).
  */
 export type Zoom = {
 	startSeconds: number
 	endSeconds: number
 	direction: 'in' | 'out'
 	amount: number
+	/** The zoomed area's centre, as fractions of the frame; absent: the frame's centre. */
+	focus?: { x: number; y: number }
 }
+
+/** What the frame shows: the picture magnified `scale` times, with `centre` (fractions of the frame) in the middle. */
+export type ZoomView = { scale: number; centre: { x: number; y: number } }
+export const NO_ZOOM: ZoomView = { scale: 1, centre: { x: 0.5, y: 0.5 } }
 export const MIN_ZOOM = 1.05
 export const MAX_ZOOM = 3
 export const DEFAULT_ZOOM = 1.3
@@ -130,10 +137,71 @@ export function clampZoom(amount: number): number {
 /** Eases in and out: a camera move, not a jump. */
 const smooth = (p: number) => p * p * (3 - 2 * p)
 
+/** How far into its magnification a zoom is at `seconds`: 0 (none) to 1 (all of `amount`). */
+function zoomProgress(zoom: Zoom, seconds: number): number {
+	if (seconds < zoom.startSeconds || seconds >= zoom.endSeconds) return 0
+	const p = smooth((seconds - zoom.startSeconds) / (zoom.endSeconds - zoom.startSeconds))
+	return zoom.direction === 'in' ? p : 1 - p
+}
+
 /** How much the picture is magnified at `seconds`: 1 outside the zoom's time. */
 export function zoomAt(zoom: Zoom | null, seconds: number): number {
-	if (!zoom || seconds < zoom.startSeconds || seconds >= zoom.endSeconds) return 1
-	const p = smooth((seconds - zoom.startSeconds) / (zoom.endSeconds - zoom.startSeconds))
-	const progress = zoom.direction === 'in' ? p : 1 - p
-	return 1 + (zoom.amount - 1) * progress
+	return zoom ? 1 + (zoom.amount - 1) * zoomProgress(zoom, seconds) : 1
+}
+
+/** A focus moved in just far enough that the area `amount` times smaller around it stays inside the frame. */
+export function clampFocus(focus: { x: number; y: number }, amount: number) {
+	const half = 0.5 / amount
+	const clamp = (value: number) => Math.min(1 - half, Math.max(half, value))
+	return { x: clamp(focus.x), y: clamp(focus.y) }
+}
+
+/**
+ * What the frame shows at `seconds`: the magnification, and the centre
+ * moving from the frame's to the focus as it grows. Moving in step keeps
+ * the shown area inside the frame all the way.
+ */
+export function zoomViewAt(zoom: Zoom | null, seconds: number): ZoomView {
+	if (!zoom) return NO_ZOOM
+	const progress = zoomProgress(zoom, seconds)
+	if (progress === 0) return NO_ZOOM
+	const focus = clampFocus(zoom.focus ?? NO_ZOOM.centre, zoom.amount)
+	return {
+		scale: 1 + (zoom.amount - 1) * progress,
+		centre: { x: 0.5 + (focus.x - 0.5) * progress, y: 0.5 + (focus.y - 0.5) * progress }
+	}
+}
+
+/** A point of the frame as shown under `view`, from where it is in the unzoomed frame; and back. */
+export function zoomedPoint(view: ZoomView, point: { x: number; y: number }) {
+	return {
+		x: (point.x - view.centre.x) * view.scale + 0.5,
+		y: (point.y - view.centre.y) * view.scale + 0.5
+	}
+}
+export function unzoomedPoint(view: ZoomView, point: { x: number; y: number }) {
+	return {
+		x: view.centre.x + (point.x - 0.5) / view.scale,
+		y: view.centre.y + (point.y - 0.5) / view.scale
+	}
+}
+
+/** The area a zoom ends on (at full `amount`), as fractions of the frame: the frame's shape, `amount` times smaller. */
+export function zoomArea(zoom: Zoom) {
+	const size = 1 / zoom.amount
+	const centre = clampFocus(zoom.focus ?? NO_ZOOM.centre, zoom.amount)
+	return { x: centre.x - size / 2, y: centre.y - size / 2, width: size, height: size }
+}
+
+/**
+ * The zoom set from an area drawn on the frame: centred on it, magnified so
+ * it fills the frame (within the zoom's limits), kept inside the frame. The
+ * frame's centre again drops the focus.
+ */
+export function zoomOnArea(zoom: Zoom, centre: { x: number; y: number }, width: number): Zoom {
+	const amount = clampZoom(1 / width)
+	const focus = clampFocus(centre, amount)
+	const next: Zoom = { ...zoom, amount, focus }
+	if (Math.abs(focus.x - 0.5) < 1e-6 && Math.abs(focus.y - 0.5) < 1e-6) delete next.focus
+	return next
 }

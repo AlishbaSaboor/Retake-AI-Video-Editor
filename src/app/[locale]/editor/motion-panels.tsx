@@ -164,12 +164,17 @@ export function ZoomPanel({
 	editedSeconds,
 	playheadSeconds,
 	canEdit,
+	aiming,
+	onAim,
 	onChange
 }: {
 	zoom: Zoom | null
 	editedSeconds: number
 	playheadSeconds: number | null
 	canEdit: boolean
+	/** Whether its area is being set on the video. */
+	aiming: boolean
+	onAim: (aiming: boolean) => void
 	onChange: (zoom: Zoom | null) => void
 }) {
 	const t = useTranslations('Editor.zoom')
@@ -195,7 +200,7 @@ export function ZoomPanel({
 	return (
 		<section
 			aria-label={t('label')}
-			className="border-border bg-surface flex flex-col gap-3 rounded-2xl border p-4 shadow-xl"
+			className="border-border bg-surface flex flex-col gap-3 rounded-lg border p-4"
 		>
 			<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
 			<form
@@ -204,6 +209,7 @@ export function ZoomPanel({
 					event.preventDefault()
 					if (!isValid) return
 					onChange({
+						...zoom,
 						startSeconds,
 						endSeconds: Math.min(endSeconds, editedSeconds),
 						direction: draft.direction,
@@ -254,8 +260,19 @@ export function ZoomPanel({
 						{t('remove')}
 					</Button>
 				)}
+				<Button
+					type="button"
+					size="sm"
+					variant={aiming ? 'secondary' : 'outline'}
+					aria-pressed={aiming}
+					disabled={!canEdit || !zoom}
+					onClick={() => onAim(!aiming)}
+				>
+					{t('aim')}
+				</Button>
 			</form>
 			<p className="text-text-muted text-xs">{t('hint')}</p>
+			<p className="text-text-muted text-xs">{zoom ? t('aimHint') : t('aimNeedsZoom')}</p>
 		</section>
 	)
 }

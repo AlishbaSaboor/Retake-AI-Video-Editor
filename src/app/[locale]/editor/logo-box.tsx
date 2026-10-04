@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { logoBox, movedLogo, resizedLogo, resizedTo } from './logo'
+import { angleTo, logoBox, movedLogo, resizedLogo, resizedTo, rotatedLogo, unturned } from './logo'
 import { WATERMARK_WIDTH_FRACTION, type Watermark } from './overlays'
 import type { Size } from './transform'
 
@@ -12,9 +12,12 @@ const KEY_STEP = 0.01
 const KEY_BIG_STEP = 0.05
 /** + and − change its width by this much of the frame's. */
 const SIZE_STEP = 0.01
+/** [ and ] turn it this many degrees; with Shift, the larger step. */
+const TURN_STEP = 1
+const TURN_BIG_STEP = 15
 
 type Point = { x: number; y: number }
-type LogoDrag = { type: 'move' | 'resize'; from: Point; to: Point }
+type LogoDrag = { type: 'move' | 'resize' | 'rotate'; from: Point; to: Point }
 
 const ARROWS: Record<string, Point> = {
 	ArrowLeft: { x: -1, y: 0 },
@@ -36,8 +39,9 @@ type LogoBoxProps = {
 
 /**
  * The logo, by hand, on the preview: drag it anywhere, drag its corner to
- * resize it (keeping its shape), or move it with the arrow keys and resize
- * it with + and −. Each drag or key press is one change. Render inside
+ * resize it (keeping its shape), drag the handle above it to turn it; or
+ * move it with the arrow keys, resize it with + and −, and turn it with
+ * [ and ]. Each drag or key press is one change. Render inside
  * PictureFrame's output frame, over OverlayPreview, which draws the logo.
  */
 export function LogoBox({ watermark, frame, toFrame, onDraft, onChange }: LogoBoxProps) {
@@ -47,10 +51,21 @@ export function LogoBox({ watermark, frame, toFrame, onDraft, onChange }: LogoBo
 	// yet when the release comes, so the release reads this, not `drag`.
 	const latestRef = useRef<LogoDrag | null>(null)
 
+	const rotation = watermark.rotation ?? 0
 	function dragged(current: LogoDrag) {
-		return current.type === 'move'
-			? movedLogo(watermark, frame, current.to.x - current.from.x, current.to.y - current.from.y)
-			: resizedTo(watermark, frame, current.to)
+		const at = logoBox(watermark, frame)
+		const centre = { x: at.x + at.width / 2, y: at.y + at.height / 2 }
+		if (current.type === 'move') {
+			return movedLogo(
+				watermark,
+				frame,
+				current.to.x - current.from.x,
+				current.to.y - current.from.y
+			)
+		}
+		if (current.type === 'rotate') return rotatedLogo(watermark, angleTo(centre, current.to, frame))
+		// The corner of a turned logo: the pointer, turned back, as if it were upright.
+		return resizedTo(watermark, frame, unturned(current.to, centre, rotation, frame))
 	}
 
 	function follow(next: LogoDrag | null) {
@@ -59,7 +74,8 @@ export function LogoBox({ watermark, frame, toFrame, onDraft, onChange }: LogoBo
 		onDraft(next ? dragged(next) : null)
 	}
 
-	const box = logoBox(drag ? dragged(drag) : watermark, frame)
+	const shown = drag ? dragged(drag) : watermark
+	const box = logoBox(shown, frame)
 	return (
 		<button
 			type="button"
@@ -70,13 +86,18 @@ export function LogoBox({ watermark, frame, toFrame, onDraft, onChange }: LogoBo
 				left: `${box.x * PERCENT}%`,
 				top: `${box.y * PERCENT}%`,
 				width: `${box.width * PERCENT}%`,
-				height: `${box.height * PERCENT}%`
+				height: `${box.height * PERCENT}%`,
+				transform: shown.rotation ? `rotate(${shown.rotation}deg)` : undefined
 			}}
 			onPointerDown={(event) => {
 				// The logo's, not the annotation layer's underneath.
 				event.stopPropagation()
 				const target = event.target instanceof Element ? event.target : null
-				const type = target?.closest('[data-logo-resize]') ? 'resize' : 'move'
+				const type = target?.closest('[data-logo-resize]')
+					? 'resize'
+					: target?.closest('[data-logo-rotate]')
+						? 'rotate'
+						: 'move'
 				const point = toFrame(event.clientX, event.clientY)
 				follow({ type, from: point, to: point })
 				event.currentTarget.setPointerCapture(event.pointerId)
@@ -101,6 +122,9 @@ export function LogoBox({ watermark, frame, toFrame, onDraft, onChange }: LogoBo
 					next = resizedLogo(watermark, frame, size + SIZE_STEP)
 				}
 				if (event.key === '-') next = resizedLogo(watermark, frame, size - SIZE_STEP)
+				const turn = event.shiftKey ? TURN_BIG_STEP : TURN_STEP
+				if (event.key === '[' || event.key === '{') next = rotatedLogo(watermark, rotation - turn)
+				if (event.key === ']' || event.key === '}') next = rotatedLogo(watermark, rotation + turn)
 				if (!next) return
 				event.preventDefault()
 				onChange(next)
@@ -111,6 +135,15 @@ export function LogoBox({ watermark, frame, toFrame, onDraft, onChange }: LogoBo
 				aria-hidden
 				className="bg-accent absolute -right-1.5 -bottom-1.5 size-3 cursor-nwse-resize"
 			/>
+			{/* Above the logo, on a short stem: drag it round to turn the logo. */}
+			<span
+				data-logo-rotate
+				aria-hidden
+				className="absolute -top-7 left-1/2 flex h-7 w-5 -translate-x-1/2 cursor-grab flex-col items-center"
+			>
+				<span className="bg-accent size-3 rounded-full border-2 border-white shadow" />
+				<span className="h-4 w-px bg-white/70" />
+			</span>
 		</button>
 	)
 }

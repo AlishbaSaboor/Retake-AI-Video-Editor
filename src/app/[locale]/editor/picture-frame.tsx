@@ -1,11 +1,19 @@
 'use client'
 
 import type { RefObject } from 'react'
+import { cn } from '@/lib/cn'
+import { NO_ZOOM, type ZoomView } from './motion'
 import { fitInside } from './overlays'
 import { outputSize, rotatedFrame, type PictureTransform, type Size } from './transform'
 
 /** The editor's player box, `aspect-video`. */
 const PLAYER_RATIO = 16 / 9
+/**
+ * As wide as the column, but no taller than leaves the timeline in view
+ * below it: the player and the row of controls under it share this.
+ */
+export const PLAYER_WIDTH =
+	'w-full max-w-[min(100%,calc((100dvh-24rem)*16/9))] min-w-[min(100%,28rem)]'
 const PERCENT = 100
 
 type PictureFrameProps = {
@@ -21,8 +29,8 @@ type PictureFrameProps = {
 	onPicture?: React.ReactNode
 	/** Laid over the output frame, unturned: title, captions, watermark, the crop box. */
 	onFrame?: React.ReactNode
-	/** How much the picture is magnified about the frame's centre now (the zoom): 1 for none. */
-	zoom?: number
+	/** What the zoom shows now: how much the picture is magnified, and about where. */
+	zoom?: ZoomView
 }
 
 /**
@@ -38,7 +46,7 @@ export function PictureFrame({
 	video,
 	onPicture,
 	onFrame,
-	zoom = 1
+	zoom = NO_ZOOM
 }: PictureFrameProps) {
 	const output = outputSize(picture, transform)
 	const frame = rotatedFrame(picture, transform.rotation)
@@ -51,7 +59,10 @@ export function PictureFrame({
 	return (
 		<div
 			data-testid="player"
-			className="border-border relative mx-auto aspect-video w-full max-w-3xl overflow-hidden rounded-2xl border bg-black shadow-2xl"
+			className={cn(
+				'border-border relative mx-auto aspect-video shrink-0 overflow-hidden rounded-lg border bg-black shadow-2xl',
+				PLAYER_WIDTH
+			)}
 		>
 			<div
 				ref={frameRef}
@@ -63,11 +74,17 @@ export function PictureFrame({
 					containerType: 'size'
 				}}
 			>
-				{/* The zoom: the picture (and what's pinned to it) magnified about the frame's centre. */}
+				{/* The zoom: the picture (and what's pinned to it) magnified, its centre moved to the middle. */}
 				<div
 					data-testid="zoom"
 					className="absolute inset-0"
-					style={zoom === 1 ? undefined : { transform: `scale(${zoom})` }}
+					style={
+						zoom.scale === 1
+							? undefined
+							: {
+									transform: `scale(${zoom.scale}) translate(${(0.5 - zoom.centre.x) * PERCENT}%, ${(0.5 - zoom.centre.y) * PERCENT}%)`
+								}
+					}
 				>
 					<div
 						data-testid="picture"

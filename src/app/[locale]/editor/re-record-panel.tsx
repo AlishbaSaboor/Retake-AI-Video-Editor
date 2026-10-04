@@ -168,7 +168,7 @@ export function ReRecordPanel({
 	return (
 		<section
 			aria-label={t('label', { at: formatTimecode(sentence.startSeconds) })}
-			className="border-accent/40 bg-surface rounded-2xl border p-4 shadow-xl"
+			className="border-accent/40 bg-surface rounded-lg border p-4"
 		>
 			<div className="mb-3 flex flex-col gap-1">
 				<h2 className="text-text text-xs font-bold tracking-wider uppercase">

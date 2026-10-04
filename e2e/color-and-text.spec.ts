@@ -467,3 +467,54 @@ test('colors and text style work as typed commands, each confirmed and one undo 
 		'true'
 	)
 })
+
+test('on-video text turned by typing is turned the same in the preview and the export, band and all', async ({
+	page
+}) => {
+	test.setTimeout(150_000)
+	await openHalves(page, [])
+	const annotations = page.getByRole('region', { name: 'Annotations' })
+	await annotations.getByLabel('Text to add').fill('HI')
+	const newText = annotations.getByRole('group', { name: 'New text style' })
+	await newText.getByLabel('Background').fill('#ff00ff')
+	await newText.getByLabel('Background').blur()
+	await seekTo(page, 0.05)
+	const tools = annotations.getByRole('group', { name: 'Annotation tool' })
+	await tools.getByRole('button', { name: 'Text', exact: true }).click()
+	const layer = page.getByTestId('annotation-layer')
+	await layer.scrollIntoViewIfNeeded()
+	const box = await layer.boundingBox()
+	if (!box) throw new Error('no layer')
+	// A wide, short band across the middle: x 0.3–0.7, y 0.4–0.55 of the picture.
+	await page.mouse.move(box.x + 0.3 * box.width, box.y + 0.4 * box.height)
+	await page.mouse.down()
+	await page.mouse.move(box.x + 0.7 * box.width, box.y + 0.55 * box.height, { steps: 4 })
+	await page.mouse.up()
+	const text = page.locator('[data-annotation-kind="text"]')
+	await expect(text).toHaveCount(1)
+	await tools.getByRole('button', { name: 'Select', exact: true }).click()
+	await text.click()
+	const rotation = annotations.getByLabel('Text rotation (°)')
+	await rotation.fill('90')
+	await rotation.press('Enter')
+	await expect(text).toHaveAttribute('style', /rotate\(90deg\)/)
+
+	// Turned a quarter, the 128×27 px band stands 27×128 about the same centre
+	// (160, 85): it reaches above where it lay, and no longer to its left end.
+	const query: FrameQuery = {
+		areas: [],
+		counts: [
+			{ name: 'above', area: { x: 0, y: 30, width: 320, height: 30 }, color: '+-+' },
+			{ name: 'left end', area: { x: 96, y: 74, width: 30, height: 22 }, color: '+-+' }
+		]
+	}
+	const [turned] = await exportFrames(page, [0.7], query)
+	expect(turned?.counts.above?.pixels, 'the band reaches up').toBeGreaterThan(400)
+	expect(turned?.counts['left end']?.pixels, 'not out to the left').toBeLessThan(20)
+	// Undo: level again, in the export too.
+	await page.getByRole('button', { name: 'Undo last change' }).click()
+	await expect(rotation).toHaveValue('0')
+	const [level] = await exportFrames(page, [0.7], query)
+	expect(level?.counts.above?.pixels, 'level: nothing above').toBeLessThan(20)
+	expect(level?.counts['left end']?.pixels, 'level: out to the left').toBeGreaterThan(400)
+})

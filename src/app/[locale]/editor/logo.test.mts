@@ -1,14 +1,18 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+	angleTo,
 	clampLogoSize,
 	inCorner,
 	logoBox,
 	MAX_LOGO_SIZE,
 	MIN_LOGO_SIZE,
 	movedLogo,
+	normalDegrees,
 	resizedLogo,
-	resizedTo
+	resizedTo,
+	rotatedLogo,
+	unturned
 } from './logo'
 import { watermarkRect, type Watermark } from './overlays'
 
@@ -76,4 +80,30 @@ test('a corner puts a placed logo back, keeping its size', () => {
 		corner: 'top-left',
 		size: 0.3
 	})
+})
+
+test('a turned logo keeps its angle the short way round, and upright drops it', () => {
+	assert.equal(normalDegrees(190), -170)
+	assert.equal(normalDegrees(-190), 170)
+	assert.equal(normalDegrees(540), 180)
+	assert.equal(rotatedLogo(LOGO, 30).rotation, 30)
+	assert.equal(rotatedLogo(LOGO, 360.2).rotation, undefined)
+	assert.ok(!('rotation' in rotatedLogo({ ...LOGO, rotation: 10 }, 0)))
+})
+
+test('the rotate handle’s angle is measured in pixels, clockwise from straight up', () => {
+	const centre = { x: 0.5, y: 0.5 }
+	near(angleTo(centre, { x: 0.5, y: 0.2 }, FRAME), 0)
+	near(angleTo(centre, { x: 0.8, y: 0.5 }, FRAME), 90)
+	near(angleTo(centre, { x: 0.5, y: 0.9 }, FRAME), 180)
+	// 90 px right and 90 px up, in a 320×180 frame: 45°, though the fractions differ.
+	near(angleTo(centre, { x: 0.5 + 90 / 320, y: 0.5 - 90 / 180 }, FRAME), 45)
+})
+
+test('a point turned back about a centre lands where it is on the upright box', () => {
+	const centre = { x: 0.5, y: 0.5 }
+	// 32 px right of the centre, on a logo turned 90°: straight above it, unturned.
+	const point = unturned({ x: 0.6, y: 0.5 }, centre, 90, FRAME)
+	near(point.x, 0.5)
+	near(point.y, 0.5 - 32 / 180)
 })

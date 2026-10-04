@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-import { CleanupIcon, RedoIcon, ResetIcon, UndoIcon } from '@/components/ui/icons'
+import { CleanupIcon } from '@/components/ui/icons'
 
 type CleanupBarProps = {
 	/** Seconds that clean-up would remove now; 0 when there's nothing to remove. */
@@ -13,71 +13,30 @@ type CleanupBarProps = {
 	fillerCutCount: number
 	/** Filler words with no clear gap — left flagged for a manual cut. */
 	fillerReviewCount: number
-	canUndo: boolean
-	canRedo: boolean
-	/** Whether the edit differs from the take as uploaded. */
-	canReset: boolean
 	onApply: () => void
-	onUndo: () => void
-	onRedo: () => void
-	onReset: () => void
 }
 
 /**
  * "Clean up recording": removes every flagged silence, and every filler word
  * with a clear gap around it, in one go — after showing how much time that
- * takes out. Undo and Redo step back and forth through every edit, this
- * one included. Reset to original removes them all as one step, after
- * asking, since it takes out so much at once.
+ * takes out. Undo (HistoryControls) takes it back as one step.
  */
 export function CleanupBar({
 	removableSeconds,
 	silenceCount,
 	fillerCutCount,
 	fillerReviewCount,
-	canUndo,
-	canRedo,
-	canReset,
-	onApply,
-	onUndo,
-	onRedo,
-	onReset
+	onApply
 }: CleanupBarProps) {
 	const t = useTranslations('Editor.cleanup')
 	const [isConfirming, setIsConfirming] = useState(false)
-	const [isConfirmingReset, setIsConfirmingReset] = useState(false)
 	const seconds = Math.max(1, Math.round(removableSeconds))
-
-	if (isConfirmingReset) {
-		return (
-			<div
-				role="status"
-				className="border-accent/50 bg-surface flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 shadow-lg"
-			>
-				<p className="text-text text-sm font-medium">{t('resetConfirm')}</p>
-				<div className="ml-auto flex gap-2">
-					<Button variant="outline" size="sm" onClick={() => setIsConfirmingReset(false)}>
-						{t('cancel')}
-					</Button>
-					<Button
-						size="sm"
-						onClick={() => {
-							onReset()
-							setIsConfirmingReset(false)
-						}}
-					>
-						{t('resetApply')}
-					</Button>
-				</div>
-			</div>
-		)
-	}
 
 	if (isConfirming) {
 		return (
 			<div
 				role="status"
-				className="border-accent/50 bg-surface flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 shadow-lg"
+				className="border-accent/50 bg-surface flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3 shadow-lg"
 			>
 				<div className="flex flex-col gap-0.5">
 					<p className="text-text text-sm font-medium">
@@ -111,7 +70,7 @@ export function CleanupBar({
 	}
 
 	return (
-		<div className="border-border bg-surface flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3">
+		<div className="flex flex-wrap items-center gap-3">
 			<Button
 				variant="secondary"
 				size="sm"
@@ -124,31 +83,6 @@ export function CleanupBar({
 			<span className="text-text-muted text-xs">
 				{removableSeconds > 0 ? t('hint') : t('nothing')}
 			</span>
-			<div className="ml-auto flex gap-2">
-				{canUndo && (
-					<Button variant="ghost" size="sm" aria-keyshortcuts="Control+Z" onClick={onUndo}>
-						<UndoIcon />
-						{t('undo')}
-					</Button>
-				)}
-				{canRedo && (
-					<Button
-						variant="ghost"
-						size="sm"
-						aria-keyshortcuts="Control+Shift+Z Control+Y"
-						onClick={onRedo}
-					>
-						<RedoIcon />
-						{t('redo')}
-					</Button>
-				)}
-				{canReset && (
-					<Button variant="ghost" size="sm" onClick={() => setIsConfirmingReset(true)}>
-						<ResetIcon />
-						{t('reset')}
-					</Button>
-				)}
-			</div>
 		</div>
 	)
 }
