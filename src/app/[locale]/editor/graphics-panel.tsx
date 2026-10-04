@@ -71,7 +71,7 @@ export function GraphicsPanel({
 				<span className="text-text-muted text-xs">{t('captionsHint')}</span>
 			</div>
 			<TextStyleFields
-				key={JSON.stringify(captionStyle)}
+				key={`caption-${JSON.stringify(captionStyle)}`}
 				label={t('captionStyle')}
 				style={captionStyle}
 				onChange={onCaptionStyleChange}
@@ -127,7 +127,7 @@ export function GraphicsPanel({
 			<p className="text-text-muted -mt-2 text-xs">{t('titleHint')}</p>
 			{title && (
 				<TextStyleFields
-					key={JSON.stringify(title.style ?? DEFAULT_TEXT_STYLE)}
+					key={`title-${JSON.stringify(title.style ?? DEFAULT_TEXT_STYLE)}`}
 					label={t('titleStyle')}
 					style={title.style ?? DEFAULT_TEXT_STYLE}
 					onChange={(style) => onTitleChange({ ...title, style })}

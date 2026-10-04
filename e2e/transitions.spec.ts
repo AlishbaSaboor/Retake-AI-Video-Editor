@@ -13,6 +13,9 @@ test.describe.configure({ mode: 'default' })
 const LENGTH_TOLERANCE_SECONDS = 0.25
 const TONE_AMPLITUDE = 0.5
 const SECTION_SECONDS = 2
+/** The red and blue the two clips measure as in an export (the encoder's own). */
+const FULL_RED = 252
+const FULL_BLUE = 247
 
 /** Records the red/blue test video in the page and opens the editor with it. */
 async function openRedBlue(page: Page) {
@@ -88,6 +91,12 @@ async function setTransition(page: Page, kind: 'Fade' | 'Dissolve' | 'None', sec
 
 type Probe = {
 	at: number
+	/**
+	 * The time of the frame the file shows at `at`: the last one at or before
+	 * it. A slow machine paints fewer frames, so it can be well before `at`;
+	 * what the picture should be is judged at this time.
+	 */
+	shown: number
 	/** The picture's mean red and blue, 0–255. */
 	red: number
 	blue: number
@@ -126,6 +135,10 @@ async function exportAndProbe(page: Page, times: number[]) {
 				src: URL.createObjectURL(blob),
 				muted: true
 			})
+			// On the page (barely visible), so its frames are presented and
+			// requestVideoFrameCallback reports each one's time.
+			video.style.cssText = 'position:fixed;left:0;top:0;width:32px;height:18px;opacity:0.01'
+			document.body.append(video)
 			const next = (type: string) =>
 				new Promise((resolve) => video.addEventListener(type, resolve, { once: true }))
 			await next('loadedmetadata')
@@ -138,8 +151,13 @@ async function exportAndProbe(page: Page, times: number[]) {
 			if (!context) throw new Error('no 2d context')
 			const probes: Probe[] = []
 			for (const at of times) {
+				const presented = new Promise<number>((resolve) => {
+					video.requestVideoFrameCallback((_, frame) => resolve(frame.mediaTime))
+					setTimeout(() => resolve(Number.NaN), 3000)
+				})
 				video.currentTime = at
 				await next('seeked')
+				const shown = await presented
 				context.drawImage(video, 0, 0, 320, 180)
 				const data = context.getImageData(100, 50, 120, 80).data
 				let red = 0
@@ -151,6 +169,7 @@ async function exportAndProbe(page: Page, times: number[]) {
 				const pixels = data.length / 4
 				probes.push({
 					at,
+					shown: +shown.toFixed(3),
 					red: Math.round(red / pixels),
 					blue: Math.round(blue / pixels),
 					low: +level(at, 440).toFixed(3),
@@ -187,10 +206,17 @@ test('a fade goes through black, picture and sound, and keeps the length', async
 	expectLength(seconds, 4)
 	const [before, fadingOut, black, fadingIn, after] = probes
 	expect(before?.red, 'red before the fade').toBeGreaterThan(200)
-	expectNear(fadingOut?.red, 128, 45, 'red half way out')
-	expect(black?.red ?? 255, 'black at the join').toBeLessThan(45)
-	expect(black?.blue ?? 255, 'black at the join').toBeLessThan(45)
-	expectNear(fadingIn?.blue, 128, 45, 'blue half way in')
+	// Each frame as bright as the fade is at its own time: down to black at
+	// the join (2 s) over half a second, then up again.
+	const light = (shown: number | undefined) => Math.min(1, Math.abs((shown ?? NaN) - 2) / 0.5)
+	for (const probe of [fadingOut, black, fadingIn]) {
+		const red = probe && probe.shown < 2 ? FULL_RED * light(probe.shown) : 0
+		const blue = probe && probe.shown >= 2 ? FULL_BLUE * light(probe.shown) : 0
+		expectNear(probe?.red, red, 30, `red at ${probe?.at} s (frame of ${probe?.shown} s)`)
+		expectNear(probe?.blue, blue, 30, `blue at ${probe?.at} s (frame of ${probe?.shown} s)`)
+	}
+	// Sampled where the fade is: the darkest is near black.
+	expect(Math.min(black?.red ?? 255, black?.blue ?? 255), 'dark at the join').toBeLessThan(80)
 	expect(after?.blue, 'blue after').toBeGreaterThan(200)
 	// The sound dips with it.
 	expectNear(before?.low, 1, 0.12, '440 Hz before')
@@ -210,8 +236,12 @@ test('a dissolve blends the clips, picture and sound, and shortens the edit by i
 	expectLength(seconds, 3)
 	const [before, middle, after] = probes
 	expect(before?.red, 'red before').toBeGreaterThan(200)
-	expectNear(middle?.red, 128, 45, 'red half way')
-	expectNear(middle?.blue, 128, 45, 'blue half way')
+	// Blue drawn over red at the dissolve's progress at the frame's own time
+	// (it runs 1–2 s of the edit).
+	const progress = Math.min(1, Math.max(0, (middle?.shown ?? NaN) - 1))
+	const at = `half way (frame of ${middle?.shown} s)`
+	expectNear(middle?.red, FULL_RED * (1 - progress), 30, `red ${at}`)
+	expectNear(middle?.blue, FULL_BLUE * progress, 30, `blue ${at}`)
 	expect(after?.blue, 'blue after').toBeGreaterThan(200)
 	expect(after?.red, 'no red after').toBeLessThan(45)
 	// Both tones at equal power half way: ~0.71 each.
