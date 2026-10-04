@@ -30,6 +30,12 @@ it's committed once, at the end of a work session, separately from the code
 - Verify audio/video work for real, against the actual output, not just
   that it compiles.
 - Update `PROGRESS_NOTES.md` after each feature.
+- After each push, check the GitHub Actions run for that commit and wait
+  for its result (`gh run list` / `gh run watch`, or the Actions page; if
+  `gh` isn't installed, the Actions REST API with the token git already
+  stores, never printed). If it fails, read the failure, fix it, and push
+  the fix before starting the next task. Don't start a new feature on a red
+  `main`.
 
 ## Skills
 
