@@ -67,3 +67,39 @@ export function inCorner(watermark: Watermark, corner: Corner): Watermark {
 	delete next.at
 	return next
 }
+
+/** An angle written the short way round: more than −180°, up to 180°. */
+export function normalDegrees(degrees: number): number {
+	const turned = ((((degrees + 180) % 360) + 360) % 360) - 180
+	return turned === -180 ? 180 : turned
+}
+
+/** The logo turned to `degrees` (clockwise); upright again drops the setting. */
+export function rotatedLogo(watermark: Watermark, degrees: number): Watermark {
+	const rotation = normalDegrees(Math.round(degrees))
+	const next: Watermark = { ...watermark, rotation }
+	if (rotation === 0) delete next.rotation
+	return next
+}
+
+/**
+ * The direction from `centre` to `point` (both fractions of `frame`), in
+ * degrees clockwise from straight up, measured in the frame's pixels so a
+ * wide frame doesn't skew it: what a rotate handle dragged there means.
+ */
+export function angleTo(centre: Point, point: Point, frame: Size): number {
+	const dx = (point.x - centre.x) * frame.width
+	const dy = (point.y - centre.y) * frame.height
+	return normalDegrees((Math.atan2(dx, -dy) * 180) / Math.PI)
+}
+
+/** `point` turned by −`degrees` about `centre` (fractions of `frame`): where it is in the unturned box. */
+export function unturned(point: Point, centre: Point, degrees: number, frame: Size): Point {
+	const radians = (-degrees * Math.PI) / 180
+	const dx = (point.x - centre.x) * frame.width
+	const dy = (point.y - centre.y) * frame.height
+	return {
+		x: centre.x + (dx * Math.cos(radians) - dy * Math.sin(radians)) / frame.width,
+		y: centre.y + (dx * Math.sin(radians) + dy * Math.cos(radians)) / frame.height
+	}
+}

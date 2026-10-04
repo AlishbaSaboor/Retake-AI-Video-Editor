@@ -37,14 +37,14 @@ export function UploadDropzone({ onFile }: { onFile: (file: File) => void }) {
 				if (file) onFile(file)
 			}}
 			className={cn(
-				'group flex aspect-video w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-colors',
+				'group flex aspect-video w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 text-center transition-colors',
 				'has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-2',
 				isDragging
 					? 'border-accent bg-surface'
 					: 'border-border-strong bg-surface-inset hover:bg-surface'
 			)}
 		>
-			<span className="border-border bg-surface text-accent mb-4 flex size-16 items-center justify-center rounded-2xl border shadow-md transition-transform group-hover:scale-105 motion-reduce:transition-none">
+			<span className="border-border bg-surface text-accent mb-4 flex size-16 items-center justify-center rounded-lg border shadow-md transition-transform group-hover:scale-105 motion-reduce:transition-none">
 				<UploadIcon size={UPLOAD_ICON_SIZE} />
 			</span>
 			<span className="text-text mb-1 text-base font-semibold">{t('title')}</span>

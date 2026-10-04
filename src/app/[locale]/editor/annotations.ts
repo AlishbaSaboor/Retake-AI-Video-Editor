@@ -31,7 +31,14 @@ export type Annotation = Span & { id: string; rect: Rect } & (
 		| { kind: 'box'; color: string }
 		| { kind: 'blur' }
 		| { kind: 'pixelate' }
-		| { kind: 'text'; text: string; style?: TextStyle; animation?: Animation }
+		| {
+				kind: 'text'
+				text: string
+				style?: TextStyle
+				animation?: Animation
+				/** Turned clockwise about its centre, in degrees, as seen on the picture; absent: level. */
+				rotation?: number
+		  }
 		| { kind: 'pencil'; color: string; points: Point[] }
 	)
 

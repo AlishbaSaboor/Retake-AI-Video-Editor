@@ -350,7 +350,7 @@ test('an AI command shows what it understood and changes nothing until confirmed
 
 	// Confirming applies exactly what was shown.
 	await run()
-	await page.getByRole('button', { name: 'Apply', exact: true }).click()
+	await page.getByRole('button', { name: 'Apply changes', exact: true }).click()
 	await expect(trimStart).toHaveAttribute('aria-valuenow', '1')
 	await expect(trimEnd).toHaveAttribute('aria-valuenow', '2')
 	await expect(input).toHaveValue('')
@@ -528,7 +528,7 @@ test('the original and edited takes can be compared without moving the playhead'
 	await openEditorWithVideo(page)
 	await page.getByLabel('Edit command').fill('keep 1 to 2 seconds')
 	await page.getByRole('button', { name: 'Run' }).click()
-	await page.getByRole('button', { name: 'Apply', exact: true }).click()
+	await page.getByRole('button', { name: 'Apply changes', exact: true }).click()
 	await expect(page.getByRole('slider', { name: 'Trim start' })).toHaveAttribute(
 		'aria-valuenow',
 		'1'

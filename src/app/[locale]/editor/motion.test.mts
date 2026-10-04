@@ -9,8 +9,14 @@ import {
 	AT_REST,
 	LOWER_THIRD_ANIMATION,
 	NO_ANIMATION,
+	clampFocus,
 	splitLowerThird,
+	unzoomedPoint,
 	zoomAt,
+	zoomedPoint,
+	zoomArea,
+	zoomOnArea,
+	zoomViewAt,
 	type Animation
 } from './motion'
 import { zoomedMatrix } from './overlays'
@@ -72,10 +78,54 @@ test('a zoom eases from the whole picture to its amount (in) or back (out), and 
 })
 
 test('a zoom magnifies about the frame centre: the centre stays, the corners move out', () => {
-	const m = zoomedMatrix({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }, 2, { width: 320, height: 180 })
+	const view = { scale: 2, centre: { x: 0.5, y: 0.5 } }
+	const m = zoomedMatrix({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }, view, { width: 320, height: 180 })
 	const at = (x: number, y: number) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f]
 	assert.deepEqual(at(160, 90), [160, 90])
 	assert.deepEqual(at(240, 90), [320, 90])
+})
+
+test('a zoom with a focus moves towards it as it grows, and shows the area around it at full zoom', () => {
+	const zoom = {
+		startSeconds: 0,
+		endSeconds: 4,
+		direction: 'in' as const,
+		amount: 2,
+		focus: { x: 0.7, y: 0.3 }
+	}
+	assert.deepEqual(zoomViewAt(zoom, 5), { scale: 1, centre: { x: 0.5, y: 0.5 } })
+	const half = zoomViewAt(zoom, 2)
+	near(half.scale, 1.5)
+	near(half.centre.x, 0.6)
+	near(half.centre.y, 0.4)
+	const full = zoomViewAt(zoom, 3.999)
+	near(full.centre.x, 0.7, 1e-5)
+	// At full zoom the focus is in the middle of the frame, and the area's edges at its edges.
+	const middle = zoomedPoint(full, { x: 0.7, y: 0.3 })
+	near(middle.x, 0.5, 1e-5)
+	near(zoomedPoint(full, { x: 0.45, y: 0.3 }).x, 0, 1e-4)
+	// The export's matrix agrees with the point mapping, in pixels.
+	const m = zoomedMatrix({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }, half, { width: 320, height: 180 })
+	const shown = zoomedPoint(half, { x: 0.25, y: 0.75 })
+	near(m.a * 80 + m.e, shown.x * 320)
+	near(m.d * 135 + m.f, shown.y * 180)
+	// And a click on the shown frame finds its way back.
+	const back = unzoomedPoint(half, shown)
+	near(back.x, 0.25)
+	near(back.y, 0.75)
+})
+
+test('a focus near an edge is moved in so the zoomed area stays inside the frame', () => {
+	assert.deepEqual(clampFocus({ x: 0.95, y: 0.02 }, 2), { x: 0.75, y: 0.25 })
+	assert.deepEqual(clampFocus({ x: 0.5, y: 0.5 }, 3), { x: 0.5, y: 0.5 })
+	const view = zoomViewAt(
+		{ startSeconds: 0, endSeconds: 1, direction: 'in', amount: 2, focus: { x: 1, y: 0 } },
+		0.5
+	)
+	// Half way (×1.5): the shown area, a third smaller, still within 0..1.
+	const left = view.centre.x - 0.5 / view.scale
+	const right = view.centre.x + 0.5 / view.scale
+	assert.ok(left >= 0 && right <= 1 + 1e-9, `${left}..${right}`)
 })
 
 test('"Jane, CEO" is a name and a subtitle', () => {
@@ -203,4 +253,20 @@ test('motion commands: a lower third, a title entrance, a zoom in or out', () =>
 		ok: false,
 		reason: 'out_of_range'
 	})
+})
+
+test('a zoom set from an area on the frame fills the frame with it, within the limits', () => {
+	const zoom = { startSeconds: 0, endSeconds: 2, direction: 'in' as const, amount: 1.3 }
+	const area = zoomArea(zoom)
+	near(area.width, 1 / 1.3)
+	near(area.x + area.width / 2, 0.5)
+	const set = zoomOnArea(zoom, { x: 0.7, y: 0.6 }, 0.4)
+	near(set.amount, 2.5)
+	assert.deepEqual(set.focus, { x: 0.7, y: 0.6 })
+	near(zoomArea(set).x, 0.5)
+	// Too small an area is held at the largest zoom; one off the edge is moved in.
+	near(zoomOnArea(zoom, { x: 0.5, y: 0.5 }, 0.1).amount, 3)
+	assert.deepEqual(zoomOnArea(zoom, { x: 0.99, y: 0.5 }, 0.5).focus, { x: 0.75, y: 0.5 })
+	// Back in the middle: no focus kept.
+	assert.ok(!('focus' in zoomOnArea(set, { x: 0.5, y: 0.5 }, 0.5)))
 })

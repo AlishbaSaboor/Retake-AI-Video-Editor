@@ -148,8 +148,16 @@ export function ExportButton({ exporter }: { exporter: ReturnType<typeof useVide
 	if (exporter.percent !== null) {
 		return (
 			<div role="status" className="flex items-center gap-2">
-				<span className="text-text-muted text-xs">
-					{t('progress', { percent: exporter.percent })}
+				<span className="flex flex-col gap-1">
+					<span className="text-text-muted text-xs">
+						{t('progress', { percent: exporter.percent })}
+					</span>
+					<span aria-hidden className="bg-surface-inset h-1 w-28 overflow-hidden rounded-full">
+						<span
+							className="bg-accent block h-full rounded-full transition-[width]"
+							style={{ width: `${exporter.percent}%` }}
+						/>
+					</span>
 				</span>
 				<Button variant="outline" size="sm" onClick={exporter.cancel}>
 					{t('cancel')}
@@ -158,13 +166,7 @@ export function ExportButton({ exporter }: { exporter: ReturnType<typeof useVide
 		)
 	}
 	return (
-		<Button
-			variant="outline"
-			size="sm"
-			title={t('hint')}
-			disabled={!exporter.canStart}
-			onClick={exporter.start}
-		>
+		<Button size="sm" title={t('hint')} disabled={!exporter.canStart} onClick={exporter.start}>
 			<DownloadIcon />
 			{t('button')}
 		</Button>

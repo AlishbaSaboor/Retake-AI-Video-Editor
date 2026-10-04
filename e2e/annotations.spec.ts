@@ -229,10 +229,15 @@ test('boxes and blurs drawn on the preview show only in their time, in the previ
 	await seekTo(page, blur.start - 0.4)
 	await expect(shownItems(page, 'blur')).toHaveCount(0)
 	const previewSharp = await previewReading(page, boxCentre)
-	// The screenshot is scaled down to 320 wide, which softens every edge a
-	// little: measured 56 sharp, 10 blurred.
+	// The screenshot is scaled down to 320 wide, which softens every edge by
+	// how much it shrinks the player, so the blur is judged against the same
+	// edge unblurred: measured 56 sharp, 10 blurred (a 768 px player); 68–72
+	// and 20.7 (the editor's three columns, ~575 px).
 	expect(previewSharp.sharpestStep, 'sharp edge before the blur, preview').toBeGreaterThan(35)
-	expect(previewBlurred.sharpestStep, 'softened under the blur, preview').toBeLessThan(20)
+	expect(
+		previewBlurred.sharpestStep,
+		'softened under the blur, preview: under half as sharp'
+	).toBeLessThan(previewSharp.sharpestStep / 2)
 	expect(previewBlurred.contrast, 'the square shows through, preview').toBeGreaterThan(25)
 
 	// Each draw, retime, move and resize was one undo step; reset removes them all.

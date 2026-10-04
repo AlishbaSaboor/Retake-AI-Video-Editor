@@ -18,6 +18,7 @@ import {
 	type Point,
 	type Rect
 } from './annotations'
+import { angleTo, normalDegrees, unturned } from './logo'
 import { animationAt } from './motion'
 import { motionStyle } from './overlay-preview'
 import { bandColor, DEFAULT_TEXT_STYLE, fontFamily } from './text-style'
@@ -32,7 +33,7 @@ const PREVIEW_BLUR = `blur(${(BLUR_BLOCK_FRACTION * PERCENT) / 2}cqw)`
 type Drag =
 	| { type: 'draw'; from: Point; to: Point }
 	| { type: 'stroke'; points: Point[] }
-	| { type: 'move' | 'resize'; item: Annotation; from: Point; to: Point }
+	| { type: 'move' | 'resize' | 'rotate'; item: Annotation; from: Point; to: Point }
 /** A pencil adds a point once the pointer has moved this far (of the picture): smooth, not thousands. */
 const STROKE_STEP = 0.003
 /** A pencil line's width in the preview: of the picture's width, as the export draws it. */
@@ -167,14 +168,27 @@ export function AnnotationLayer({
 	}
 	const shown = annotationsAt(annotations, editedSeconds)
 	const pointAt = (event: React.PointerEvent) => toPicture(event.clientX, event.clientY)
+	// Text is turned in the picture's own space: under one flip, the other way
+	// round from how it looks, so that on screen it turns as it was dragged.
+	const mirror = flip.x * flip.y
+	const turnOf = (item: Annotation) => (item.kind === 'text' ? (item.rotation ?? 0) : 0)
+	const centreOf = (rect: Rect) => ({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 })
+
+	/** A text's turn while its handle is dragged; its own otherwise. */
+	function draggedTurn(item: Annotation): number {
+		if (drag?.type !== 'rotate' || drag.item.id !== item.id) return turnOf(item)
+		return normalDegrees(Math.round(mirror * angleTo(centreOf(item.rect), drag.to, picture)))
+	}
 
 	/** Where an item is while it's being dragged, and where it'll be put. */
 	function draggedRect(current: Exclude<Drag, { type: 'stroke' }>): Rect {
 		if (current.type === 'draw') return rectBetween(current.from, current.to)
 		const { item, from, to } = current
-		return current.type === 'move'
-			? moveRect(item.rect, to.x - from.x, to.y - from.y)
-			: resizeRect(item.rect, to.x, to.y)
+		if (current.type === 'rotate') return item.rect
+		if (current.type === 'move') return moveRect(item.rect, to.x - from.x, to.y - from.y)
+		// The corner of turned text: the pointer, turned back, as if it were level.
+		const level = unturned(to, centreOf(item.rect), mirror * turnOf(item), picture)
+		return resizeRect(item.rect, level.x, level.y)
 	}
 
 	function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
@@ -191,7 +205,11 @@ export function AnnotationLayer({
 		if (tool === 'select') {
 			onSelect(item?.id ?? null)
 			if (!item) return
-			const type = target?.closest('[data-resize]') ? 'resize' : 'move'
+			const type = target?.closest('[data-rotate]')
+				? 'rotate'
+				: target?.closest('[data-resize]')
+					? 'resize'
+					: 'move'
 			follow({ type, item, from: point, to: point })
 		} else if (tool === 'pencil') {
 			follow({ type: 'stroke', points: [point] })
@@ -207,6 +225,15 @@ export function AnnotationLayer({
 		follow(null)
 		if (done.type === 'stroke') {
 			onStroke(done.points)
+			return
+		}
+		if (done.type === 'rotate') {
+			const { item } = done
+			const turned = normalDegrees(
+				Math.round(mirror * angleTo(centreOf(item.rect), done.to, picture))
+			)
+			if (item.kind !== 'text' || turned === turnOf(item)) return
+			onChange({ ...item, rotation: turned === 0 ? undefined : turned })
 			return
 		}
 		const rect = draggedRect(done)
@@ -256,6 +283,8 @@ export function AnnotationLayer({
 					drag && (drag.type === 'move' || drag.type === 'resize') && drag.item.id === item.id
 						? draggedRect(drag)
 						: item.rect
+				const turn = draggedTurn(item)
+				const turned = turn ? `rotate(${mirror * turn}deg)` : ''
 				const style = item.kind === 'text' ? (item.style ?? DEFAULT_TEXT_STYLE) : null
 				// Text comes in and goes out as its animation says (not while it's being moved).
 				const motion =
@@ -282,6 +311,9 @@ export function AnnotationLayer({
 								WebkitBackdropFilter: PREVIEW_BLUR
 							}),
 							...(motion && motionStyle(motion)),
+							...((motion || turned) && {
+								transform: `${motion ? motionStyle(motion).transform : ''} ${turned}`.trim()
+							}),
 							...(style && {
 								background: style.background ? bandColor(style.background) : 'none',
 								fontSize: `${rect.height * TEXT_HEIGHT_FRACTION * style.size * PERCENT}cqh`
@@ -331,6 +363,13 @@ export function AnnotationLayer({
 								data-resize
 								aria-hidden
 								className="bg-accent absolute right-0 bottom-0 size-3 cursor-nwse-resize"
+							/>
+						)}
+						{selected && item.kind === 'text' && (
+							<span
+								data-rotate
+								aria-hidden
+								className="bg-accent absolute top-0.5 left-1/2 size-3 -translate-x-1/2 cursor-grab rounded-full border-2 border-white"
 							/>
 						)}
 					</div>

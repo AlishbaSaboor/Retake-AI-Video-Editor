@@ -42,7 +42,7 @@ export function FillerCutEditor({
 	return (
 		<section
 			aria-label={t('label', { word: plan.filler.word })}
-			className="border-filler/40 bg-surface rounded-2xl border p-4 shadow-xl"
+			className="border-filler/40 bg-surface rounded-lg border p-4"
 		>
 			<div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
 				<h2 className="text-text text-xs font-bold tracking-wider uppercase">

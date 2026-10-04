@@ -21,6 +21,7 @@ import {
 } from './annotations'
 import { DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
 import { TextStyleFields } from './text-style-fields'
+import { DegreesField } from './degrees-field'
 import { AnimationFields } from './motion-panels'
 import { formatTimecode, timeToPercent, type TrimEdge } from './timeline-scale'
 import { TrimHandle } from './trim-handle'
@@ -117,7 +118,7 @@ export function AnnotationPanel({
 	return (
 		<section
 			aria-label={t('label')}
-			className="border-border bg-surface flex flex-col gap-4 rounded-2xl border p-4 shadow-xl"
+			className="border-border bg-surface flex flex-col gap-4 rounded-lg border p-4"
 		>
 			<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
 			<div className="flex flex-wrap items-end gap-3">
@@ -161,6 +162,14 @@ export function AnnotationPanel({
 				style={shownStyle}
 				onChange={(style) => (styled ? onChange({ ...styled, style }) : tools.setTextStyle(style))}
 			/>
+			{styled && (
+				<DegreesField
+					key={`${styled.id}-${styled.rotation ?? 0}`}
+					label={t('selectedTextRotation')}
+					degrees={styled.rotation ?? 0}
+					onChange={(degrees) => onChange({ ...styled, rotation: degrees || undefined })}
+				/>
+			)}
 			{styled && (
 				<AnimationFields
 					key={`${styled.id}-${JSON.stringify(styled.animation ?? null)}`}

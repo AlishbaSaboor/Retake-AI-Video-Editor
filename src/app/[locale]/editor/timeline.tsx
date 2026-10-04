@@ -103,7 +103,7 @@ export function Timeline({
 	}
 
 	return (
-		<section className="border-border bg-surface rounded-2xl border p-4 shadow-xl">
+		<section className="border-border bg-surface rounded-lg border p-4">
 			<div className="border-border mb-2 flex items-center gap-1.5 border-b pb-3">
 				<TimelineIcon className="text-accent" />
 				<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
@@ -176,7 +176,7 @@ export function Timeline({
 								<span className="text-text truncate text-xs font-semibold tracking-tight">
 									{clipName}
 								</span>
-								<span className="text-accent-secondary ml-auto shrink-0 rounded border border-white/10 bg-black/60 px-2 py-0.5 font-mono text-xs">
+								<span className="border-border bg-surface text-text ml-auto shrink-0 rounded border px-2 py-0.5 font-mono text-xs">
 									{formatTimecode(trimmedSeconds)}
 								</span>
 							</div>

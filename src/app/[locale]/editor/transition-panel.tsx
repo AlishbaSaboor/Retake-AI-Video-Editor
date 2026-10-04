@@ -39,7 +39,7 @@ export function TransitionPanel({ joins, canEdit, onChange }: TransitionPanelPro
 	return (
 		<section
 			aria-label={t('label')}
-			className="border-border bg-surface flex flex-col gap-3 rounded-2xl border p-4 shadow-xl"
+			className="border-border bg-surface flex flex-col gap-3 rounded-lg border p-4"
 		>
 			<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
 			{joins.map((join, index) => (

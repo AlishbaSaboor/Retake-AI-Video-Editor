@@ -46,7 +46,7 @@ export function ProjectPanel({
 	return (
 		<section
 			aria-label={t('label')}
-			className="border-border bg-surface flex flex-col gap-3 rounded-2xl border p-4 shadow-xl"
+			className="border-border bg-surface flex flex-col gap-3 rounded-lg border p-4"
 		>
 			<form
 				className="flex flex-wrap items-end gap-3"
@@ -179,7 +179,7 @@ export function RelinkPanel({
 	return (
 		<section
 			aria-label={t('relinkLabel')}
-			className="border-accent/40 bg-surface flex flex-col gap-3 rounded-2xl border p-4 shadow-xl"
+			className="border-accent/40 bg-surface flex flex-col gap-3 rounded-lg border p-4"
 		>
 			<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('relinkLabel')}</h2>
 			<p className="text-text-muted text-xs">{t('relinkHint')}</p>
