@@ -1560,6 +1560,22 @@ more full runs: 48/48 (2.4 GB free) and 48/48 (2.5 GB free). Watch it.
   in run #32), 50/53 (clip-speed export 5.28 s for 5 s, 0.03 s past the
   tolerance, as in 4f; transform preview vs export 0.042 for < 0.04; 2×
   preview speed). The four alone, 3× each: 12/12. Load-dependent; watch.
+- **Run #50 (`5580231`): green, 3 flaky** (passed on retry):
+  `transitions.spec.ts` fade (an extra "dark at the join" check, redundant
+  with the per-frame one; removed) and dissolve (fewer than 5 preview frames
+  in the overlap on the slow runner; the 880 Hz level half way 0.54 for
+  0.71), `clip-speed.spec.ts` captions (the frame shown at 2.8 s was older
+  than the caption's end), and `transform.spec.ts:160` (watched above).
+  Measured with frames slowed to 150 ms: a frame's timestamp trails the
+  moment it was painted by 0.001–0.033 s with the canvas stream as is, and
+  0.008–0.08 s with `captureStream(0)` + `requestFrame()` (no better, not
+  used). **Fixed in the tests:** the fade and the dissolve judged at each
+  frame's own time within 45 levels (~0.09 s of the fade); the dissolve's
+  sound checked as two tones whose powers add up to the full tone (both
+  over 0.3), not one level on a fast ramp; two preview frames in the
+  overlap; the captions judged at each frame's own time with 0.1 s either
+  side of the caption's start and end, and seen both shown and gone. 9/9
+  with 150 ms frames; full suite 53/53 twice.
 
 **Measured 2026-10-04, picture transforms work: two more watched misses.**
 In four full runs after the feature was finished (2.3–2.7 GB free), two
