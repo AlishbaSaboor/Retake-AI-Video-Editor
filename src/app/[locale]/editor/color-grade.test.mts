@@ -170,7 +170,10 @@ const CONTEXT: CommandContext = {
 	joinLimits: [0, 1],
 	colors: { video: NEUTRAL_GRADE, clips: [undefined, grade({ brightness: 1.9 })] },
 	hasTitle: true,
-	textCount: 1
+	textCount: 1,
+	audioCount: 0,
+	extractBlockers: [],
+	playheadSeconds: 0
 }
 const run = (fields: Partial<EditCommand> & Pick<EditCommand, 'action'>, context = CONTEXT) =>
 	commandToPlan({ ...NONE, ...fields }, context)

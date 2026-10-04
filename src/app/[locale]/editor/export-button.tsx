@@ -17,6 +17,7 @@ import {
 import type { Overlays } from './overlays'
 import type { ReplacementTake } from './re-record'
 import type { Segment } from './sequence'
+import type { AudioItem } from './audio-lane'
 import type { ColorGrade } from './color-grade'
 import type { PictureTransform } from './transform'
 
@@ -29,6 +30,8 @@ type ExportSource = {
 	transform: PictureTransform
 	/** The whole video's color adjustments. */
 	color: ColorGrade
+	/** The Audio lane's sounds. */
+	laneItems: AudioItem[]
 }
 
 const PERCENT = 100
@@ -71,7 +74,8 @@ export function useVideoExport({
 	segments,
 	overlays,
 	transform,
-	color
+	color,
+	laneItems
 }: ExportSource) {
 	const t = useTranslations('Editor.export')
 	const [percent, setPercent] = useState<number | null>(null)
@@ -91,10 +95,18 @@ export function useVideoExport({
 		controllerRef.current = controller
 		setPercent(0)
 		try {
-			const { blob, mimeType } = await recordEdit(videoUrl, segments, overlays, transform, color, {
-				onProgress: (fraction) => setPercent(Math.floor(fraction * PERCENT)),
-				signal: controller.signal
-			})
+			const { blob, mimeType } = await recordEdit(
+				videoUrl,
+				segments,
+				overlays,
+				transform,
+				color,
+				laneItems,
+				{
+					onProgress: (fraction) => setPercent(Math.floor(fraction * PERCENT)),
+					signal: controller.signal
+				}
+			)
 			const fileName = exportFileName(videoName, mimeType)
 			download(blob, fileName)
 			setPercent(null)

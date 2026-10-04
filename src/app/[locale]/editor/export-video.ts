@@ -1,3 +1,4 @@
+import { playLane, stretchFrom, type AudioItem } from './audio-lane'
 import { scheduleClipGain } from './clip-audio'
 import { clipMatrix, mountGradeFilters, type ColorGrade } from './color-grade'
 import { drawFrame, type Overlays } from './overlays'
@@ -192,6 +193,7 @@ export async function recordEdit(
 	overlays: Overlays,
 	transform: PictureTransform,
 	color: ColorGrade,
+	laneItems: AudioItem[],
 	{ onProgress, signal }: { onProgress: (fraction: number) => void; signal: AbortSignal }
 ): Promise<{ blob: Blob; mimeType: string }> {
 	const mimeType = pickMimeType((type) => MediaRecorder.isTypeSupported(type))
@@ -279,6 +281,10 @@ export async function recordEdit(
 		const total = totalSeconds(segments)
 		// Whether the segment about to start is already playing, dissolved in.
 		let carried = false
+		// The Audio lane's sounds for the stretch being recorded, scheduled on the
+		// audio clock as it starts (the recorder pauses between stretches, the
+		// clock doesn't).
+		let stopLane = () => {}
 		for (const [index, segment] of segments.entries()) {
 			if (!deck) break
 			showing = index
@@ -300,6 +306,14 @@ export async function recordEdit(
 				playing.video.playbackRate = rate
 				await playing.video.play()
 				scheduleSound(playing, index)
+				stopLane = playLane(
+					audio,
+					destination,
+					laneItems,
+					segmentStart,
+					stretchFrom(segments, index).to,
+					audio.currentTime
+				)
 			}
 			carried = false
 			// A dissolve into the next segment: the other deck waits at its start.
@@ -343,6 +357,7 @@ export async function recordEdit(
 				incoming = null
 				carried = true
 			} else {
+				stopLane()
 				recorder.pause()
 			}
 		}

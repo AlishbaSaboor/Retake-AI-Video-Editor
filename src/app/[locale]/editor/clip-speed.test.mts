@@ -180,7 +180,10 @@ const CONTEXT: CommandContext = {
 	joinLimits: [0, 1, 1],
 	colors: { video: NEUTRAL_GRADE, clips: [undefined, undefined, undefined] },
 	hasTitle: false,
-	textCount: 0
+	textCount: 0,
+	audioCount: 0,
+	extractBlockers: [],
+	playheadSeconds: 0
 }
 const clipSpeed = (rate: number | null, fromClip: number | null, context = CONTEXT) =>
 	commandToPlan({ ...NONE, action: 'clip_speed', rate, fromClip }, context)
