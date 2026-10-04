@@ -1535,6 +1535,31 @@ more full runs: 48/48 (2.4 GB free) and 48/48 (2.5 GB free). Watch it.
   `concurrency: cancel-in-progress` stopped its e2e job when `2e67d52` was
   pushed three minutes later; run #37 for `2e67d52` (which includes
   `f8bf27a`) passed. Not a problem.
+- **Run #49 (`69b7679`, failed; main red):** `transitions.spec.ts` "a fade
+  goes through black" failed all three attempts: the picture looked ~0.1 s
+  late (red 146–178 at 1.75 s for ~128, 30–50 at the join for black, blue
+  63–72 at 2.25 s for ~128) while the sound's fade was on time. Reproduced
+  locally by slowing animation frames to 150 ms (red 146–155, 64–72, blue
+  70): the CI runner paints the export's canvas less often, so the file has
+  fewer frames, and seeking it to 1.75 s shows the last frame painted
+  before then. Not stale frames: Chrome's canvas stream only sends a frame
+  when the canvas changed (checked: switching to `captureStream(0)` +
+  `requestFrame()` gave the same frames, and was reverted). **Fix (test
+  only):** the probe reads the time of the frame it lands on
+  (`requestVideoFrameCallback`'s `mediaTime`) and judges the fade and the
+  dissolve at that time; passes 3/3 with 150 ms frames. Also fixed from the
+  same log: the Graphics panel's caption and title style fields had the same
+  React key (both keyed by the default style), ~300 "same key" warnings a
+  full run; now 0. The run's other miss, `editor.spec.ts` export (the
+  square 134 px off, 1.7 s of motion, passed on retry), is unexplained.
+- **Local full runs that day (2026-10-04, ~2.8 GB free):** 52/53
+  (`re-record-by-ear.spec.ts`: the panel said "No speech was heard in that
+  recording" although the meter had seen the tone: the recorder started
+  first, so the tone was on the stream; the take's audio lacks it, cause
+  unproven), 52/53 (`editor.spec.ts` reorder playback: stuck at 1.5 s, as
+  in run #32), 50/53 (clip-speed export 5.28 s for 5 s, 0.03 s past the
+  tolerance, as in 4f; transform preview vs export 0.042 for < 0.04; 2×
+  preview speed). The four alone, 3× each: 12/12. Load-dependent; watch.
 
 **Measured 2026-10-04, picture transforms work: two more watched misses.**
 In four full runs after the feature was finished (2.3–2.7 GB free), two
