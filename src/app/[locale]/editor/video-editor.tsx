@@ -18,6 +18,7 @@ import { ClipStrip } from './clip-strip'
 import { CompareToggle } from './compare-toggle'
 import { editedCaptions } from './captions'
 import { CommandBar } from './command-bar'
+import { takeStart } from './editor-start'
 import type { CommandContext, CommandPlan, TextTarget } from './edit-command'
 import { isOriginalEdit, ORIGINAL_EDIT, type EditSnapshot } from './edit-snapshot'
 import { ExportButton, useVideoExport } from './export-button'
@@ -156,12 +157,18 @@ const overlaps = (a: SourceRange, b: SourceRange) =>
  * machine. Persisting it (storage + a Prisma row) comes once the database is
  * wired up.
  */
-export function VideoEditor() {
+/**
+ * `openProjectId`: a saved project to open (from the Projects page). Otherwise a
+ * video handed over from the home page, with its command, is loaded.
+ */
+export function VideoEditor({ openProjectId = null }: { openProjectId?: string | null }) {
 	const t = useTranslations('Editor')
 	const videoRef = useRef<HTMLVideoElement>(null)
 	// The second player, over the first: the clip dissolving in.
 	const deckRef = useRef<HTMLVideoElement>(null)
 	const [video, setVideo] = useState<LoadedVideo | null>(null)
+	// The command brought from the home page, asked once the video is ready.
+	const [startCommand, setStartCommand] = useState<string | null>(null)
 	const [durationSeconds, setDurationSeconds] = useState(0)
 	const [currentTimeSeconds, setCurrentTimeSeconds] = useState(0)
 	// Which segment playback is in: a source time can end one and start another.
@@ -1412,6 +1419,27 @@ export function VideoEditor() {
 		if (hasDuration) playback.restartIfAtEnd(element)
 	}
 
+	// A project to open, or a start handed over from the home page.
+	// Once, though development runs effects twice.
+	const begunRef = useRef(false)
+	const begin = useEffectEvent(() => {
+		if (begunRef.current) return
+		begunRef.current = true
+		if (openProjectId) {
+			void openSaved(openProjectId)
+			return
+		}
+		const start = takeStart()
+		if (!start) return
+		loadFile(start.file)
+		setStartCommand(start.command)
+	})
+	// After mount, as the opening of a project or a picked file would be: from
+	// a callback, not inside the effect's own render pass.
+	useEffect(() => {
+		void Promise.resolve().then(begin)
+	}, [])
+
 	return (
 		<div className="flex flex-col gap-4">
 			<GradeFilters
@@ -1472,6 +1500,7 @@ export function VideoEditor() {
 							context={commandContext}
 							hasWatermark={watermark !== null}
 							onApply={applyCommand}
+							initialCommand={startCommand}
 						/>
 					)}
 					<PictureFrame

@@ -6,7 +6,11 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **Read this first: where things stand right now**
 >
-> - Branch `main`. Updated 2026-10-04.
+> - Branch `main`. Updated 2026-10-05.
+> - **Redesign, stage 1: the website** (section 3u): one design system, dark
+>   and light mode, public pages, local accounts (Supabase Auth), a home page
+>   that starts a project (type, attach, speak), a Saved projects page, and
+>   Contact saved to the local database. Stage 2 (the editor's layout) next.
 > - **Full undo/redo** (section 3c, `f3c0de5`): Undo and Redo buttons,
 >   Ctrl+Z and Ctrl+Shift+Z / Ctrl+Y, a 50-step history over trim, cuts,
 >   clips and re-recorded takes.
@@ -1627,6 +1631,69 @@ atSeconds (edited time), volume (0–2), muted }`, in the snapshot
   `e2e/logo.spec.ts` does the same on the synthetic video in CI.
 - **Left out:** rotating the logo, its opacity, more than one logo, a
   logo for part of the video only.
+
+---
+
+## 3u. Redesign, stage 1: the website (2026-10-05)
+
+- **Asked:** a polished, distinct site with one design system; dark and
+  light mode switched in the top bar on every page (dark default,
+  remembered); public pages (landing, how it works, features, contact,
+  log in / sign up); after login a home page that starts a project from one
+  box (type, attach, speak) and opens the editor once the video is in;
+  saved projects as their own page; contact working locally. Stage 2 (the
+  editor's layout) is next. **No feature's behaviour changed.**
+- **The user's choices (2026-10-05):** accounts are **local Supabase
+  Auth** (email + password, the Docker Supabase); contact messages go to
+  **local Postgres** (`ContactMessage`, table `contact_messages`); real
+  Deepgram calls for voice approved up to $0.05 (one made: $0.0003).
+- **Design system:** DESIGN.md section 2. Graphite + electric lime (dark),
+  off-white + deep lime (light); Geist / Space Grotesk / Geist Mono.
+- **Theme:** `data-theme="light"` on `<html>`, set before paint by
+  `THEME_SCRIPT` (`src/lib/theme.ts`) from `localStorage`; `ThemeToggle` is
+  a `role="switch"` named "Light mode".
+- **Pages:** `(site)/` route group (top bar + footer): `/`, `/how-it-works`,
+  `/features`, `/contact`, `/login`. `(app)/` group: `/home`, `/projects`.
+  The editor keeps its folder and gets its own `layout.tsx` (full-width
+  top bar).
+- **Auth:** `proxy.ts` sends a signed-out visitor from `/home`,
+  `/projects`, `/editor` to `/login?next=…`, and a signed-in one from
+  `/login` to `/home`. When Supabase isn't configured (CI) or can't be
+  reached, nothing is guarded (it fails open, as the session refresh
+  already did). `src/server/auth/session.ts` (`currentUser`,
+  `authConfigured`); actions in `(site)/login/actions.ts` (sign in calls
+  `provisionUser`, the template's convention). **The server actions
+  themselves are not gated** (the AI ones included): pages are. Worth
+  adding if this is ever hosted.
+- **Home → editor:** `editor/editor-start.ts` holds the picked file and the
+  typed command in memory across the client-side navigation; the editor
+  takes it once on mount and loads the file; `CommandBar`'s
+  `initialCommand` asks it once the video is ready (one ask, guarded against
+  development's double effects), and it still waits for Apply. A reload
+  of the editor starts empty, as before.
+- **Projects page:** `listProjects` as before; the picture is drawn in the
+  browser from the stored main video (`projectVideo` in `projects.ts`), at
+  1 s or half way; opening goes to `/editor?project=<id>`, which calls the
+  editor's existing `openSaved`.
+- **Voice:** `VoiceCommandButton` (records ≤ 30 s, 16 kHz mono WAV) →
+  `transcribeVoiceCommand` (Deepgram nova-3, feature `voice_command`, its
+  own `ai_usage` rows). Leaving the page mid-recording drops the recording
+  instead of sending it. Verified with a synthesized spoken command fed as
+  Chrome's fake mic: "Turn captions on and add a title that says welcome."
+- **Contact:** `sendContactMessage` writes a row; verified against the
+  local database. Its migration: CI generates it on the pull request
+  (`docs/rules/migrations.md`), plus the hand-written ENABLE RLS one. Locally
+  the table was created by hand first, for testing.
+- **e2e:** `auth.setup.ts` signs a test user in (signing up the first time)
+  and saves the session for every test (`e2e/.auth/`, ignored); with
+  accounts off it saves an empty one. `site.spec.ts` (signed out),
+  `home.spec.ts` (home → editor with a command; projects page). The
+  editor-starts-empty test moved there from `editor.spec.ts`.
+- **Checked in the browser:** every page, dark and light, at 1440 and 390
+  px wide (screenshots); the light editor (its old layout) reads fine.
+- **Known, unchanged:** `pnpm test` on this Windows machine fails 41
+  `check-standards` self-tests and `check:standards` reports 17/24, exactly
+  as on `main` (Windows file modes and hooks; CI on Linux passes them).
 
 ---
 

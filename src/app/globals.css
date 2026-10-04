@@ -5,10 +5,16 @@
    both declares them as real CSS variables and generates the matching
    Tailwind utilities (e.g. --radius-lg below gives you `rounded-lg`). */
 @theme {
-	--font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 	--radius-sm: 6px;
 	--radius: 10px;
 	--radius-lg: 16px;
+}
+
+/* The font families come from next/font (layout.tsx), as variables on <html>. */
+@theme inline {
+	--font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-display: var(--font-grotesk), var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+	--font-mono: var(--font-geist-mono), ui-monospace, 'SFMono-Regular', Menlo, monospace;
 }
 
 /* Color tokens are declared on :root (swappable at runtime) and re-exposed
@@ -16,30 +22,55 @@
    reference these variables live rather than inlining today's computed
    value at build time. See DESIGN.md for the full token table.
 
-   Retake is dark-only — a video editor is judged against footage, and the
-   design (editor mockup: obsidian surfaces, indigo accent, cyan secondary)
-   has no light variant. `color-scheme` makes native UI (video controls,
-   scrollbars, form fields) render dark to match. */
+   Two schemes, one accent. Dark is the default (a video editor is judged
+   against footage); light is `data-theme="light"` on <html>, set before
+   first paint by the script in layout.tsx from the visitor's choice.
+   `color-scheme` makes native UI (video controls, scrollbars, form fields)
+   follow. */
 :root {
 	color-scheme: dark;
-	--bg: #0b0d13;
-	--surface: #1b1f2e;
-	--surface-hover: #22273a;
-	--surface-inset: #141722;
-	--border: #272d40;
-	--border-strong: #3b4360;
-	--text: #f3f4f6;
-	--text-muted: #94a3b8;
-	--text-faint: #64748b;
-	--accent: #6366f1;
-	--accent-hover: #818cf8;
+	--bg: #0b0b0d;
+	--surface: #151518;
+	--surface-hover: #1f1f23;
+	--surface-inset: #101012;
+	--border: #26262b;
+	--border-strong: #3a3a41;
+	--text: #f4f4f5;
+	--text-muted: #a1a1aa;
+	--text-faint: #7f7f89;
+	--accent: #c6f432;
+	--accent-hover: #d7ff5c;
+	--accent-ink: #0b0b0d;
+	--accent-soft: rgb(198 244 50 / 0.12);
+	--accent-secondary: #e4f9a6;
+	--accent-glow: rgb(198 244 50 / 0.28);
+	--success: #3dd6a3;
+	--warning: #f2a93b;
+	--danger: #f2555a;
+	--filler: #c79bff;
+}
+
+:root[data-theme='light'] {
+	color-scheme: light;
+	--bg: #f6f6f3;
+	--surface: #ffffff;
+	--surface-hover: #efefea;
+	--surface-inset: #ecece6;
+	--border: #e0e0d9;
+	--border-strong: #c4c4bb;
+	--text: #121214;
+	--text-muted: #55555c;
+	--text-faint: #6a6a72;
+	--accent: #4a7a00;
+	--accent-hover: #3d6600;
 	--accent-ink: #ffffff;
-	--accent-secondary: #06b6d4;
-	--accent-glow: rgb(99 102 241 / 0.35);
-	--success: #35c37f;
-	--warning: #e2a03f;
-	--danger: #e5675f;
-	--filler: #c084fc;
+	--accent-soft: rgb(74 122 0 / 0.1);
+	--accent-secondary: #3d6600;
+	--accent-glow: rgb(74 122 0 / 0.22);
+	--success: #0b7656;
+	--warning: #a8640a;
+	--danger: #c5282e;
+	--filler: #7c3aed;
 }
 
 @theme inline {
@@ -55,6 +86,7 @@
 	--color-accent: var(--accent);
 	--color-accent-hover: var(--accent-hover);
 	--color-accent-ink: var(--accent-ink);
+	--color-accent-soft: var(--accent-soft);
 	--color-accent-secondary: var(--accent-secondary);
 	--color-accent-glow: var(--accent-glow);
 	--color-success: var(--success);
@@ -67,4 +99,9 @@ body {
 	background-color: var(--bg);
 	color: var(--text);
 	font-family: var(--font-sans);
+	-webkit-font-smoothing: antialiased;
+}
+
+::selection {
+	background-color: var(--accent-glow);
 }

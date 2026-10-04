@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
@@ -23,6 +23,8 @@ type CommandBarProps = {
 	context: CommandContext
 	hasWatermark: boolean
 	onApply: (plan: CommandPlan) => void
+	/** A command brought from the home page: asked as soon as the bar appears, still applied only on Apply. */
+	initialCommand?: string | null
 }
 
 /**
@@ -31,9 +33,9 @@ type CommandBarProps = {
  * cost a click on Cancel, not an Undo. A command it can't do gets a plain
  * answer listing what it can, not an error.
  */
-export function CommandBar({ context, hasWatermark, onApply }: CommandBarProps) {
+export function CommandBar({ context, hasWatermark, onApply, initialCommand }: CommandBarProps) {
 	const t = useTranslations('Editor.command')
-	const [command, setCommand] = useState('')
+	const [command, setCommand] = useState(initialCommand ?? '')
 	const [reply, setReply] = useState<{ command: string; outcome: CommandOutcome } | null>(null)
 
 	const parse = useMutation({
@@ -53,6 +55,15 @@ export function CommandBar({ context, hasWatermark, onApply }: CommandBarProps) 
 			toast({ variant: 'destructive', title: t('failed'), description: error.message })
 		}
 	})
+
+	// Asked once, though development runs effects twice: each ask is a paid call.
+	const askedRef = useRef(false)
+	const ask = useEffectEvent((text: string) => parse.mutate(text))
+	useEffect(() => {
+		if (askedRef.current || !initialCommand?.trim()) return
+		askedRef.current = true
+		ask(initialCommand)
+	}, [initialCommand])
 
 	function applyPlan() {
 		if (!reply?.outcome.ok) return
