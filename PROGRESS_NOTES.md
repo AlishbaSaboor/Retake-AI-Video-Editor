@@ -1584,6 +1584,15 @@ more full runs: 48/48 (2.4 GB free) and 48/48 (2.5 GB free). Watch it.
   product (it would mean starting the incoming player's sound early); the
   test now asks for both tones over 0.3 and their powers adding up to
   0.6–1.3 of the full tone's. Locally 0.73/0.64–0.68.
+- **Run #52 (`8b8e9db`): green, 2 flaky:** `transform.spec.ts:160`
+  (watched) and the sped-up captions: the runner's frame for 2.35 s was
+  from 2.17 s, inside the 0.1 s margin, so no frame showed the caption for
+  certain. Now probed at 2.25, 2.35 and 2.45 s too; the pitch is still
+  checked at 0.7 and 2.35 s, clear of the tones' edges. With frames slowed
+  to 200 ms the captions held 3/3 (the 2.35 s pitch read 413 Hz once: the
+  window caught a little silence at the clip's start; it has passed in
+  every CI run). Local full runs: 52/53 (`annotations.spec.ts:156`, the
+  "Export finished" toast not seen within 5 s; untouched code) and 53/53.
 
 **Measured 2026-10-04, picture transforms work: two more watched misses.**
 In four full runs after the feature was finished (2.3–2.7 GB free), two
