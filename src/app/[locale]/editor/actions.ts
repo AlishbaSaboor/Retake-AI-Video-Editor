@@ -68,6 +68,8 @@ function systemInstruction(durationSeconds: number, clipCount: number): string {
 		'extract_audio: take clip fromClip\'s sound out to its own audio track ("detach the audio").',
 		'delete_audio: the audio track numbered fromClip (null: the last one added).',
 		'add_video: add another video file to the project, after the clips.',
+		'save_project: text the name to save it as (null: its name). open_project: text the saved',
+		'project\'s name ("open my project Holiday": Holiday).',
 		'color: property brightness, contrast or saturation with percent the change (more: 20,',
 		'less: -20), or property black_and_white, warm, cool, or normal (colors back to normal);',
 		'fromClip (null: whole video).',

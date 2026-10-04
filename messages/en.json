@@ -130,7 +130,10 @@
 				"addAudio": "I'll add an audio file at {at} of the edited video. Choose the file next.",
 				"extractAudio": "I'll take clip {number}'s sound out into its own track in the Audio lane; the clip itself goes silent.",
 				"deleteAudio": "I'll delete audio track {number} from the Audio lane.",
-				"addVideo": "I'll add another video after the clips. Choose the file next."
+				"addVideo": "I'll add another video after the clips. Choose the file next.",
+				"saveProject": "I'll save this project as “{name}”.",
+				"openProject": "I'll open “{name}” in place of this edit.",
+				"openProjectUnsaved": "I'll open “{name}” in place of this edit. This edit has changes that were never saved: they'll be lost."
 			},
 			"failed": "Couldn't run that command",
 			"clipNumber": "clip {number}",
@@ -184,7 +187,8 @@
 				"textStyle": "Style text: “make the title red”, “make the captions bigger”, “use a serif font for the title”",
 				"pencil": "Draw freehand on the video: Pencil, in Annotations, under the clips",
 				"audioLane": "Separate audio: “add music at 0:05”, “extract the audio of clip 2”, “delete the music”",
-				"addVideo": "Add another video to the project: “add another video”"
+				"addVideo": "Add another video to the project: “add another video”",
+				"projects": "Save or open a project: “save the project”, “open my project Holiday”"
 			},
 			"refused": {
 				"no_such_clip": "There's no clip with that number. The Clips strip numbers them from 1.",
@@ -214,7 +218,9 @@
 				"extract_sped": "That clip is sped up or slowed down. Set it back to 1× to take its sound out.",
 				"extract_take": "That clip has a re-recorded sentence, so its sound can't be taken out as it is.",
 				"extract_already": "That clip's sound is already in the Audio lane.",
-				"merge_videos": "Those clips are from different videos, so they can't be one clip."
+				"merge_videos": "Those clips are from different videos, so they can't be one clip.",
+				"no_projects": "There are no saved projects yet.",
+				"no_such_project": "There's no saved project by that name. My projects lists them."
 			},
 			"out_of_range": {
 				"title": "That range isn't in this clip.",
@@ -529,6 +535,33 @@
 			"noSound": "This video has no sound to take out."
 		},
 		"addVideo": "Add video",
-		"addVideoInput": "Video to add"
+		"addVideoInput": "Video to add",
+		"projects": {
+			"label": "Project",
+			"name": "Project name",
+			"save": "Save",
+			"myProjects": "My projects",
+			"savedAt": "Saved at {time}; saves itself after each change.",
+			"status": {
+				"unsaved": "Not saved yet.",
+				"saving": "Saving…",
+				"saved": "Saved.",
+				"failed": "Couldn’t save."
+			},
+			"none": "No saved projects yet. Saved projects are kept in this browser.",
+			"current": "(open)",
+			"open": "Open",
+			"delete": "Delete",
+			"deleteAsk": "Delete this project?",
+			"deleteYes": "Delete",
+			"deleteNo": "Keep",
+			"saveFailed": "Couldn’t save the project",
+			"cantOpen": "Couldn’t open that project",
+			"wrongFile": "{name} isn’t {wanted}: pick that file.",
+			"relinkLabel": "Find the missing files",
+			"relinkHint": "This browser no longer holds some of this project’s files (its storage was cleared). Pick each one again; it’s taken only if its name and size match.",
+			"find": "Find {name}",
+			"relinkCancel": "Cancel"
+		}
 	}
 }

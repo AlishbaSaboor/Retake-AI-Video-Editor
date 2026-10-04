@@ -43,9 +43,12 @@ const NO_FILLER_PLANS: FillerPlan[] = []
  * which filler words are then found in — no second AI call — and each filler
  * is placed against the audio's real gaps (cut) or left for review.
  * Both are keyed by the take's object URL, so replacing the video starts
- * over and nothing is re-run for the same take.
+ * over and nothing is re-run for the same take. A reopened project brings
+ * its saved transcript: no second Deepgram call.
  */
-export function useTakeAnalysis(video: { file: File; url: string } | null) {
+export function useTakeAnalysis(
+	video: { file: File; url: string; transcript?: Transcript | null } | null
+) {
 	const audio = useQuery({
 		queryKey: ['take-audio', video?.url],
 		queryFn: async (): Promise<AudioAnalysis | null> => {
@@ -73,15 +76,17 @@ export function useTakeAnalysis(video: { file: File; url: string } | null) {
 	})
 
 	const audioBase64 = audio.data?.audioBase64 ?? null
+	const saved = video?.transcript ?? null
 	const transcript = useQuery({
 		queryKey: ['take-transcript', video?.url],
 		queryFn: async () => {
+			if (saved) return saved
 			if (!audioBase64) throw new Error('No audio to transcribe')
 			const result = await transcribeTake({ audioBase64 })
 			if (!result.ok) throw new Error(result.error)
 			return result.data
 		},
-		enabled: audioBase64 !== null,
+		enabled: audioBase64 !== null || (saved !== null && audio.data !== undefined),
 		staleTime: Infinity,
 		retry: false
 	})
@@ -90,7 +95,7 @@ export function useTakeAnalysis(video: { file: File; url: string } | null) {
 		? { status: 'analyzing' }
 		: !audio.data
 			? { status: 'no_audio' }
-			: !audioBase64
+			: !audioBase64 && !saved
 				? { status: 'too_long' }
 				: transcript.isPending
 					? { status: 'transcribing' }

@@ -29,6 +29,14 @@ session with no memory of it can carry on. Read this whole file, then
 > - **A failed AI call now records why** (section 3g): `error_type` and
 >   `error_status` in the `ai_usage` row's `meta`, never the message. Checked
 >   with a real failed Gemini call (row 74, `ApiError`, 400, no spend).
+> - **Save and reopen projects** (section 3r): a Save button with a name,
+>   autosave after each change once saved, My projects to reopen or delete,
+>   "save the project" / "open my project X". Kept in this browser
+>   (IndexedDB; the user's choice): the edit, its media (videos copied in
+>   once), and the transcript, so reopening calls no Deepgram. Verified:
+>   a project with seven kinds of edits reopened after a reload with the
+>   same timeline and an export matching the original's. Real Gemini: 10
+>   calls, $0.0059.
 > - **Several videos in one project** (section 3q): add another video (a
 >   button, or "add another video"), placed as a clip after the others;
 >   trim (its own), split, reorder, speed, color and transitions work on its
@@ -226,8 +234,9 @@ separate `chore(logs)` commit.
 | Color adjustments (brightness, contrast, saturation, black and white, warm, cool) for the whole video or a clip; text styling (font, size, color, background) for the title, captions and on-video text; freehand pencil | `feat(editor): color adjustments, text styling and a pencil`             | Unit tests (`color-grade.test.mts`): brightness scales, contrast pivots on mid-grey, saturation leaves grey grey and at 0 gives luma; black and white is grey, warm/cool shift grey red/blue; a clip's grade on top of the video's, none set is no filter; filter ids stable by numbers; a clip's colors through split and merge, onto its segments, and counted for reset (as are the video's colors and the caption style); the default band is the old one; a pencil stroke's points kept inside its rect, a dot not a stroke; color commands (a level ±20 unless told, capped; a look; back to normal or already normal; no such clip); text style commands (only what's named; a color name or #rrggbb; no title / no text); a command with fields left out parses with them null. e2e (`color-and-text.spec.ts`, real exports of a grey/blue video split in two): whole video black and white, clip 2 also 150%: export 128/95 and 192/143 exactly as calculated, and the preview's screenshots the same (128/95, 192/143); the Original view ungraded; undo, redo, Reset colors, reset. Warm grey (147,131,103), then cool on top (126,134,124). Title red, serif, no band: 228 red pixels, the band row the video's grey; captions yellow at 150%: 385 pixels against 125 at 100%; on-video text cyan: 260 pixels. Pencil: export stroke centred at x 79 of 320 (drawn 32–128), preview 79, flipped 239 (pinned to the picture); eraser and undo. Commands (mocked) with confirm and undo. Mutation: the export without the grade fails (blue stays (49,97,221) for grey 95). Full e2e 53/53 twice.                                                                                                                                                                                                                                                                                                                                |
 | Separate audio: an Audio lane of added files and extracted clip sounds, moved, trimmed, at their own volume                                                                                                              | `feat(editor): separate audio clips in an Audio lane`                    | Unit tests (`audio-lane.test.mts`): an item plays its sound from where it starts, only in the asked stretch; moving keeps what plays, trimming the start skips more of the sound, the end plays less, neither past the source; volume capped at 200%; an extracted clip keeps its kept pieces (cuts skipped) where the clip starts, and moved plays the same sound earlier; a clip in the lane is silent itself, blocks re-recording (`in_lane`) and counts for reset; only a clip at 1×, without a take, not already out can be extracted; a stretch runs through dissolves to the next seek; commands (add at a time or the playhead, past the end refused; extract, sped refused, no such clip; delete the last or a named one, none / no such). e2e (`audio-lane.spec.ts`, real exports of a red/440 Hz, blue/880 Hz video split in two, and a 1.5 s 660 Hz WAV): the file at 1 s: 660 Hz 0 at 0.5 s, 1.003 at 1.75 s with the video's 440 Hz still 1.0, 0 at 2.9 s; at 50% 0.498; muted 0; undo, reset. Clip 2's sound taken out: 880 Hz 0.999 in place; moved to 0 s: 880 Hz 1.003 over clip 1's 440 Hz 1.004, and 0 at 3 s where clip 2's picture still plays; a sped clip can't be extracted; undo puts the sound back. Preview: one lane start per stretch, from the file's start or 0.6 s in when played from 1.6 s; none in the Original view. Commands (mocked): add opens the picker, extract, delete, already-out refused, undo each. Mutation: the export without the lane fails (no 660 Hz). Full e2e locally: 56/57 (the new preview test played 0.4 s from 1.6 s, across the clips' join at 2 s, where the lane rightly starts again: now played from 1.3 s), 56/57 (`re-record-by-ear.spec.ts:26`, watched) and 56/57 (`annotations.spec.ts:156`, watched); the lane spec 4/4 alone and in the full runs after the fix.                                                                                                 |
 | Several videos in one project: add another, after the clips; the clip tools work on its clips                                                                                                                            | `feat(editor): combine several videos into one project`                  | Unit tests (`sources.test.mts`): an added video's clip plays its own video with its own trim and none of the main one's cuts; a time is looked for in one video (seek, clip under it, edited time); a split divides the playing clip in its own video, a merge needs one video, settings keep the source; captions, takes and re-recording are the main video's own; fitting another shape centred; an added video counts for reset. e2e (`multi-video.spec.ts`, real exports of a red 320×180 / 440 Hz main video and a green 240×240 / 660 Hz added one): 6.88–6.91 s for 7 s, red with 440 Hz then green with 660 Hz, the green letterboxed (the left edge black); the preview plays on into the added player (shown, playing, the main one paused, away), the editor's Pause stops it, and the timeline names the green video. The green clip first and at 2×: 5.41–5.44 s for 5.5 s, 660 Hz kept; black and white on it: grey 182; a dissolve into the red (0.75 s, half the 1.5 s clip): 4.67 s, half way red over grey with both tones. The green video's own trim, a second off its end from its timeline, and a split inside it: 5.88 s. The command (mocked) opens the picker; merging clips of two videos refused; undo, redo, reset. Full e2e 61/61 twice.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Save and reopen projects: Save with a name, autosave, My projects (open, delete), typed save/open                                                                                                                        | `feat(editor): save and reopen projects in the browser`                  | Unit tests (`projects.test.mts`): a typed name finds its project (the same name, else the latest containing it, none, empty); media kept once per file, a picked file stands in only if it's the same one; save and open as commands (a name or the current one, unsaved changes warned, unknown refused, none saved). e2e (`projects.spec.ts`): a project with split, 2× speed, black and white on a clip, a red title, captions on, a box, an audio file at 0.5 s and an added video: exported (4.43–4.45 s: grey 55 with 440 + 660 Hz, blue at 2× with 880 Hz, green with 330 Hz, 136 red title pixels, the black box), saved, the page reloaded, reopened from My projects: the same clips, lane, title, speed and captions; no transcription request; no undo history; a second export the same (4.43 s; every colour within 0, title 134 for 136, every tone within 0.01). Autosave: a change after saving, a reload, the change there. A lost video (the browser's media cleared): reopening asks for the file, refuses another one, opens with the same one; delete asks first, then the project is gone, after a reload too. Commands (mocked): save as Demo; open Demo over an unsaved edit warns; an unknown project refused. Full e2e 65/65, then 64/65 (`transform.spec.ts:160`, watched).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
-**Current totals:** 317 unit tests (`src/**/*.test.mts`) and 61 e2e tests.
+**Current totals:** 320 unit tests (`src/**/*.test.mts`) and 65 e2e tests.
 Everything passes locally. On the meter commit the full e2e suite passed
 18/18 in each of two runs.
 
@@ -1444,6 +1453,61 @@ atSeconds (edited time), volume (0–2), muted }`, in the snapshot
 
 ---
 
+## 3r. Save and reopen projects
+
+- **The user's choices (2026-10-04):** projects in this browser
+  (IndexedDB), not Postgres (the editor has no accounts: a projects table
+  would be open to anyone reaching the app, and media can't go through the
+  server anyway, uploads being capped ~13 MB); source videos copied into the
+  browser's storage on first save; the transcript saved with the project.
+- **What's saved** (`projects.ts`): the name, the edit (the undo snapshot:
+  trim, cuts, clips with their speed, sound, colour and transitions, takes,
+  title, logo, captions on/off and style, annotations with pencil strokes,
+  transform, colours, the Audio lane, added videos and their trims), the
+  main video's transcript, and references to media. Media is kept apart,
+  each file once, keyed by name, size and modification time: the videos
+  and added audio files as their bytes. Takes are short and kept as their
+  samples (structured clone of Float32Arrays). An extracted clip's sound is
+  decoded again from its video on reopening. A schema version is kept: a
+  project of another version is refused, not half-loaded.
+- **Not saved:** the undo history (it holds a whole snapshot per step,
+  sound buffers included; a reopened project starts with none, and reset
+  still goes back to the original take); silences, loudness and audio flags
+  (measured again locally, free); playback state.
+- **Save, autosave:** Save writes the media not yet kept, then the record.
+  Once saved, the project saves itself 1.5 s after any change to the edit
+  (an effect on the snapshot's pieces; playback and the playhead don't
+  count), writing the record only (media is already there). The browser is
+  asked to keep the site's storage (`navigator.storage.persist`).
+- **Reopening:** My projects (on the upload screen after a reload, and in
+  the project panel) → Open: the video, its saved transcript (no Deepgram
+  call; `useTakeAnalysis` takes it), the edit, no history. **A missing
+  file** (the browser's storage cleared or evicted): the project doesn't
+  open half-way; "Find the missing files" asks for each, takes one only if
+  its name and size match, then opens.
+- **Delete** asks first, then removes the project and any media no other
+  project uses.
+- **Commands:** `save_project` (`text`: the name; none keeps the current
+  one, or the video's name the first time), `open_project` (`text`: the
+  saved name, matched ignoring case, else the latest containing it); opening
+  over changes never saved says they'll be lost. Refused: no projects, no
+  such project.
+- **Risks, as told:** browser storage can be cleared or evicted (asked to
+  persist; a missing file is found again by hand); quota (the videos are
+  copied: the browser's disk use grows by their size); older saved data
+  (the version check).
+- **Left out:** sharing or syncing between browsers or machines, saved undo
+  history, exporting or importing a project file, anything on the server.
+- **Real Gemini, 2026-10-04:** "save the project" (the current name),
+  "save this as Holiday edit", "open my project holiday" (found "Holiday"),
+  "load the interview project" (refused: none by that name), and the
+  regressions "add another video", "add music at 0:05", "make it black and
+  white", "export the video", "undo", "add a sticker of a cat"
+  (unsupported): all right. Rows 211–220, 10 calls, 5,858 micro-USD
+  ($0.0059); ~766 input tokens, **~579–593 micro-USD a command**.
+
+---
+
 ## 4. Unresolved issues
 
 ### 4a. The command-test regression from earlier instructions is solved
@@ -1730,6 +1794,11 @@ more full runs: 48/48 (2.4 GB free) and 48/48 (2.5 GB free). Watch it.
 - **Run #54 (`3b54ed9`, the Audio lane): green, 2 flaky** (passed on
   retry, both watched): `clip-speed.spec.ts:227` and `re-record.spec.ts:21`.
   The new `audio-lane.spec.ts` passed first time.
+- **Run #55 (`6cbec6a`, several videos): green, 1 flaky:**
+  `transform.spec.ts:160` (watched), passed on retry. The new
+  `multi-video.spec.ts` passed first time.
+- **Local full runs for saved projects (2026-10-04):** 65/65, then 64/65
+  (`transform.spec.ts:160`, watched); recorded and carried on.
 
 **Measured 2026-10-04, picture transforms work: two more watched misses.**
 In four full runs after the feature was finished (2.3–2.7 GB free), two
@@ -1928,6 +1997,7 @@ This explains the e2e export-length failures in section 4c (0.39 s long,
 22. ~~Color adjustments, text styling and the pencil~~: done (section 3o).
 23. ~~Separate audio clips (the Audio lane)~~: done (section 3p).
 24. ~~Several videos in one project~~: done (section 3q).
+25. ~~Save and reopen projects~~: done (section 3r).
 
 Not yet queued by the user:
 
