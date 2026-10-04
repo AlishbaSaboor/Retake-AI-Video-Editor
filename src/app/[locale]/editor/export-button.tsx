@@ -32,6 +32,8 @@ type ExportSource = {
 	color: ColorGrade
 	/** The Audio lane's sounds. */
 	laneItems: AudioItem[]
+	/** Where each added video plays from, by id. */
+	addedUrls: Readonly<Record<string, string>>
 }
 
 const PERCENT = 100
@@ -75,7 +77,8 @@ export function useVideoExport({
 	overlays,
 	transform,
 	color,
-	laneItems
+	laneItems,
+	addedUrls
 }: ExportSource) {
 	const t = useTranslations('Editor.export')
 	const [percent, setPercent] = useState<number | null>(null)
@@ -96,7 +99,7 @@ export function useVideoExport({
 		setPercent(0)
 		try {
 			const { blob, mimeType } = await recordEdit(
-				videoUrl,
+				{ main: videoUrl, added: addedUrls },
 				segments,
 				overlays,
 				transform,

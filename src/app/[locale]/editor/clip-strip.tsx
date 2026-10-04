@@ -6,13 +6,23 @@ import { Button } from '@/components/ui/button'
 import { CopyIcon, MergeIcon, SplitIcon, TrashIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import type { Edit } from './cleanup'
-import { clipPlayedSeconds, type Clip, type Replacement } from './sequence'
+import {
+	clipPlayedSeconds,
+	mergeClips,
+	type Clip,
+	type Replacement,
+	type SourceEdits
+} from './sequence'
 import { formatTimecode } from './timeline-scale'
 
 type ClipStripProps = {
 	clips: Clip[]
 	edit: Edit
 	replacements: readonly Replacement[]
+	/** Each added video's trim, by id. */
+	sourceEdits: SourceEdits
+	/** Each added video's file name, by id: a clip of one says which. */
+	sourceNames: Readonly<Record<string, string>>
 	/** The clip playing, by index: with a duplicate, a source time is in two clips. */
 	currentIndex: number
 	canSplit: boolean
@@ -44,6 +54,8 @@ export function ClipStrip({
 	clips,
 	edit,
 	replacements,
+	sourceEdits,
+	sourceNames,
 	currentIndex,
 	canSplit,
 	onSplit,
@@ -96,6 +108,11 @@ export function ClipStrip({
 	}
 
 	// Never every clip: something has to play.
+	// Only clips of one video can be one clip.
+	const canMerge =
+		selected !== null &&
+		selected.to > selected.from &&
+		mergeClips(clips, selected.from, selected.to) !== clips
 	const canDelete = selected !== null && selected.to - selected.from + 1 < clips.length
 
 	return (
@@ -107,12 +124,7 @@ export function ClipStrip({
 				<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
 				<span className="text-text-muted text-xs">{t('count', { count: clips.length })}</span>
 				<div className="ml-auto flex gap-2">
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={!selected || selected.to === selected.from}
-						onClick={merge}
-					>
+					<Button variant="outline" size="sm" disabled={!canMerge} onClick={merge}>
 						<MergeIcon />
 						{t('merge')}
 					</Button>
@@ -152,17 +164,25 @@ export function ClipStrip({
 				className="flex gap-1.5"
 			>
 				{clips.map((clip, index) => {
-					const playedSeconds = clipPlayedSeconds(clip, edit, replacements)
+					const playedSeconds = clipPlayedSeconds(clip, edit, replacements, sourceEdits)
+					const of = clip.source ? (sourceNames[clip.source] ?? '') : null
 					const isCurrent = index === currentIndex
 					const isSelected = selected !== null && index >= selected.from && index <= selected.to
 					const source = clip.ranges
 						.map((r) => `${formatTimecode(r.startSeconds)}–${formatTimecode(r.endSeconds)}`)
 						.join(', ')
-					const label = t('clipLabel', {
-						number: index + 1,
-						duration: formatTimecode(playedSeconds),
-						source
-					})
+					const label = of
+						? t('clipLabelOf', {
+								number: index + 1,
+								duration: formatTimecode(playedSeconds),
+								source,
+								video: of
+							})
+						: t('clipLabel', {
+								number: index + 1,
+								duration: formatTimecode(playedSeconds),
+								source
+							})
 					return (
 						<li
 							key={clip.id}
@@ -203,6 +223,7 @@ export function ClipStrip({
 							<span className="text-text truncate text-xs font-semibold">
 								{t('clipName', { number: index + 1 })}
 							</span>
+							{of && <span className="text-accent-secondary truncate text-xs">{of}</span>}
 							<span className="text-text-muted font-mono text-xs">
 								{formatTimecode(playedSeconds)}
 								{clip.speed !== undefined && (

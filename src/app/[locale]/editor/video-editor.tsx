@@ -3,7 +3,7 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-import { PauseIcon, PlayIcon, ReplaceIcon } from '@/components/ui/icons'
+import { PauseIcon, PlayIcon, PlusIcon, ReplaceIcon } from '@/components/ui/icons'
 import { toast } from '@/lib/toast'
 import { AnnotationLayer } from './annotation-layer'
 import { AnnotationPanel, useAnnotationTools } from './annotation-panel'
@@ -82,6 +82,7 @@ import {
 	joinsOf,
 	playbackPosition,
 	segmentClips,
+	type SourceEdits,
 	withClipColor,
 	setTransition,
 	transitionInto,
@@ -98,10 +99,11 @@ import { isKnownDuration, moveTrimEdge, type TrimEdge, type TrimRange } from './
 import type { TranscriptSegment } from './transcript'
 import { TranscriptPanel } from './transcript-panel'
 import { UploadDropzone } from './upload-dropzone'
-import { useSequencePlayback } from './use-sequence-playback'
+import { useSequencePlayback, type SourceUrls } from './use-sequence-playback'
 import { useTakeAnalysis } from './use-take-analysis'
 import { extractBlocker, extractedItem, type AudioItem } from './audio-lane'
 import { AudioLanePanel } from './audio-lane-panel'
+import { probeVideo, type AddedVideo } from './sources'
 import { decodeAudio } from './take-audio'
 import { VideoFileInput } from './video-file-input'
 
@@ -111,6 +113,10 @@ type LoadedVideo = { file: File; url: string; name: string }
 const PREVIEW_GRADE = 'preview-grade'
 /** No lane sound: what playback gets outside the Edited view (one array, so it never looks changed). */
 const NO_LANE: AudioItem[] = []
+/** An added video's timeline has no cuts, takes, silences, fillers or audio flags: the main one's. */
+const NO_RANGES: never[] = []
+const NO_FILLERS: never[] = []
+const NO_ISSUES: never[] = []
 
 const overlaps = (a: SourceRange, b: SourceRange) =>
 	a.startSeconds < b.endSeconds && a.endSeconds > b.startSeconds
@@ -180,7 +186,17 @@ export function VideoEditor() {
 	// The Audio lane (audio-lane.ts), and the take's own sound, decoded the
 	// first time a clip's sound is taken out into it.
 	const [audioItems, setAudioItems] = useState<AudioItem[]>([])
-	const takeSoundRef = useRef<Promise<AudioBuffer | null> | null>(null)
+	// Each video's own sound, decoded the first time one of its clips' sound is
+	// taken out ('' is the main video).
+	const soundsRef = useRef(new Map<string, Promise<AudioBuffer | null>>())
+	// Videos added after the main one (sources.ts), each one's trim, their
+	// players over the main one, and every URL made for them (released with the
+	// editor: undo can bring a removed one back).
+	const [addedVideos, setAddedVideos] = useState<AddedVideo[]>([])
+	const [sourceTrims, setSourceTrims] = useState<Readonly<Record<string, TrimRange>>>({})
+	const sourceElementsRef = useRef(new Map<string, HTMLVideoElement>())
+	const addedUrlsRef = useRef<string[]>([])
+	const videoInputRef = useRef<HTMLInputElement>(null)
 	const audioInputRef = useRef<HTMLInputElement>(null)
 	const audioAtRef = useRef(0)
 	const annotationTools = useAnnotationTools()
@@ -209,7 +225,9 @@ export function VideoEditor() {
 		transform,
 		color,
 		captionStyle,
-		audioItems
+		audioItems,
+		addedVideos,
+		sourceTrims
 	}
 	const trimDragRef = useRef<{ recorded: boolean } | null>(null)
 	// The filler cut editor: which filler is open and where its handles sit.
@@ -240,7 +258,18 @@ export function VideoEditor() {
 	// How fast the editor plays, for previewing only: never part of the edit,
 	// its history or the export.
 	const [previewRate, setPreviewRate] = useState(1)
-	const editedSegments = playableSegments(sequence, edit, replacements)
+	// Each added video's trim (the whole of it until one is set); no cuts of its own.
+	const sourceEdits: SourceEdits = Object.fromEntries(
+		addedVideos.map((added) => [
+			added.id,
+			{
+				trim: sourceTrims[added.id] ?? { startSeconds: 0, endSeconds: added.durationSeconds },
+				cuts: []
+			}
+		])
+	)
+	const addedUrls = Object.fromEntries(addedVideos.map((added) => [added.id, added.url]))
+	const editedSegments = playableSegments(sequence, edit, replacements, sourceEdits)
 	const editedSeconds = totalSeconds(editedSegments)
 	const overlays: Overlays = {
 		title,
@@ -259,7 +288,8 @@ export function VideoEditor() {
 		overlays,
 		transform,
 		color,
-		laneItems: audioItems
+		laneItems: audioItems,
+		addedUrls
 	})
 	const segments =
 		preview && cutWindow && cutEditor
@@ -284,24 +314,32 @@ export function VideoEditor() {
 					: showOriginal
 						? [{ startSeconds: 0, endSeconds: durationSeconds }]
 						: editedSegments
+	const sourceUrls: SourceUrls = { added: addedUrls, main: video?.url ?? '' }
 	const playback = useSequencePlayback(
 		videoRef,
 		deckRef,
+		sourceElementsRef,
+		sourceUrls,
 		segments,
 		segments === editedSegments ? audioItems : NO_LANE,
 		isPlaying,
 		previewRate,
 		followPlayhead,
-		stopPlaying
+		stopPlaying,
+		() => setIsPlaying(true)
 	)
+	// The video the playhead is in: the timeline shows it, its trim and its time.
+	const timelineSource =
+		segments === editedSegments ? editedSegments[segmentIndex ?? -1]?.source : undefined
+	const timelineVideo = addedVideos.find((added) => added.id === timelineSource) ?? null
 	// Overlays show in the edited view only: not over the original, nor a
 	// cut or take preview, which play other segments.
 	const editedNow =
 		segments === editedSegments
-			? editedSecondsAt(currentTimeSeconds, editedSegments, segmentIndex)
+			? editedSecondsAt(currentTimeSeconds, editedSegments, segmentIndex, timelineSource)
 			: null
 	// Which clip is playing, from the segment: a duplicated clip shares its source times.
-	const editedClips = segmentClips(sequence, edit, replacements)
+	const editedClips = segmentClips(sequence, edit, replacements, sourceEdits)
 	// Only while that segment holds the playhead: an edit (a split) can leave
 	// the index pointing at a segment that has since changed.
 	const playingSegment = segmentIndex === null ? undefined : editedSegments[segmentIndex]
@@ -324,8 +362,8 @@ export function VideoEditor() {
 		segmentIndex !== null &&
 		playingSegment &&
 		isInSegment(currentTimeSeconds, playingSegment)
-			? (editedClips[segmentIndex] ?? clipIndexAt(sequence, currentTimeSeconds))
-			: clipIndexAt(sequence, currentTimeSeconds)
+			? (editedClips[segmentIndex] ?? clipIndexAt(sequence, currentTimeSeconds, timelineSource))
+			: clipIndexAt(sequence, currentTimeSeconds, timelineSource)
 	const hasDissolve = editedSegments.some((s) => s.transition?.kind === 'dissolve')
 	// Through a fade, the picture goes to black (the captions and title stay).
 	const fadeLight = editedNow === null ? 1 : fadeLevelAt(joinsOf(editedSegments), editedNow)
@@ -343,8 +381,19 @@ export function VideoEditor() {
 	// Turned or flipped, the player's own controls would turn too: they're
 	// hidden, and a Play button under the player stands in.
 	const pictureTransformed = !isIdentity(shownTransform)
+	// The player's own controls only play the main video: with more than one,
+	// or turned or flipped, the editor's Play button stands in.
+	const ownControls = pictureTransformed || addedVideos.length > 0
 
 	const videoUrl = video?.url
+	// The added videos' URLs go with the editor.
+	useEffect(
+		() => () => {
+			for (const url of addedUrlsRef.current) URL.revokeObjectURL(url)
+		},
+		[]
+	)
+
 	// An object URL pins the whole file in memory until it's revoked, so each
 	// one is released as soon as it's replaced or the editor unmounts.
 	useEffect(() => {
@@ -374,7 +423,10 @@ export function VideoEditor() {
 		setColor(NEUTRAL_GRADE)
 		setCaptionStyle(DEFAULT_TEXT_STYLE)
 		setAudioItems([])
-		takeSoundRef.current = null
+		soundsRef.current.clear()
+		setAddedVideos([])
+		setSourceTrims({})
+		releaseAddedUrls()
 		setTransformMode(null)
 		setPicture(null)
 		setHistory(emptyHistory())
@@ -413,6 +465,7 @@ export function VideoEditor() {
 	// cut. Not through seek(): that clamps to the range from before this change.
 	function applyTrim(next: TrimRange | null, previewAt: number) {
 		setTrim(next)
+		playback.returnToMain()
 		const element = videoRef.current
 		if (element) {
 			element.pause()
@@ -424,7 +477,7 @@ export function VideoEditor() {
 	function openCutEditor(plan: FillerPlan) {
 		setCutEditor({ plan, range: initialCutRange(plan) })
 		setPreview(null)
-		videoRef.current?.pause()
+		playback.pause()
 		playback.seek(cutEditorWindow(plan.filler, durationSeconds).startSeconds)
 	}
 
@@ -438,6 +491,7 @@ export function VideoEditor() {
 	function playCutPreview(withCut: boolean) {
 		const element = videoRef.current
 		if (!element || !cutWindow) return
+		playback.returnToMain()
 		setPreview({ withCut })
 		element.currentTime = cutWindow.startSeconds
 		setCurrentTimeSeconds(cutWindow.startSeconds)
@@ -446,7 +500,7 @@ export function VideoEditor() {
 
 	function applyFillerCut() {
 		if (!cutEditor) return
-		videoRef.current?.pause()
+		playback.pause()
 		recordEdit()
 		setCuts(mergeCuts([...cuts, cutEditor.range]))
 		setCutEditor(null)
@@ -454,7 +508,7 @@ export function VideoEditor() {
 	}
 
 	function closeCutEditor() {
-		videoRef.current?.pause()
+		playback.pause()
 		setCutEditor(null)
 		setPreview(null)
 	}
@@ -478,7 +532,7 @@ export function VideoEditor() {
 		})
 		setTakePreview(null)
 		setJoinPreview(null)
-		videoRef.current?.pause()
+		playback.pause()
 		playback.seek(sentence.startSeconds)
 	}
 
@@ -526,6 +580,7 @@ export function VideoEditor() {
 	function playJoinPreview(view: SourceRange) {
 		const element = videoRef.current
 		if (!element) return
+		playback.returnToMain()
 		setPreview(null)
 		setTakePreview(null)
 		setJoinPreview(view)
@@ -539,6 +594,7 @@ export function VideoEditor() {
 	function playTakePreview(withTake: boolean) {
 		const element = videoRef.current
 		if (!element || reRecord?.plan.kind !== 'splice') return
+		playback.returnToMain()
 		const start = previewWindow(reRecord.plan, durationSeconds).startSeconds
 		setPreview(null)
 		setJoinPreview(null)
@@ -552,7 +608,7 @@ export function VideoEditor() {
 	function applyReRecord() {
 		const take = reRecord?.take
 		if (!take) return
-		videoRef.current?.pause()
+		playback.pause()
 		recordEdit()
 		setReplacements([...otherReplacements, take])
 		setReRecord(null)
@@ -560,7 +616,7 @@ export function VideoEditor() {
 	}
 
 	function closeReRecord() {
-		videoRef.current?.pause()
+		playback.pause()
 		setReRecord(null)
 		setTakePreview(null)
 		setJoinPreview(null)
@@ -639,6 +695,8 @@ export function VideoEditor() {
 		setColor(step.restore.color)
 		setCaptionStyle(step.restore.captionStyle)
 		setAudioItems(step.restore.audioItems)
+		setAddedVideos(step.restore.addedVideos)
+		setSourceTrims(step.restore.sourceTrims)
 		applyTrim(step.restore.trim, step.restore.trim?.startSeconds ?? 0)
 	}
 
@@ -810,11 +868,16 @@ export function VideoEditor() {
 	/** Clip `index`'s sound out into the lane, where it plays; the clip goes silent. One change. */
 	async function extractClip(index: number) {
 		const clip = sequence[index]
-		if (!clip || !video || extractBlockers[index] !== null) return
-		// Decoded once, the first time: a plain `if` (the React Compiler can't compile `??=`).
-		if (!takeSoundRef.current) takeSoundRef.current = decodeAudio(video.file)
-		const buffer = await takeSoundRef.current
-		const owners = segmentClips(sequence, edit, replacements)
+		const file = clip?.source
+			? addedVideos.find((added) => added.id === clip.source)?.file
+			: video?.file
+		if (!clip || !file || extractBlockers[index] !== null) return
+		// Each video's sound decoded once, the first time it's needed.
+		const key = clip.source ?? ''
+		const decoding = soundsRef.current.get(key) ?? decodeAudio(file)
+		soundsRef.current.set(key, decoding)
+		const buffer = await decoding
+		const owners = segmentClips(sequence, edit, replacements, sourceEdits)
 		const first = owners.indexOf(index)
 		if (!buffer || first < 0) {
 			toast({ variant: 'destructive', title: t('audioLane.noSound') })
@@ -833,6 +896,59 @@ export function VideoEditor() {
 			)
 		])
 		setClips(sequence.map((c, i) => (i === index ? { ...c, soundInLane: true } : c)))
+	}
+
+	// The file picker opens straight from the click (Add video, or Apply on an
+	// add-video command).
+	function pickVideo() {
+		videoInputRef.current?.click()
+	}
+
+	/** Another video into the project, as one clip after the others: one change. */
+	async function addVideo(file: File) {
+		const probed = file.type.startsWith('video/') ? await probeVideo(file) : null
+		if (!probed) {
+			toast({
+				variant: 'destructive',
+				title: t('notAVideo.title'),
+				description: t('notAVideo.description', { name: file.name })
+			})
+			return
+		}
+		addedUrlsRef.current.push(probed.url)
+		const id = crypto.randomUUID()
+		recordEdit()
+		setAddedVideos([...addedVideos, { id, name: file.name, file, ...probed }])
+		setClips([
+			...sequence,
+			{
+				id: crypto.randomUUID(),
+				ranges: [{ startSeconds: 0, endSeconds: probed.durationSeconds }],
+				source: id
+			}
+		])
+	}
+
+	function releaseAddedUrls() {
+		for (const url of addedUrlsRef.current) URL.revokeObjectURL(url)
+		addedUrlsRef.current = []
+	}
+
+	/** An added video's trim edge moved, from the timeline while it shows that video. */
+	function changeSourceTrim(added: AddedVideo, edge: TrimEdge, seconds: number) {
+		const current = sourceTrims[added.id] ?? {
+			startSeconds: 0,
+			endSeconds: added.durationSeconds
+		}
+		const next = moveTrimEdge(current, edge, seconds, added.durationSeconds)
+		if (next.startSeconds === current.startSeconds && next.endSeconds === current.endSeconds) return
+		if (!trimDragRef.current?.recorded) {
+			recordEdit()
+			if (trimDragRef.current) trimDragRef.current.recorded = true
+		}
+		setSourceTrims({ ...sourceTrims, [added.id]: next })
+		playback.pause()
+		playback.seek(edge === 'start' ? next.startSeconds : next.endSeconds, added.id)
 	}
 
 	function changeAudioItem(item: AudioItem) {
@@ -894,7 +1010,10 @@ export function VideoEditor() {
 		editedSeconds,
 		clipCount: sequence.length,
 		canSplitAt: (seconds) => canSplitAt(sequence, seconds, replacements, currentClip),
-		joinLimits: sequence.map((_, index) => joinLimit(sequence, index, edit, replacements) ?? 0),
+		joinLimits: sequence.map(
+			(_, index) => joinLimit(sequence, index, edit, replacements, sourceEdits) ?? 0
+		),
+		canMerge: (from, to) => mergeClips(sequence, from, to) !== sequence,
 		cleanupSeconds: removableSeconds,
 		canUndo: history.past.length > 0,
 		canRedo: history.future.length > 0,
@@ -921,6 +1040,9 @@ export function VideoEditor() {
 				break
 			case 'split':
 				splitAt(plan.seconds)
+				break
+			case 'addVideo':
+				pickVideo()
 				break
 			case 'merge':
 				arrangeClips(mergeClips(sequence, plan.from, plan.to))
@@ -1052,6 +1174,12 @@ export function VideoEditor() {
 						)}
 						<div className="flex gap-2">
 							{hasDuration && <ExportButton exporter={exporter} />}
+							{hasDuration && (
+								<Button type="button" variant="outline" size="sm" onClick={pickVideo}>
+									<PlusIcon />
+									{t('addVideo')}
+								</Button>
+							)}
 							<Button
 								asChild
 								variant="outline"
@@ -1083,7 +1211,7 @@ export function VideoEditor() {
 									key={video.url}
 									ref={videoRef}
 									src={video.url}
-									controls={!pictureTransformed}
+									controls={!ownControls}
 									// One speed control: the preview speed below, not the player's own menu.
 									controlsList="noplaybackrate"
 									playsInline
@@ -1106,6 +1234,26 @@ export function VideoEditor() {
 										setVideo(null)
 									}}
 								/>
+								{/* The added videos' players, over the main one: each shown only while
+								    it plays (use-sequence-playback.ts), fitted into the frame. */}
+								{addedVideos.map((added) => (
+									<video
+										key={added.id}
+										ref={(element) => {
+											if (element) sourceElementsRef.current.set(added.id, element)
+											else sourceElementsRef.current.delete(added.id)
+										}}
+										src={added.url}
+										preload="auto"
+										playsInline
+										aria-hidden
+										tabIndex={-1}
+										data-testid="added-player"
+										data-source={added.id}
+										className="pointer-events-none absolute inset-0 block h-full w-full bg-black opacity-0"
+										style={{ filter: pictureFilter }}
+									/>
+								))}
 								{/* The clip dissolving in, shown only through a dissolve: there only
 								    while the edit has one, so it loads ahead of it. */}
 								{hasDissolve && (
@@ -1118,6 +1266,7 @@ export function VideoEditor() {
 										aria-hidden
 										tabIndex={-1}
 										data-testid="dissolve-player"
+										data-url={video.url}
 										className="pointer-events-none absolute inset-0 block h-full w-full opacity-0"
 										style={{ filter: incomingFilter }}
 									/>
@@ -1131,11 +1280,11 @@ export function VideoEditor() {
 										annotations={annotations}
 										editedSeconds={editedNow}
 										picture={picture}
-										videoRef={videoRef}
+										videoRef={playback.activeRef}
 										toPicture={toPicture}
 										flip={{ x: transform.flipH ? -1 : 1, y: transform.flipV ? -1 : 1 }}
 										tool={transformMode ? null : annotationTools.tool}
-										onPointerStart={() => videoRef.current?.pause()}
+										onPointerStart={() => playback.pause()}
 										onDraw={drawAnnotation}
 										onStroke={(points) => {
 											const item = annotationTools.stroked(
@@ -1197,18 +1346,13 @@ export function VideoEditor() {
 					/>
 					{hasDuration && (
 						<div className="mx-auto flex w-full max-w-3xl items-center justify-end gap-3">
-							{pictureTransformed && (
+							{ownControls && (
 								<Button
 									type="button"
 									variant="outline"
 									size="sm"
 									className="mr-auto"
-									onClick={() => {
-										const element = videoRef.current
-										if (!element) return
-										if (element.paused) void element.play()
-										else element.pause()
-									}}
+									onClick={() => (isPlaying ? playback.pause() : playback.play())}
 								>
 									{isPlaying ? <PauseIcon /> : <PlayIcon />}
 									{isPlaying ? t('pause') : t('play')}
@@ -1236,28 +1380,52 @@ export function VideoEditor() {
 					onReset={resetEdit}
 				/>
 			)}
-			<Timeline
-				clipName={video?.name ?? null}
-				durationSeconds={durationSeconds}
-				currentTimeSeconds={currentTimeSeconds}
-				trim={range}
-				cuts={cuts}
-				replacedSpans={replacedSpans}
-				silences={analysis.silences}
-				fillerPlans={analysis.fillerPlans}
-				audioIssues={analysis.audioIssues}
-				onSeek={playback.seek}
-				onTrimChange={handleTrimChange}
-				onTrimDraggingChange={(dragging) => {
-					trimDragRef.current = dragging ? { recorded: false } : null
-				}}
-				onEditFiller={openCutEditor}
-			/>
+			{timelineVideo ? (
+				// An added video: its own length and trim; the transcript, clean-up and
+				// audio checks are the main video's.
+				<Timeline
+					clipName={timelineVideo.name}
+					durationSeconds={timelineVideo.durationSeconds}
+					currentTimeSeconds={currentTimeSeconds}
+					trim={sourceEdits[timelineVideo.id]?.trim ?? range}
+					cuts={NO_RANGES}
+					replacedSpans={NO_RANGES}
+					silences={NO_RANGES}
+					fillerPlans={NO_FILLERS}
+					audioIssues={NO_ISSUES}
+					onSeek={(seconds) => playback.seek(seconds, timelineVideo.id)}
+					onTrimChange={(edge, seconds) => changeSourceTrim(timelineVideo, edge, seconds)}
+					onTrimDraggingChange={(dragging) => {
+						trimDragRef.current = dragging ? { recorded: false } : null
+					}}
+					onEditFiller={openCutEditor}
+				/>
+			) : (
+				<Timeline
+					clipName={video?.name ?? null}
+					durationSeconds={durationSeconds}
+					currentTimeSeconds={currentTimeSeconds}
+					trim={range}
+					cuts={cuts}
+					replacedSpans={replacedSpans}
+					silences={analysis.silences}
+					fillerPlans={analysis.fillerPlans}
+					audioIssues={analysis.audioIssues}
+					onSeek={(seconds) => playback.seek(seconds)}
+					onTrimChange={handleTrimChange}
+					onTrimDraggingChange={(dragging) => {
+						trimDragRef.current = dragging ? { recorded: false } : null
+					}}
+					onEditFiller={openCutEditor}
+				/>
+			)}
 			{video && hasDuration && (
 				<ClipStrip
 					clips={sequence}
 					edit={edit}
 					replacements={replacements}
+					sourceEdits={sourceEdits}
+					sourceNames={Object.fromEntries(addedVideos.map((added) => [added.id, added.name]))}
 					currentIndex={currentClip}
 					canSplit={canSplitAt(sequence, currentTimeSeconds, replacements, currentClip)}
 					onSplit={() => splitAt(currentTimeSeconds)}
@@ -1279,7 +1447,7 @@ export function VideoEditor() {
 				<TransitionPanel
 					joins={sequence.slice(1).map((_, i) => ({
 						transition: transitionInto(sequence, i + 1),
-						limit: joinLimit(sequence, i + 1, edit, replacements) ?? 0
+						limit: joinLimit(sequence, i + 1, edit, replacements, sourceEdits) ?? 0
 					}))}
 					canEdit={!showOriginal}
 					onChange={changeTransition}
@@ -1362,6 +1530,20 @@ export function VideoEditor() {
 						onCaptionsChange={changeCaptions}
 						captionStyle={captionStyle}
 						onCaptionStyleChange={changeCaptionStyle}
+					/>
+					<input
+						ref={videoInputRef}
+						type="file"
+						accept="video/*"
+						aria-label={t('addVideoInput')}
+						className="sr-only"
+						tabIndex={-1}
+						onChange={(event) => {
+							const file = event.currentTarget.files?.[0]
+							// Cleared so picking the same file again still counts.
+							event.currentTarget.value = ''
+							if (file) void addVideo(file)
+						}}
 					/>
 					<input
 						ref={logoInputRef}

@@ -82,6 +82,7 @@ const ACTIONS = [
 	'add_audio',
 	'extract_audio',
 	'delete_audio',
+	'add_video',
 	'unsupported'
 ] as const
 /** What a color command changes: a level, a look, or back to normal. */
@@ -241,6 +242,8 @@ export type CommandPlan =
 	| { kind: 'extractAudio'; clip: number }
 	/** The lane's audio item `item` (from 1) deleted. */
 	| { kind: 'deleteAudio'; item: number }
+	/** Another video into the project, after the clips: the file picker opens on Apply. */
+	| { kind: 'addVideo' }
 	/** `clip` counts from 1. */
 	| { kind: 'deleteClip'; clip: number }
 	| { kind: 'duplicateClip'; clip: number }
@@ -267,6 +270,7 @@ export type RefusalReason =
 	| 'no_title'
 	| 'no_text'
 	| 'audio_after_end'
+	| 'merge_videos'
 	| 'no_audio'
 	| 'no_such_audio'
 	| `extract_${ExtractBlocker}`
@@ -308,6 +312,8 @@ export type CommandContext = {
 	extractBlockers: (ExtractBlocker | null)[]
 	/** Where the playhead is in the edited video, for "add music here". */
 	playheadSeconds: number
+	/** Whether clips `from` to `to` (indexes) can be one: they must be of one video. */
+	canMerge: (from: number, to: number) => boolean
 	/** The picture's flip, rotation and crop now, and the source picture's size. */
 	transform: PictureTransform
 	picture: Size
@@ -343,7 +349,10 @@ export function commandToPlan(command: EditCommand, context: CommandContext): Co
 		}
 		case 'merge': {
 			const pair = clipPair(command, context)
-			return pair && pair.from < pair.to ? plan({ kind: 'merge', ...pair }) : refuse('no_such_clip')
+			if (!pair || pair.from >= pair.to) return refuse('no_such_clip')
+			return context.canMerge(pair.from, pair.to)
+				? plan({ kind: 'merge', ...pair })
+				: refuse('merge_videos')
 		}
 		case 'move': {
 			if (command.fromClip === null) return refuse('unsupported')
@@ -409,6 +418,8 @@ export function commandToPlan(command: EditCommand, context: CommandContext): Co
 			return colorCommand(command, context)
 		case 'text_style':
 			return textStyleCommand(command, context)
+		case 'add_video':
+			return plan({ kind: 'addVideo' })
 		case 'add_audio': {
 			const seconds = command.startSeconds ?? context.playheadSeconds
 			if (seconds < 0 || seconds >= context.editedSeconds) return refuse('audio_after_end')

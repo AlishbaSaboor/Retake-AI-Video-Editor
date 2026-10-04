@@ -19,6 +19,7 @@ import {
 	type Rect
 } from './annotations'
 import { bandColor, DEFAULT_TEXT_STYLE, fontFamily } from './text-style'
+import { fitRect } from './sources'
 import type { Size } from './transform'
 
 const PERCENT = 100
@@ -96,14 +97,29 @@ function PixelatePatch({
 			const video = videoRef.current
 			const context = canvasRef.current?.getContext('2d')
 			if (video && context && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+				// An added video of another shape is fitted into the frame: read its own pixels there.
+				const fit = fitRect({ width: video.videoWidth, height: video.videoHeight }, picture)
+				const scale = video.videoWidth / fit.width
 				context.imageSmoothingQuality = 'high'
-				context.drawImage(video, x, y, width, height, 0, 0, grid.width, grid.height)
+				context.fillStyle = '#000000'
+				context.fillRect(0, 0, grid.width, grid.height)
+				context.drawImage(
+					video,
+					(x - fit.x) * scale,
+					(y - fit.y) * scale,
+					width * scale,
+					height * scale,
+					0,
+					0,
+					grid.width,
+					grid.height
+				)
 			}
 			frame = requestAnimationFrame(draw)
 		}
 		draw()
 		return () => cancelAnimationFrame(frame)
-	}, [videoRef, x, y, width, height, grid.width, grid.height])
+	}, [videoRef, picture, x, y, width, height, grid.width, grid.height])
 	return (
 		<canvas
 			ref={canvasRef}

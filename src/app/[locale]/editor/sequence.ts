@@ -33,6 +33,8 @@ export type Clip = {
 	color?: ColorGrade
 	/** Its sound was taken out into the Audio lane (audio-lane.ts): the clip itself is silent. */
 	soundInLane?: true
+	/** Which video its ranges are of: an added one's id (sources.ts), absent for the main video. */
+	source?: string
 }
 
 /** The slowest and fastest a clip may play: what the browser keeps sound and pitch for. */
@@ -56,7 +58,8 @@ export function withClipSettings(
 		...(speed !== undefined && speed !== 1 && { speed }),
 		...(clip.transition && { transition: clip.transition }),
 		...(clip.color && !isNeutral(clip.color) && { color: clip.color }),
-		...(clip.soundInLane && { soundInLane: clip.soundInLane })
+		...(clip.soundInLane && { soundInLane: clip.soundInLane }),
+		...(clip.source && { source: clip.source })
 	}
 }
 
@@ -70,6 +73,8 @@ export function withClipColor(clip: Clip, color: ColorGrade): Clip {
 
 /** Whether a re-recorded take plays inside the clip: its speed then can't change. */
 export function clipHasTake(clip: Clip, replacements: readonly Replacement[]): boolean {
+	// Re-recorded takes are the main video's: its transcript's sentences.
+	if (clip.source) return false
 	return replacements.some(({ span }) =>
 		clip.ranges.some(
 			(range) => span.startSeconds < range.endSeconds && span.endSeconds > range.startSeconds
@@ -96,6 +101,19 @@ export type Segment<R extends Replacement = Replacement> = SourceRange & {
 	transition?: SegmentTransition
 	/** Its clip's own color adjustments (the whole video's go on under them); absent when none. */
 	color?: ColorGrade
+	/** Its clip's video: an added one's id, absent for the main video. */
+	source?: string
+}
+
+/** Each added video's trim and cuts, by id; the main video's are the `edit` passed alongside. */
+export type SourceEdits = Readonly<Record<string, Edit>>
+
+/** An added video with no edit of its own plays whole. */
+const WHOLE: Edit = { trim: { startSeconds: 0, endSeconds: Number.POSITIVE_INFINITY }, cuts: [] }
+
+/** Whether two clips or segments are of the same video. */
+export function sameSource(a: { source?: string }, b: { source?: string }): boolean {
+	return (a.source ?? '') === (b.source ?? '')
 }
 
 /** Shortest piece a split may leave on either side, so no clip is a sliver. */
@@ -118,14 +136,19 @@ function findSplit(
 	replacements: readonly Replacement[],
 	preferred: number | null
 ) {
-	if (replacements.some((r) => seconds > r.span.startSeconds && seconds < r.span.endSeconds)) {
+	// A time is in one video: the playing clip's (the main video's when none).
+	const source = { source: preferred === null ? undefined : clips[preferred]?.source }
+	if (
+		!source.source &&
+		replacements.some((r) => seconds > r.span.startSeconds && seconds < r.span.endSeconds)
+	) {
 		return null
 	}
 	// The clip playing first: with a duplicate, the same time is in two clips.
 	const order = [...clips.keys()].sort((a, b) => Number(b === preferred) - Number(a === preferred))
 	for (const clipIndex of order) {
 		const clip = clips[clipIndex]
-		if (!clip) continue
+		if (!clip || !sameSource(clip, source)) continue
 		const rangeIndex = clip.ranges.findIndex(
 			(r) =>
 				seconds - r.startSeconds >= MIN_CLIP_SECONDS && r.endSeconds - seconds >= MIN_CLIP_SECONDS
@@ -177,7 +200,8 @@ export function splitClipAt(
 		...(clip.speed !== undefined && { speed: clip.speed }),
 		...(clip.transition && { transition: clip.transition }),
 		...(clip.color && { color: clip.color }),
-		...(clip.soundInLane && { soundInLane: clip.soundInLane })
+		...(clip.soundInLane && { soundInLane: clip.soundInLane }),
+		...(clip.source && { source: clip.source })
 	}
 	const after: Clip = {
 		id: newId(),
@@ -188,7 +212,8 @@ export function splitClipAt(
 		...(audio && { audio: { ...audio, fadeInSeconds: 0 } }),
 		...(clip.speed !== undefined && { speed: clip.speed }),
 		...(clip.color && { color: clip.color }),
-		...(clip.soundInLane && { soundInLane: clip.soundInLane })
+		...(clip.soundInLane && { soundInLane: clip.soundInLane }),
+		...(clip.source && { source: clip.source })
 	}
 	return [
 		...clips.slice(0, clipIndex),
@@ -287,6 +312,8 @@ export function moveClip(clips: Clip[], from: number, to: number): Clip[] {
 export function mergeClips(clips: Clip[], from: number, to: number): Clip[] {
 	const first = clips[from]
 	if (!first || from >= to || to >= clips.length) return clips
+	// One clip is of one video.
+	if (!clips.slice(from, to + 1).every((clip) => sameSource(clip, first))) return clips
 	const ranges: SourceRange[] = []
 	for (const range of clips.slice(from, to + 1).flatMap((c) => c.ranges)) {
 		const last = ranges.at(-1)
@@ -315,7 +342,8 @@ export function mergeClips(clips: Clip[], from: number, to: number): Clip[] {
 			...(first.transition && { transition: first.transition }),
 			// The first clip's colors: the merged clip has one look.
 			...(first.color && { color: first.color }),
-			...(first.soundInLane && { soundInLane: first.soundInLane })
+			...(first.soundInLane && { soundInLane: first.soundInLane }),
+			...(first.source && { source: first.source })
 		},
 		...(last ? followedBy(clips.slice(to + 1), last.id, first.id) : clips.slice(to + 1))
 	]
@@ -325,13 +353,18 @@ export function mergeClips(clips: Clip[], from: number, to: number): Clip[] {
  * Which clip a source time belongs to: the one with a range containing it,
  * or — at the very end of a range, where playback stops — the one it ends.
  */
-export function clipIndexAt(clips: Clip[], seconds: number): number {
-	const containing = clips.findIndex((c) =>
-		c.ranges.some((r) => seconds >= r.startSeconds && seconds < r.endSeconds)
+export function clipIndexAt(clips: Clip[], seconds: number, source?: string): number {
+	const video = { source }
+	const containing = clips.findIndex(
+		(c) =>
+			sameSource(c, video) &&
+			c.ranges.some((r) => seconds >= r.startSeconds && seconds < r.endSeconds)
 	)
 	if (containing >= 0) return containing
-	return clips.findIndex((c) =>
-		c.ranges.some((r) => Math.abs(seconds - r.endSeconds) < EPSILON_SECONDS)
+	return clips.findIndex(
+		(c) =>
+			sameSource(c, video) &&
+			c.ranges.some((r) => Math.abs(seconds - r.endSeconds) < EPSILON_SECONDS)
 	)
 }
 
@@ -380,9 +413,10 @@ function keptPieces<R extends Replacement>(
 export function playableSegments<R extends Replacement>(
 	clips: Clip[],
 	edit: Edit,
-	replacements: readonly R[] = []
+	replacements: readonly R[] = [],
+	sourceEdits: SourceEdits = {}
 ): Segment<R>[] {
-	const byClip = clipSegments(clips, edit, replacements)
+	const byClip = clipSegments(clips, edit, replacements, sourceEdits)
 	// The transition into each clip, as long as the picture either side allows.
 	for (const [index, segments] of byClip.entries()) {
 		const transition = transitionInto(clips, index)
@@ -405,9 +439,10 @@ export function playableSegments<R extends Replacement>(
 export function segmentClips(
 	clips: Clip[],
 	edit: Edit,
-	replacements: readonly Replacement[] = []
+	replacements: readonly Replacement[] = [],
+	sourceEdits: SourceEdits = {}
 ): number[] {
-	return clipSegments(clips, edit, replacements).flatMap((segments, index) =>
+	return clipSegments(clips, edit, replacements, sourceEdits).flatMap((segments, index) =>
 		segments.map(() => index)
 	)
 }
@@ -421,10 +456,11 @@ export function joinLimit(
 	clips: Clip[],
 	index: number,
 	edit: Edit,
-	replacements: readonly Replacement[] = []
+	replacements: readonly Replacement[] = [],
+	sourceEdits: SourceEdits = {}
 ): number | null {
 	if (index < 1 || index >= clips.length) return null
-	const byClip = clipSegments(clips, edit, replacements)
+	const byClip = clipSegments(clips, edit, replacements, sourceEdits)
 	const before = byClip[index - 1]?.at(-1)
 	const first = byClip[index]?.[0]
 	if (!before || !first || before.voiceOver || first.voiceOver) return 0
@@ -435,10 +471,15 @@ export function joinLimit(
 function clipSegments<R extends Replacement>(
 	clips: Clip[],
 	edit: Edit,
-	replacements: readonly R[]
+	replacements: readonly R[],
+	sourceEdits: SourceEdits
 ): Segment<R>[][] {
 	return clips.map((clip) => {
-		const kept = clip.ranges.flatMap((range) => keptPieces(range, edit, replacements))
+		// An added video's clip: its own trim and cuts, and no takes (they're the main video's).
+		const own = clip.source ? (sourceEdits[clip.source] ?? WHOLE) : edit
+		const kept = clip.ranges.flatMap((range) =>
+			keptPieces(range, own, clip.source ? [] : replacements)
+		)
 		const rate = clip.speed
 		// A take always plays at 1×, its pitch and length as recorded, even if a
 		// merge has put it in a sped clip.
@@ -446,7 +487,8 @@ function clipSegments<R extends Replacement>(
 		const pieces = kept.map((piece) => ({
 			...piece,
 			...(rate !== undefined && rate !== 1 && !piece.voiceOver && { rate }),
-			...(color && { color })
+			...(color && { color }),
+			...(clip.source && { source: clip.source })
 		}))
 		// A clip whose sound is in the Audio lane plays silent, through the same mute.
 		const audio = clip.soundInLane
@@ -505,9 +547,13 @@ export function joinsOf(segments: Segment[]): Join[] {
 export function clipPlayedSeconds(
 	clip: Clip,
 	edit: Edit,
-	replacements: readonly Replacement[] = []
+	replacements: readonly Replacement[] = [],
+	sourceEdits: SourceEdits = {}
 ): number {
-	return playableSegments([clip], edit, replacements).reduce((sum, s) => sum + segmentSeconds(s), 0)
+	return playableSegments([clip], edit, replacements, sourceEdits).reduce(
+		(sum, s) => sum + segmentSeconds(s),
+		0
+	)
 }
 
 /**
@@ -531,12 +577,16 @@ export function isInSegment(seconds: number, segment: SourceRange): boolean {
  */
 export function playbackPosition(
 	seconds: number,
-	segments: SourceRange[]
+	segments: Array<SourceRange & { source?: string }>,
+	source?: string
 ): { index: number; seconds: number } | null {
-	const inside = segments.findIndex((s) => isInSegment(seconds, s))
+	// A time is in one video: `source`'s (the main video's when absent).
+	const video = { source }
+	const inside = segments.findIndex((s) => sameSource(s, video) && isInSegment(seconds, s))
 	if (inside >= 0) return { index: inside, seconds }
 	let next: { index: number; seconds: number } | null = null
 	for (const [index, s] of segments.entries()) {
+		if (!sameSource(s, video)) continue
 		if (s.startSeconds > seconds && (!next || s.startSeconds < next.seconds)) {
 			next = { index, seconds: s.startSeconds }
 		}

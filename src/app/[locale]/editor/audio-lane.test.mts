@@ -166,7 +166,8 @@ const CONTEXT: CommandContext = {
 	textCount: 0,
 	audioCount: 2,
 	extractBlockers: [null, 'sped'],
-	playheadSeconds: 3
+	playheadSeconds: 3,
+	canMerge: () => true
 }
 const run = (fields: Partial<EditCommand> & Pick<EditCommand, 'action'>, context = CONTEXT) =>
 	commandToPlan({ ...NONE, ...fields }, context)

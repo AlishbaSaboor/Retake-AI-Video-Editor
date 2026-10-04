@@ -183,7 +183,8 @@ const CONTEXT: CommandContext = {
 	textCount: 0,
 	audioCount: 0,
 	extractBlockers: [],
-	playheadSeconds: 0
+	playheadSeconds: 0,
+	canMerge: () => true
 }
 const clipSpeed = (rate: number | null, fromClip: number | null, context = CONTEXT) =>
 	commandToPlan({ ...NONE, action: 'clip_speed', rate, fromClip }, context)

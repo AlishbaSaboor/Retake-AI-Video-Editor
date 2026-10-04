@@ -87,19 +87,22 @@ export function watermarkRect(watermark: Watermark, width: number, height: numbe
 export function editedSecondsAt(
 	sourceSeconds: number,
 	segments: Segment[],
-	segmentIndex: number | null = null
+	segmentIndex: number | null = null,
+	/** Which video `sourceSeconds` is in, when `segmentIndex` doesn't say: absent is the main one. */
+	source?: string
 ): number | null {
+	const ofVideo = (s: Segment) => (s.source ?? '') === (source ?? '')
 	const holds = (s: Segment) => sourceSeconds >= s.startSeconds && sourceSeconds <= s.endSeconds
 	const known = segmentIndex === null ? undefined : segments[segmentIndex]
 	const inside = segments.findIndex(
-		(s) => sourceSeconds >= s.startSeconds && sourceSeconds < s.endSeconds
+		(s) => ofVideo(s) && sourceSeconds >= s.startSeconds && sourceSeconds < s.endSeconds
 	)
 	const index =
 		known && holds(known) && segmentIndex !== null
 			? segmentIndex
 			: inside >= 0
 				? inside
-				: segments.findIndex((s) => sourceSeconds === s.endSeconds)
+				: segments.findIndex((s) => ofVideo(s) && sourceSeconds === s.endSeconds)
 	const segment = segments[index]
 	if (!segment) return null
 	const before = editedStarts(segments)[index] ?? 0

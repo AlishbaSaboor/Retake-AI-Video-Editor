@@ -61,7 +61,8 @@
 			"selectionHint": "Click a clip to select it, Shift+click to select a run of clips to merge.",
 			"speed": "{speed}×",
 			"duplicate": "Duplicate",
-			"delete": "Delete"
+			"delete": "Delete",
+			"clipLabelOf": "Clip {number}: plays {duration}, from {source} of {video}"
 		},
 		"transcript": {
 			"title": "Transcript",
@@ -128,7 +129,8 @@
 				"textStyle": "I'll change {target}: {changes}.",
 				"addAudio": "I'll add an audio file at {at} of the edited video. Choose the file next.",
 				"extractAudio": "I'll take clip {number}'s sound out into its own track in the Audio lane; the clip itself goes silent.",
-				"deleteAudio": "I'll delete audio track {number} from the Audio lane."
+				"deleteAudio": "I'll delete audio track {number} from the Audio lane.",
+				"addVideo": "I'll add another video after the clips. Choose the file next."
 			},
 			"failed": "Couldn't run that command",
 			"clipNumber": "clip {number}",
@@ -181,7 +183,8 @@
 				"color": "Change the colors: “make it black and white”, “increase the brightness”, “make clip 2 warmer”",
 				"textStyle": "Style text: “make the title red”, “make the captions bigger”, “use a serif font for the title”",
 				"pencil": "Draw freehand on the video: Pencil, in Annotations, under the clips",
-				"audioLane": "Separate audio: “add music at 0:05”, “extract the audio of clip 2”, “delete the music”"
+				"audioLane": "Separate audio: “add music at 0:05”, “extract the audio of clip 2”, “delete the music”",
+				"addVideo": "Add another video to the project: “add another video”"
 			},
 			"refused": {
 				"no_such_clip": "There's no clip with that number. The Clips strip numbers them from 1.",
@@ -210,7 +213,8 @@
 				"no_such_audio": "There's no audio track with that number. The Audio lane numbers them from 1.",
 				"extract_sped": "That clip is sped up or slowed down. Set it back to 1× to take its sound out.",
 				"extract_take": "That clip has a re-recorded sentence, so its sound can't be taken out as it is.",
-				"extract_already": "That clip's sound is already in the Audio lane."
+				"extract_already": "That clip's sound is already in the Audio lane.",
+				"merge_videos": "Those clips are from different videos, so they can't be one clip."
 			},
 			"out_of_range": {
 				"title": "That range isn't in this clip.",
@@ -523,6 +527,8 @@
 				"description": "{name} couldn’t be read as audio."
 			},
 			"noSound": "This video has no sound to take out."
-		}
+		},
+		"addVideo": "Add video",
+		"addVideoInput": "Video to add"
 	}
 }
