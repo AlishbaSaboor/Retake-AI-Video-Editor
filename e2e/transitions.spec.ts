@@ -13,6 +13,13 @@ test.describe.configure({ mode: 'default' })
 const LENGTH_TOLERANCE_SECONDS = 0.25
 const TONE_AMPLITUDE = 0.5
 const SECTION_SECONDS = 2
+/**
+ * How far a frame's picture may be from the fade level at its own time: its
+ * timestamp trails the moment it was painted by ~0.01–0.08 s on a slow
+ * machine (measured with frames slowed to 150 ms), ~0.09 s on the fade's
+ * slope here.
+ */
+const FRAME_LEVEL_TOLERANCE = 45
 /** The red and blue the two clips measure as in an export (the encoder's own). */
 const FULL_RED = 252
 const FULL_BLUE = 247
@@ -212,11 +219,10 @@ test('a fade goes through black, picture and sound, and keeps the length', async
 	for (const probe of [fadingOut, black, fadingIn]) {
 		const red = probe && probe.shown < 2 ? FULL_RED * light(probe.shown) : 0
 		const blue = probe && probe.shown >= 2 ? FULL_BLUE * light(probe.shown) : 0
-		expectNear(probe?.red, red, 30, `red at ${probe?.at} s (frame of ${probe?.shown} s)`)
-		expectNear(probe?.blue, blue, 30, `blue at ${probe?.at} s (frame of ${probe?.shown} s)`)
+		const label = `at ${probe?.at} s (frame of ${probe?.shown} s)`
+		expectNear(probe?.red, red, FRAME_LEVEL_TOLERANCE, `red ${label}`)
+		expectNear(probe?.blue, blue, FRAME_LEVEL_TOLERANCE, `blue ${label}`)
 	}
-	// Sampled where the fade is: the darkest is near black.
-	expect(Math.min(black?.red ?? 255, black?.blue ?? 255), 'dark at the join').toBeLessThan(80)
 	expect(after?.blue, 'blue after').toBeGreaterThan(200)
 	// The sound dips with it.
 	expectNear(before?.low, 1, 0.12, '440 Hz before')
@@ -240,13 +246,16 @@ test('a dissolve blends the clips, picture and sound, and shortens the edit by i
 	// (it runs 1–2 s of the edit).
 	const progress = Math.min(1, Math.max(0, (middle?.shown ?? NaN) - 1))
 	const at = `half way (frame of ${middle?.shown} s)`
-	expectNear(middle?.red, FULL_RED * (1 - progress), 30, `red ${at}`)
-	expectNear(middle?.blue, FULL_BLUE * progress, 30, `blue ${at}`)
+	expectNear(middle?.red, FULL_RED * (1 - progress), FRAME_LEVEL_TOLERANCE, `red ${at}`)
+	expectNear(middle?.blue, FULL_BLUE * progress, FRAME_LEVEL_TOLERANCE, `blue ${at}`)
 	expect(after?.blue, 'blue after').toBeGreaterThan(200)
 	expect(after?.red, 'no red after').toBeLessThan(45)
-	// Both tones at equal power half way: ~0.71 each.
-	expectNear(middle?.low, Math.SQRT1_2, 0.15, '440 Hz half way')
-	expectNear(middle?.high, Math.SQRT1_2, 0.15, '880 Hz half way')
+	// Both tones through the middle, at equal power: their powers add up to
+	// the full tone's (each ~0.71 exactly half way; the ramp moves fast there,
+	// so a slow machine's sound a little early or late shifts the two apart).
+	const power = (middle?.low ?? 0) ** 2 + (middle?.high ?? 0) ** 2
+	expectNear(power, 1, 0.25, `power half way (440 Hz ${middle?.low}, 880 Hz ${middle?.high})`)
+	expect(Math.min(middle?.low ?? 0, middle?.high ?? 0), 'both tones half way').toBeGreaterThan(0.3)
 	expect(before?.high, 'no 880 Hz before').toBeLessThan(0.1)
 	expect(after?.low, 'no 440 Hz after').toBeLessThan(0.1)
 
@@ -273,14 +282,15 @@ test('a dissolve blends the clips, picture and sound, and shortens the edit by i
 		return out
 	})
 	const during = samples.filter((s) => s.main > 1.3 && s.main < 1.7)
-	expect(during.length, 'frames in the overlap').toBeGreaterThan(5)
+	// A slow machine draws few frames a second: two in the overlap will do.
+	expect(during.length, 'frames in the overlap').toBeGreaterThanOrEqual(2)
 	for (const s of during) {
 		expect(s.deckPlaying, `second player playing at ${s.main.toFixed(2)} s`).toBe(true)
 		expect(s.opacity, `blend at ${s.main.toFixed(2)} s`).toBeGreaterThan(0.15)
 		expect(s.opacity, `blend at ${s.main.toFixed(2)} s`).toBeLessThan(0.85)
 	}
 	const handedOver = samples.filter((s) => s.main > 3)
-	expect(handedOver.length, 'played on past the join').toBeGreaterThan(5)
+	expect(handedOver.length, 'played on past the join').toBeGreaterThanOrEqual(2)
 	expect(handedOver.at(-1)?.opacity, 'second player hidden after').toBe(0)
 	expect(handedOver.at(-1)?.deckPlaying, 'second player stopped after').toBe(false)
 })

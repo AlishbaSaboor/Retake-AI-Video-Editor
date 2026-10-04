@@ -49,6 +49,12 @@ type Exported = {
 	pitch: number[]
 	/** White caption pixels in the frame at each asked time. */
 	captionWhite: number[]
+	/**
+	 * The time of the frame the file shows at each asked time: the last one
+	 * at or before it, which on a slow machine (fewer frames) can be well
+	 * before it. Captions are judged at this time.
+	 */
+	shown: number[]
 }
 
 /** Exports the edit and reads the file: its length, its pitch and its captions at `times`. */
@@ -77,6 +83,10 @@ async function exportAndRead(page: Page, times: number[]): Promise<Exported> {
 				src: URL.createObjectURL(blob),
 				muted: true
 			})
+			// On the page (barely visible), so its frames are presented and
+			// requestVideoFrameCallback reports each one's time.
+			video.style.cssText = 'position:fixed;left:0;top:0;width:32px;height:18px;opacity:0.01'
+			document.body.append(video)
 			const next = (type: string) =>
 				new Promise((resolve) => video.addEventListener(type, resolve, { once: true }))
 			await next('loadedmetadata')
@@ -89,9 +99,15 @@ async function exportAndRead(page: Page, times: number[]): Promise<Exported> {
 			const context = canvas.getContext('2d', { willReadFrequently: true })
 			if (!context) throw new Error('no 2d context')
 			const captionWhite: number[] = []
+			const shown: number[] = []
 			for (const at of times) {
+				const presented = new Promise<number>((resolve) => {
+					video.requestVideoFrameCallback((_, frame) => resolve(frame.mediaTime))
+					setTimeout(() => resolve(Number.NaN), 3000)
+				})
 				video.currentTime = at
 				await next('seeked')
+				shown.push(+(await presented).toFixed(3))
 				context.drawImage(video, 0, 0, 320, 180)
 				const data = context.getImageData(0, rows.from, 320, rows.to - rows.from).data
 				let white = 0
@@ -100,7 +116,7 @@ async function exportAndRead(page: Page, times: number[]): Promise<Exported> {
 				}
 				captionWhite.push(white)
 			}
-			return { seconds: video.duration, pitch, captionWhite }
+			return { seconds: video.duration, pitch, captionWhite, shown }
 		},
 		{ bytes: [...bytes], times, rows: CAPTION_ROWS }
 	)
@@ -234,14 +250,31 @@ test('captions in a sped-up clip keep pace with its words in the export', async 
 	await setSpeed(page, 2, 2)
 	// "Second line." is 2.3–3.1 s of source: at 2× in a clip from 2 s, it
 	// plays 2.15–2.55 s of the 3 s edit (at 1× it would be 2.3–3.1).
-	const times = [0.7, 2.35, 2.8]
+	const times = [0.7, 2.35, 2.8, 2.95]
 	const result = await exportAndRead(page, times)
-	console.log('captions', exported(result))
+	console.log('captions', exported(result), 'frames of', JSON.stringify(result.shown))
 	expectLength(result, 3)
-	const [first, during, after] = result.captionWhite
-	expect(first, 'first caption at 0.7 s').toBeGreaterThan(15)
-	expect(during, 'second caption at 2.35 s').toBeGreaterThan(15)
-	expect(after, 'second caption gone by 2.8 s').toBe(0)
+	expect(result.captionWhite[0], 'first caption at 0.7 s').toBeGreaterThan(15)
+	// Each later frame shows the second caption exactly while its own time is
+	// in 2.15–2.55 s (at 1× it would be 2.3–3.1).
+	const SECOND = { from: 2.15, to: 2.55 }
+	// A frame's timestamp trails the moment it was painted by up to ~0.08 s
+	// on a slow machine: frames that close to the caption's start or end
+	// could show either.
+	const MARGIN = 0.1
+	for (const [index, shown] of result.shown.entries()) {
+		if (index === 0) continue
+		const white = result.captionWhite[index] ?? 0
+		const label = `caption at ${times[index]} s (frame of ${shown} s): ${white} white px`
+		if (shown > SECOND.from + MARGIN && shown < SECOND.to - MARGIN) {
+			expect(white, label).toBeGreaterThan(15)
+		} else if (shown > SECOND.to + MARGIN) {
+			expect(white, label).toBe(0)
+		}
+	}
+	// And it was seen both shown and gone.
+	expect(result.shown.some((s) => s > SECOND.from + MARGIN && s < SECOND.to - MARGIN)).toBe(true)
+	expect(result.shown.some((s) => s > SECOND.to + MARGIN)).toBe(true)
 	expectPitchKept(result, times, 2)
 })
 
