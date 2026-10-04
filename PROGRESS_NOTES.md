@@ -2000,6 +2000,28 @@ failures, all different, none touching the logo: export lengths 0.25 s off
 in time (transform ×3, re-record ×2, projects). All 8 passed when rerun
 together (2 workers). Memory pressure, as in section 4d; not changed.
 
+**CI run 59 (2026-10-04/05): the fades preview test, fixed with measured
+bounds.** `audio.spec.ts`'s fades test failed on CI in all 3 tries, twice
+over (attempt 2 too): it counted the preview's level changes (more than 20)
+and wanted the first under 0.15, but CI set only 16–20, the first at 0.18.
+The editor was right; the test assumed a fast machine. It now logs each
+level with the playing video's time and checks each is the fade's value at
+that time (error under 0.02), plus coverage: first under 0.5 s, last over
+0.6 s, no gap over 0.4 s. Measured locally: error 0 at any speed; at 4× CPU
+throttling (CI's pace, ~22 levels) gaps up to 0.09 s; at 8× (14 levels)
+gaps up to 0.19 s, first as late as 0.16 s, last as early as 0.84 s; 5/5 at
+8×. The same run's `audio-lane.spec.ts` test "the preview plays a lane item from where playback is"
+failed once (two starts logged, not one) and passed on retry: flaky,
+recorded, not changed.
+
+**The sped-clip zoom test sat on a step.** It read a frame at 4.3 s, just
+after a zoom ending at 4.2 s, where the zoom drops from 1.5 to 1. On CI
+that frame was 4.246 s, 0.046 s past the drop, and the export's picture
+lags its timestamps by up to ~70 ms (the same run: 1.13 at 3.604 s, which
+is the zoom at ~3.53 s), so it could have read 1.5. The zoom is now 3.1–3.9
+s and the frames 1, 3.5 and 4.3 s (0.4 s past the drop): 3/3 locally, worst
+error 0.05 of the 0.12 allowed.
+
 ### 4d. Low memory on this machine (observed 2026-10-02)
 
 - The machine has 7.5 GB of RAM. With many apps open (Edge WebView2 apps,

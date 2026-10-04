@@ -111,13 +111,17 @@ test('fades rise and fall in straight lines over their length, in the export and
 	page
 }) => {
 	test.setTimeout(150_000)
-	// The preview's clip level: every target the editor sets on it, logged.
+	// The preview's clip level: every target the editor sets on it, logged with
+	// the playing video's time, which the editor reads in the same tick to set it.
 	await page.addInitScript(() => {
-		const targets: number[] = []
+		const targets: [number, number][] = []
 		const set = AudioParam.prototype.setTargetAtTime
 		AudioParam.prototype.setTargetAtTime = function (value, at, constant) {
-			targets.push(value)
-			document.documentElement.dataset.levelTargets = JSON.stringify(targets.slice(-400))
+			const playing = [...document.querySelectorAll('video')].find((video) => !video.paused)
+			if (playing) {
+				targets.push([playing.currentTime, value])
+				document.documentElement.dataset.levelTargets = JSON.stringify(targets.slice(-400))
+			}
 			return set.call(this, value, at, constant)
 		}
 	})
@@ -136,8 +140,14 @@ test('fades rise and fall in straight lines over their length, in the export and
 		).toBeLessThan(0.1)
 	}
 
-	// The preview: played through the fade in, its level rises through the
-	// same values (logged targets, 0 to 1).
+	// The preview: played through the fade in, each level it sets is the fade's
+	// at the video's time then (a straight line from 0 at 0 s to 1 at 1 s). How
+	// many it sets depends on the machine's frame rate, so that isn't counted;
+	// they must cover the fade, with no long gap. Bounds measured 2026-10-05:
+	// levels exact (error 0) at any speed; with the CPU throttled 4× (about CI's
+	// pace: ~20 levels) gaps up to 0.15 s, at 8× (10–14 levels) up to 0.33 s and
+	// the first level as late as 0.37 s, playback having started before the first
+	// frame, and the last as early as 0.84 s.
 	// Not 0: the very left of the timeline is the trim handle, which a click doesn't seek.
 	await seekTo(page, 0.05)
 	await page.evaluate(() => (document.documentElement.dataset.levelTargets = '[]'))
@@ -147,16 +157,26 @@ test('fades rise and fall in straight lines over their length, in the export and
 		await new Promise((resolve) => setTimeout(resolve, 1300))
 		v.pause()
 	})
-	const targets: number[] = JSON.parse(
+	const targets: [number, number][] = JSON.parse(
 		(await page.evaluate(() => document.documentElement.dataset.levelTargets)) ?? '[]'
 	)
-	expect(targets.length, 'the preview set its level each frame').toBeGreaterThan(20)
-	expect(Math.min(...targets.slice(0, 3)), 'starting near silence').toBeLessThan(0.15)
-	expect(
-		targets.some((t) => t > 0.4 && t < 0.6),
-		'passing half way'
-	).toBe(true)
-	expect(Math.max(...targets), 'reaching full').toBeGreaterThan(0.95)
+	const errors = targets.map(([at, level]) => Math.abs(level - Math.min(1, at)))
+	const fading = targets.filter(([at]) => at < 1).map(([at]) => at)
+	const gaps = fading.slice(1).map((at, i) => at - (fading[i] ?? 0))
+	console.log(
+		'PREVIEW LEVELS',
+		targets.length,
+		'max error',
+		Math.max(...errors).toFixed(4),
+		'largest gap',
+		Math.max(...gaps).toFixed(3),
+		JSON.stringify(targets.slice(0, 6).map(([a, l]) => [+a.toFixed(3), +l.toFixed(3)]))
+	)
+	expect(Math.max(...errors), 'each level the fade at its time').toBeLessThan(0.02)
+	expect(Math.min(...fading), 'from near the start of the fade').toBeLessThan(0.5)
+	expect(Math.max(...fading), 'to near its end').toBeGreaterThan(0.6)
+	expect(Math.max(...gaps), 'no long gap').toBeLessThan(0.4)
+	expect(Math.max(...targets.map(([, level]) => level)), 'reaching full').toBeGreaterThan(0.95)
 })
 
 test('mute, fade and louder work as typed commands, each confirmed first and one undo step', async ({
