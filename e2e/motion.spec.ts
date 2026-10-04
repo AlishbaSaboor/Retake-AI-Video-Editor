@@ -236,21 +236,25 @@ test('a zoom works on the cropped picture and on the edited timeline, past a spe
 		.getByLabel('Speed (×)')
 	await speed.fill('2')
 	await speed.press('Enter')
-	// In edited time: 3.1–3.9 s is inside the sped clip. The zoom drops from 1.5
-	// to 1 at its end, and the export's picture lags its timestamps by up to
-	// ~70 ms (CI run 59: 1.13 at 3.604 s, the zoom of 3.53 s), so the frame after
-	// it is read 0.4 s past the drop, not right at it.
+	// In edited time: 3.1–3.9 s is inside the sped clip.
 	await setZoom(page, 3.1, 3.9, 150)
 	const result = await exportFrames(page, [1, 3.5, 4.3])
 	expect(result.width, 'the 1:1 crop').toBe(result.height)
 	expect(Math.abs(result.seconds - 4.5), `length ${result.seconds}`).toBeLessThan(0.25)
+	// Under load the export drops frames and a frame's picture can be older than
+	// its timestamp: measured up to 0.16 s at 8× CPU throttling, and at least
+	// 0.105 s on CI run 61 (a frame at 4.005 s still at 1.5, the zoom ending at
+	// 3.9 s). So a frame may show the zoom of any time up to 0.25 s before it,
+	// within 0.05 (a pixel of the square is 0.017).
 	for (const frame of result.frames) {
-		const want = expectedZoom(frame.shown, 3.1, 3.9, 1.5)
+		const zooms = Array.from({ length: 26 }, (_, i) =>
+			expectedZoom(frame.shown - i * 0.01, 3.1, 3.9, 1.5)
+		)
 		const got = zoomOf(frame)
-		expect(
-			Math.abs(got - want),
-			`zoom at ${frame.at} s (frame of ${frame.shown}): ${got} for ${want}`
-		).toBeLessThan(0.12)
+		const range = `${Math.min(...zooms).toFixed(2)}–${Math.max(...zooms).toFixed(2)}`
+		const message = `zoom at ${frame.at} s (frame of ${frame.shown}): ${got} for ${range}`
+		expect(got, message).toBeGreaterThan(Math.min(...zooms) - 0.05)
+		expect(got, message).toBeLessThan(Math.max(...zooms) + 0.05)
 		expect(
 			Math.abs(frame.squareCentre - result.width / 2),
 			`centred at ${frame.squareCentre}`

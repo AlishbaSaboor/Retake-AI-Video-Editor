@@ -21,6 +21,8 @@ type Reading = {
 	height: number
 	colors: Array<[number, number, number]>
 	orange: Probe | null
+	/** The time of the frame shown: under load the export drops frames, so not always the one asked for. */
+	shown: number
 	/** White pixels in the middle tenth of the rows: the title's text. */
 	middleWhite: number
 }
@@ -54,8 +56,13 @@ async function exportFrames(page: Page, times: number[], probes: Probe[]): Promi
 			if (!context) throw new Error('no 2d context')
 			const readings = []
 			for (const at of times) {
+				const presented = new Promise<number>((resolve) => {
+					video.requestVideoFrameCallback((_, frame) => resolve(frame.mediaTime))
+					setTimeout(() => resolve(at), 3000)
+				})
 				video.currentTime = at
 				await next('seeked')
+				const shown = await presented
 				context.drawImage(video, 0, 0, width, height)
 				const data = context.getImageData(0, 0, width, height).data
 				const colors = probes.map(({ x, y }) => {
@@ -94,6 +101,7 @@ async function exportFrames(page: Page, times: number[], probes: Probe[]): Promi
 					height,
 					colors,
 					orange: n ? { x: sx / n / width, y: sy / n / height } : null,
+					shown,
 					middleWhite
 				})
 			}
@@ -145,6 +153,14 @@ const isRed = ([r, g, b]: [number, number, number]) => r > 200 && g < 70 && b < 
 const isBackground = ([r, g, b]: [number, number, number]) => r < 50 && g < 70 && b > 30 && b < 90
 const isBlack = ([r, g, b]: [number, number, number]) => r < 12 && g < 12 && b < 12
 
+/**
+ * The square's centre down a flipped, quarter-turned frame, moved to where it
+ * was at 1.5 s. There it rises 80 px a second, so an export frame shown early
+ * (under load: 1.38 s for 1.5 s, measured at 4× CPU throttling) has it lower.
+ */
+const orangeYAt1_5 = (reading: Reading) =>
+	(reading.orange?.y ?? 1) - ((1.5 - reading.shown) * 80) / reading.height
+
 /** Drags across the picture between two points given as fractions of the output frame. */
 async function dragOnFrame(page: Page, from: [number, number], to: [number, number]) {
 	const frame = page.getByTestId('output-frame')
@@ -185,33 +201,33 @@ test('flip, a quarter turn and a crop move the picture, its pinned box and nothi
 	// At 1.5 s the square spans source x 140–200, y 60–120. Flipped: x 120–180;
 	// turned: output x 60–120, y 120–180. Unflipped it would be at y 140–200.
 	// The red box (source x 16–96, y 9–50): flipped x 224–304, turned: output
-	// x 130–171, y 224–304.
+	// x 130–171, y 224–304. Pixels are read at the square's centre, which holds
+	// for 0.375 s either way, since under load the export's frame for 1.5 s can
+	// be ~0.2 s early (CI run 61); its position is compared moved back to 1.5 s.
 	await seekTo(page, 1.5)
 	const preview = await previewOrange(page)
 	const [quarter] = await exportFrames(
 		page,
 		[1.5],
 		[
-			{ x: 90, y: 130 },
-			{ x: 90, y: 195 },
+			{ x: 90, y: 150 },
 			{ x: 150, y: 264 },
-			{ x: 40, y: 264 },
-			{ x: 90, y: 160 }
+			{ x: 40, y: 264 }
 		]
 	)
 	if (!quarter) throw new Error('no frame')
 	expect([quarter.width, quarter.height]).toEqual([180, 320])
-	const [square, unflipped, red, besideRed] = quarter.colors
+	const [square, red, besideRed] = quarter.colors
 	expect(isOrange(square ?? [0, 0, 0]), `square, flipped and turned ${square}`).toBe(true)
-	expect(isBackground(unflipped ?? [0, 0, 0]), `not where it would be unflipped ${unflipped}`).toBe(
-		true
-	)
+	// Measured 145–151 at 1× and 4× CPU throttling: under 10 px is half way to 170.
+	const squareY = orangeYAt1_5(quarter) * 320
+	expect(Math.abs(squareY - 150), `centred at y ${squareY}, not 170 as unflipped`).toBeLessThan(10)
 	expect(isRed(red ?? [0, 0, 0]), `the pinned box turned with the picture ${red}`).toBe(true)
 	expect(isBackground(besideRed ?? [0, 0, 0]), `beside the box ${besideRed}`).toBe(true)
 	// The preview shows the square in the same place in the frame.
 	expect(preview).not.toBeNull()
 	expect(Math.abs((preview?.x ?? 0) - (quarter.orange?.x ?? 1))).toBeLessThan(0.04)
-	expect(Math.abs((preview?.y ?? 0) - (quarter.orange?.y ?? 1))).toBeLessThan(0.04)
+	expect(Math.abs((preview?.y ?? 0) - orangeYAt1_5(quarter))).toBeLessThan(0.04)
 
 	// A 1:1 crop of the 180×320 frame: 180×180 from y 70. The square (y
 	// 120–180) is now at y 50–110.
@@ -236,7 +252,7 @@ test('flip, a quarter turn and a crop move the picture, its pinned box and nothi
 		true
 	)
 	expect(Math.abs((croppedPreview?.x ?? 0) - (square1.orange?.x ?? 1))).toBeLessThan(0.04)
-	expect(Math.abs((croppedPreview?.y ?? 0) - (square1.orange?.y ?? 1))).toBeLessThan(0.04)
+	expect(Math.abs((croppedPreview?.y ?? 0) - orangeYAt1_5(square1))).toBeLessThan(0.04)
 
 	// The title belongs to the frame: in the turned, cropped output its text
 	// runs across the middle, sized to that frame. (Added only now: its band
