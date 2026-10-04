@@ -15,17 +15,17 @@ Always commit `.claude-logs/` with your changes.
 
 `.claude-logs/` is tracked, not gitignored — the transcript for the session
 that produced a change belongs on the branch that ships it. On this project
-it's committed once, at the end of a work session, separately from the code
-(see Standing rules below).
+it's committed after each finished feature, in the same push as the code,
+as a commit of its own (see Standing rules below).
 
 ## Standing rules
 
 - Once a task is finished and every check passes, commit and push on your
   own. Stop and ask if anything fails or is destructive.
-- Commit code once per finished feature. Commit the session logs only at
-  the end of a work session (when the owner says they're stopping), as a
-  separate commit, after the secret scan; follow section 4e of
-  `PROGRESS_NOTES.md`.
+- Commit code once per finished feature. After each finished feature,
+  refresh the session logs and commit them too, as a separate commit after
+  the code commit, after the secret scan, and push both together; follow
+  section 4e of `PROGRESS_NOTES.md`.
 - Zero API cost unless the owner approves it.
 - Verify audio/video work for real, against the actual output, not just
   that it compiles.

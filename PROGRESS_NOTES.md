@@ -1799,6 +1799,17 @@ more full runs: 48/48 (2.4 GB free) and 48/48 (2.5 GB free). Watch it.
   `multi-video.spec.ts` passed first time.
 - **Local full runs for saved projects (2026-10-04):** 65/65, then 64/65
   (`transform.spec.ts:160`, watched); recorded and carried on.
+- **Run #56 (`02386cd`, saved projects): red on its first attempt, green on
+  a re-run.** First attempt: `audio.spec.ts:110` (fades) failed all three
+  tries in its preview half: the preview set its level 17–20 times in 1.3 s
+  (the test wants over 20) and its first levels started at 0.22 (wants
+  under 0.15): the runner drew fewer frames; the export half measured right
+  every time. Not this commit: the same preview measured locally, 4× each,
+  68–70 frames on it and 66–69 on the commit before. The failed job re-run
+  (attempt 2): green, the fades test passed; 2 flaky (passed on retry):
+  `transform.spec.ts:160` (watched) and `audio-lane.spec.ts:271` (the lane
+  preview: now watched too). **Watch the fades test's preview half on CI:**
+  if it misses again, it's a slow-runner frame count.
 
 **Measured 2026-10-04, picture transforms work: two more watched misses.**
 In four full runs after the feature was finished (2.3–2.7 GB free), two
@@ -2013,18 +2024,22 @@ Not yet queued by the user:
   passes; stop and ask if anything fails or is destructive** (user's rule,
   2026-10-03, also in `CLAUDE.md`). One commit per finished piece of work
   (e.g. all of undo/redo), not per step.
-- **Code once per finished feature; session logs only at the end of a
-  work session** (user's rule, 2026-10-03, also in `CLAUDE.md`), when the
-  user says they're stopping, as a separate commit, after the secret scan;
-  commit the logs exactly as the script wrote them (section 4e).
-  - One `feat(...)` commit per feature (Conventional Commits), pushed.
-  - At the end of the session, run `python3 ~/.claude/extract-log.py` to
-    refresh `.claude-logs/`.
+- **Code once per finished feature; the session logs with every feature**
+  (user's rule, 2026-10-04, replacing "logs only when the user says they're
+  stopping"; also in `CLAUDE.md`): after each finished feature, refresh the
+  logs, run the secret scan, and commit them as a separate commit after the
+  code commit, pushed in the same push. Commit the logs exactly as the
+  script wrote them (section 4e).
+  - One `feat(...)` commit per feature (Conventional Commits), then the
+    `chore(logs): …` commit, then one push (one CI run).
+  - Refresh `.claude-logs/` with `python3 ~/.claude/extract-log.py` (it
+    writes the session modified last: the current one).
   - Leak-check it with: `grep -rhoE 'sb_secret_[A-Za-z0-9_-]{10,}|sb_publishable_[A-Za-z0-9_-]{10,}|eyJhbGciOi[A-Za-z0-9_.-]{20,}|AIza[0-9A-Za-z_-]{35}' .claude-logs/`.
     A bare pattern grep matches the log's own text describing the grep;
     that's a false positive.
-  - Commit with `chore(logs): update session log for …`, then push to
-    `origin/main`.
+  - Also run `node scripts/check-secrets.mjs --all`.
+  - Commit with `chore(logs): update session log for …`, in the same push
+    as the feature.
   - End commit messages with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
   - Git author is "Alishba Saboor".
 - **After each push, check that commit's GitHub Actions run and wait for
