@@ -83,7 +83,7 @@
 			"confirm": {
 				"plan": "I'll keep {start}–{end} ({kept} s) and remove the rest of the clip ({removed} s).",
 				"title": "I'll show the title “{text}” from {start} to {end} of the edited video.",
-				"watermarkNew": "I'll put your logo in the {corner} corner for the whole video. Choose the PNG next.",
+				"watermarkNew": "I'll put your logo in the {corner} corner for the whole video. Choose the image next.",
 				"watermarkMove": "I'll move the watermark to the {corner} corner.",
 				"captionsOn": "I'll turn captions on, from the transcript.",
 				"captionsOff": "I'll turn captions off.",
@@ -313,7 +313,10 @@
 				"bottom-left": "Bottom left",
 				"bottom-right": "Bottom right"
 			},
-			"addLogo": "Add logo (PNG)",
+			"addLogo": "Add logo (PNG or JPG)",
+			"logoSize": "Logo size (%)",
+			"logoBox": "Logo: drag to move it, drag its corner to resize it; arrow keys move it, + and − resize it",
+			"logoHint": "Drag the logo on the video to place it anywhere, and its corner to resize it.",
 			"replaceLogo": "Replace logo",
 			"removeWatermark": "Remove watermark",
 			"captions": "Captions",
@@ -321,8 +324,8 @@
 			"logoInput": "Logo image",
 			"watermarkAlt": "Watermark",
 			"notAPng": {
-				"title": "That isn't a PNG",
-				"description": "{name} can't be used as a watermark. Choose a PNG image."
+				"title": "That isn't a PNG or JPG",
+				"description": "{name} can't be used as a watermark. Choose a PNG or JPG image."
 			},
 			"captionStyle": "Caption style",
 			"titleStyle": "Title style",

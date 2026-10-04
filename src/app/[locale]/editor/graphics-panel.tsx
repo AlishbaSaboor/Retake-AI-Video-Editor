@@ -5,7 +5,15 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { CORNERS, type Corner, type TitleCard, type Watermark } from './overlays'
+import {
+	CORNERS,
+	WATERMARK_WIDTH_FRACTION,
+	type Corner,
+	type TitleCard,
+	type Watermark
+} from './overlays'
+import { MAX_LOGO_SIZE, MIN_LOGO_SIZE, resizedLogo } from './logo'
+import type { Size } from './transform'
 import { DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
 import { TextStyleFields } from './text-style-fields'
 import { AnimationFields } from './motion-panels'
@@ -14,14 +22,19 @@ import type { LowerThird } from './motion'
 /** A new title's stretch, before the user sets one: the first 3 seconds. */
 const NEW_TITLE = { startSeconds: 0, durationSeconds: 3 }
 const SECONDS_STEP = 0.1
+const PERCENT = 100
 
 type GraphicsPanelProps = {
 	title: TitleCard | null
 	watermark: Watermark | null
 	onTitleChange: (title: TitleCard | null) => void
-	/** Asks for a PNG, to go in `corner`. */
+	/** Asks for a PNG or JPG, to go in `corner`. */
 	onPickLogo: (corner: Corner) => void
 	onCornerChange: (corner: Corner) => void
+	/** The logo resized from its size field. */
+	onLogoChange: (watermark: Watermark) => void
+	/** The output frame's size, which the logo's size is a fraction of. */
+	frame: Size
 	onRemoveWatermark: () => void
 	captionsOn: boolean
 	onCaptionsChange: (on: boolean) => void
@@ -43,6 +56,8 @@ export function GraphicsPanel({
 	onTitleChange,
 	onPickLogo,
 	onCornerChange,
+	onLogoChange,
+	frame,
 	onRemoveWatermark,
 	captionsOn,
 	onCaptionsChange,
@@ -159,8 +174,8 @@ export function GraphicsPanel({
 							key={option}
 							type="button"
 							size="sm"
-							variant={option === corner ? 'secondary' : 'ghost'}
-							aria-pressed={option === corner}
+							variant={option === corner && !watermark?.at ? 'secondary' : 'ghost'}
+							aria-pressed={option === corner && !watermark?.at}
 							onClick={() => (watermark ? onCornerChange(option) : setNewCorner(option))}
 						>
 							{t(`corners.${option}`)}
@@ -175,8 +190,67 @@ export function GraphicsPanel({
 						{t('removeWatermark')}
 					</Button>
 				)}
+				{watermark && (
+					<LogoSizeField
+						key={watermark.size ?? WATERMARK_WIDTH_FRACTION}
+						watermark={watermark}
+						frame={frame}
+						onChange={onLogoChange}
+					/>
+				)}
 			</div>
+			{watermark && <p className="text-text-muted -mt-2 text-xs">{t('logoHint')}</p>}
 		</section>
+	)
+}
+
+/**
+ * The logo's width, as a percentage of the frame's, typed: one change on
+ * Enter or leaving the field. Render with a `key` that follows the size, so
+ * a drag or an undo resets what's typed.
+ */
+function LogoSizeField({
+	watermark,
+	frame,
+	onChange
+}: {
+	watermark: Watermark
+	frame: Size
+	onChange: (watermark: Watermark) => void
+}) {
+	const t = useTranslations('Editor.graphics')
+	const id = useId()
+	const size = watermark.size ?? WATERMARK_WIDTH_FRACTION
+	const [typed, setTyped] = useState(String(Math.round(size * PERCENT)))
+
+	function commit() {
+		const percent = Number.parseFloat(typed)
+		if (!Number.isFinite(percent)) return setTyped(String(Math.round(size * PERCENT)))
+		const next = resizedLogo(watermark, frame, percent / PERCENT)
+		if (next.size === size) return setTyped(String(Math.round(size * PERCENT)))
+		onChange(next)
+	}
+
+	return (
+		<form
+			className="flex w-28 flex-col gap-1"
+			onSubmit={(event) => {
+				event.preventDefault()
+				commit()
+			}}
+		>
+			<Label htmlFor={`${id}-logo-size`}>{t('logoSize')}</Label>
+			<Input
+				id={`${id}-logo-size`}
+				type="number"
+				min={MIN_LOGO_SIZE * PERCENT}
+				max={MAX_LOGO_SIZE * PERCENT}
+				step={1}
+				value={typed}
+				onChange={(event) => setTyped(event.target.value)}
+				onBlur={commit}
+			/>
+		</form>
 	)
 }
 
