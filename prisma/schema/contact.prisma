@@ -1,0 +1,14 @@
+// Messages sent from the Contact us page, kept in this project's own
+// database: nothing is emailed or sent to an outside service. Read them with
+// Prisma Studio or the sql-preview skill. Anyone can send one, signed in or
+// not, so no user is attached.
+model ContactMessage {
+	id        String   @id @default(cuid())
+	name      String
+	email     String
+	message   String
+	createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+	@@index([createdAt])
+	@@map("contact_messages")
+}

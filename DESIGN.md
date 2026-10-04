@@ -57,12 +57,29 @@ component that uses it. This template ships a neutral starter set:
 | `--filler`                                 | —                        | filler-word flags on the timeline (silences use `--warning`)    |
 | `--radius-sm` / `--radius` / `--radius-lg` | 6px / 10px / 16px        | never hardcode a `border-radius` outside these                  |
 
-**Retake is dark-only.** The starter values above were the template's light
-set; Retake replaced them with the editor mockup's dark palette (obsidian
-surfaces, indigo `--accent`, cyan `--accent-secondary`) and dropped the
-template's `prefers-color-scheme` swap — see `globals.css` for the live
-values. Adding a light theme later means reintroducing a second value set
-(e.g. under `:root.light`), not renaming tokens.
+**Retake has two schemes, dark by default, and one accent.** The live values
+are in `globals.css`: dark on `:root` (graphite surfaces, an electric-lime
+`--accent` with dark ink on it), light under `:root[data-theme='light']`
+(warm off-white surfaces, a deep lime `--accent` with white ink, so accent
+text still reads on white). `--accent-soft` is the accent at ~10% for
+selected and highlighted surfaces; `--accent-secondary` is now a tint of the
+same hue, not a second colour. The switch in the top bar sets `data-theme` and
+remembers it in `localStorage` (`retake-theme`); a script in `<head>`
+(`src/lib/theme.ts`) applies it before first paint. Body text meets WCAG AA
+in both (checked 2026-10-05: text-faint 4.6:1 or better, accent on white
+4.8:1, success 5.6:1). Anything drawn on the video itself (handles, the
+letterbox, crop shade) stays black/white in both schemes: it sits on footage,
+not on the page.
+
+**Type:** Geist for the interface (`font-sans`), Space Grotesk for headings
+(`font-display`), Geist Mono for timecodes and labels (`font-mono`), all from
+`next/font` (`layout.tsx`), self-hosted at build.
+
+**Shared pieces:** `src/components/site/` (top bar, footer, logo, page
+heading), `src/components/theme-toggle.tsx`, and the `ui/` foundation.
+Buttons are `rounded-lg`, primary is the accent with `font-semibold`;
+cards and panels are `bg-surface`, `border-border`, `rounded-lg`; inputs are
+`bg-surface-inset`.
 
 ## 3. Component conventions
 
