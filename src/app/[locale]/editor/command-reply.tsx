@@ -38,9 +38,17 @@ const COMMAND_ABILITIES = [
 	'audio',
 	'clipSpeed',
 	'transitions',
-	'deleteDuplicate'
+	'deleteDuplicate',
+	'color',
+	'textStyle'
 ] as const
-const EDITOR_ABILITIES = ['fillerCut', 'compare', 'annotations', 'transformByHand'] as const
+const EDITOR_ABILITIES = [
+	'fillerCut',
+	'compare',
+	'annotations',
+	'transformByHand',
+	'pencil'
+] as const
 
 /**
  * The bar's answer to a parsed command: the plan to confirm, or — when the
@@ -127,6 +135,35 @@ export function CommandReply({
 					which
 				})
 				return plan.shortened ? `${added} ${t('confirm.transitionShortened')}` : added
+			}
+			case 'color': {
+				const which = plan.clip === null ? t('everyClip') : t('clipNumber', { number: plan.clip })
+				const { change } = plan
+				if (change.kind === 'normal') return t('confirm.colorNormal', { which })
+				if (change.kind === 'look') {
+					return t('confirm.colorLook', { which, look: t(`looks.${change.look}`) })
+				}
+				return t('confirm.colorLevel', {
+					which,
+					level: t(`levels.${change.level}`),
+					percent: change.percent
+				})
+			}
+			case 'textStyle': {
+				const { changes } = plan
+				const parts = [
+					changes.color && t('styleParts.color', { color: changes.color }),
+					changes.background === null
+						? t('styleParts.noBackground')
+						: changes.background && t('styleParts.background', { color: changes.background }),
+					changes.font && t('styleParts.font', { font: t(`fonts.${changes.font}`) }),
+					changes.size !== undefined &&
+						t('styleParts.size', { percent: Math.round(changes.size * 100) })
+				].filter((part): part is string => typeof part === 'string')
+				return t('confirm.textStyle', {
+					target: t(`textTargets.${plan.target}`),
+					changes: parts.join(', ')
+				})
 			}
 			case 'deleteClip':
 				return t('confirm.deleteClip', { number: plan.clip })

@@ -23,6 +23,7 @@ import {
 	transitionInto,
 	type Clip
 } from './sequence'
+import { NEUTRAL_GRADE } from './color-grade'
 import { IDENTITY_TRANSFORM } from './transform'
 import {
 	crossfadeGains,
@@ -238,7 +239,12 @@ const NONE: Omit<EditCommand, 'action'> = {
 	axis: null,
 	aspect: null,
 	percent: null,
-	seconds: null
+	seconds: null,
+	property: null,
+	target: null,
+	color: null,
+	background: null,
+	font: null
 }
 const CONTEXT: CommandContext = {
 	durationSeconds: 12,
@@ -254,7 +260,10 @@ const CONTEXT: CommandContext = {
 	picture: { width: 320, height: 180 },
 	clipAudio: [DEFAULT_CLIP_AUDIO, DEFAULT_CLIP_AUDIO, DEFAULT_CLIP_AUDIO],
 	clipTakes: [false, false, false],
-	joinLimits: [0, 2, 0.5]
+	joinLimits: [0, 2, 0.5],
+	colors: { video: NEUTRAL_GRADE, clips: [undefined, undefined, undefined] },
+	hasTitle: false,
+	textCount: 0
 }
 const run = (fields: Partial<EditCommand> & Pick<EditCommand, 'action'>, context = CONTEXT) =>
 	commandToPlan({ ...NONE, ...fields }, context)

@@ -7,13 +7,13 @@ import {
 	CAPTION_FONT_FRACTION,
 	CAPTION_LINE_SCALE,
 	CAPTION_PADDING_SCALE,
-	TITLE_BAND_COLOR,
 	TITLE_BAND_SCALE,
 	TITLE_FONT_FRACTION,
 	titleShownAt,
 	watermarkRect,
 	type Overlays
 } from './overlays'
+import { bandColor, DEFAULT_TEXT_STYLE, fontFamily } from './text-style'
 
 const PERCENT = 100
 
@@ -34,18 +34,21 @@ type OverlayPreviewProps = {
  */
 export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPreviewProps) {
 	const t = useTranslations('Editor.graphics')
-	const { title, watermark, captions } = overlays
+	const { title, watermark, captions, captionStyle } = overlays
 	const caption = captionAt(captions, editedSeconds)
+	const titleStyle = title?.style ?? DEFAULT_TEXT_STYLE
 	const logo = watermark && watermarkRect(watermark, frame.width, frame.height)
 	return (
 		<div className="pointer-events-none absolute inset-0" style={{ containerType: 'size' }}>
 			{title && titleShownAt(title, editedSeconds) && (
 				<div
-					className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center font-sans font-bold text-white"
+					className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center font-bold"
 					style={{
-						height: `${TITLE_FONT_FRACTION * TITLE_BAND_SCALE * PERCENT}cqmin`,
-						fontSize: `${TITLE_FONT_FRACTION * PERCENT}cqmin`,
-						background: TITLE_BAND_COLOR
+						height: `${TITLE_FONT_FRACTION * TITLE_BAND_SCALE * titleStyle.size * PERCENT}cqmin`,
+						fontSize: `${TITLE_FONT_FRACTION * titleStyle.size * PERCENT}cqmin`,
+						background: titleStyle.background ? bandColor(titleStyle.background) : 'none',
+						color: titleStyle.color,
+						fontFamily: fontFamily(titleStyle.font)
 					}}
 				>
 					{title.text}
@@ -53,18 +56,20 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 			)}
 			{caption && (
 				<div
-					className="absolute inset-x-0 flex flex-col items-center font-sans font-bold text-white"
+					className="absolute inset-x-0 flex flex-col items-center font-bold"
 					style={{
 						bottom: `${CAPTION_BOTTOM_FRACTION * PERCENT}cqh`,
-						fontSize: `${CAPTION_FONT_FRACTION * PERCENT}cqmin`,
-						lineHeight: CAPTION_LINE_SCALE
+						fontSize: `${CAPTION_FONT_FRACTION * captionStyle.size * PERCENT}cqmin`,
+						lineHeight: CAPTION_LINE_SCALE,
+						color: captionStyle.color,
+						fontFamily: fontFamily(captionStyle.font)
 					}}
 				>
 					{caption.lines.map((line, index) => (
 						<span
 							key={index}
 							style={{
-								background: TITLE_BAND_COLOR,
+								background: captionStyle.background ? bandColor(captionStyle.background) : 'none',
 								padding: `0 ${CAPTION_PADDING_SCALE}em`
 							}}
 						>

@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CORNERS, type Corner, type TitleCard, type Watermark } from './overlays'
+import { DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
+import { TextStyleFields } from './text-style-fields'
 
 /** A new title's stretch, before the user sets one: the first 3 seconds. */
 const NEW_TITLE = { startSeconds: 0, durationSeconds: 3 }
@@ -21,6 +23,8 @@ type GraphicsPanelProps = {
 	onRemoveWatermark: () => void
 	captionsOn: boolean
 	onCaptionsChange: (on: boolean) => void
+	captionStyle: TextStyle
+	onCaptionStyleChange: (style: TextStyle) => void
 }
 
 /**
@@ -37,7 +41,9 @@ export function GraphicsPanel({
 	onCornerChange,
 	onRemoveWatermark,
 	captionsOn,
-	onCaptionsChange
+	onCaptionsChange,
+	captionStyle,
+	onCaptionStyleChange
 }: GraphicsPanelProps) {
 	const t = useTranslations('Editor.graphics')
 	const id = useId()
@@ -64,6 +70,12 @@ export function GraphicsPanel({
 				</Button>
 				<span className="text-text-muted text-xs">{t('captionsHint')}</span>
 			</div>
+			<TextStyleFields
+				key={JSON.stringify(captionStyle)}
+				label={t('captionStyle')}
+				style={captionStyle}
+				onChange={onCaptionStyleChange}
+			/>
 			<form
 				className="flex flex-wrap items-end gap-3"
 				onSubmit={(event) => {
@@ -113,6 +125,14 @@ export function GraphicsPanel({
 				)}
 			</form>
 			<p className="text-text-muted -mt-2 text-xs">{t('titleHint')}</p>
+			{title && (
+				<TextStyleFields
+					key={JSON.stringify(title.style ?? DEFAULT_TEXT_STYLE)}
+					label={t('titleStyle')}
+					style={title.style ?? DEFAULT_TEXT_STYLE}
+					onChange={(style) => onTitleChange({ ...title, style })}
+				/>
+			)}
 			<div className="flex flex-wrap items-center gap-3">
 				<div role="group" aria-label={t('corner')} className="flex flex-wrap gap-1">
 					{CORNERS.map((option) => (

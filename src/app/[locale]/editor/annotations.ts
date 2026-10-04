@@ -1,3 +1,5 @@
+import type { TextStyle } from './text-style'
+
 // The annotation layer: filled boxes, blur boxes and text laid over the
 // edited video, each shown for its own stretch of the edited timeline. Part
 // of the edit like the title card (one undo step per change, cleared by
@@ -6,7 +8,7 @@
 // the export at the video's own resolution. An item stays where it is put:
 // nothing here follows what moves in the video.
 
-export const ANNOTATION_KINDS = ['box', 'blur', 'pixelate', 'text'] as const
+export const ANNOTATION_KINDS = ['box', 'blur', 'pixelate', 'text', 'pencil'] as const
 /** The kinds that hide what's under them by sampling the picture. */
 export type ObscureKind = 'blur' | 'pixelate'
 export type AnnotationKind = (typeof ANNOTATION_KINDS)[number]
@@ -17,11 +19,19 @@ export type Rect = { x: number; y: number; width: number; height: number }
 /** When an item shows, in seconds of the edited video. */
 export type Span = { startSeconds: number; endSeconds: number }
 
+/** A point on the picture, as fractions; in a pencil stroke, as fractions of its rect. */
+export type Point = { x: number; y: number }
+
+/**
+ * A pencil stroke's points are kept as fractions of its rect, so moving or
+ * resizing the rect moves or stretches the stroke with it.
+ */
 export type Annotation = Span & { id: string; rect: Rect } & (
 		| { kind: 'box'; color: string }
 		| { kind: 'blur' }
 		| { kind: 'pixelate' }
-		| { kind: 'text'; text: string }
+		| { kind: 'text'; text: string; style?: TextStyle }
+		| { kind: 'pencil'; color: string; points: Point[] }
 	)
 
 // Omit over each kind of item separately: over the union as a whole it
@@ -46,6 +56,42 @@ export const PIXELATE_BLOCK_FRACTION = 1 / 30
 /** Text height, as a fraction of its box's height: the band keeps a margin above and below. */
 export const TEXT_HEIGHT_FRACTION = 0.6
 export const DEFAULT_BOX_COLOR = '#000000'
+/** A pencil line's width, as a fraction of the picture's width: one width for every stroke. */
+export const PENCIL_WIDTH_FRACTION = 0.006
+
+/**
+ * A stroke drawn through `points` (fractions of the picture) as what an
+ * annotation keeps: the rect around it, with room for the line's width, and
+ * the points as fractions of that rect. Null for a stroke too short to keep.
+ */
+export function strokeAnnotation(
+	points: Point[],
+	picture: { width: number; height: number }
+): { rect: Rect; points: Point[] } | null {
+	if (points.length < 2) return null
+	const xs = points.map((p) => p.x)
+	const ys = points.map((p) => p.y)
+	const padX = PENCIL_WIDTH_FRACTION
+	const padY = (PENCIL_WIDTH_FRACTION * picture.width) / picture.height
+	const left = clamp(Math.min(...xs) - padX, 0, 1)
+	const top = clamp(Math.min(...ys) - padY, 0, 1)
+	const right = clamp(Math.max(...xs) + padX, 0, 1)
+	const bottom = clamp(Math.max(...ys) + padY, 0, 1)
+	const rect = { x: left, y: top, width: right - left, height: bottom - top }
+	if (
+		Math.max(...xs) - Math.min(...xs) < MIN_ANNOTATION_SIZE &&
+		Math.max(...ys) - Math.min(...ys) < MIN_ANNOTATION_SIZE
+	) {
+		return null
+	}
+	return {
+		rect,
+		points: points.map((p) => ({
+			x: rect.width > 0 ? (p.x - rect.x) / rect.width : 0,
+			y: rect.height > 0 ? (p.y - rect.y) / rect.height : 0
+		}))
+	}
+}
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 

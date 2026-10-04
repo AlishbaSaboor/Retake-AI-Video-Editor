@@ -19,6 +19,7 @@ import {
 	withClipSettings,
 	type Clip
 } from './sequence'
+import { NEUTRAL_GRADE } from './color-grade'
 import { IDENTITY_TRANSFORM } from './transform'
 
 const near = (actual: number | null | undefined, expected: number) =>
@@ -155,7 +156,12 @@ const NONE: Omit<EditCommand, 'action'> = {
 	axis: null,
 	aspect: null,
 	percent: null,
-	seconds: null
+	seconds: null,
+	property: null,
+	target: null,
+	color: null,
+	background: null,
+	font: null
 }
 const CONTEXT: CommandContext = {
 	durationSeconds: 60,
@@ -171,7 +177,10 @@ const CONTEXT: CommandContext = {
 	picture: { width: 320, height: 180 },
 	clipAudio: [DEFAULT_CLIP_AUDIO, DEFAULT_CLIP_AUDIO, DEFAULT_CLIP_AUDIO],
 	clipTakes: [false, false, false],
-	joinLimits: [0, 1, 1]
+	joinLimits: [0, 1, 1],
+	colors: { video: NEUTRAL_GRADE, clips: [undefined, undefined, undefined] },
+	hasTitle: false,
+	textCount: 0
 }
 const clipSpeed = (rate: number | null, fromClip: number | null, context = CONTEXT) =>
 	commandToPlan({ ...NONE, action: 'clip_speed', rate, fromClip }, context)

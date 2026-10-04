@@ -27,7 +27,12 @@ const UNSUPPORTED: EditCommand = {
 	axis: null,
 	aspect: null,
 	percent: null,
-	seconds: null
+	seconds: null,
+	property: null,
+	target: null,
+	color: null,
+	background: null,
+	font: null
 }
 
 // Gemini and Deepgram both answer 429 (rate-limited) or 503 (overloaded)
@@ -56,9 +61,15 @@ function systemInstruction(durationSeconds: number, clipCount: number): string {
 		'speed: preview rate only, no clip named ("play at 2x": 2). rerecord: the sentence at startSeconds.',
 		'clip_speed: how fast clips really play, rate 0.25 to 4, fromClip (null: every clip)',
 		'("make clip 2 play at 2x", "slow the last clip to half speed", "speed the whole video up 1.5x").',
-		'fade_transition (through black), dissolve (cross-fade), remove_transition: between clips',
-		'fromClip and toClip, seconds long (all null: every pair of clips).',
+		'Between clips fromClip and toClip, seconds long (all null: every pair): fade_transition',
+		'("a fade between clips", through black), dissolve (a dissolve or cross-fade), remove_transition.',
 		'delete_clip, duplicate_clip: fromClip.',
+		'color: property brightness, contrast or saturation with percent the change (more: 20,',
+		'less: -20), or property black_and_white, warm, cool, or normal (colors back to normal);',
+		'fromClip (null: whole video).',
+		'text_style: target title, captions or text (the on-video text); color and background as',
+		'a color name or #rrggbb (background "none" removes it), font sans, serif, mono or',
+		'handwriting, percent size (normal 100, bigger 150, smaller 75).',
 		'title: text (the exact words) shown startSeconds to endSeconds ("the first 3 seconds": 0, 3).',
 		'watermark: a logo in corner top-left, top-right, bottom-left or bottom-right.',
 		'captions_on, captions_off (or subtitles).',
