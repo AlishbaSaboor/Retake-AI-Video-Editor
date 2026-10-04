@@ -1,6 +1,18 @@
 import { z } from 'zod'
 import { regionRect, REGIONS, type NewAnnotation, type Region } from './annotations'
 import { clampVolume, DEFAULT_FADE_SECONDS, VOLUME_STEP, type ClipAudio } from './clip-audio'
+import {
+	clampLevel,
+	isNeutral,
+	LEVEL_STEP,
+	LEVELS,
+	LOOKS,
+	NEUTRAL_GRADE,
+	type ColorGrade,
+	type Level,
+	type Look
+} from './color-grade'
+import { clampTextSize, FONTS, toHexColor, type TextStyle } from './text-style'
 import { CORNERS, type Corner, type TitleCard } from './overlays'
 import { PREVIEW_RATES } from './preview-speed'
 import { MAX_CLIP_SPEED, MIN_CLIP_SPEED } from './sequence'
@@ -64,8 +76,15 @@ const ACTIONS = [
 	'remove_transition',
 	'delete_clip',
 	'duplicate_clip',
+	'color',
+	'text_style',
 	'unsupported'
 ] as const
+/** What a color command changes: a level, a look, or back to normal. */
+const COLOR_PROPERTIES = [...LEVELS, ...LOOKS.filter((look) => look !== 'none'), 'normal'] as const
+/** What a text-style command styles: the title, the captions, or every annotation text. */
+export const TEXT_TARGETS = ['title', 'captions', 'text'] as const
+export type TextTarget = (typeof TEXT_TARGETS)[number]
 const FLIP_AXES = ['horizontal', 'vertical'] as const
 /** "Flip it" with no axis named mirrors left and right. */
 const DEFAULT_FLIP_AXIS = 'horizontal'
@@ -78,24 +97,35 @@ export type TransformChange =
 	| { kind: 'flip'; axis: (typeof FLIP_AXES)[number] }
 	| { kind: 'crop'; aspect: (typeof COMMAND_ASPECTS)[number] }
 
+/** A field left out reads as null, as an unused one is sent: the parse doesn't hang on it. */
+const orNull = <T>(value: T | null | undefined): T | null => value ?? null
+
 export const editCommandSchema = z.object({
 	action: z.enum(ACTIONS),
-	startSeconds: z.number().nullable(),
-	endSeconds: z.number().nullable(),
-	text: z.string().nullable(),
-	corner: z.enum(CORNERS).nullable(),
-	fromClip: z.number().nullable(),
-	toClip: z.number().nullable(),
-	rate: z.number().nullable(),
-	region: z.enum(REGIONS).nullable(),
+	startSeconds: z.number().nullish().transform(orNull),
+	endSeconds: z.number().nullish().transform(orNull),
+	text: z.string().nullish().transform(orNull),
+	corner: z.enum(CORNERS).nullish().transform(orNull),
+	fromClip: z.number().nullish().transform(orNull),
+	toClip: z.number().nullish().transform(orNull),
+	rate: z.number().nullish().transform(orNull),
+	region: z.enum(REGIONS).nullish().transform(orNull),
 	/** How far to turn the picture, clockwise; negative is anticlockwise. */
-	degrees: z.number().nullable(),
-	axis: z.enum(FLIP_AXES).nullable(),
-	aspect: z.enum(COMMAND_ASPECTS).nullable(),
+	degrees: z.number().nullish().transform(orNull),
+	axis: z.enum(FLIP_AXES).nullish().transform(orNull),
+	aspect: z.enum(COMMAND_ASPECTS).nullish().transform(orNull),
 	/** A clip's volume, in percent. */
-	percent: z.number().nullable(),
+	percent: z.number().nullish().transform(orNull),
 	/** A fade's length. */
-	seconds: z.number().nullable()
+	seconds: z.number().nullish().transform(orNull),
+	/** A color command's level or look. */
+	property: z.enum(COLOR_PROPERTIES).nullish().transform(orNull),
+	/** What a text-style command styles. */
+	target: z.enum(TEXT_TARGETS).nullish().transform(orNull),
+	/** Text color and band color, #rrggbb; background "none" takes the band off. */
+	color: z.string().nullish().transform(orNull),
+	background: z.string().nullish().transform(orNull),
+	font: z.enum(FONTS).nullish().transform(orNull)
 })
 export type EditCommand = z.infer<typeof editCommandSchema>
 
@@ -121,8 +151,18 @@ export const EDIT_COMMAND_JSON_SCHEMA = {
 		axis: { type: ['string', 'null'] },
 		aspect: { type: ['string', 'null'] },
 		percent: NULLABLE_NUMBER,
-		seconds: NULLABLE_NUMBER
+		seconds: NULLABLE_NUMBER,
+		// Named in the prompt and checked by the schema above, as corners are.
+		property: { type: ['string', 'null'] },
+		target: { type: ['string', 'null'] },
+		color: { type: ['string', 'null'] },
+		background: { type: ['string', 'null'] },
+		font: { type: ['string', 'null'] }
 	},
+	// Every field, null when unused. Tried 2026-10-04 with only the action
+	// required: half the cost (output ~23 tokens, not ~143), but Gemini then
+	// skipped fields it needed ("make clip 2 warmer" lost its clip, "reduce the
+	// contrast a lot" its amount). PROGRESS_NOTES.md section 3o.
 	required: [
 		'action',
 		'startSeconds',
@@ -137,7 +177,12 @@ export const EDIT_COMMAND_JSON_SCHEMA = {
 		'axis',
 		'aspect',
 		'percent',
-		'seconds'
+		'seconds',
+		'property',
+		'target',
+		'color',
+		'background',
+		'font'
 	]
 }
 
@@ -182,6 +227,10 @@ export type CommandPlan =
 			pair: { from: number; to: number } | null
 			shortened: boolean
 	  }
+	/** The adjustments for the whole video (clip null) or one clip (from 1), after the change. */
+	| { kind: 'color'; clip: number | null; grade: ColorGrade; change: ColorChange }
+	/** The style changes for the title, the captions or every annotation text. */
+	| { kind: 'textStyle'; target: TextTarget; changes: Partial<TextStyle> }
 	/** `clip` counts from 1. */
 	| { kind: 'deleteClip'; clip: number }
 	| { kind: 'duplicateClip'; clip: number }
@@ -204,6 +253,9 @@ export type RefusalReason =
 	| 'no_join'
 	| 'transition_blocked'
 	| 'only_clip'
+	| 'colors_already_normal'
+	| 'no_title'
+	| 'no_text'
 	| 'no_sentence'
 	| 'nothing_to_export'
 	| 'nothing_to_uncrop'
@@ -231,6 +283,11 @@ export type CommandContext = {
 	clipTakes: boolean[]
 	/** Per clip, how long a transition into it from the clip before can be (0: none). */
 	joinLimits: number[]
+	/** The whole video's color adjustments and each clip's own. */
+	colors: { video: ColorGrade; clips: (ColorGrade | undefined)[] }
+	hasTitle: boolean
+	/** How many annotation texts there are. */
+	textCount: number
 	/** The picture's flip, rotation and crop now, and the source picture's size. */
 	transform: PictureTransform
 	picture: Size
@@ -328,6 +385,10 @@ export function commandToPlan(command: EditCommand, context: CommandContext): Co
 		case 'dissolve':
 		case 'remove_transition':
 			return transitionCommand(command, context)
+		case 'color':
+			return colorCommand(command, context)
+		case 'text_style':
+			return textStyleCommand(command, context)
 		case 'delete_clip':
 		case 'duplicate_clip': {
 			const clip = command.fromClip
@@ -500,6 +561,73 @@ function clipSpeedCommand(command: EditCommand, context: CommandContext): Comman
 	return context.clipTakes[named - 1]
 		? refuse('speed_with_take')
 		: plan({ kind: 'clipSpeed', clip: named, speed, skipsTakes: false })
+}
+
+/** What a color command changed, for its confirmation. `percent` is the level after it. */
+export type ColorChange =
+	| { kind: 'level'; level: Level; percent: number }
+	| { kind: 'look'; look: Look }
+	| { kind: 'normal' }
+
+const isLevel = (property: string): property is Level => LEVELS.some((level) => level === property)
+const isLook = (property: string): property is Look => LOOKS.some((look) => look === property)
+
+/**
+ * Brightness, contrast or saturation up or down by `percent` points (20 if
+ * none), a look, or back to normal, for one clip or the whole video.
+ */
+function colorCommand(command: EditCommand, context: CommandContext): CommandOutcome {
+	const { property } = command
+	if (property === null) return refuse('unsupported')
+	const clip = command.fromClip
+	if (clip !== null && (!Number.isInteger(clip) || clip < 1 || clip > context.clipCount)) {
+		return refuse('no_such_clip')
+	}
+	const current =
+		clip === null ? context.colors.video : (context.colors.clips[clip - 1] ?? NEUTRAL_GRADE)
+	const planned = (grade: ColorGrade, change: ColorChange) =>
+		plan({ kind: 'color', clip, grade, change })
+	if (property === 'normal') {
+		return isNeutral(current)
+			? refuse('colors_already_normal')
+			: planned(NEUTRAL_GRADE, { kind: 'normal' })
+	}
+	if (isLevel(property)) {
+		const step = command.percent === null ? LEVEL_STEP : command.percent / PERCENT
+		const level = clampLevel(current[property] + step)
+		return planned(
+			{ ...current, [property]: level },
+			{ kind: 'level', level: property, percent: Math.round(level * PERCENT) }
+		)
+	}
+	return isLook(property)
+		? planned({ ...current, look: property }, { kind: 'look', look: property })
+		: refuse('unsupported')
+}
+
+/**
+ * The title's, the captions' or every annotation text's color, background
+ * (or none), font or size (percent of normal). Only what the command names
+ * changes; a color that's neither #rrggbb nor a name it knows is left out.
+ */
+function textStyleCommand(command: EditCommand, context: CommandContext): CommandOutcome {
+	const { target } = command
+	if (target === null) return refuse('unsupported')
+	if (target === 'title' && !context.hasTitle) return refuse('no_title')
+	if (target === 'text' && context.textCount === 0) return refuse('no_text')
+	const changes: Partial<TextStyle> = {}
+	const color = command.color && toHexColor(command.color)
+	if (color) changes.color = color
+	const background = command.background && toHexColor(command.background)
+	if (command.background === 'none') changes.background = null
+	else if (background) changes.background = background
+	if (command.font) changes.font = command.font
+	if (command.percent !== null && command.percent > 0) {
+		changes.size = clampTextSize(command.percent / PERCENT)
+	}
+	return Object.keys(changes).length === 0
+		? refuse('unsupported')
+		: plan({ kind: 'textStyle', target, changes })
 }
 
 /**

@@ -126,6 +126,11 @@ export const editCommand = (
 	aspect: null,
 	percent: null,
 	seconds: null,
+	property: null,
+	target: null,
+	color: null,
+	background: null,
+	font: null,
 	...fields
 })
 

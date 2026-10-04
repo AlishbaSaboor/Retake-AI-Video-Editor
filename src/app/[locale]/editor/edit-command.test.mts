@@ -7,6 +7,7 @@ import {
 	type CommandContext,
 	type EditCommand
 } from './edit-command'
+import { NEUTRAL_GRADE } from './color-grade'
 import { IDENTITY_TRANSFORM, outputSize } from './transform'
 import { DEFAULT_CLIP_AUDIO } from './clip-audio'
 
@@ -23,7 +24,12 @@ const NONE = {
 	axis: null,
 	aspect: null,
 	percent: null,
-	seconds: null
+	seconds: null,
+	property: null,
+	target: null,
+	color: null,
+	background: null,
+	font: null
 }
 const SENTENCE = { startSeconds: 25.2, endSeconds: 27, text: 'Let me add a video here.' }
 /** A three-clip edit with something to clean up and to undo, but nothing to redo. */
@@ -46,7 +52,10 @@ const CONTEXT: CommandContext = {
 	picture: { width: 320, height: 180 },
 	clipAudio: [DEFAULT_CLIP_AUDIO, DEFAULT_CLIP_AUDIO, DEFAULT_CLIP_AUDIO],
 	clipTakes: [false, false, false],
-	joinLimits: [0, 1, 1]
+	joinLimits: [0, 1, 1],
+	colors: { video: NEUTRAL_GRADE, clips: [undefined, undefined, undefined] },
+	hasTitle: false,
+	textCount: 0
 }
 const trim = (startSeconds: number | null, endSeconds: number | null): EditCommand => ({
 	...NONE,

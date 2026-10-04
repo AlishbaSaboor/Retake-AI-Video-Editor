@@ -1,6 +1,7 @@
 import {
 	annotationsAt,
 	obscureGridSize,
+	PENCIL_WIDTH_FRACTION,
 	TEXT_HEIGHT_FRACTION,
 	toPixels,
 	type Annotation,
@@ -8,6 +9,7 @@ import {
 } from './annotations'
 import { captionAt, type Caption } from './captions'
 import { editedStarts, type Segment } from './sequence'
+import { bandColor, canvasFont, DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
 import { outputSize, pictureMatrix, type PictureTransform, type Size } from './transform'
 
 // Motion graphics, v1: one title card, one watermark and captions, laid over the
@@ -20,8 +22,13 @@ import { outputSize, pictureMatrix, type PictureTransform, type Size } from './t
 export const CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const
 export type Corner = (typeof CORNERS)[number]
 
-/** Text shown from `startSeconds` for `durationSeconds` of the edited video. */
-export type TitleCard = { text: string; startSeconds: number; durationSeconds: number }
+/** Text shown from `startSeconds` for `durationSeconds` of the edited video; `style` absent is the default look. */
+export type TitleCard = {
+	text: string
+	startSeconds: number
+	durationSeconds: number
+	style?: TextStyle
+}
 
 /** A PNG logo, as a data URL, kept in one corner for the whole video. */
 export type Watermark = { image: string; aspect: number; corner: Corner }
@@ -31,6 +38,7 @@ export type Overlays = {
 	title: TitleCard | null
 	watermark: Watermark | null
 	captions: Caption[]
+	captionStyle: TextStyle
 	annotations: Annotation[]
 }
 
@@ -141,7 +149,8 @@ function drawObscured(
 	pixels: { x: number; y: number; width: number; height: number },
 	pictureWidth: number,
 	kind: ObscureKind,
-	scratch: HTMLCanvasElement
+	scratch: HTMLCanvasElement,
+	filter: string | null
 ) {
 	const grid = obscureGridSize(pixels, pictureWidth, kind)
 	if (scratch.width !== grid.width) scratch.width = grid.width
@@ -164,6 +173,9 @@ function drawObscured(
 	// is left at a costlier setting.
 	context.imageSmoothingEnabled = kind === 'blur'
 	context.imageSmoothingQuality = 'low'
+	// Graded as the picture is: a color matrix and an average commute, so
+	// grading the averaged patch is grading what it averages.
+	if (filter) context.filter = filter
 	context.drawImage(
 		scratch,
 		0,
@@ -175,6 +187,7 @@ function drawObscured(
 		pixels.width,
 		pixels.height
 	)
+	context.filter = 'none'
 	context.imageSmoothingEnabled = true
 }
 
@@ -190,17 +203,26 @@ function drawAnnotations(
 	source: CanvasImageSource,
 	picture: Size,
 	transform: PictureTransform,
-	scratch: HTMLCanvasElement
+	scratch: HTMLCanvasElement,
+	filter: string | null
 ) {
 	for (const item of annotationsAt(annotations, seconds)) {
 		const pixels = toPixels(item.rect, picture.width, picture.height)
 		if (item.kind === 'blur' || item.kind === 'pixelate') {
-			drawObscured(context, source, pixels, picture.width, item.kind, scratch)
+			drawObscured(context, source, pixels, picture.width, item.kind, scratch, filter)
 			continue
 		}
-		context.fillStyle = item.kind === 'box' ? item.color : TITLE_BAND_COLOR
-		context.fillRect(pixels.x, pixels.y, pixels.width, pixels.height)
-		if (item.kind === 'text') {
+		if (item.kind === 'pencil') {
+			drawStroke(context, item.points, pixels, item.color, picture.width)
+			continue
+		}
+		const style = item.kind === 'text' ? (item.style ?? DEFAULT_TEXT_STYLE) : null
+		if (item.kind === 'box' || style?.background) {
+			context.fillStyle =
+				item.kind === 'box' ? item.color : bandColor(style?.background ?? '#000000')
+			context.fillRect(pixels.x, pixels.y, pixels.width, pixels.height)
+		}
+		if (item.kind === 'text' && style) {
 			// Clipped to its band, as the preview's overflow is.
 			context.save()
 			context.beginPath()
@@ -208,21 +230,50 @@ function drawAnnotations(
 			context.clip()
 			context.translate(pixels.x + pixels.width / 2, pixels.y + pixels.height / 2)
 			context.scale(transform.flipH ? -1 : 1, transform.flipV ? -1 : 1)
-			context.font = `bold ${Math.round(pixels.height * TEXT_HEIGHT_FRACTION)}px sans-serif`
+			context.font = canvasFont(style, pixels.height * TEXT_HEIGHT_FRACTION * style.size)
 			context.textAlign = 'center'
 			context.textBaseline = 'middle'
-			context.fillStyle = '#ffffff'
+			context.fillStyle = style.color
 			context.fillText(item.text, 0, 0)
 			context.restore()
 		}
 	}
 }
 
+/** A pencil stroke: round-capped, one width for every stroke, through its points in `pixels`. */
+function drawStroke(
+	context: CanvasRenderingContext2D,
+	points: { x: number; y: number }[],
+	pixels: { x: number; y: number; width: number; height: number },
+	color: string,
+	pictureWidth: number
+) {
+	context.beginPath()
+	for (const [index, point] of points.entries()) {
+		const x = pixels.x + point.x * pixels.width
+		const y = pixels.y + point.y * pixels.height
+		if (index === 0) context.moveTo(x, y)
+		else context.lineTo(x, y)
+	}
+	context.lineWidth = PENCIL_WIDTH_FRACTION * pictureWidth
+	context.lineCap = 'round'
+	context.lineJoin = 'round'
+	context.strokeStyle = color
+	context.stroke()
+}
+
 /**
  * Mid-transition: the clip dissolving in over the picture, how far (0 to 1),
- * and how much of the picture comes through a fade (1 all, 0 black).
+ * and how much of the picture comes through a fade (1 all, 0 black); and
+ * each clip's color grade, as a canvas filter (null: none).
  */
-export type FrameMix = { incoming: CanvasImageSource | null; incomingAlpha: number; light: number }
+export type FrameMix = {
+	incoming: CanvasImageSource | null
+	incomingAlpha: number
+	light: number
+	filter?: string | null
+	incomingFilter?: string | null
+}
 const NO_MIX: FrameMix = { incoming: null, incomingAlpha: 0, light: 1 }
 const HALF = 0.5
 
@@ -256,16 +307,30 @@ export function drawFrame(
 	context.fillStyle = '#000000'
 	context.fillRect(0, 0, width, height)
 	context.setTransform(m.a, m.b, m.c, m.d, m.e, m.f)
+	const { incoming, incomingAlpha, light, filter = null, incomingFilter = null } = mix
+	// The grade only where there is one: an ungraded frame costs nothing extra.
+	if (filter) context.filter = filter
 	context.drawImage(source, 0, 0, picture.width, picture.height)
-	const { incoming, incomingAlpha, light } = mix
+	context.filter = 'none'
 	if (incoming && incomingAlpha > 0) {
 		context.globalAlpha = Math.min(1, incomingAlpha)
+		if (incomingFilter) context.filter = incomingFilter
 		context.drawImage(incoming, 0, 0, picture.width, picture.height)
+		context.filter = 'none'
 		context.globalAlpha = 1
 	}
-	// A blur samples whichever clip shows most.
-	const sampled = incoming && incomingAlpha > HALF ? incoming : source
-	drawAnnotations(context, overlays.annotations, seconds, sampled, picture, transform, scratch)
+	// A blur samples whichever clip shows most, graded as that clip is.
+	const incomingShows = incoming !== null && incomingAlpha > HALF
+	drawAnnotations(
+		context,
+		overlays.annotations,
+		seconds,
+		incomingShows && incoming ? incoming : source,
+		picture,
+		transform,
+		scratch,
+		incomingShows ? incomingFilter : filter
+	)
 	context.setTransform(1, 0, 0, 1, 0, 0)
 	if (light < 1) {
 		context.fillStyle = `rgba(0, 0, 0, ${1 - Math.max(0, light)})`
@@ -287,34 +352,39 @@ function drawFrameOverlays(
 ) {
 	const { width, height } = context.canvas
 	const shorter = Math.min(width, height)
-	const { title, watermark, captions } = overlays
+	const { title, watermark, captions, captionStyle } = overlays
 	const caption = captionAt(captions, seconds)
 	if (caption) {
-		const fontPixels = Math.round(shorter * CAPTION_FONT_FRACTION)
+		const fontPixels = Math.round(shorter * CAPTION_FONT_FRACTION * captionStyle.size)
 		const lineHeight = fontPixels * CAPTION_LINE_SCALE
 		const padding = fontPixels * CAPTION_PADDING_SCALE
-		context.font = `bold ${fontPixels}px sans-serif`
+		context.font = canvasFont(captionStyle, fontPixels)
 		context.textAlign = 'center'
 		context.textBaseline = 'middle'
 		const bottom = height * (1 - CAPTION_BOTTOM_FRACTION)
 		for (const [index, line] of caption.lines.entries()) {
 			const middle = bottom - (caption.lines.length - index - 0.5) * lineHeight
 			const lineWidth = context.measureText(line).width + padding * 2
-			context.fillStyle = TITLE_BAND_COLOR
-			context.fillRect((width - lineWidth) / 2, middle - lineHeight / 2, lineWidth, lineHeight)
-			context.fillStyle = '#ffffff'
+			if (captionStyle.background) {
+				context.fillStyle = bandColor(captionStyle.background)
+				context.fillRect((width - lineWidth) / 2, middle - lineHeight / 2, lineWidth, lineHeight)
+			}
+			context.fillStyle = captionStyle.color
 			context.fillText(line, width / 2, middle)
 		}
 	}
 	if (title && titleShownAt(title, seconds)) {
-		const fontPixels = Math.round(shorter * TITLE_FONT_FRACTION)
+		const style = title.style ?? DEFAULT_TEXT_STYLE
+		const fontPixels = Math.round(shorter * TITLE_FONT_FRACTION * style.size)
 		const band = fontPixels * TITLE_BAND_SCALE
-		context.fillStyle = TITLE_BAND_COLOR
-		context.fillRect(0, (height - band) / 2, width, band)
-		context.font = `bold ${fontPixels}px sans-serif`
+		if (style.background) {
+			context.fillStyle = bandColor(style.background)
+			context.fillRect(0, (height - band) / 2, width, band)
+		}
+		context.font = canvasFont(style, fontPixels)
 		context.textAlign = 'center'
 		context.textBaseline = 'middle'
-		context.fillStyle = '#ffffff'
+		context.fillStyle = style.color
 		context.fillText(title.text, width / 2, height / 2, width * TITLE_MAX_WIDTH_FRACTION)
 	}
 	if (watermark && logo) {

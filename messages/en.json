@@ -121,7 +121,11 @@
 				"transitionShortened": "Where the clips either side are short, it plays shorter.",
 				"removeTransition": "I'll take the transition off between {which}: a plain cut.",
 				"deleteClip": "I'll delete clip {number}: its part of the video won't play. Undo brings it back.",
-				"duplicateClip": "I'll duplicate clip {number}, with its sound and speed, and put the copy right after it."
+				"duplicateClip": "I'll duplicate clip {number}, with its sound and speed, and put the copy right after it.",
+				"colorLevel": "I'll set the {level} of {which} to {percent}%.",
+				"colorLook": "I'll make {which} {look}.",
+				"colorNormal": "I'll put the colors of {which} back to normal.",
+				"textStyle": "I'll change {target}: {changes}."
 			},
 			"failed": "Couldn't run that command",
 			"clipNumber": "clip {number}",
@@ -170,7 +174,10 @@
 				"transformByHand": "Drag a crop box or a rotation handle on the video: Picture, under the clips",
 				"clipSpeed": "Make a clip really play faster or slower: “make clip 2 play at 2x”, “slow the last clip to half speed”",
 				"transitions": "Add a transition between clips: “add a fade between clips 1 and 2”, “dissolve between all clips”",
-				"deleteDuplicate": "Delete or duplicate a clip: “delete clip 3”, “duplicate the first clip”"
+				"deleteDuplicate": "Delete or duplicate a clip: “delete clip 3”, “duplicate the first clip”",
+				"color": "Change the colors: “make it black and white”, “increase the brightness”, “make clip 2 warmer”",
+				"textStyle": "Style text: “make the title red”, “make the captions bigger”, “use a serif font for the title”",
+				"pencil": "Draw freehand on the video: Pencil, in Annotations, under the clips"
 			},
 			"refused": {
 				"no_such_clip": "There's no clip with that number. The Clips strip numbers them from 1.",
@@ -190,14 +197,45 @@
 				"not_adjacent": "A transition goes between two clips side by side, like clips 1 and 2.",
 				"no_join": "There's only one clip, so there's no join for a transition. Split it first.",
 				"transition_blocked": "There's a re-recorded sentence or a very short clip at that join, so a transition can't go there.",
-				"only_clip": "That's the only clip: deleting it would leave nothing to play."
+				"only_clip": "That's the only clip: deleting it would leave nothing to play.",
+				"colors_already_normal": "The colors there are already as recorded.",
+				"no_title": "There's no title yet. Add one first, then style it.",
+				"no_text": "There's no text on the video yet. Add some with the Text tool first."
 			},
 			"out_of_range": {
 				"title": "That range isn't in this clip.",
 				"description": "Pick a start before the end, both within 0:00–{duration}."
 			},
 			"joinPair": "clips {from} and {to}",
-			"everyJoin": "every pair of clips"
+			"everyJoin": "every pair of clips",
+			"levels": {
+				"brightness": "brightness",
+				"contrast": "contrast",
+				"saturation": "saturation"
+			},
+			"looks": {
+				"black_and_white": "black and white",
+				"warm": "warm",
+				"cool": "cool"
+			},
+			"textTargets": {
+				"title": "the title",
+				"captions": "the captions",
+				"text": "the text on the video"
+			},
+			"fonts": {
+				"sans": "sans",
+				"serif": "serif",
+				"mono": "mono",
+				"handwriting": "handwriting"
+			},
+			"styleParts": {
+				"color": "color {color}",
+				"background": "background {color}",
+				"noBackground": "no background",
+				"font": "{font} font",
+				"size": "size {percent}%"
+			}
 		},
 		"timeline": {
 			"label": "Timeline",
@@ -261,7 +299,9 @@
 			"notAPng": {
 				"title": "That isn't a PNG",
 				"description": "{name} can't be used as a watermark. Choose a PNG image."
-			}
+			},
+			"captionStyle": "Caption style",
+			"titleStyle": "Title style"
 		},
 		"annotations": {
 			"label": "Annotations",
@@ -272,11 +312,12 @@
 				"blur": "Blur",
 				"pixelate": "Pixelate",
 				"text": "Text",
-				"erase": "Eraser"
+				"erase": "Eraser",
+				"pencil": "Pencil"
 			},
 			"color": "Box color",
 			"text": "Text to add",
-			"hint": "Pick a tool and drag on the video to draw; Select moves an item, or resizes it from its corner. A new item shows for 3 seconds from the playhead.",
+			"hint": "Pick a tool and drag on the video to draw; Pencil draws a line freehand in the color above; Select moves an item, or resizes it from its corner. A new item shows for 3 seconds from the playhead.",
 			"originalHint": "Switch to Edited to draw.",
 			"staysPut": "Boxes and blurs stay where you put them: they don't follow anything that moves in the video.",
 			"empty": "Nothing drawn yet.",
@@ -285,13 +326,16 @@
 				"box": "Box",
 				"blur": "Blur",
 				"pixelate": "Pixelate",
-				"text": "Text"
+				"text": "Text",
+				"pencil": "Pencil"
 			},
 			"item": "{kind} {number}",
 			"bar": "{name}, {start}–{end}",
 			"barHint": "Drag to move it in time, or its edges to change when it starts and ends. Arrow keys move it; Delete removes it.",
 			"start": "{name} start",
-			"end": "{name} end"
+			"end": "{name} end",
+			"newTextStyle": "New text style",
+			"selectedTextStyle": "Selected text style"
 		},
 		"clipAudio": {
 			"label": "Clip sound and speed",
@@ -404,6 +448,40 @@
 			"shortened": "Plays {seconds} s here: the clips either side are short.",
 			"notPossible": "Not here: a re-recorded sentence or a very short clip is at this join.",
 			"hint": "A fade goes through black and keeps the video's length; a dissolve blends one clip into the next and shortens it by the dissolve's length. Moving or deleting a clip takes the transitions at its joins with it."
+		},
+		"textStyle": {
+			"font": "Font",
+			"fonts": {
+				"sans": "Sans",
+				"serif": "Serif",
+				"mono": "Mono",
+				"handwriting": "Handwriting"
+			},
+			"size": "Size (%)",
+			"color": "Color",
+			"background": "Background",
+			"noBackground": "No background",
+			"reset": "Default style"
+		},
+		"color": {
+			"label": "Color",
+			"scope": "Apply to",
+			"wholeVideo": "Whole video",
+			"clip": "Clip {number}",
+			"levels": {
+				"brightness": "Brightness {percent}%",
+				"contrast": "Contrast {percent}%",
+				"saturation": "Saturation {percent}%"
+			},
+			"look": "Look",
+			"looks": {
+				"none": "None",
+				"black_and_white": "Black and white",
+				"warm": "Warm",
+				"cool": "Cool"
+			},
+			"reset": "Reset colors",
+			"hint": "A clip's colors go on top of the whole video's. 100% is as recorded."
 		}
 	}
 }

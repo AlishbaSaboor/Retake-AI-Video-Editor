@@ -1,4 +1,5 @@
 import { scheduleClipGain } from './clip-audio'
+import { clipMatrix, mountGradeFilters, type ColorGrade } from './color-grade'
 import { drawFrame, type Overlays } from './overlays'
 import { scheduleTakeGain, type ReplacementTake } from './re-record'
 import { editedLength, editedStarts, joinsOf, segmentSeconds, type Segment } from './sequence'
@@ -190,10 +191,18 @@ export async function recordEdit(
 	segments: Segment<ReplacementTake>[],
 	overlays: Overlays,
 	transform: PictureTransform,
+	color: ColorGrade,
 	{ onProgress, signal }: { onProgress: (fraction: number) => void; signal: AbortSignal }
 ): Promise<{ blob: Blob; mimeType: string }> {
 	const mimeType = pickMimeType((type) => MediaRecorder.isTypeSupported(type))
 	if (!mimeType) throw new Error('no recordable video format')
+	// Each segment's grade as a canvas filter, from filters of the export's own.
+	const matrices = segments.map((segment) => clipMatrix(color, segment.color))
+	const grades = mountGradeFilters(
+		'export-grade',
+		matrices.flatMap((matrix) => (matrix ? [matrix] : []))
+	)
+	const filters = matrices.map((matrix) => grades.filterFor(matrix))
 	const audio = new AudioContext()
 	const destination = audio.createMediaStreamDestination()
 	const decks: Deck[] = []
@@ -220,6 +229,8 @@ export async function recordEdit(
 		let editedSeconds = () => 0
 		// The deck dissolving in over this one, while it does.
 		let incoming: Deck | null = null
+		// Which segment the deck playing shows: its grade.
+		let showing = 0
 		const paint = () => {
 			if (!deck) return
 			const seconds = editedSeconds()
@@ -227,7 +238,9 @@ export async function recordEdit(
 			drawFrame(context, deck.video, picture, transform, overlays, seconds, logo, blurScratch, {
 				incoming: dissolve && incoming ? incoming.video : null,
 				incomingAlpha: dissolve?.progress ?? 0,
-				light: fadeLevelAt(joins, seconds)
+				light: fadeLevelAt(joins, seconds),
+				filter: filters[showing] ?? null,
+				incomingFilter: filters[showing + 1] ?? null
 			})
 		}
 		const draw = () => {
@@ -268,6 +281,7 @@ export async function recordEdit(
 		let carried = false
 		for (const [index, segment] of segments.entries()) {
 			if (!deck) break
+			showing = index
 			const playing: Deck = deck
 			const segmentStart = starts[index] ?? 0
 			const span = segment.endSeconds - segment.startSeconds
@@ -341,5 +355,6 @@ export async function recordEdit(
 		if (recorder && recorder.state !== 'inactive') recorder.stop()
 		for (const deck of decks) closeDeck(deck)
 		void audio.close()
+		grades.remove()
 	}
 }

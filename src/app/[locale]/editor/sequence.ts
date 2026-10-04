@@ -1,5 +1,6 @@
 import type { Edit } from './cleanup'
 import { DEFAULT_CLIP_AUDIO, isDefaultAudio, type ClipAudio, type SegmentAudio } from './clip-audio'
+import { isNeutral, type ColorGrade } from './color-grade'
 import {
 	MIN_TRANSITION_SECONDS,
 	transitionLimit,
@@ -20,7 +21,8 @@ export type SourceRange = { startSeconds: number; endSeconds: number }
 /**
  * `audio` is the clip's volume, mute and fades; `speed` how fast it really
  * plays (0.25 to 4, pitch kept); `transition` the fade or dissolve into it
- * from the clip before (transitions.ts). Absent means as recorded.
+ * from the clip before (transitions.ts); `color` its own color adjustments,
+ * on top of the whole video's (color-grade.ts). Absent means as recorded.
  */
 export type Clip = {
 	id: string
@@ -28,6 +30,7 @@ export type Clip = {
 	audio?: ClipAudio
 	speed?: number
 	transition?: Transition
+	color?: ColorGrade
 }
 
 /** The slowest and fastest a clip may play: what the browser keeps sound and pitch for. */
@@ -49,8 +52,17 @@ export function withClipSettings(
 		ranges: clip.ranges,
 		...(audio && !isDefaultAudio(audio) && { audio }),
 		...(speed !== undefined && speed !== 1 && { speed }),
-		...(clip.transition && { transition: clip.transition })
+		...(clip.transition && { transition: clip.transition }),
+		...(clip.color && !isNeutral(clip.color) && { color: clip.color })
 	}
+}
+
+/** A clip with its own color adjustments set, or taken off when neutral. */
+export function withClipColor(clip: Clip, color: ColorGrade): Clip {
+	const next: Clip = { ...clip }
+	if (isNeutral(color)) delete next.color
+	else next.color = color
+	return next
 }
 
 /** Whether a re-recorded take plays inside the clip: its speed then can't change. */
@@ -79,6 +91,8 @@ export type Segment<R extends Replacement = Replacement> = SourceRange & {
 	rate?: number
 	/** The fade or dissolve into it from the segment before: only on a clip's first segment. */
 	transition?: SegmentTransition
+	/** Its clip's own color adjustments (the whole video's go on under them); absent when none. */
+	color?: ColorGrade
 }
 
 /** Shortest piece a split may leave on either side, so no clip is a sliver. */
@@ -158,7 +172,8 @@ export function splitClipAt(
 		],
 		...(audio && { audio: { ...audio, fadeOutSeconds: 0 } }),
 		...(clip.speed !== undefined && { speed: clip.speed }),
-		...(clip.transition && { transition: clip.transition })
+		...(clip.transition && { transition: clip.transition }),
+		...(clip.color && { color: clip.color })
 	}
 	const after: Clip = {
 		id: newId(),
@@ -167,7 +182,8 @@ export function splitClipAt(
 			...clip.ranges.slice(rangeIndex + 1)
 		],
 		...(audio && { audio: { ...audio, fadeInSeconds: 0 } }),
-		...(clip.speed !== undefined && { speed: clip.speed })
+		...(clip.speed !== undefined && { speed: clip.speed }),
+		...(clip.color && { color: clip.color })
 	}
 	return [
 		...clips.slice(0, clipIndex),
@@ -291,7 +307,9 @@ export function mergeClips(clips: Clip[], from: number, to: number): Clip[] {
 			...(audio && !isDefaultAudio(audio) && { audio }),
 			// The first clip's speed: the merged clip plays at one.
 			...(first.speed !== undefined && { speed: first.speed }),
-			...(first.transition && { transition: first.transition })
+			...(first.transition && { transition: first.transition }),
+			// The first clip's colors: the merged clip has one look.
+			...(first.color && { color: first.color })
 		},
 		...(last ? followedBy(clips.slice(to + 1), last.id, first.id) : clips.slice(to + 1))
 	]
@@ -418,10 +436,12 @@ function clipSegments<R extends Replacement>(
 		const rate = clip.speed
 		// A take always plays at 1×, its pitch and length as recorded, even if a
 		// merge has put it in a sped clip.
-		const pieces =
-			rate === undefined || rate === 1
-				? kept
-				: kept.map((piece) => (piece.voiceOver ? piece : { ...piece, rate }))
+		const color = clip.color && !isNeutral(clip.color) ? clip.color : undefined
+		const pieces = kept.map((piece) => ({
+			...piece,
+			...(rate !== undefined && rate !== 1 && !piece.voiceOver && { rate }),
+			...(color && { color })
+		}))
 		const audio = clip.audio
 		if (!audio || isDefaultAudio(audio)) return pieces
 		const clipSeconds = pieces.reduce((sum, piece) => sum + segmentSeconds(piece), 0)

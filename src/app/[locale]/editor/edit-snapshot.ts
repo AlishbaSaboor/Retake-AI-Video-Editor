@@ -5,6 +5,8 @@ import type { ReplacementTake } from './re-record'
 import type { Clip, SourceRange } from './sequence'
 import { IDENTITY_TRANSFORM, isIdentity, type PictureTransform } from './transform'
 import { isDefaultAudio } from './clip-audio'
+import { isNeutral, NEUTRAL_GRADE, type ColorGrade } from './color-grade'
+import { DEFAULT_TEXT_STYLE, isDefaultStyle, type TextStyle } from './text-style'
 import type { TrimRange } from './timeline-scale'
 
 /** One step of Undo/Redo: what's trimmed, cut, arranged, re-recorded and laid over. */
@@ -19,6 +21,9 @@ export type EditSnapshot<R = ReplacementTake> = {
 	annotations: Annotation[]
 	/** Flip, rotation and crop of the whole picture. */
 	transform: PictureTransform
+	/** The whole video's color adjustments (a clip's own are on the clip). */
+	color: ColorGrade
+	captionStyle: TextStyle
 }
 
 /** The edit right after upload: the whole take, untouched. */
@@ -31,7 +36,9 @@ export const ORIGINAL_EDIT: EditSnapshot = {
 	watermark: null,
 	captionsOn: false,
 	annotations: [],
-	transform: IDENTITY_TRANSFORM
+	transform: IDENTITY_TRANSFORM,
+	color: NEUTRAL_GRADE,
+	captionStyle: DEFAULT_TEXT_STYLE
 }
 
 /**
@@ -53,12 +60,15 @@ export function isOriginalEdit<R>(edit: EditSnapshot<R>, durationSeconds: number
 		!edit.captionsOn &&
 		edit.annotations.length === 0 &&
 		isIdentity(edit.transform) &&
+		isNeutral(edit.color) &&
+		isDefaultStyle(edit.captionStyle) &&
 		(edit.clips === null ||
 			(otherClips.length === 0 &&
 				otherRanges.length === 0 &&
 				onlyRange !== undefined &&
 				isWhole(onlyRange) &&
 				isDefaultAudio(onlyClip?.audio) &&
-				(onlyClip?.speed ?? 1) === 1))
+				(onlyClip?.speed ?? 1) === 1 &&
+				isNeutral(onlyClip?.color)))
 	)
 }

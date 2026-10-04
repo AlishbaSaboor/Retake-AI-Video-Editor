@@ -8,15 +8,17 @@ import {
 	isBigEnough,
 	moveRect,
 	obscureGridSize,
+	PENCIL_WIDTH_FRACTION,
 	rectBetween,
 	resizeRect,
 	TEXT_HEIGHT_FRACTION,
 	toPixels,
 	type Annotation,
 	type AnnotationTool,
+	type Point,
 	type Rect
 } from './annotations'
-import { TITLE_BAND_COLOR } from './overlays'
+import { bandColor, DEFAULT_TEXT_STYLE, fontFamily } from './text-style'
 import type { Size } from './transform'
 
 const PERCENT = 100
@@ -24,10 +26,14 @@ const PERCENT = 100
 // about half a blur block wide, which looks like the export's averaging.
 const PREVIEW_BLUR = `blur(${(BLUR_BLOCK_FRACTION * PERCENT) / 2}cqw)`
 
-type Point = { x: number; y: number }
 type Drag =
 	| { type: 'draw'; from: Point; to: Point }
+	| { type: 'stroke'; points: Point[] }
 	| { type: 'move' | 'resize'; item: Annotation; from: Point; to: Point }
+/** A pencil adds a point once the pointer has moved this far (of the picture): smooth, not thousands. */
+const STROKE_STEP = 0.003
+/** A pencil line's width in the preview: of the picture's width, as the export draws it. */
+const PREVIEW_STROKE_WIDTH = `${PENCIL_WIDTH_FRACTION * 100}cqw`
 
 type AnnotationLayerProps = {
 	annotations: Annotation[]
@@ -37,6 +43,11 @@ type AnnotationLayerProps = {
 	picture: Size
 	/** The video, which a pixelate samples. */
 	videoRef: RefObject<HTMLVideoElement | null>
+	/** The picture's color grade as a CSS filter: a pixelate's copy of it is graded the same. */
+	pictureFilter: string | undefined
+	/** The item picked with the select tool, shared with the panel so it can style it. */
+	selectedId: string | null
+	onSelect: (id: string | null) => void
 	/** A pointer's screen position as a point on the picture (fractions), through any transform. */
 	toPicture: (clientX: number, clientY: number) => Point
 	/** -1 on an axis the picture is flipped on: text is drawn back the right way round. */
@@ -46,6 +57,8 @@ type AnnotationLayerProps = {
 	/** A pointer went down on the picture with a tool, so playback should stop. */
 	onPointerStart: () => void
 	onDraw: (rect: Rect) => void
+	/** A pencil stroke, through points on the picture (fractions). */
+	onStroke: (points: Point[]) => void
 	onChange: (item: Annotation) => void
 	onErase: (id: string) => void
 }
@@ -65,11 +78,13 @@ const position = (rect: Rect) => ({
 function PixelatePatch({
 	rect,
 	picture,
-	videoRef
+	videoRef,
+	filter
 }: {
 	rect: Rect
 	picture: Size
 	videoRef: RefObject<HTMLVideoElement | null>
+	filter: string | undefined
 }) {
 	const canvasRef = useRef<HTMLCanvasElement>(null)
 	const pixels = toPixels(rect, picture.width, picture.height)
@@ -95,7 +110,7 @@ function PixelatePatch({
 			width={grid.width}
 			height={grid.height}
 			className="absolute inset-0 h-full w-full"
-			style={{ imageRendering: 'pixelated' }}
+			style={{ imageRendering: 'pixelated', filter }}
 		/>
 	)
 }
@@ -112,15 +127,18 @@ export function AnnotationLayer({
 	editedSeconds,
 	picture,
 	videoRef,
+	pictureFilter,
+	selectedId,
+	onSelect,
 	toPicture,
 	flip,
 	tool,
 	onPointerStart,
 	onDraw,
+	onStroke,
 	onChange,
 	onErase
 }: AnnotationLayerProps) {
-	const [selectedId, setSelectedId] = useState<string | null>(null)
 	const [drag, setDrag] = useState<Drag | null>(null)
 	// The drag as of the last pointer move: the release can come before React
 	// renders it, so the release reads this, not `drag`.
@@ -133,7 +151,7 @@ export function AnnotationLayer({
 	const pointAt = (event: React.PointerEvent) => toPicture(event.clientX, event.clientY)
 
 	/** Where an item is while it's being dragged, and where it'll be put. */
-	function draggedRect(current: Drag): Rect {
+	function draggedRect(current: Exclude<Drag, { type: 'stroke' }>): Rect {
 		if (current.type === 'draw') return rectBetween(current.from, current.to)
 		const { item, from, to } = current
 		return current.type === 'move'
@@ -153,10 +171,12 @@ export function AnnotationLayer({
 			return
 		}
 		if (tool === 'select') {
-			setSelectedId(item?.id ?? null)
+			onSelect(item?.id ?? null)
 			if (!item) return
 			const type = target?.closest('[data-resize]') ? 'resize' : 'move'
 			follow({ type, item, from: point, to: point })
+		} else if (tool === 'pencil') {
+			follow({ type: 'stroke', points: [point] })
 		} else {
 			follow({ type: 'draw', from: point, to: point })
 		}
@@ -167,6 +187,10 @@ export function AnnotationLayer({
 		const done = latestRef.current
 		if (!done) return
 		follow(null)
+		if (done.type === 'stroke') {
+			onStroke(done.points)
+			return
+		}
 		const rect = draggedRect(done)
 		if (done.type === 'draw') {
 			if (isBigEnough(rect)) onDraw(rect)
@@ -181,6 +205,7 @@ export function AnnotationLayer({
 	}
 
 	const drawing = drag?.type === 'draw' ? draggedRect(drag) : null
+	const stroke = drag?.type === 'stroke' ? drag.points : null
 	return (
 		<div
 			data-testid="annotation-layer"
@@ -194,14 +219,26 @@ export function AnnotationLayer({
 			onPointerDown={handlePointerDown}
 			onPointerMove={(event) => {
 				const current = latestRef.current
-				if (current) follow({ ...current, to: pointAt(event) })
+				if (!current) return
+				const point = pointAt(event)
+				if (current.type !== 'stroke') {
+					follow({ ...current, to: point })
+					return
+				}
+				const last = current.points.at(-1)
+				if (!last || Math.hypot(point.x - last.x, point.y - last.y) >= STROKE_STEP) {
+					follow({ ...current, points: [...current.points, point] })
+				}
 			}}
 			onPointerUp={handlePointerUp}
 			onLostPointerCapture={handlePointerUp}
 		>
 			{shown.map((item) => {
 				const rect =
-					drag && drag.type !== 'draw' && drag.item.id === item.id ? draggedRect(drag) : item.rect
+					drag && (drag.type === 'move' || drag.type === 'resize') && drag.item.id === item.id
+						? draggedRect(drag)
+						: item.rect
+				const style = item.kind === 'text' ? (item.style ?? DEFAULT_TEXT_STYLE) : null
 				const selected = tool === 'select' && item.id === selectedId
 				return (
 					<div
@@ -221,22 +258,49 @@ export function AnnotationLayer({
 								backdropFilter: PREVIEW_BLUR,
 								WebkitBackdropFilter: PREVIEW_BLUR
 							}),
-							...(item.kind === 'text' && {
-								background: TITLE_BAND_COLOR,
-								fontSize: `${rect.height * TEXT_HEIGHT_FRACTION * PERCENT}cqh`
+							...(style && {
+								background: style.background ? bandColor(style.background) : 'none',
+								fontSize: `${rect.height * TEXT_HEIGHT_FRACTION * style.size * PERCENT}cqh`
 							})
 						}}
 					>
 						{item.kind === 'pixelate' && (
-							<PixelatePatch rect={rect} picture={picture} videoRef={videoRef} />
+							<PixelatePatch
+								rect={rect}
+								picture={picture}
+								videoRef={videoRef}
+								filter={pictureFilter}
+							/>
 						)}
-						{item.kind === 'text' && (
+						{item.kind === 'text' && style && (
 							<span
-								className="flex h-full items-center justify-center font-sans leading-none font-bold whitespace-nowrap text-white"
-								style={{ transform: `scale(${flip.x}, ${flip.y})` }}
+								className="flex h-full items-center justify-center leading-none font-bold whitespace-nowrap"
+								style={{
+									transform: `scale(${flip.x}, ${flip.y})`,
+									color: style.color,
+									fontFamily: fontFamily(style.font)
+								}}
 							>
 								{item.text}
 							</span>
+						)}
+						{item.kind === 'pencil' && (
+							<svg
+								aria-hidden
+								viewBox="0 0 1 1"
+								preserveAspectRatio="none"
+								className="absolute inset-0 h-full w-full overflow-visible"
+							>
+								<polyline
+									points={item.points.map((p) => `${p.x},${p.y}`).join(' ')}
+									fill="none"
+									stroke={item.color}
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									vectorEffect="non-scaling-stroke"
+									style={{ strokeWidth: PREVIEW_STROKE_WIDTH }}
+								/>
+							</svg>
 						)}
 						{selected && (
 							<span
@@ -253,6 +317,25 @@ export function AnnotationLayer({
 					className="absolute border-2 border-dashed border-white/80"
 					style={position(drawing)}
 				/>
+			)}
+			{stroke && (
+				<svg
+					aria-hidden
+					viewBox="0 0 1 1"
+					preserveAspectRatio="none"
+					className="pointer-events-none absolute inset-0 h-full w-full"
+				>
+					<polyline
+						points={stroke.map((p) => `${p.x},${p.y}`).join(' ')}
+						fill="none"
+						stroke="currentColor"
+						className="text-white/80"
+						strokeLinecap="round"
+						strokeLinejoin="round"
+						vectorEffect="non-scaling-stroke"
+						style={{ strokeWidth: PREVIEW_STROKE_WIDTH }}
+					/>
+				</svg>
 			)}
 		</div>
 	)

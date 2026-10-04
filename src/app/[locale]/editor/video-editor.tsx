@@ -16,7 +16,7 @@ import { ClipStrip } from './clip-strip'
 import { CompareToggle } from './compare-toggle'
 import { editedCaptions } from './captions'
 import { CommandBar } from './command-bar'
-import type { CommandContext, CommandPlan } from './edit-command'
+import type { CommandContext, CommandPlan, TextTarget } from './edit-command'
 import { isOriginalEdit, ORIGINAL_EDIT, type EditSnapshot } from './edit-snapshot'
 import { ExportButton, useVideoExport } from './export-button'
 import { totalSeconds } from './export-video'
@@ -59,6 +59,16 @@ import {
 import { SpeedToggle } from './speed-toggle'
 import { Timeline } from './timeline'
 import { TransitionPanel } from './transition-panel'
+import {
+	clipMatrix,
+	gradeFilterId,
+	matrixValues,
+	NEUTRAL_GRADE,
+	type ColorGrade,
+	type ColorMatrix
+} from './color-grade'
+import { ColorPanel, GradeFilters } from './color-panel'
+import { DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
 import { fadeLevelAt, type TransitionKind } from './transitions'
 import {
 	canSplitAt,
@@ -70,7 +80,9 @@ import {
 	duplicateClips,
 	joinLimit,
 	joinsOf,
+	playbackPosition,
 	segmentClips,
+	withClipColor,
 	setTransition,
 	transitionInto,
 	mergeClips,
@@ -91,6 +103,9 @@ import { useTakeAnalysis } from './use-take-analysis'
 import { VideoFileInput } from './video-file-input'
 
 type LoadedVideo = { file: File; url: string; name: string }
+
+/** The preview's grade filters' id prefix. */
+const PREVIEW_GRADE = 'preview-grade'
 
 const overlaps = (a: SourceRange, b: SourceRange) =>
 	a.startSeconds < b.endSeconds && a.endSeconds > b.startSeconds
@@ -154,6 +169,9 @@ export function VideoEditor() {
 	const [captionsOn, setCaptionsOn] = useState(false)
 	// Boxes, blurs and text over the edited video (annotations.ts).
 	const [annotations, setAnnotations] = useState<Annotation[]>([])
+	// The whole video's color adjustments (a clip's own are on the clip), and the captions' look.
+	const [color, setColor] = useState<ColorGrade>(NEUTRAL_GRADE)
+	const [captionStyle, setCaptionStyle] = useState<TextStyle>(DEFAULT_TEXT_STYLE)
 	const annotationTools = useAnnotationTools()
 	// Flip, rotation and crop of the whole picture (transform.ts), and the
 	// on-picture tool setting it by hand, if any. While the rotation handle is
@@ -177,7 +195,9 @@ export function VideoEditor() {
 		watermark,
 		captionsOn,
 		annotations,
-		transform
+		transform,
+		color,
+		captionStyle
 	}
 	const trimDragRef = useRef<{ recorded: boolean } | null>(null)
 	// The filler cut editor: which filler is open and where its handles sit.
@@ -214,6 +234,7 @@ export function VideoEditor() {
 		title,
 		watermark,
 		annotations,
+		captionStyle,
 		captions:
 			captionsOn && analysis.transcript.status === 'ready'
 				? editedCaptions(analysis.transcript.transcript.words, editedSegments)
@@ -224,7 +245,8 @@ export function VideoEditor() {
 		videoName: video?.name ?? '',
 		segments: editedSegments,
 		overlays,
-		transform
+		transform,
+		color
 	})
 	const segments =
 		preview && cutWindow && cutEditor
@@ -269,6 +291,20 @@ export function VideoEditor() {
 	// Only while that segment holds the playhead: an edit (a split) can leave
 	// the index pointing at a segment that has since changed.
 	const playingSegment = segmentIndex === null ? undefined : editedSegments[segmentIndex]
+	// The grade of the clip showing (and of the one a dissolve brings in), as
+	// the export applies it: in the Edited view only.
+	const gradeMatrices = editedSegments.map((segment) => clipMatrix(color, segment.color))
+	const gradeIndex =
+		segments !== editedSegments
+			? null
+			: segmentIndex !== null && playingSegment && isInSegment(currentTimeSeconds, playingSegment)
+				? segmentIndex
+				: (playbackPosition(currentTimeSeconds, editedSegments)?.index ?? null)
+	const gradeFilter = (matrix: ColorMatrix | null | undefined) =>
+		matrix ? `url(#${gradeFilterId(PREVIEW_GRADE, matrixValues(matrix))})` : undefined
+	const pictureFilter = gradeIndex === null ? undefined : gradeFilter(gradeMatrices[gradeIndex])
+	const incomingFilter =
+		gradeIndex === null ? undefined : gradeFilter(gradeMatrices[gradeIndex + 1])
 	const currentClip =
 		segments === editedSegments &&
 		segmentIndex !== null &&
@@ -321,6 +357,8 @@ export function VideoEditor() {
 		setCaptionsOn(false)
 		setAnnotations([])
 		setTransform(IDENTITY_TRANSFORM)
+		setColor(NEUTRAL_GRADE)
+		setCaptionStyle(DEFAULT_TEXT_STYLE)
 		setTransformMode(null)
 		setPicture(null)
 		setHistory(emptyHistory())
@@ -582,6 +620,8 @@ export function VideoEditor() {
 		setCaptionsOn(step.restore.captionsOn)
 		setAnnotations(step.restore.annotations)
 		setTransform(step.restore.transform)
+		setColor(step.restore.color)
+		setCaptionStyle(step.restore.captionStyle)
 		applyTrim(step.restore.trim, step.restore.trim?.startSeconds ?? 0)
 	}
 
@@ -688,6 +728,36 @@ export function VideoEditor() {
 		)
 	}
 
+	/** The whole video's (clip null) or one clip's color adjustments: one change. */
+	function changeColor(clip: number | null, grade: ColorGrade) {
+		recordEdit()
+		if (clip === null) setColor(grade)
+		else setClips(sequence.map((c, index) => (index === clip ? withClipColor(c, grade) : c)))
+	}
+
+	/** The title's, the captions' or every annotation text's style changed: one change. */
+	function restyleText(target: TextTarget, changes: Partial<TextStyle>) {
+		const restyled = (style: TextStyle | undefined) => ({
+			...(style ?? DEFAULT_TEXT_STYLE),
+			...changes
+		})
+		recordEdit()
+		if (target === 'title' && title) setTitle({ ...title, style: restyled(title.style) })
+		if (target === 'captions') setCaptionStyle(restyled(captionStyle))
+		if (target === 'text') {
+			setAnnotations(
+				annotations.map((item) =>
+					item.kind === 'text' ? { ...item, style: restyled(item.style) } : item
+				)
+			)
+		}
+	}
+
+	function changeCaptionStyle(style: TextStyle) {
+		recordEdit()
+		setCaptionStyle(style)
+	}
+
 	function changeTransform(next: PictureTransform) {
 		recordEdit()
 		setTransform(next)
@@ -741,7 +811,10 @@ export function VideoEditor() {
 		transform,
 		picture: pictureSize,
 		clipAudio: sequence.map((clip) => clip.audio ?? DEFAULT_CLIP_AUDIO),
-		clipTakes: sequence.map((clip) => clipHasTake(clip, replacements))
+		clipTakes: sequence.map((clip) => clipHasTake(clip, replacements)),
+		colors: { video: color, clips: sequence.map((clip) => clip.color) },
+		hasTitle: title !== null,
+		textCount: annotations.filter((item) => item.kind === 'text').length
 	}
 
 	// Each runs what its button does, so each edit is the same one undo step.
@@ -812,6 +885,12 @@ export function VideoEditor() {
 					)
 				)
 				break
+			case 'color':
+				changeColor(plan.clip === null ? null : plan.clip - 1, plan.grade)
+				break
+			case 'textStyle':
+				restyleText(plan.target, plan.changes)
+				break
 			case 'deleteClip':
 				deleteClipRun(plan.clip - 1, plan.clip - 1)
 				break
@@ -854,6 +933,10 @@ export function VideoEditor() {
 
 	return (
 		<div className="flex flex-col gap-4">
+			<GradeFilters
+				prefix={PREVIEW_GRADE}
+				matrices={gradeMatrices.flatMap((matrix) => (matrix ? [matrix] : []))}
+			/>
 			{video ? (
 				<div className="flex flex-col gap-4">
 					<div className="flex flex-wrap items-center justify-between gap-4">
@@ -899,6 +982,7 @@ export function VideoEditor() {
 									controlsList="noplaybackrate"
 									playsInline
 									className="absolute inset-0 block h-full w-full bg-black"
+									style={{ filter: pictureFilter }}
 									onLoadedMetadata={(event) => handleLoadedMetadata(event.currentTarget)}
 									onDurationChange={(event) => handleDurationChange(event.currentTarget)}
 									onTimeUpdate={(event) => handleTimeUpdate(event.currentTarget)}
@@ -929,6 +1013,7 @@ export function VideoEditor() {
 										tabIndex={-1}
 										data-testid="dissolve-player"
 										className="pointer-events-none absolute inset-0 block h-full w-full opacity-0"
+										style={{ filter: incomingFilter }}
 									/>
 								)}
 							</>
@@ -946,6 +1031,18 @@ export function VideoEditor() {
 										tool={transformMode ? null : annotationTools.tool}
 										onPointerStart={() => videoRef.current?.pause()}
 										onDraw={drawAnnotation}
+										onStroke={(points) => {
+											const item = annotationTools.stroked(
+												points,
+												pictureSize,
+												editedNow ?? 0,
+												editedSeconds
+											)
+											if (item) addAnnotation(item)
+										}}
+										pictureFilter={pictureFilter}
+										selectedId={annotationTools.selectedId}
+										onSelect={annotationTools.setSelectedId}
 										onChange={changeAnnotation}
 										onErase={removeAnnotation}
 									/>
@@ -1065,6 +1162,14 @@ export function VideoEditor() {
 				/>
 			)}
 			{video && hasDuration && (
+				<ColorPanel
+					video={color}
+					clips={sequence.map((clip) => clip.color)}
+					canEdit={!showOriginal}
+					onChange={changeColor}
+				/>
+			)}
+			{video && hasDuration && (
 				<TransitionPanel
 					joins={sequence.slice(1).map((_, i) => ({
 						transition: transitionInto(sequence, i + 1),
@@ -1119,6 +1224,8 @@ export function VideoEditor() {
 						}}
 						captionsOn={captionsOn}
 						onCaptionsChange={changeCaptions}
+						captionStyle={captionStyle}
+						onCaptionStyleChange={changeCaptionStyle}
 					/>
 					<input
 						ref={logoInputRef}

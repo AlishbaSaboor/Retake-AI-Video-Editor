@@ -11,35 +11,71 @@ import {
 	moveSpan,
 	moveSpanEdge,
 	newSpan,
+	strokeAnnotation,
 	type Annotation,
 	type AnnotationTool,
 	type NewAnnotation,
+	type Point,
 	type Rect,
 	type Span
 } from './annotations'
+import { DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
+import { TextStyleFields } from './text-style-fields'
 import { formatTimecode, timeToPercent, type TrimEdge } from './timeline-scale'
 import { TrimHandle } from './trim-handle'
 
-const TOOLS: AnnotationTool[] = ['select', 'box', 'blur', 'pixelate', 'text', 'erase']
+const TOOLS: AnnotationTool[] = ['select', 'box', 'blur', 'pixelate', 'text', 'pencil', 'erase']
 // Arrow keys on a bar move it a tenth of a second, Shift+arrow a second, as trims do.
 const STEPS = { small: 0.1, large: 1 }
 
-/** The picked tool, the color new boxes get and the words new text shows; shared by the panel and the layer. */
+/**
+ * The picked tool, the color new boxes and pencil strokes get, the words
+ * and style new text gets, and the item picked with the select tool; shared
+ * by the panel and the layer.
+ */
 export function useAnnotationTools() {
 	const [tool, setTool] = useState<AnnotationTool | null>(null)
 	const [color, setColor] = useState(DEFAULT_BOX_COLOR)
 	const [text, setText] = useState('')
+	const [textStyle, setTextStyle] = useState<TextStyle>(DEFAULT_TEXT_STYLE)
+	const [selectedId, setSelectedId] = useState<string | null>(null)
 
 	/** What drawing `rect` with the picked tool adds, shown from `seconds`; null if nothing. */
 	function drawn(rect: Rect, seconds: number, editedSeconds: number): NewAnnotation | null {
 		const shape = { rect, ...newSpan(seconds, editedSeconds) }
 		if (tool === 'box') return { kind: 'box', color, ...shape }
 		if (tool === 'blur' || tool === 'pixelate') return { kind: tool, ...shape }
-		if (tool === 'text' && text.trim()) return { kind: 'text', text: text.trim(), ...shape }
+		if (tool === 'text' && text.trim()) {
+			return { kind: 'text', text: text.trim(), style: textStyle, ...shape }
+		}
 		return null
 	}
 
-	return { tool, setTool, color, setColor, text, setText, drawn }
+	/** What a pencil stroke through `points` adds, shown from `seconds`; null if too short. */
+	function stroked(
+		points: Point[],
+		picture: { width: number; height: number },
+		seconds: number,
+		editedSeconds: number
+	): NewAnnotation | null {
+		const stroke = strokeAnnotation(points, picture)
+		return stroke && { kind: 'pencil', color, ...stroke, ...newSpan(seconds, editedSeconds) }
+	}
+
+	return {
+		tool,
+		setTool,
+		color,
+		setColor,
+		text,
+		setText,
+		textStyle,
+		setTextStyle,
+		selectedId,
+		setSelectedId,
+		drawn,
+		stroked
+	}
 }
 
 type AnnotationPanelProps = {
@@ -70,6 +106,12 @@ export function AnnotationPanel({
 	const t = useTranslations('Editor.annotations')
 	const id = useId()
 	const canDraw = playheadSeconds !== null
+	// Text picked with the select tool is styled in place; otherwise the style is new text's.
+	const selectedText = annotations.find(
+		(item) => item.id === tools.selectedId && item.kind === 'text'
+	)
+	const styled = selectedText?.kind === 'text' ? selectedText : null
+	const shownStyle = styled ? (styled.style ?? DEFAULT_TEXT_STYLE) : tools.textStyle
 
 	return (
 		<section
@@ -112,6 +154,12 @@ export function AnnotationPanel({
 					/>
 				</div>
 			</div>
+			<TextStyleFields
+				key={`${styled?.id ?? 'new'}-${JSON.stringify(shownStyle)}`}
+				label={styled ? t('selectedTextStyle') : t('newTextStyle')}
+				style={shownStyle}
+				onChange={(style) => (styled ? onChange({ ...styled, style }) : tools.setTextStyle(style))}
+			/>
 			<p className="text-text-muted -mt-2 text-xs">
 				{canDraw ? t('hint') : t('originalHint')} {t('staysPut')}
 			</p>
