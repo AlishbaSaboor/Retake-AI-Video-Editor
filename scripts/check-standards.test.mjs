@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
 	chmodSync,
+	statSync,
 	cpSync,
 	existsSync,
 	mkdirSync,
@@ -68,12 +69,21 @@ function createFixture() {
 	// the fixture. A real directory of per-package links rather than one link
 	// to the whole tree, because git refuses to evaluate a path "beyond a
 	// symbolic link" — and the ignore check probes node_modules/x.js.
+	// On Windows a symlink needs admin rights or Developer Mode: directories
+	// are linked as junctions (which need neither), the odd file copied.
 	mkdirSync(join(root, 'node_modules'))
 	for (const entry of readdirSync(join(REPO_ROOT, 'node_modules'))) {
-		symlinkSync(join(REPO_ROOT, 'node_modules', entry), join(root, 'node_modules', entry))
+		const target = join(REPO_ROOT, 'node_modules', entry)
+		const link = join(root, 'node_modules', entry)
+		if (process.platform !== 'win32') symlinkSync(target, link)
+		else if (statSync(target).isDirectory()) symlinkSync(target, link, 'junction')
+		else cpSync(target, link)
 	}
 	git(root, 'init', '-q')
 	git(root, 'add', '-A')
+	// As this repo's index has them. Without an execute bit on disk (Windows),
+	// a fresh `git add` would record the hooks 100644.
+	git(root, 'update-index', '--chmod=+x', '.githooks/commit-msg', '.githooks/pre-commit')
 	return root
 }
 
@@ -243,14 +253,21 @@ test('per-tool-entry-points fails when an optional per-tool file exists without 
 	assert.match(results['per-tool-entry-points'].detail, /GEMINI\.md exists but/)
 })
 
-test('commit-msg-hook fails when the hook is not executable on disk', () => {
-	const results = withFixture(
-		(root) => chmodSync(join(root, '.githooks/commit-msg'), 0o644),
-		['commit-msg-hook']
-	)
-	assert.equal(results['commit-msg-hook'].ok, false)
-	assert.match(results['commit-msg-hook'].detail, /not executable/)
-})
+// Windows has no execute bit on disk to take away (the index check covers it there).
+test(
+	'commit-msg-hook fails when the hook is not executable on disk',
+	{
+		skip: process.platform === 'win32' && 'no execute bit on Windows'
+	},
+	() => {
+		const results = withFixture(
+			(root) => chmodSync(join(root, '.githooks/commit-msg'), 0o644),
+			['commit-msg-hook']
+		)
+		assert.equal(results['commit-msg-hook'].ok, false)
+		assert.match(results['commit-msg-hook'].detail, /not executable/)
+	}
+)
 
 test('commit-msg-hook fails when the hook is executable locally but not in the git index', () => {
 	const results = withFixture(
