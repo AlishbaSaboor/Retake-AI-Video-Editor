@@ -11,14 +11,6 @@ import {
 	w
 } from './editor-helpers'
 
-test('home links to the editor, which starts empty', async ({ page }) => {
-	await page.goto('/')
-	await page.getByRole('link', { name: 'Open the editor' }).click()
-	await expect(page).toHaveURL(/\/editor$/)
-	await expect(page.getByText('Drop a video here, or click to choose one')).toBeVisible()
-	await expect(page.getByText('Your timeline appears here once a video loads.')).toBeVisible()
-})
-
 test('a picked video plays in the editor and can be scrubbed on the timeline', async ({ page }) => {
 	await openEditorWithVideo(page)
 	await expect(page.locator('video')).toBeVisible()

@@ -8,6 +8,7 @@ import { validatedAction } from '@/server/actions/validated-action'
 import { EDIT_COMMAND_JSON_SCHEMA, editCommandSchema, type EditCommand } from './edit-command'
 import { MAX_AUDIO_BASE64_LENGTH } from './take-audio'
 import { toTranscript, type Transcript } from './transcript'
+import { MAX_VOICE_BASE64_LENGTH } from './voice-command'
 
 // A command is a sentence, not a document — this also caps what one request
 // can spend.
@@ -144,5 +145,23 @@ export const transcribeTake = validatedAction({
 			'audio/wav'
 		).catch(rethrowAsBusy)
 		return toTranscript(deepgramWords(response))
+	}
+})
+
+/**
+ * A spoken command as text (16 kHz mono WAV, base64), with Deepgram. Its
+ * words, punctuated, in order; empty when nothing was said.
+ */
+export const transcribeVoiceCommand = validatedAction({
+	input: z.object({ audioBase64: z.string().min(1).max(MAX_VOICE_BASE64_LENGTH) }),
+	handler: async ({ audioBase64 }): Promise<string> => {
+		const response = await transcribeAudio(
+			{ feature: 'voice_command', model: 'nova-3' },
+			Buffer.from(audioBase64, 'base64'),
+			'audio/wav'
+		).catch(rethrowAsBusy)
+		return deepgramWords(response)
+			.map((word) => word.punctuated_word ?? word.word)
+			.join(' ')
 	}
 })

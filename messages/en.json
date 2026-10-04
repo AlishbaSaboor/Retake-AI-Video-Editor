@@ -1,9 +1,4 @@
 {
-	"HomePage": {
-		"title": "Retake",
-		"description": "Fix the flaws in a recording without starting over — by typing what you want changed, or by hand on the timeline.",
-		"openEditor": "Open the editor"
-	},
 	"Editor": {
 		"title": "Editor",
 		"dropzone": {
@@ -620,6 +615,267 @@
 			"update": "Update zoom",
 			"remove": "Remove zoom",
 			"hint": "A slow push-in from the whole picture to the zoom, or a pull-out back from it, between two times of the edited video, about the frame’s centre. Annotations zoom with the picture; the title, captions, lower third and logo stay put."
+		},
+		"voice": {
+			"start": "Speak a command",
+			"stop": "Stop recording",
+			"transcribing": "Turning your words into text…",
+			"elapsed": "{seconds}s / {max}s",
+			"failed": "Couldn’t understand that recording",
+			"nothingHeard": "Nothing was heard. Try again a little closer to the mic.",
+			"noMic": {
+				"title": "No microphone",
+				"description": "Allow microphone access in your browser to speak a command."
+			}
+		}
+	},
+	"Site": {
+		"nav": {
+			"label": "Main",
+			"menu": "Menu",
+			"howItWorks": "How it works",
+			"features": "Features",
+			"contact": "Contact us",
+			"signIn": "Log in / Sign up",
+			"signOut": "Sign out",
+			"newProject": "New project",
+			"projects": "Projects"
+		},
+		"theme": {
+			"label": "Light mode",
+			"dark": "Switch to dark mode",
+			"light": "Switch to light mode"
+		},
+		"footer": {
+			"label": "Footer",
+			"tagline": "Fix the flaws in a recording without starting over — by typing, speaking, or by hand."
+		},
+		"landing": {
+			"badge": "A video editor you can talk to",
+			"title": "Fix the take. Keep the moment.",
+			"description": "Retake removes the ums, long pauses and fluffed lines from a recording. Say what you want changed, check what Retake understood, and apply it — or edit by hand on the timeline.",
+			"start": "Start a project",
+			"howItWorks": "How it works",
+			"seeFeatures": "See every feature",
+			"preview": {
+				"file": "interview-final.mp4",
+				"ask": "Remove the ums and the long pause after the intro",
+				"understood": "Clean up 6 fillers and 1 silence",
+				"detail": "Cuts 4.2 s from 0:03–0:41. Nothing changes until you apply.",
+				"apply": "Apply changes",
+				"cancel": "Cancel",
+				"typeHere": "Type or speak a command",
+				"caption": "so here’s what we found",
+				"saved": "Saved"
+			},
+			"highlights": {
+				"type": {
+					"title": "Edit by asking",
+					"body": "Type or speak what you want. Retake shows what it understood before anything changes."
+				},
+				"cleanup": {
+					"title": "Clean up in one go",
+					"body": "Filler words and long silences found in the audio and cut at the real gaps."
+				},
+				"rerecord": {
+					"title": "Re-record a sentence",
+					"body": "Say one line again and splice it in, with the rest of the take untouched."
+				},
+				"hand": {
+					"title": "Or do it by hand",
+					"body": "Split, trim, reorder and speed up clips; crop, zoom, draw and place text on the picture."
+				},
+				"saved": {
+					"title": "Saved as you go",
+					"body": "Projects stay in your browser and reopen exactly where you left them."
+				}
+			},
+			"closing": {
+				"title": "Your next video is one good take away.",
+				"body": "Start with a recording you already have. Retake does the fiddly part."
+			}
+		},
+		"howItWorks": {
+			"metaTitle": "How it works",
+			"eyebrow": "How it works",
+			"title": "From rough take to finished video in four steps",
+			"description": "Retake is built around one idea: you say what you want, you see what will happen, and only then does anything change.",
+			"steps": {
+				"start": {
+					"title": "Start a project",
+					"body": "On your home page, attach a video, or drop it on the box. You can type or speak a first command with it; the editor opens as soon as the video is in."
+				},
+				"ask": {
+					"title": "Ask for a change",
+					"body": "In the editor, type or speak an edit like “remove the long pauses” or “add a title that says Welcome”. Retake replies with what it understood, with Apply changes and Cancel. Nothing changes until you apply."
+				},
+				"hand": {
+					"title": "Fine-tune by hand",
+					"body": "Every change can be made by hand too: on the timeline (split, trim, reorder, speed), on the picture (crop, zoom, logo, text, pencil) and in the tool panels. Undo and redo cover all of it."
+				},
+				"finish": {
+					"title": "Save and export",
+					"body": "Save the project to come back later, and export the finished video as a file, with captions, graphics and sound as you set them."
+				}
+			},
+			"privacy": {
+				"title": "What leaves your computer",
+				"browser": {
+					"title": "Your videos stay in your browser",
+					"body": "Editing, previews and export all run on your computer. Saved projects are kept in this browser."
+				},
+				"speech": {
+					"title": "Speech is transcribed by Deepgram",
+					"body": "To find filler words, and to understand spoken commands, the audio is sent to Deepgram for a transcript."
+				},
+				"commands": {
+					"title": "Commands are read by Gemini",
+					"body": "A typed or spoken command is sent as text to Google’s Gemini to work out the edit. Your video isn’t."
+				}
+			},
+			"cta": "Start a project"
+		},
+		"features": {
+			"metaTitle": "Features",
+			"eyebrow": "Features",
+			"title": "Everything you need to fix a recording",
+			"description": "Each tool works from a command or by hand, previews instantly, and comes out the same in the export.",
+			"groups": {
+				"commands": {
+					"title": "Commands",
+					"items": {
+						"0": "Type or speak an edit in plain English",
+						"1": "See what Retake understood, then apply or cancel",
+						"2": "Undo, redo and start over, as commands too"
+					}
+				},
+				"cut": {
+					"title": "Cut and clean up",
+					"items": {
+						"0": "Remove filler words and long silences in one step",
+						"1": "Trim the start and end",
+						"2": "Re-record a single sentence and splice it in",
+						"3": "Set a join by ear where there’s no clean pause"
+					}
+				},
+				"clips": {
+					"title": "Clips",
+					"items": {
+						"0": "Split, merge, reorder, duplicate and delete",
+						"1": "Speed a clip up or down, pitch kept",
+						"2": "Fade through black or dissolve between clips",
+						"3": "Add more videos to the same project"
+					}
+				},
+				"picture": {
+					"title": "Picture",
+					"items": {
+						"0": "Crop, rotate and flip",
+						"1": "Push-in and pull-out zooms",
+						"2": "Brightness, contrast, saturation and looks",
+						"3": "Pixelate or blur part of the picture"
+					}
+				},
+				"graphics": {
+					"title": "Text and graphics",
+					"items": {
+						"0": "Title card and lower third that slide, fade or pop",
+						"1": "Automatic captions from the transcript",
+						"2": "Your logo, placed and sized by hand",
+						"3": "Boxes, text and a pencil drawn on the video"
+					}
+				},
+				"sound": {
+					"title": "Sound",
+					"items": {
+						"0": "Volume, mute and fades per clip",
+						"1": "An audio lane for music and voice-over",
+						"2": "Flags for clipping, quiet speech and loud background",
+						"3": "Take a clip’s sound out onto its own track"
+					}
+				},
+				"projects": {
+					"title": "Projects and export",
+					"items": {
+						"0": "Save projects and reopen them later",
+						"1": "Autosave after every change once saved",
+						"2": "Export a finished video file"
+					}
+				}
+			}
+		},
+		"contact": {
+			"metaTitle": "Contact us",
+			"eyebrow": "Contact us",
+			"title": "Talk to us",
+			"description": "Questions, ideas or something not working? Send a message and it reaches the team.",
+			"form": {
+				"name": "Name",
+				"email": "Email",
+				"message": "Message",
+				"send": "Send message",
+				"invalid": "Check your name, email and message, then try again.",
+				"sentTitle": "Message sent",
+				"sentBody": "Thanks — we’ve got it.",
+				"another": "Send another"
+			}
+		},
+		"login": {
+			"metaTitle": "Log in",
+			"eyebrow": "Welcome",
+			"pitch": "Your recordings, minus the retakes.",
+			"pitchBody": "Log in to start a new project or pick up a saved one.",
+			"modes": "Log in or sign up",
+			"email": "Email",
+			"password": "Password",
+			"passwordHint": "At least 6 characters.",
+			"invalid": "Enter a valid email and a password of at least 6 characters.",
+			"disabled": "Accounts aren’t set up on this copy of Retake, so logging in is off.",
+			"signIn": {
+				"tab": "Log in",
+				"title": "Log in to Retake",
+				"description": "Welcome back.",
+				"submit": "Log in"
+			},
+			"signUp": {
+				"tab": "Sign up",
+				"title": "Create your account",
+				"description": "It takes a few seconds.",
+				"submit": "Create account"
+			}
+		},
+		"home": {
+			"metaTitle": "New project",
+			"title": "What are we fixing today?",
+			"description": "Attach a video and say what to change. The editor opens as soon as it’s in.",
+			"boxLabel": "Start a project",
+			"commandLabel": "Command",
+			"placeholder": "Describe your edit… for example “remove the ums and long pauses”",
+			"attach": "Attach video",
+			"dropHint": "or drop a video here",
+			"dropHere": "Drop the video to start",
+			"start": "Choose video",
+			"opening": "Opening {name} in the editor…",
+			"openSaved": "Open a saved project",
+			"examplesLabel": "Try a command",
+			"examples": {
+				"cleanup": "Remove the filler words and long silences",
+				"captions": "Turn captions on",
+				"trim": "Keep 0:05 to 0:40",
+				"title": "Add a title that says Welcome",
+				"zoom": "Zoom in slowly from 2 to 5 seconds"
+			}
+		},
+		"projects": {
+			"title": "Saved projects",
+			"description": "Projects saved in this browser. Open one to carry on editing.",
+			"new": "New project",
+			"listLabel": "Saved projects",
+			"edited": "Edited {when}",
+			"empty": {
+				"title": "No saved projects yet",
+				"body": "Save a project in the editor and it shows up here."
+			}
 		}
 	}
 }
