@@ -2,6 +2,8 @@
 
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { captureClientError } from '@/lib/observability/capture-client-error'
 import { Button } from '@/components/ui/button'
 import { PauseIcon, PlayIcon, PlusIcon, ReplaceIcon } from '@/components/ui/icons'
 import { toast } from '@/lib/toast'
@@ -69,6 +71,17 @@ import {
 } from './color-grade'
 import { ColorPanel, GradeFilters } from './color-panel'
 import { DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
+import { ProjectList, ProjectPanel, RelinkPanel, type SaveStatus } from './project-panel'
+import {
+	deleteProject,
+	listProjects,
+	missingMedia,
+	openProject,
+	relinkMedia,
+	saveProject,
+	type MediaRef
+} from './projects'
+import type { Transcript } from './transcript'
 import { fadeLevelAt, type TransitionKind } from './transitions'
 import {
 	canSplitAt,
@@ -107,7 +120,12 @@ import { probeVideo, type AddedVideo } from './sources'
 import { decodeAudio } from './take-audio'
 import { VideoFileInput } from './video-file-input'
 
-type LoadedVideo = { file: File; url: string; name: string }
+/** The main video; a reopened project brings its saved transcript. */
+type LoadedVideo = { file: File; url: string; name: string; transcript?: Transcript | null }
+
+/** Once saved, a project saves itself this long after the last change. */
+const AUTOSAVE_DELAY_MS = 1500
+const PROJECTS_KEY = ['projects']
 
 /** The preview's grade filters' id prefix. */
 const PREVIEW_GRADE = 'preview-grade'
@@ -150,6 +168,14 @@ export function VideoEditor() {
 	const hasDuration = isKnownDuration(durationSeconds)
 	const range: TrimRange = trim ?? { startSeconds: 0, endSeconds: durationSeconds }
 	const analysis = useTakeAnalysis(video)
+	// The project being edited once saved, and how its saving stands.
+	const [project, setProject] = useState<{ id: string; name: string } | null>(null)
+	const [saveStatus, setSaveStatus] = useState<SaveStatus>('unsaved')
+	const [savedAt, setSavedAt] = useState<number | null>(null)
+	// A project to open whose media the browser no longer holds: what to find.
+	const [relink, setRelink] = useState<{ id: string; missing: MediaRef[] } | null>(null)
+	const queryClient = useQueryClient()
+	const projects = useQuery({ queryKey: PROJECTS_KEY, queryFn: listProjects })
 	// Source ranges playback skips, from "Clean up recording". Like trim, a
 	// cut never touches the file.
 	const [cuts, setCuts] = useState<Cut[]>([])
@@ -401,7 +427,7 @@ export function VideoEditor() {
 		return () => URL.revokeObjectURL(videoUrl)
 	}, [videoUrl])
 
-	function loadFile(file: File) {
+	function loadFile(file: File, transcript: Transcript | null = null) {
 		if (!file.type.startsWith('video/')) {
 			toast({
 				variant: 'destructive',
@@ -435,10 +461,113 @@ export function VideoEditor() {
 		setReRecord(null)
 		setTakePreview(null)
 		setShowOriginal(false)
-		setVideo({ file, url: URL.createObjectURL(file), name: file.name })
+		setVideo({ file, url: URL.createObjectURL(file), name: file.name, transcript })
 		setDurationSeconds(0)
 		setCurrentTimeSeconds(0)
 		setIsPlaying(false)
+		// A new video is a new, unsaved project.
+		setProject(null)
+		setSaveStatus('unsaved')
+	}
+
+	/** A saved edit put back in place, with no history: what reopening a project does. */
+	function applySnapshot(saved: EditSnapshot) {
+		setTrim(saved.trim)
+		setCuts(saved.cuts)
+		setClips(saved.clips)
+		setReplacements(saved.replacements)
+		setTitle(saved.title)
+		setWatermark(saved.watermark)
+		setCaptionsOn(saved.captionsOn)
+		setAnnotations(saved.annotations)
+		setTransform(saved.transform)
+		setColor(saved.color)
+		setCaptionStyle(saved.captionStyle)
+		setAudioItems(saved.audioItems)
+		setAddedVideos(saved.addedVideos)
+		setSourceTrims(saved.sourceTrims)
+	}
+
+	/** Saves the project under `name` (a new one the first time): its media once, its edit each time. */
+	async function save(name: string) {
+		if (!video) return
+		const id = project?.id ?? crypto.randomUUID()
+		// Outside the try: the React Compiler can't compile a `? :` inside one.
+		const transcript =
+			analysis.transcript.status === 'ready' ? analysis.transcript.transcript : null
+		setSaveStatus('saving')
+		try {
+			const at = await saveProject({
+				id,
+				name,
+				main: video.file,
+				transcript,
+				edit: snapshot
+			})
+			setProject({ id, name })
+			setSaveStatus('saved')
+			setSavedAt(at)
+			void queryClient.invalidateQueries({ queryKey: PROJECTS_KEY })
+		} catch (error) {
+			const { userMessage } = captureClientError(error, { feature: 'save_project' })
+			setSaveStatus('failed')
+			toast({ variant: 'destructive', title: t('projects.saveFailed'), description: userMessage })
+		}
+	}
+
+	/**
+	 * Opens a saved project in place of this edit: its media found first (or
+	 * asked for, when the browser no longer holds it), then its video, its
+	 * transcript and its edit, with no history.
+	 */
+	async function openSaved(id: string) {
+		try {
+			const missing = await missingMedia(id)
+			if (missing.length > 0) {
+				setRelink({ id, missing })
+				return
+			}
+			const opened = await openProject(id, decodeAudio)
+			if (!opened) {
+				toast({ variant: 'destructive', title: t('projects.cantOpen') })
+				return
+			}
+			playback.pause()
+			setRelink(null)
+			loadFile(opened.main, opened.transcript)
+			applySnapshot(opened.edit)
+			addedUrlsRef.current.push(...opened.urls)
+			setProject({ id: opened.id, name: opened.name })
+			setSaveStatus('saved')
+			setSavedAt(opened.savedAt)
+		} catch (error) {
+			const { userMessage } = captureClientError(error, { feature: 'open_project' })
+			toast({ variant: 'destructive', title: t('projects.cantOpen'), description: userMessage })
+		}
+	}
+
+	/** A file picked for missing media: kept if it's the same file, then opening goes on. */
+	async function relinkFile(ref: MediaRef, file: File) {
+		if (!relink) return
+		if (!(await relinkMedia(ref, file))) {
+			toast({
+				variant: 'destructive',
+				title: t('projects.wrongFile', { name: file.name, wanted: ref.name })
+			})
+			return
+		}
+		const missing = relink.missing.filter((m) => m.key !== ref.key)
+		if (missing.length > 0) setRelink({ ...relink, missing })
+		else void openSaved(relink.id)
+	}
+
+	async function removeProject(id: string) {
+		await deleteProject(id)
+		if (project?.id === id) {
+			setProject(null)
+			setSaveStatus('unsaved')
+		}
+		void queryClient.invalidateQueries({ queryKey: PROJECTS_KEY })
 	}
 
 	function handleLoadedMetadata(element: HTMLVideoElement) {
@@ -700,6 +829,34 @@ export function VideoEditor() {
 		applyTrim(step.restore.trim, step.restore.trim?.startSeconds ?? 0)
 	}
 
+	// Once saved, the project saves itself a moment after each change to the
+	// edit (any of the snapshot's pieces; not playback or the playhead).
+	const autosave = useEffectEvent(() => {
+		if (project && saveStatus !== 'saving') void save(project.name)
+	})
+	// The project's id, not its object: a save sets it again, and that's no change.
+	const projectId = project?.id
+	useEffect(() => {
+		const timer = setTimeout(autosave, AUTOSAVE_DELAY_MS)
+		return () => clearTimeout(timer)
+	}, [
+		projectId,
+		trim,
+		cuts,
+		clips,
+		replacements,
+		title,
+		watermark,
+		captionsOn,
+		annotations,
+		transform,
+		color,
+		captionStyle,
+		audioItems,
+		addedVideos,
+		sourceTrims
+	])
+
 	// Ctrl/⌘+Z undoes; Ctrl/⌘+Shift+Z or Ctrl+Y redoes. Not while typing:
 	// there they're the text field's own undo.
 	const handleShortcut = useEffectEvent((event: KeyboardEvent) => {
@@ -853,6 +1010,7 @@ export function VideoEditor() {
 				id: crypto.randomUUID(),
 				name: file.name,
 				buffer,
+				origin: { kind: 'file', file },
 				pieces: [{ startSeconds: 0, endSeconds: buffer.duration }],
 				skipSeconds: 0,
 				seconds: buffer.duration,
@@ -1014,6 +1172,9 @@ export function VideoEditor() {
 			(_, index) => joinLimit(sequence, index, edit, replacements, sourceEdits) ?? 0
 		),
 		canMerge: (from, to) => mergeClips(sequence, from, to) !== sequence,
+		projectName: project?.name ?? (video?.name ?? '').replace(/\.[^.]*$/, ''),
+		unsaved: !project && history.past.length > 0,
+		projects: projects.data ?? [],
 		cleanupSeconds: removableSeconds,
 		canUndo: history.past.length > 0,
 		canRedo: history.future.length > 0,
@@ -1043,6 +1204,12 @@ export function VideoEditor() {
 				break
 			case 'addVideo':
 				pickVideo()
+				break
+			case 'saveProject':
+				void save(plan.name)
+				break
+			case 'openProject':
+				void openSaved(plan.id)
 				break
 			case 'merge':
 				arrangeClips(mergeClips(sequence, plan.from, plan.to))
@@ -1189,11 +1356,31 @@ export function VideoEditor() {
 								<label>
 									<ReplaceIcon />
 									{t('replace')}
-									<VideoFileInput onFile={loadFile} />
+									<VideoFileInput onFile={(file) => loadFile(file)} />
 								</label>
 							</Button>
 						</div>
 					</div>
+					{hasDuration && (
+						<ProjectPanel
+							key={project?.id ?? `new-${video.url}`}
+							name={project?.name ?? null}
+							suggestedName={video.name.replace(/\.[^.]*$/, '')}
+							status={saveStatus}
+							savedAt={savedAt}
+							onSave={(name) => void save(name)}
+							projects={projects.data ?? []}
+							onOpen={(id) => void openSaved(id)}
+							onDelete={(id) => void removeProject(id)}
+						/>
+					)}
+					{relink && (
+						<RelinkPanel
+							missing={relink.missing}
+							onPick={(ref, file) => void relinkFile(ref, file)}
+							onCancel={() => setRelink(null)}
+						/>
+					)}
 					{hasDuration && (
 						<CommandBar
 							context={commandContext}
@@ -1363,7 +1550,31 @@ export function VideoEditor() {
 					)}
 				</div>
 			) : (
-				<UploadDropzone onFile={loadFile} />
+				<>
+					<UploadDropzone onFile={(file) => loadFile(file)} />
+					{relink ? (
+						<RelinkPanel
+							missing={relink.missing}
+							onPick={(ref, file) => void relinkFile(ref, file)}
+							onCancel={() => setRelink(null)}
+						/>
+					) : (
+						<section
+							aria-label={t('projects.label')}
+							className="border-border bg-surface flex flex-col gap-3 rounded-2xl border p-4 shadow-xl"
+						>
+							<h2 className="text-text text-xs font-bold tracking-wider uppercase">
+								{t('projects.myProjects')}
+							</h2>
+							<ProjectList
+								projects={projects.data ?? []}
+								current={null}
+								onOpen={(id) => void openSaved(id)}
+								onDelete={(id) => void removeProject(id)}
+							/>
+						</section>
+					)}
+				</>
 			)}
 			{video && hasDuration && (
 				<CleanupBar

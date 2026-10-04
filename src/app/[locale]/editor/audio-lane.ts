@@ -27,6 +27,11 @@ export type AudioItem<Sound = AudioBuffer> = {
 	name: string
 	/** The decoded sound it plays from: a file's own, or the take's. */
 	buffer: Sound
+	/**
+	 * Where that sound came from, to save and reopen it: an added file's own
+	 * bytes, or a video's (`source`, absent for the main one), decoded again.
+	 */
+	origin: { kind: 'file'; file: Blob } | { kind: 'video'; source?: string }
 	/** The parts of `buffer` it plays, back to back, in the buffer's seconds. */
 	pieces: SourceRange[]
 	skipSeconds: number
@@ -133,11 +138,13 @@ export function extractedItem<Sound>(
 	id: string
 ): AudioItem<Sound> {
 	const own = segments.slice(first, first + count)
+	const source = own[0]?.source
 	const pieces = own.map(({ startSeconds, endSeconds }) => ({ startSeconds, endSeconds }))
 	return {
 		id,
 		name,
 		buffer,
+		origin: { kind: 'video', ...(source && { source }) },
 		pieces,
 		skipSeconds: 0,
 		seconds: availableSeconds({ pieces }),

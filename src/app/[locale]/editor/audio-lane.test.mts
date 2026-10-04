@@ -24,6 +24,7 @@ const music = (): AudioItem<string> => ({
 	id: 'm',
 	name: 'music.mp3',
 	buffer: 'music',
+	origin: { kind: 'file', file: new Blob() },
 	pieces: [{ startSeconds: 0, endSeconds: 10 }],
 	skipSeconds: 0,
 	seconds: 10,
@@ -167,7 +168,10 @@ const CONTEXT: CommandContext = {
 	audioCount: 2,
 	extractBlockers: [null, 'sped'],
 	playheadSeconds: 3,
-	canMerge: () => true
+	canMerge: () => true,
+	projectName: 'Take',
+	unsaved: false,
+	projects: []
 }
 const run = (fields: Partial<EditCommand> & Pick<EditCommand, 'action'>, context = CONTEXT) =>
 	commandToPlan({ ...NONE, ...fields }, context)

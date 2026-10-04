@@ -42,7 +42,8 @@ const COMMAND_ABILITIES = [
 	'color',
 	'textStyle',
 	'audioLane',
-	'addVideo'
+	'addVideo',
+	'projects'
 ] as const
 const EDITOR_ABILITIES = [
 	'fillerCut',
@@ -169,6 +170,12 @@ export function CommandReply({
 			}
 			case 'addVideo':
 				return t('confirm.addVideo')
+			case 'saveProject':
+				return t('confirm.saveProject', { name: plan.name })
+			case 'openProject':
+				return plan.unsaved
+					? t('confirm.openProjectUnsaved', { name: plan.name })
+					: t('confirm.openProject', { name: plan.name })
 			case 'addAudio':
 				return t('confirm.addAudio', { at: formatTimecode(plan.seconds) })
 			case 'extractAudio':

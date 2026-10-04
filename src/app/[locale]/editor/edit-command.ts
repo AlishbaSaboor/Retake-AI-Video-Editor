@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { regionRect, REGIONS, type NewAnnotation, type Region } from './annotations'
 import type { ExtractBlocker } from './audio-lane'
+import { findProject, type ProjectSummary } from './projects'
 import { clampVolume, DEFAULT_FADE_SECONDS, VOLUME_STEP, type ClipAudio } from './clip-audio'
 import {
 	clampLevel,
@@ -83,6 +84,8 @@ const ACTIONS = [
 	'extract_audio',
 	'delete_audio',
 	'add_video',
+	'save_project',
+	'open_project',
 	'unsupported'
 ] as const
 /** What a color command changes: a level, a look, or back to normal. */
@@ -244,6 +247,10 @@ export type CommandPlan =
 	| { kind: 'deleteAudio'; item: number }
 	/** Another video into the project, after the clips: the file picker opens on Apply. */
 	| { kind: 'addVideo' }
+	/** The project saved under `name`. */
+	| { kind: 'saveProject'; name: string }
+	/** A saved project opened in place of this edit; `unsaved`: this edit has changes never saved. */
+	| { kind: 'openProject'; id: string; name: string; unsaved: boolean }
 	/** `clip` counts from 1. */
 	| { kind: 'deleteClip'; clip: number }
 	| { kind: 'duplicateClip'; clip: number }
@@ -271,6 +278,8 @@ export type RefusalReason =
 	| 'no_text'
 	| 'audio_after_end'
 	| 'merge_videos'
+	| 'no_projects'
+	| 'no_such_project'
 	| 'no_audio'
 	| 'no_such_audio'
 	| `extract_${ExtractBlocker}`
@@ -314,6 +323,11 @@ export type CommandContext = {
 	playheadSeconds: number
 	/** Whether clips `from` to `to` (indexes) can be one: they must be of one video. */
 	canMerge: (from: number, to: number) => boolean
+	/** The project's name once saved, else what a first save is called. */
+	projectName: string
+	/** Whether this edit has changes that were never saved. */
+	unsaved: boolean
+	projects: ProjectSummary[]
 	/** The picture's flip, rotation and crop now, and the source picture's size. */
 	transform: PictureTransform
 	picture: Size
@@ -420,6 +434,15 @@ export function commandToPlan(command: EditCommand, context: CommandContext): Co
 			return textStyleCommand(command, context)
 		case 'add_video':
 			return plan({ kind: 'addVideo' })
+		case 'save_project':
+			return plan({ kind: 'saveProject', name: command.text?.trim() || context.projectName })
+		case 'open_project': {
+			if (context.projects.length === 0) return refuse('no_projects')
+			const found = findProject(context.projects, command.text ?? '')
+			return found
+				? plan({ kind: 'openProject', id: found.id, name: found.name, unsaved: context.unsaved })
+				: refuse('no_such_project')
+		}
 		case 'add_audio': {
 			const seconds = command.startSeconds ?? context.playheadSeconds
 			if (seconds < 0 || seconds >= context.editedSeconds) return refuse('audio_after_end')
