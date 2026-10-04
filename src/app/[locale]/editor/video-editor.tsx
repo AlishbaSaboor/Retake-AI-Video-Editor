@@ -100,12 +100,17 @@ import { TranscriptPanel } from './transcript-panel'
 import { UploadDropzone } from './upload-dropzone'
 import { useSequencePlayback } from './use-sequence-playback'
 import { useTakeAnalysis } from './use-take-analysis'
+import { extractBlocker, extractedItem, type AudioItem } from './audio-lane'
+import { AudioLanePanel } from './audio-lane-panel'
+import { decodeAudio } from './take-audio'
 import { VideoFileInput } from './video-file-input'
 
 type LoadedVideo = { file: File; url: string; name: string }
 
 /** The preview's grade filters' id prefix. */
 const PREVIEW_GRADE = 'preview-grade'
+/** No lane sound: what playback gets outside the Edited view (one array, so it never looks changed). */
+const NO_LANE: AudioItem[] = []
 
 const overlaps = (a: SourceRange, b: SourceRange) =>
 	a.startSeconds < b.endSeconds && a.endSeconds > b.startSeconds
@@ -172,6 +177,12 @@ export function VideoEditor() {
 	// The whole video's color adjustments (a clip's own are on the clip), and the captions' look.
 	const [color, setColor] = useState<ColorGrade>(NEUTRAL_GRADE)
 	const [captionStyle, setCaptionStyle] = useState<TextStyle>(DEFAULT_TEXT_STYLE)
+	// The Audio lane (audio-lane.ts), and the take's own sound, decoded the
+	// first time a clip's sound is taken out into it.
+	const [audioItems, setAudioItems] = useState<AudioItem[]>([])
+	const takeSoundRef = useRef<Promise<AudioBuffer | null> | null>(null)
+	const audioInputRef = useRef<HTMLInputElement>(null)
+	const audioAtRef = useRef(0)
 	const annotationTools = useAnnotationTools()
 	// Flip, rotation and crop of the whole picture (transform.ts), and the
 	// on-picture tool setting it by hand, if any. While the rotation handle is
@@ -197,7 +208,8 @@ export function VideoEditor() {
 		annotations,
 		transform,
 		color,
-		captionStyle
+		captionStyle,
+		audioItems
 	}
 	const trimDragRef = useRef<{ recorded: boolean } | null>(null)
 	// The filler cut editor: which filler is open and where its handles sit.
@@ -246,7 +258,8 @@ export function VideoEditor() {
 		segments: editedSegments,
 		overlays,
 		transform,
-		color
+		color,
+		laneItems: audioItems
 	})
 	const segments =
 		preview && cutWindow && cutEditor
@@ -275,6 +288,7 @@ export function VideoEditor() {
 		videoRef,
 		deckRef,
 		segments,
+		segments === editedSegments ? audioItems : NO_LANE,
 		isPlaying,
 		previewRate,
 		followPlayhead,
@@ -359,6 +373,8 @@ export function VideoEditor() {
 		setTransform(IDENTITY_TRANSFORM)
 		setColor(NEUTRAL_GRADE)
 		setCaptionStyle(DEFAULT_TEXT_STYLE)
+		setAudioItems([])
+		takeSoundRef.current = null
 		setTransformMode(null)
 		setPicture(null)
 		setHistory(emptyHistory())
@@ -622,6 +638,7 @@ export function VideoEditor() {
 		setTransform(step.restore.transform)
 		setColor(step.restore.color)
 		setCaptionStyle(step.restore.captionStyle)
+		setAudioItems(step.restore.audioItems)
 		applyTrim(step.restore.trim, step.restore.trim?.startSeconds ?? 0)
 	}
 
@@ -753,6 +770,81 @@ export function VideoEditor() {
 		}
 	}
 
+	// The file picker opens straight from the click (Add audio file, or Apply
+	// on an add-audio command); where it goes waits for the file.
+	function pickAudio(seconds: number) {
+		audioAtRef.current = seconds
+		audioInputRef.current?.click()
+	}
+
+	/** An audio file into the lane at the picked time: one change. */
+	async function addAudioFile(file: File) {
+		const buffer = file.type.startsWith('audio/') ? await decodeAudio(file) : null
+		if (!buffer) {
+			toast({
+				variant: 'destructive',
+				title: t('audioLane.notAudio.title'),
+				description: t('audioLane.notAudio.description', { name: file.name })
+			})
+			return
+		}
+		recordEdit()
+		setAudioItems([
+			...audioItems,
+			{
+				id: crypto.randomUUID(),
+				name: file.name,
+				buffer,
+				pieces: [{ startSeconds: 0, endSeconds: buffer.duration }],
+				skipSeconds: 0,
+				seconds: buffer.duration,
+				atSeconds: audioAtRef.current,
+				volume: 1,
+				muted: false
+			}
+		])
+	}
+
+	const extractBlockers = sequence.map((clip) => extractBlocker(clip, replacements))
+
+	/** Clip `index`'s sound out into the lane, where it plays; the clip goes silent. One change. */
+	async function extractClip(index: number) {
+		const clip = sequence[index]
+		if (!clip || !video || extractBlockers[index] !== null) return
+		// Decoded once, the first time: a plain `if` (the React Compiler can't compile `??=`).
+		if (!takeSoundRef.current) takeSoundRef.current = decodeAudio(video.file)
+		const buffer = await takeSoundRef.current
+		const owners = segmentClips(sequence, edit, replacements)
+		const first = owners.indexOf(index)
+		if (!buffer || first < 0) {
+			toast({ variant: 'destructive', title: t('audioLane.noSound') })
+			return
+		}
+		recordEdit()
+		setAudioItems([
+			...audioItems,
+			extractedItem(
+				editedSegments,
+				first,
+				owners.filter((owner) => owner === index).length,
+				buffer,
+				t('audioLane.clipSound', { number: index + 1 }),
+				crypto.randomUUID()
+			)
+		])
+		setClips(sequence.map((c, i) => (i === index ? { ...c, soundInLane: true } : c)))
+	}
+
+	function changeAudioItem(item: AudioItem) {
+		recordEdit()
+		setAudioItems(audioItems.map((i) => (i.id === item.id ? item : i)))
+	}
+
+	function deleteAudioItem(id: string) {
+		recordEdit()
+		setAudioItems(audioItems.filter((i) => i.id !== id))
+	}
+
 	function changeCaptionStyle(style: TextStyle) {
 		recordEdit()
 		setCaptionStyle(style)
@@ -814,7 +906,10 @@ export function VideoEditor() {
 		clipTakes: sequence.map((clip) => clipHasTake(clip, replacements)),
 		colors: { video: color, clips: sequence.map((clip) => clip.color) },
 		hasTitle: title !== null,
-		textCount: annotations.filter((item) => item.kind === 'text').length
+		textCount: annotations.filter((item) => item.kind === 'text').length,
+		audioCount: audioItems.length,
+		extractBlockers,
+		playheadSeconds: editedNow ?? 0
 	}
 
 	// Each runs what its button does, so each edit is the same one undo step.
@@ -888,6 +983,17 @@ export function VideoEditor() {
 			case 'color':
 				changeColor(plan.clip === null ? null : plan.clip - 1, plan.grade)
 				break
+			case 'addAudio':
+				pickAudio(plan.seconds)
+				break
+			case 'extractAudio':
+				void extractClip(plan.clip - 1)
+				break
+			case 'deleteAudio': {
+				const item = audioItems[plan.item - 1]
+				if (item) deleteAudioItem(item.id)
+				break
+			}
 			case 'textStyle':
 				restyleText(plan.target, plan.changes)
 				break
@@ -1183,10 +1289,40 @@ export function VideoEditor() {
 				<ClipAudioPanel
 					clips={sequence}
 					withTake={sequence.map((clip) => clipHasTake(clip, replacements))}
+					inLane={sequence.map((clip) => clip.soundInLane === true)}
 					canEdit={!showOriginal}
 					onChange={changeClipAudio}
 					onSpeedChange={(index, speed) => setClipsSpeed(speed, index)}
 				/>
+			)}
+			{video && hasDuration && (
+				<>
+					<AudioLanePanel
+						items={audioItems}
+						editedSeconds={editedSeconds}
+						playheadSeconds={editedNow}
+						extractBlockers={extractBlockers}
+						canEdit={!showOriginal}
+						onAddFile={pickAudio}
+						onExtract={(index) => void extractClip(index)}
+						onChange={changeAudioItem}
+						onDelete={deleteAudioItem}
+					/>
+					<input
+						ref={audioInputRef}
+						type="file"
+						accept="audio/*"
+						aria-label={t('audioLane.fileInput')}
+						className="sr-only"
+						tabIndex={-1}
+						onChange={(event) => {
+							const file = event.currentTarget.files?.[0]
+							// Cleared so picking the same file again still counts.
+							event.currentTarget.value = ''
+							if (file) void addAudioFile(file)
+						}}
+					/>
+				</>
 			)}
 			{video && hasDuration && picture && (
 				<TransformPanel

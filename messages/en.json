@@ -125,7 +125,10 @@
 				"colorLevel": "I'll set the {level} of {which} to {percent}%.",
 				"colorLook": "I'll make {which} {look}.",
 				"colorNormal": "I'll put the colors of {which} back to normal.",
-				"textStyle": "I'll change {target}: {changes}."
+				"textStyle": "I'll change {target}: {changes}.",
+				"addAudio": "I'll add an audio file at {at} of the edited video. Choose the file next.",
+				"extractAudio": "I'll take clip {number}'s sound out into its own track in the Audio lane; the clip itself goes silent.",
+				"deleteAudio": "I'll delete audio track {number} from the Audio lane."
 			},
 			"failed": "Couldn't run that command",
 			"clipNumber": "clip {number}",
@@ -177,7 +180,8 @@
 				"deleteDuplicate": "Delete or duplicate a clip: “delete clip 3”, “duplicate the first clip”",
 				"color": "Change the colors: “make it black and white”, “increase the brightness”, “make clip 2 warmer”",
 				"textStyle": "Style text: “make the title red”, “make the captions bigger”, “use a serif font for the title”",
-				"pencil": "Draw freehand on the video: Pencil, in Annotations, under the clips"
+				"pencil": "Draw freehand on the video: Pencil, in Annotations, under the clips",
+				"audioLane": "Separate audio: “add music at 0:05”, “extract the audio of clip 2”, “delete the music”"
 			},
 			"refused": {
 				"no_such_clip": "There's no clip with that number. The Clips strip numbers them from 1.",
@@ -200,7 +204,13 @@
 				"only_clip": "That's the only clip: deleting it would leave nothing to play.",
 				"colors_already_normal": "The colors there are already as recorded.",
 				"no_title": "There's no title yet. Add one first, then style it.",
-				"no_text": "There's no text on the video yet. Add some with the Text tool first."
+				"no_text": "There's no text on the video yet. Add some with the Text tool first.",
+				"audio_after_end": "That's past the end of the edited video.",
+				"no_audio": "There's no audio track in the Audio lane yet.",
+				"no_such_audio": "There's no audio track with that number. The Audio lane numbers them from 1.",
+				"extract_sped": "That clip is sped up or slowed down. Set it back to 1× to take its sound out.",
+				"extract_take": "That clip has a re-recorded sentence, so its sound can't be taken out as it is.",
+				"extract_already": "That clip's sound is already in the Audio lane."
 			},
 			"out_of_range": {
 				"title": "That range isn't in this clip.",
@@ -346,7 +356,8 @@
 			"fadeOut": "Fade out (s)",
 			"hint": "Fades run over each clip's own playing time, cuts skipped. A re-recorded sentence keeps its own level matching; the clip's volume and fades apply on top. Over 100% can clip loud speech. Speed is 0.25× to 4×, the pitch kept; a clip with a re-recorded sentence stays at 1×.",
 			"speed": "Speed (×)",
-			"speedWithTake": "This clip has a re-recorded sentence, which plays as recorded: its speed stays 1×."
+			"speedWithTake": "This clip has a re-recorded sentence, which plays as recorded: its speed stays 1×.",
+			"inLane": "Its sound is in the Audio lane."
 		},
 		"transform": {
 			"label": "Picture",
@@ -399,7 +410,8 @@
 				"split": "This sentence is split between two clips. Merge them first.",
 				"overlaps": "This sentence overlaps one you’ve already re-recorded.",
 				"sped": "This sentence is in a sped-up or slowed clip. Set the clip back to 1× to re-record it.",
-				"deleted": "This sentence is in a deleted clip, so it doesn’t play. Undo the delete to re-record it."
+				"deleted": "This sentence is in a deleted clip, so it doesn’t play. Undo the delete to re-record it.",
+				"in_lane": "This sentence’s clip has its sound in the Audio lane. Undo that to re-record it."
 			},
 			"record": "Record",
 			"recordAgain": "Record again",
@@ -482,6 +494,35 @@
 			},
 			"reset": "Reset colors",
 			"hint": "A clip's colors go on top of the whole video's. 100% is as recorded."
+		},
+		"audioLane": {
+			"label": "Audio",
+			"addFile": "Add audio file",
+			"fileInput": "Audio file to add",
+			"extractFrom": "Clip",
+			"clip": "Clip {number}",
+			"extract": "Extract the clip's sound",
+			"blocked": {
+				"sped": "Sped up or slowed: set it back to 1× first.",
+				"take": "It has a re-recorded sentence.",
+				"already": "Its sound is already in the lane."
+			},
+			"empty": "No audio tracks yet: add a file, or take a clip’s sound out into its own track.",
+			"item": "{number}. {name}",
+			"clipSound": "Clip {number} sound",
+			"bar": "{name}: {start}–{end}",
+			"start": "{name} start",
+			"end": "{name} end",
+			"startsAt": "Starts at (s)",
+			"volume": "Volume {percent}%",
+			"mute": "Mute",
+			"delete": "Delete",
+			"hint": "Audio tracks play over the video, mixed, in the edited video’s time: drag one to move it, its edges to trim it. A clip’s sound taken out stays where you put it while the clip itself goes silent.",
+			"notAudio": {
+				"title": "Not an audio file",
+				"description": "{name} couldn’t be read as audio."
+			},
+			"noSound": "This video has no sound to take out."
 		}
 	}
 }

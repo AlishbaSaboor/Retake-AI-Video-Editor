@@ -17,6 +17,8 @@ type ClipAudioPanelProps = {
 	clips: Clip[]
 	/** Per clip, whether a re-recorded take plays in it: its speed stays 1×. */
 	withTake: boolean[]
+	/** Per clip, whether its sound was taken out into the Audio lane: set there, not here. */
+	inLane: boolean[]
 	/** False outside the Edited view: the sound is set on the edit. */
 	canEdit: boolean
 	onChange: (index: number, audio: ClipAudio) => void
@@ -31,6 +33,7 @@ type ClipAudioPanelProps = {
 export function ClipAudioPanel({
 	clips,
 	withTake,
+	inLane,
 	canEdit,
 	onChange,
 	onSpeedChange
@@ -51,6 +54,7 @@ export function ClipAudioPanel({
 					speed={clip.speed ?? 1}
 					hasTake={withTake[index] ?? false}
 					canEdit={canEdit}
+					soundInLane={inLane[index] ?? false}
 					onChange={(audio) => onChange(index, audio)}
 					onSpeedChange={(speed) => onSpeedChange(index, speed)}
 				/>
@@ -66,6 +70,7 @@ function ClipAudioRow({
 	speed,
 	hasTake,
 	canEdit,
+	soundInLane,
 	onChange,
 	onSpeedChange
 }: {
@@ -74,6 +79,7 @@ function ClipAudioRow({
 	speed: number
 	hasTake: boolean
 	canEdit: boolean
+	soundInLane: boolean
 	onChange: (audio: ClipAudio) => void
 	onSpeedChange: (speed: number) => void
 }) {
@@ -111,9 +117,12 @@ function ClipAudioRow({
 	}
 
 	const name = t('clip', { number })
+	// Its sound plays from the Audio lane: volume, mute and fades are set there.
+	const canSetSound = canEdit && !soundInLane
 	return (
 		<div role="group" aria-label={name} className="flex flex-wrap items-end gap-3">
 			<span className="text-text w-14 shrink-0 pb-2 text-xs font-medium">{name}</span>
+			{soundInLane && <span className="text-text-muted pb-2 text-xs">{t('inLane')}</span>}
 			<div className="flex min-w-48 flex-1 flex-col gap-1">
 				<Label htmlFor={`${id}-volume`}>{t('volume', { percent: volume })}</Label>
 				<input
@@ -123,7 +132,7 @@ function ClipAudioRow({
 					max={MAX_VOLUME * PERCENT}
 					step={VOLUME_STEP_PERCENT}
 					value={volume}
-					disabled={!canEdit}
+					disabled={!canSetSound}
 					onChange={(event) => setVolume(event.target.valueAsNumber)}
 					onPointerUp={commitVolume}
 					onKeyUp={commitVolume}
@@ -136,7 +145,7 @@ function ClipAudioRow({
 				size="sm"
 				variant={audio.muted ? 'secondary' : 'ghost'}
 				aria-pressed={audio.muted}
-				disabled={!canEdit}
+				disabled={!canSetSound}
 				onClick={() => onChange({ ...audio, muted: !audio.muted })}
 			>
 				{t('mute')}
@@ -157,7 +166,7 @@ function ClipAudioRow({
 						min={0}
 						step={FADE_STEP_SECONDS}
 						value={fadeIn}
-						disabled={!canEdit}
+						disabled={!canSetSound}
 						onChange={(event) => setFadeIn(event.target.value)}
 						onBlur={() => commitFade('fadeInSeconds', fadeIn)}
 					/>
@@ -170,7 +179,7 @@ function ClipAudioRow({
 						min={0}
 						step={FADE_STEP_SECONDS}
 						value={fadeOut}
-						disabled={!canEdit}
+						disabled={!canSetSound}
 						onChange={(event) => setFadeOut(event.target.value)}
 						onBlur={() => commitFade('fadeOutSeconds', fadeOut)}
 					/>

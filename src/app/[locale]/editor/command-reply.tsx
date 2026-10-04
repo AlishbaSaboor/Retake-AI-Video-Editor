@@ -40,7 +40,8 @@ const COMMAND_ABILITIES = [
 	'transitions',
 	'deleteDuplicate',
 	'color',
-	'textStyle'
+	'textStyle',
+	'audioLane'
 ] as const
 const EDITOR_ABILITIES = [
 	'fillerCut',
@@ -165,6 +166,12 @@ export function CommandReply({
 					changes: parts.join(', ')
 				})
 			}
+			case 'addAudio':
+				return t('confirm.addAudio', { at: formatTimecode(plan.seconds) })
+			case 'extractAudio':
+				return t('confirm.extractAudio', { number: plan.clip })
+			case 'deleteAudio':
+				return t('confirm.deleteAudio', { number: plan.item })
 			case 'deleteClip':
 				return t('confirm.deleteClip', { number: plan.clip })
 			case 'duplicateClip':

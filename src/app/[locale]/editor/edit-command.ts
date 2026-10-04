@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { regionRect, REGIONS, type NewAnnotation, type Region } from './annotations'
+import type { ExtractBlocker } from './audio-lane'
 import { clampVolume, DEFAULT_FADE_SECONDS, VOLUME_STEP, type ClipAudio } from './clip-audio'
 import {
 	clampLevel,
@@ -78,6 +79,9 @@ const ACTIONS = [
 	'duplicate_clip',
 	'color',
 	'text_style',
+	'add_audio',
+	'extract_audio',
+	'delete_audio',
 	'unsupported'
 ] as const
 /** What a color command changes: a level, a look, or back to normal. */
@@ -231,6 +235,12 @@ export type CommandPlan =
 	| { kind: 'color'; clip: number | null; grade: ColorGrade; change: ColorChange }
 	/** The style changes for the title, the captions or every annotation text. */
 	| { kind: 'textStyle'; target: TextTarget; changes: Partial<TextStyle> }
+	/** An audio file into the lane at `seconds` of the edited video: the picker opens on Apply. */
+	| { kind: 'addAudio'; seconds: number }
+	/** Clip `clip`'s sound (from 1) out into the Audio lane. */
+	| { kind: 'extractAudio'; clip: number }
+	/** The lane's audio item `item` (from 1) deleted. */
+	| { kind: 'deleteAudio'; item: number }
 	/** `clip` counts from 1. */
 	| { kind: 'deleteClip'; clip: number }
 	| { kind: 'duplicateClip'; clip: number }
@@ -256,6 +266,10 @@ export type RefusalReason =
 	| 'colors_already_normal'
 	| 'no_title'
 	| 'no_text'
+	| 'audio_after_end'
+	| 'no_audio'
+	| 'no_such_audio'
+	| `extract_${ExtractBlocker}`
 	| 'no_sentence'
 	| 'nothing_to_export'
 	| 'nothing_to_uncrop'
@@ -288,6 +302,12 @@ export type CommandContext = {
 	hasTitle: boolean
 	/** How many annotation texts there are. */
 	textCount: number
+	/** How many items the Audio lane has. */
+	audioCount: number
+	/** Per clip, why its sound can't be taken out into the lane; null where it can. */
+	extractBlockers: (ExtractBlocker | null)[]
+	/** Where the playhead is in the edited video, for "add music here". */
+	playheadSeconds: number
 	/** The picture's flip, rotation and crop now, and the source picture's size. */
 	transform: PictureTransform
 	picture: Size
@@ -389,6 +409,27 @@ export function commandToPlan(command: EditCommand, context: CommandContext): Co
 			return colorCommand(command, context)
 		case 'text_style':
 			return textStyleCommand(command, context)
+		case 'add_audio': {
+			const seconds = command.startSeconds ?? context.playheadSeconds
+			if (seconds < 0 || seconds >= context.editedSeconds) return refuse('audio_after_end')
+			return plan({ kind: 'addAudio', seconds })
+		}
+		case 'extract_audio': {
+			const clip = command.fromClip
+			if (clip === null) return refuse('unsupported')
+			if (!Number.isInteger(clip) || clip < 1 || clip > context.clipCount) {
+				return refuse('no_such_clip')
+			}
+			const blocker = context.extractBlockers[clip - 1]
+			return blocker ? refuse(`extract_${blocker}`) : plan({ kind: 'extractAudio', clip })
+		}
+		case 'delete_audio': {
+			if (context.audioCount === 0) return refuse('no_audio')
+			const item = command.fromClip ?? context.audioCount
+			return Number.isInteger(item) && item >= 1 && item <= context.audioCount
+				? plan({ kind: 'deleteAudio', item })
+				: refuse('no_such_audio')
+		}
 		case 'delete_clip':
 		case 'duplicate_clip': {
 			const clip = command.fromClip

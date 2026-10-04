@@ -31,6 +31,8 @@ export type Clip = {
 	speed?: number
 	transition?: Transition
 	color?: ColorGrade
+	/** Its sound was taken out into the Audio lane (audio-lane.ts): the clip itself is silent. */
+	soundInLane?: true
 }
 
 /** The slowest and fastest a clip may play: what the browser keeps sound and pitch for. */
@@ -53,7 +55,8 @@ export function withClipSettings(
 		...(audio && !isDefaultAudio(audio) && { audio }),
 		...(speed !== undefined && speed !== 1 && { speed }),
 		...(clip.transition && { transition: clip.transition }),
-		...(clip.color && !isNeutral(clip.color) && { color: clip.color })
+		...(clip.color && !isNeutral(clip.color) && { color: clip.color }),
+		...(clip.soundInLane && { soundInLane: clip.soundInLane })
 	}
 }
 
@@ -173,7 +176,8 @@ export function splitClipAt(
 		...(audio && { audio: { ...audio, fadeOutSeconds: 0 } }),
 		...(clip.speed !== undefined && { speed: clip.speed }),
 		...(clip.transition && { transition: clip.transition }),
-		...(clip.color && { color: clip.color })
+		...(clip.color && { color: clip.color }),
+		...(clip.soundInLane && { soundInLane: clip.soundInLane })
 	}
 	const after: Clip = {
 		id: newId(),
@@ -183,7 +187,8 @@ export function splitClipAt(
 		],
 		...(audio && { audio: { ...audio, fadeInSeconds: 0 } }),
 		...(clip.speed !== undefined && { speed: clip.speed }),
-		...(clip.color && { color: clip.color })
+		...(clip.color && { color: clip.color }),
+		...(clip.soundInLane && { soundInLane: clip.soundInLane })
 	}
 	return [
 		...clips.slice(0, clipIndex),
@@ -309,7 +314,8 @@ export function mergeClips(clips: Clip[], from: number, to: number): Clip[] {
 			...(first.speed !== undefined && { speed: first.speed }),
 			...(first.transition && { transition: first.transition }),
 			// The first clip's colors: the merged clip has one look.
-			...(first.color && { color: first.color })
+			...(first.color && { color: first.color }),
+			...(first.soundInLane && { soundInLane: first.soundInLane })
 		},
 		...(last ? followedBy(clips.slice(to + 1), last.id, first.id) : clips.slice(to + 1))
 	]
@@ -442,7 +448,10 @@ function clipSegments<R extends Replacement>(
 			...(rate !== undefined && rate !== 1 && !piece.voiceOver && { rate }),
 			...(color && { color })
 		}))
-		const audio = clip.audio
+		// A clip whose sound is in the Audio lane plays silent, through the same mute.
+		const audio = clip.soundInLane
+			? { ...(clip.audio ?? DEFAULT_CLIP_AUDIO), muted: true }
+			: clip.audio
 		if (!audio || isDefaultAudio(audio)) return pieces
 		const clipSeconds = pieces.reduce((sum, piece) => sum + segmentSeconds(piece), 0)
 		let offsetSeconds = 0

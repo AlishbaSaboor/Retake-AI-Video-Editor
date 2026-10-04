@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react'
+import { playLane, stretchFrom, type AudioItem } from './audio-lane'
 import { clipGainAt } from './clip-audio'
 import { scheduleTakeGain, type ReplacementTake } from './re-record'
 import {
@@ -35,6 +36,14 @@ const DECK_DRIFT_SECONDS = 0.1
  * ahead into that segment and the second player covers it until it's there.
  */
 type Dissolve = { index: number; started: boolean; handoff: boolean }
+
+type Lane = { index: number; items: AudioItem[]; to: number; rate: number; stop: () => void }
+
+/** Stops the Audio lane's sounds, if any are playing. */
+function stopLane(laneRef: RefObject<Lane | null>) {
+	laneRef.current?.stop()
+	laneRef.current = null
+}
 
 /** Hides the dissolving player and stops it. */
 function hideDeck(deck: HTMLVideoElement | null) {
@@ -128,6 +137,8 @@ export function useSequencePlayback(
 	/** A second player over the first, for dissolves: the clip coming in. */
 	deckRef: RefObject<HTMLVideoElement | null>,
 	segments: Segment<ReplacementTake>[],
+	/** The Audio lane's sounds, in the edited video's time: [] when `segments` aren't the edit's. */
+	laneItems: AudioItem[],
 	isPlaying: boolean,
 	rate: number,
 	/** The playhead's source time, and which segment it's in: a time can end one segment and start another. */
@@ -143,11 +154,17 @@ export function useSequencePlayback(
 	// A media element can be routed only once, so it stays routed.
 	const clipLevelRef = useRef<{ element: HTMLVideoElement; gain: GainNode } | null>(null)
 	const dissolveRef = useRef<Dissolve | null>(null)
+	// The Audio lane's sounds playing: from which segment's stretch, of which
+	// items, up to where, at what speed, and their stop. Kept across this
+	// hook's effect re-running (it does on every render): restarting them
+	// would click.
+	const laneRef = useRef<Lane | null>(null)
 
 	// `timeupdate` only fires a few times a second, which makes the playhead
 	// stutter and segment jumps land late, so follow every animation frame.
 	useEffect(() => {
 		if (!isPlaying) {
+			stopLane(laneRef)
 			stopVoice(voiceRef, videoRef)
 			dissolveRef.current = null
 			hideDeck(deckRef.current)
@@ -283,6 +300,49 @@ export function useSequencePlayback(
 			deck.volume = Math.min(1, crossfadeGains(progress).in)
 		}
 
+		/**
+		 * Plays the Audio lane over the stretch being played: started where
+		 * playback is when a stretch begins (a seek ends one; a dissolve carries
+		 * on in the same), at the preview's speed; stopped when it ends, on a
+		 * seek or a pause.
+		 */
+		const followLane = (element: HTMLVideoElement, index: number) => {
+			if (laneItems.length === 0 || element.paused || index < 0) {
+				stopLane(laneRef)
+				return
+			}
+			const current = laneRef.current
+			const { to } = stretchFrom(segments, index)
+			// The same items over the same stretch at the same speed: carry on.
+			const same =
+				current !== null &&
+				current.items === laneItems &&
+				current.to === to &&
+				current.rate === rate
+			const carriesOn =
+				same && index > current.index && segments[index]?.transition?.kind === 'dissolve'
+			if (same && (current.index === index || carriesOn)) return
+			stopLane(laneRef)
+			const audio = audioRef.current ?? new AudioContext()
+			audioRef.current = audio
+			void audio.resume()
+			laneRef.current = {
+				index,
+				items: laneItems,
+				to,
+				rate,
+				stop: playLane(
+					audio,
+					audio.destination,
+					laneItems,
+					editedAt(index, element.currentTime),
+					to,
+					audio.currentTime,
+					rate
+				)
+			}
+		}
+
 		let frame = 0
 		const follow = () => {
 			const element = videoRef.current
@@ -326,6 +386,7 @@ export function useSequencePlayback(
 				const wanted = rate * (playing?.rate ?? 1)
 				if (element.playbackRate !== wanted) element.playbackRate = wanted
 				followDissolve(element, playingIndexRef.current ?? -1)
+				followLane(element, playingIndexRef.current ?? -1)
 				const clipLevel = followClipLevel(element, playing)
 				const replacement = playing?.voiceOver?.replacement
 				if (replacement && !element.paused && voiceRef.current?.replacement !== replacement) {
@@ -350,7 +411,7 @@ export function useSequencePlayback(
 		}
 		frame = requestAnimationFrame(follow)
 		return () => cancelAnimationFrame(frame)
-	}, [isPlaying, segments, rate, videoRef, deckRef, onTime, onStop])
+	}, [isPlaying, segments, laneItems, rate, videoRef, deckRef, onTime, onStop])
 
 	// The preview speed (times the playing clip's own) on the video, its pitch
 	// kept. After every render, not on change only: a new video element starts
@@ -364,9 +425,10 @@ export function useSequencePlayback(
 		if (element.playbackRate !== wanted) element.playbackRate = wanted
 	})
 
-	// The take and its audio context go with the editor.
+	// The take, the lane and their audio context go with the editor.
 	useEffect(
 		() => () => {
+			stopLane(laneRef)
 			stopVoice(voiceRef, videoRef)
 			void audioRef.current?.close()
 		},
@@ -380,6 +442,7 @@ export function useSequencePlayback(
 		stopVoice(voiceRef, videoRef)
 		dissolveRef.current = null
 		hideDeck(deckRef.current)
+		stopLane(laneRef)
 		const at = playbackPosition(seconds, segments)
 		const target = at?.seconds ?? segments.at(-1)?.endSeconds ?? seconds
 		playingIndexRef.current = at?.index ?? null

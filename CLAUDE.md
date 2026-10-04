@@ -36,6 +36,9 @@ it's committed once, at the end of a work session, separately from the code
   stores, never printed). If it fails, read the failure, fix it, and push
   the fix before starting the next task. Don't start a new feature on a red
   `main`.
+- A test that's flaky on CI but passes locally and on retry: record it in
+  section 4c of `PROGRESS_NOTES.md` and carry on. Stop only for a failure
+  that persists.
 
 ## Skills
 

@@ -1,4 +1,5 @@
 import type { Annotation } from './annotations'
+import type { AudioItem } from './audio-lane'
 import type { Cut } from './cleanup'
 import type { TitleCard, Watermark } from './overlays'
 import type { ReplacementTake } from './re-record'
@@ -24,6 +25,8 @@ export type EditSnapshot<R = ReplacementTake> = {
 	/** The whole video's color adjustments (a clip's own are on the clip). */
 	color: ColorGrade
 	captionStyle: TextStyle
+	/** The Audio lane's sounds. */
+	audioItems: AudioItem[]
 }
 
 /** The edit right after upload: the whole take, untouched. */
@@ -38,7 +41,8 @@ export const ORIGINAL_EDIT: EditSnapshot = {
 	annotations: [],
 	transform: IDENTITY_TRANSFORM,
 	color: NEUTRAL_GRADE,
-	captionStyle: DEFAULT_TEXT_STYLE
+	captionStyle: DEFAULT_TEXT_STYLE,
+	audioItems: []
 }
 
 /**
@@ -62,6 +66,7 @@ export function isOriginalEdit<R>(edit: EditSnapshot<R>, durationSeconds: number
 		isIdentity(edit.transform) &&
 		isNeutral(edit.color) &&
 		isDefaultStyle(edit.captionStyle) &&
+		edit.audioItems.length === 0 &&
 		(edit.clips === null ||
 			(otherClips.length === 0 &&
 				otherRanges.length === 0 &&
@@ -69,6 +74,7 @@ export function isOriginalEdit<R>(edit: EditSnapshot<R>, durationSeconds: number
 				isWhole(onlyRange) &&
 				isDefaultAudio(onlyClip?.audio) &&
 				(onlyClip?.speed ?? 1) === 1 &&
-				isNeutral(onlyClip?.color)))
+				isNeutral(onlyClip?.color) &&
+				!onlyClip?.soundInLane))
 	)
 }
