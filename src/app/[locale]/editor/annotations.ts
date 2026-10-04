@@ -1,3 +1,4 @@
+import type { Animation } from './motion'
 import type { TextStyle } from './text-style'
 
 // The annotation layer: filled boxes, blur boxes and text laid over the
@@ -30,7 +31,7 @@ export type Annotation = Span & { id: string; rect: Rect } & (
 		| { kind: 'box'; color: string }
 		| { kind: 'blur' }
 		| { kind: 'pixelate' }
-		| { kind: 'text'; text: string; style?: TextStyle }
+		| { kind: 'text'; text: string; style?: TextStyle; animation?: Animation }
 		| { kind: 'pencil'; color: string; points: Point[] }
 	)
 

@@ -133,7 +133,10 @@
 				"addVideo": "I'll add another video after the clips. Choose the file next.",
 				"saveProject": "I'll save this project as “{name}”.",
 				"openProject": "I'll open “{name}” in place of this edit.",
-				"openProjectUnsaved": "I'll open “{name}” in place of this edit. This edit has changes that were never saved: they'll be lost."
+				"openProjectUnsaved": "I'll open “{name}” in place of this edit. This edit has changes that were never saved: they'll be lost.",
+				"lowerThird": "I'll show a lower third saying “{name}” from {start} to {end}, sliding in and out.",
+				"animate": "I'll make {target, select, title {the title} other {the text on the video}} {phase, select, in {come in} other {go out}} with {kind, select, none {no animation} fade {a fade} pop {a pop} other {a slide {phase, select, in {from} other {to}} the {side}}} over {seconds} s.",
+				"zoom": "I'll {direction, select, in {push in to} other {pull out from}} {percent}% from {start} to {end}, on the whole picture."
 			},
 			"failed": "Couldn't run that command",
 			"clipNumber": "clip {number}",
@@ -188,7 +191,8 @@
 				"pencil": "Draw freehand on the video: Pencil, in Annotations, under the clips",
 				"audioLane": "Separate audio: “add music at 0:05”, “extract the audio of clip 2”, “delete the music”",
 				"addVideo": "Add another video to the project: “add another video”",
-				"projects": "Save or open a project: “save the project”, “open my project Holiday”"
+				"projects": "Save or open a project: “save the project”, “open my project Holiday”",
+				"motion": "Animate: “add a lower third saying Jane, CEO from 5 to 10 seconds”, “slide the title in from the left”, “zoom in slowly from 10 to 15 seconds”"
 			},
 			"refused": {
 				"no_such_clip": "There's no clip with that number. The Clips strip numbers them from 1.",
@@ -321,7 +325,17 @@
 				"description": "{name} can't be used as a watermark. Choose a PNG image."
 			},
 			"captionStyle": "Caption style",
-			"titleStyle": "Title style"
+			"titleStyle": "Title style",
+			"titleMotion": "Title motion",
+			"lowerThird": "Lower third",
+			"lowerThirdName": "Lower third name",
+			"lowerThirdSubtitle": "Subtitle",
+			"lowerThirdStart": "Lower third start (s)",
+			"lowerThirdDuration": "Lower third length (s)",
+			"addLowerThird": "Add lower third",
+			"updateLowerThird": "Update lower third",
+			"removeLowerThird": "Remove lower third",
+			"lowerThirdStyle": "Lower third style"
 		},
 		"annotations": {
 			"label": "Annotations",
@@ -355,7 +369,8 @@
 			"start": "{name} start",
 			"end": "{name} end",
 			"newTextStyle": "New text style",
-			"selectedTextStyle": "Selected text style"
+			"selectedTextStyle": "Selected text style",
+			"selectedTextMotion": "Selected text motion"
 		},
 		"clipAudio": {
 			"label": "Clip sound and speed",
@@ -562,6 +577,46 @@
 			"relinkHint": "This browser no longer holds some of this project’s files (its storage was cleared). Pick each one again; it’s taken only if its name and size match.",
 			"find": "Find {name}",
 			"relinkCancel": "Cancel"
+		},
+		"motion": {
+			"in": {
+				"label": "Comes in",
+				"side": "From",
+				"seconds": "In (s)"
+			},
+			"out": {
+				"label": "Goes out",
+				"side": "To",
+				"seconds": "Out (s)"
+			},
+			"kinds": {
+				"none": "None",
+				"fade": "Fade",
+				"slide": "Slide",
+				"pop": "Pop"
+			},
+			"sides": {
+				"left": "Left",
+				"right": "Right",
+				"top": "Top",
+				"bottom": "Bottom"
+			},
+			"hint": "An entrance and an exit each take at most half the time it shows."
+		},
+		"zoom": {
+			"label": "Zoom",
+			"direction": "Zoom direction",
+			"directions": {
+				"in": "Push in",
+				"out": "Pull out"
+			},
+			"startSeconds": "From (s)",
+			"endSeconds": "To (s)",
+			"amount": "Zoom (%)",
+			"add": "Add zoom",
+			"update": "Update zoom",
+			"remove": "Remove zoom",
+			"hint": "A slow push-in from the whole picture to the zoom, or a pull-out back from it, between two times of the edited video, about the frame’s centre. Annotations zoom with the picture; the title, captions, lower third and logo stay put."
 		}
 	}
 }

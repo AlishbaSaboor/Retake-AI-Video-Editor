@@ -29,7 +29,8 @@ const NONE = {
 	target: null,
 	color: null,
 	background: null,
-	font: null
+	font: null,
+	effect: null
 }
 const SENTENCE = { startSeconds: 25.2, endSeconds: 27, text: 'Let me add a video here.' }
 /** A three-clip edit with something to clean up and to undo, but nothing to redo. */

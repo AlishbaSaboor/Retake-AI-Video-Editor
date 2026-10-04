@@ -18,6 +18,8 @@ import {
 	type Point,
 	type Rect
 } from './annotations'
+import { animationAt } from './motion'
+import { motionStyle } from './overlay-preview'
 import { bandColor, DEFAULT_TEXT_STYLE, fontFamily } from './text-style'
 import { fitRect } from './sources'
 import type { Size } from './transform'
@@ -255,6 +257,11 @@ export function AnnotationLayer({
 						? draggedRect(drag)
 						: item.rect
 				const style = item.kind === 'text' ? (item.style ?? DEFAULT_TEXT_STYLE) : null
+				// Text comes in and goes out as its animation says (not while it's being moved).
+				const motion =
+					item.kind === 'text' && !drag
+						? animationAt(item.animation, item.startSeconds, item.endSeconds, editedSeconds)
+						: null
 				const selected = tool === 'select' && item.id === selectedId
 				return (
 					<div
@@ -274,6 +281,7 @@ export function AnnotationLayer({
 								backdropFilter: PREVIEW_BLUR,
 								WebkitBackdropFilter: PREVIEW_BLUR
 							}),
+							...(motion && motionStyle(motion)),
 							...(style && {
 								background: style.background ? bandColor(style.background) : 'none',
 								fontSize: `${rect.height * TEXT_HEIGHT_FRACTION * style.size * PERCENT}cqh`

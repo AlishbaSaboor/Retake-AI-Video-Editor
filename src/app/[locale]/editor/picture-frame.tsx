@@ -21,6 +21,8 @@ type PictureFrameProps = {
 	onPicture?: React.ReactNode
 	/** Laid over the output frame, unturned: title, captions, watermark, the crop box. */
 	onFrame?: React.ReactNode
+	/** How much the picture is magnified about the frame's centre now (the zoom): 1 for none. */
+	zoom?: number
 }
 
 /**
@@ -35,7 +37,8 @@ export function PictureFrame({
 	frameRef,
 	video,
 	onPicture,
-	onFrame
+	onFrame,
+	zoom = 1
 }: PictureFrameProps) {
 	const output = outputSize(picture, transform)
 	const frame = rotatedFrame(picture, transform.rotation)
@@ -60,20 +63,27 @@ export function PictureFrame({
 					containerType: 'size'
 				}}
 			>
+				{/* The zoom: the picture (and what's pinned to it) magnified about the frame's centre. */}
 				<div
-					data-testid="picture"
-					className="absolute"
-					style={{
-						left: `${((centreX - picture.width / 2) / output.width) * PERCENT}%`,
-						top: `${((centreY - picture.height / 2) / output.height) * PERCENT}%`,
-						width: `${(picture.width / output.width) * PERCENT}%`,
-						height: `${(picture.height / output.height) * PERCENT}%`,
-						transform: `rotate(${transform.rotation}deg) ${flip}`,
-						containerType: 'size'
-					}}
+					data-testid="zoom"
+					className="absolute inset-0"
+					style={zoom === 1 ? undefined : { transform: `scale(${zoom})` }}
 				>
-					{video}
-					{onPicture}
+					<div
+						data-testid="picture"
+						className="absolute"
+						style={{
+							left: `${((centreX - picture.width / 2) / output.width) * PERCENT}%`,
+							top: `${((centreY - picture.height / 2) / output.height) * PERCENT}%`,
+							width: `${(picture.width / output.width) * PERCENT}%`,
+							height: `${(picture.height / output.height) * PERCENT}%`,
+							transform: `rotate(${transform.rotation}deg) ${flip}`,
+							containerType: 'size'
+						}}
+					>
+						{video}
+						{onPicture}
+					</div>
 				</div>
 				{onFrame}
 			</div>
