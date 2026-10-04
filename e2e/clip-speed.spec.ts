@@ -250,7 +250,9 @@ test('captions in a sped-up clip keep pace with its words in the export', async 
 	await setSpeed(page, 2, 2)
 	// "Second line." is 2.3–3.1 s of source: at 2× in a clip from 2 s, it
 	// plays 2.15–2.55 s of the 3 s edit (at 1× it would be 2.3–3.1).
-	const times = [0.7, 2.35, 2.8, 2.95]
+	// Several probes through the caption: a slow machine's frames can be
+	// ~0.2 s apart, and some frame has to land well inside it.
+	const times = [0.7, 2.25, 2.35, 2.45, 2.8, 2.95]
 	const result = await exportAndRead(page, times)
 	console.log('captions', exported(result), 'frames of', JSON.stringify(result.shown))
 	expectLength(result, 3)
@@ -275,7 +277,8 @@ test('captions in a sped-up clip keep pace with its words in the export', async 
 	// And it was seen both shown and gone.
 	expect(result.shown.some((s) => s > SECOND.from + MARGIN && s < SECOND.to - MARGIN)).toBe(true)
 	expect(result.shown.some((s) => s > SECOND.to + MARGIN)).toBe(true)
-	expectPitchKept(result, times, 2)
+	// Pitch in each sentence's tone, clear of its edges: 0.7 s and 2.35 s.
+	expectPitchKept({ ...result, pitch: [result.pitch[0] ?? 0, result.pitch[2] ?? 0] }, [0.7, 2.35])
 })
 
 test('clip speed works as a typed command, confirmed first and one undo step each', async ({
