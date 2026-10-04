@@ -1519,6 +1519,23 @@ four workers loading it fits, but isn't proven.
 transitions work changed no recording code). That test alone 5×: 5/5. Two
 more full runs: 48/48 (2.4 GB free) and 48/48 (2.5 GB free). Watch it.
 
+**CI runs that didn't pass, checked 2026-10-04:**
+
+- **Run #32 (`57d41e0`, failed):** a logs-only commit, so the same code as
+  #31 and #33, both green. Its e2e job failed `editor.spec.ts` "clips
+  reorder… play back in their new order" on all three attempts (the
+  playhead never went back below 1 s: stuck at 1.5 twice, then at 2.926,
+  the file's end) and was flaky on "home links to the editor" (the click
+  didn't reach `/editor`): the two tests already watched above. Not
+  reproduced locally, even with animation frames slowed to 120 ms and
+  300 ms (7/7 pass; the video never reaches its natural end before the jump
+  back), so the cause is unknown; it has passed in every CI run since
+  (#33–#48). Still watched.
+- **Run #36 (`f8bf27a`, gray):** cancelled, not failed. CI's
+  `concurrency: cancel-in-progress` stopped its e2e job when `2e67d52` was
+  pushed three minutes later; run #37 for `2e67d52` (which includes
+  `f8bf27a`) passed. Not a problem.
+
 **Measured 2026-10-04, picture transforms work: two more watched misses.**
 In four full runs after the feature was finished (2.3–2.7 GB free), two
 passed 36/36 and two each had one export-length miss:
@@ -1743,6 +1760,15 @@ Not yet queued by the user:
     `origin/main`.
   - End commit messages with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
   - Git author is "Alishba Saboor".
+- **After each push, check that commit's GitHub Actions run and wait for
+  it** (user's rule, 2026-10-04, also in `CLAUDE.md`). If it fails, read the
+  failure, fix it and push the fix before the next task; never start a new
+  feature on a red `main`. `gh` isn't installed on this machine: the REST
+  API works with git's stored token, read inside the command and never
+  printed (the session logs are committed):
+  `T=$(printf "protocol=https\nhost=github.com\n\n" | git credential fill | sed -n 's/^password=//p')`,
+  then `curl -H "Authorization: Bearer $T" https://api.github.com/repos/8xplays/t1-alishbasaboor/actions/runs?head_sha=<sha>`
+  (jobs: `/actions/runs/<id>/jobs`; a job's log: `/actions/jobs/<id>/logs`).
 - **Test thoroughly before committing:**
   - unit tests, e2e (run the full suite twice, ideally from a cold server),
     lint, typecheck, Prettier, and a production `pnpm build`
