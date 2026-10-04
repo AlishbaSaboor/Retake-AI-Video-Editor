@@ -43,7 +43,8 @@ const COMMAND_ABILITIES = [
 	'textStyle',
 	'audioLane',
 	'addVideo',
-	'projects'
+	'projects',
+	'motion'
 ] as const
 const EDITOR_ABILITIES = [
 	'fillerCut',
@@ -170,6 +171,27 @@ export function CommandReply({
 			}
 			case 'addVideo':
 				return t('confirm.addVideo')
+			case 'lowerThird':
+				return t('confirm.lowerThird', {
+					name: plan.subtitle ? `${plan.name}, ${plan.subtitle}` : plan.name,
+					start: formatTimecode(plan.startSeconds),
+					end: formatTimecode(plan.startSeconds + plan.durationSeconds)
+				})
+			case 'animate':
+				return t('confirm.animate', {
+					target: plan.target,
+					phase: plan.phase,
+					kind: plan.motion.kind,
+					side: plan.motion.side,
+					seconds: plan.motion.seconds
+				})
+			case 'zoom':
+				return t('confirm.zoom', {
+					direction: plan.zoom.direction,
+					percent: Math.round(plan.zoom.amount * 100),
+					start: formatTimecode(plan.zoom.startSeconds),
+					end: formatTimecode(plan.zoom.endSeconds)
+				})
 			case 'saveProject':
 				return t('confirm.saveProject', { name: plan.name })
 			case 'openProject':

@@ -29,6 +29,15 @@ session with no memory of it can carry on. Read this whole file, then
 > - **A failed AI call now records why** (section 3g): `error_type` and
 >   `error_status` in the `ai_usage` row's `meta`, never the message. Checked
 >   with a real failed Gemini call (row 74, `ApiError`, 400, no spend).
+> - **Motion graphics: entrances, exits, a lower third, a zoom** (section
+>   3s): the title and on-video text come in and go out with a fade, a slide
+>   (from a side) or a pop, over a set time; a lower third (name and
+>   subtitle in a band) slides in at a time and out after a duration; a
+>   push-in or pull-out eases the whole picture between two times. All on
+>   the edited timeline, in the preview, the Edited side and the export, one
+>   undo step each, cleared by reset, saved with projects, and as typed
+>   commands. Verified on real exports (positions, sizes and zoom measured
+>   at known times). Real Gemini: 11 calls, $0.0070; ~857 input tokens.
 > - **Save and reopen projects** (section 3r): a Save button with a name,
 >   autosave after each change once saved, My projects to reopen or delete,
 >   "save the project" / "open my project X". Kept in this browser
@@ -235,8 +244,9 @@ separate `chore(logs)` commit.
 | Separate audio: an Audio lane of added files and extracted clip sounds, moved, trimmed, at their own volume                                                                                                              | `feat(editor): separate audio clips in an Audio lane`                    | Unit tests (`audio-lane.test.mts`): an item plays its sound from where it starts, only in the asked stretch; moving keeps what plays, trimming the start skips more of the sound, the end plays less, neither past the source; volume capped at 200%; an extracted clip keeps its kept pieces (cuts skipped) where the clip starts, and moved plays the same sound earlier; a clip in the lane is silent itself, blocks re-recording (`in_lane`) and counts for reset; only a clip at 1×, without a take, not already out can be extracted; a stretch runs through dissolves to the next seek; commands (add at a time or the playhead, past the end refused; extract, sped refused, no such clip; delete the last or a named one, none / no such). e2e (`audio-lane.spec.ts`, real exports of a red/440 Hz, blue/880 Hz video split in two, and a 1.5 s 660 Hz WAV): the file at 1 s: 660 Hz 0 at 0.5 s, 1.003 at 1.75 s with the video's 440 Hz still 1.0, 0 at 2.9 s; at 50% 0.498; muted 0; undo, reset. Clip 2's sound taken out: 880 Hz 0.999 in place; moved to 0 s: 880 Hz 1.003 over clip 1's 440 Hz 1.004, and 0 at 3 s where clip 2's picture still plays; a sped clip can't be extracted; undo puts the sound back. Preview: one lane start per stretch, from the file's start or 0.6 s in when played from 1.6 s; none in the Original view. Commands (mocked): add opens the picker, extract, delete, already-out refused, undo each. Mutation: the export without the lane fails (no 660 Hz). Full e2e locally: 56/57 (the new preview test played 0.4 s from 1.6 s, across the clips' join at 2 s, where the lane rightly starts again: now played from 1.3 s), 56/57 (`re-record-by-ear.spec.ts:26`, watched) and 56/57 (`annotations.spec.ts:156`, watched); the lane spec 4/4 alone and in the full runs after the fix.                                                                                                 |
 | Several videos in one project: add another, after the clips; the clip tools work on its clips                                                                                                                            | `feat(editor): combine several videos into one project`                  | Unit tests (`sources.test.mts`): an added video's clip plays its own video with its own trim and none of the main one's cuts; a time is looked for in one video (seek, clip under it, edited time); a split divides the playing clip in its own video, a merge needs one video, settings keep the source; captions, takes and re-recording are the main video's own; fitting another shape centred; an added video counts for reset. e2e (`multi-video.spec.ts`, real exports of a red 320×180 / 440 Hz main video and a green 240×240 / 660 Hz added one): 6.88–6.91 s for 7 s, red with 440 Hz then green with 660 Hz, the green letterboxed (the left edge black); the preview plays on into the added player (shown, playing, the main one paused, away), the editor's Pause stops it, and the timeline names the green video. The green clip first and at 2×: 5.41–5.44 s for 5.5 s, 660 Hz kept; black and white on it: grey 182; a dissolve into the red (0.75 s, half the 1.5 s clip): 4.67 s, half way red over grey with both tones. The green video's own trim, a second off its end from its timeline, and a split inside it: 5.88 s. The command (mocked) opens the picker; merging clips of two videos refused; undo, redo, reset. Full e2e 61/61 twice.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Save and reopen projects: Save with a name, autosave, My projects (open, delete), typed save/open                                                                                                                        | `feat(editor): save and reopen projects in the browser`                  | Unit tests (`projects.test.mts`): a typed name finds its project (the same name, else the latest containing it, none, empty); media kept once per file, a picked file stands in only if it's the same one; save and open as commands (a name or the current one, unsaved changes warned, unknown refused, none saved). e2e (`projects.spec.ts`): a project with split, 2× speed, black and white on a clip, a red title, captions on, a box, an audio file at 0.5 s and an added video: exported (4.43–4.45 s: grey 55 with 440 + 660 Hz, blue at 2× with 880 Hz, green with 330 Hz, 136 red title pixels, the black box), saved, the page reloaded, reopened from My projects: the same clips, lane, title, speed and captions; no transcription request; no undo history; a second export the same (4.43 s; every colour within 0, title 134 for 136, every tone within 0.01). Autosave: a change after saving, a reload, the change there. A lost video (the browser's media cleared): reopening asks for the file, refuses another one, opens with the same one; delete asks first, then the project is gone, after a reload too. Commands (mocked): save as Demo; open Demo over an unsaved edit warns; an unknown project refused. Full e2e 65/65, then 64/65 (`transform.spec.ts:160`, watched).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Motion graphics: title/text entrances and exits (fade, slide, pop), a lower third, an animated zoom                                                                                                                      | `feat(editor): animated text, a lower third and zoom`                    | Unit tests for the easing, the half-time cap, the zoom matrix and the commands. e2e measures real exports: the zoom (square width, centred, with a crop and a sped clip), the title sliding and fading, the lower third at the lower left sliding in and gone outside its time, a text pop; typed commands, save/reopen, undo.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
-**Current totals:** 320 unit tests (`src/**/*.test.mts`) and 65 e2e tests.
+**Current totals:** 328 unit tests (`src/**/*.test.mts`) and 69 e2e tests.
 Everything passes locally. On the meter commit the full e2e suite passed
 18/18 in each of two runs.
 
@@ -1508,6 +1518,71 @@ atSeconds (edited time), volume (0–2), muted }`, in the snapshot
 
 ---
 
+## 3s. Motion graphics: entrances, exits, a lower third, a zoom
+
+- **What's there** (`motion.ts`, `motion-panels.tsx`): an `Animation`
+  (an `in` and an `out` `Motion`: none / fade / slide from or to a side /
+  pop, 0.1–3 s) on the title and on each on-video text; one lower third
+  (name, subtitle, start, duration, its own text style) that slides in from
+  the left over 0.5 s and out the same way; one zoom (from, to, push in or
+  pull out, 105–300 %). "None" everywhere is today's behaviour.
+- **Timing on the edited timeline.** Everything here is timed in edited
+  seconds, the same clock as captions and annotations: the preview's
+  `editedNow` and the export's `editedSeconds()` (after cuts, clip speed
+  and dissolve overlaps). So a sped-up clip, a cut or a dissolve changes
+  which picture is under a lower third or a zoom, never when it shows; a
+  zoom from 10 to 15 s is 5 s of the finished video whatever the clips do.
+  An entrance and an exit each take at most half the item's time on
+  screen, so a short item still arrives and leaves. The eases: ease-out
+  cubic for fades and slides, ease-out-back (a small overshoot) for the
+  pop, smoothstep for the zoom. A slide travels a whole frame width or
+  height.
+- **Where it applies.** The zoom scales the picture about the frame's
+  centre after crop, rotation and flip (`zoomedMatrix` on the picture
+  matrix in the export; a `scale()` wrapper in `PictureFrame` in the
+  preview, which `toPicture` undoes so drawing lands where clicked).
+  Annotations are pinned to the picture, so they zoom with it; the title,
+  captions, the lower third and the logo sit on the frame and don't. The
+  title's and texts' motion is applied around their own centre (canvas
+  translate/scale with `globalAlpha`; `motionStyle` in the preview).
+- **Edits:** each change (a panel field, a command) is one undo step;
+  reset clears them (`isOriginalEdit` checks the lower third and the zoom;
+  the title and texts go with their items); saved with projects (new
+  snapshot fields, older saves read as none, same `PROJECT_VERSION`).
+- **Commands:** `lower_third` (`text` "name, subtitle", split at the first
+  comma or " - "; start defaults to the playhead, 4 s), `animate_in` /
+  `animate_out` (`target` title or text, `effect`, `region` the side,
+  `seconds`; the title by default; refused without one), `zoom_in` /
+  `zoom_out` (start defaults to the playhead, 3 s; `percent` over 100 is
+  the zoom, up to 100 how much more; none: 130 %). One new schema field,
+  `effect`; the prompt grew by three lines (~90 input tokens).
+- **Verified on real exports** (`e2e/motion.spec.ts`): a 320×180 grey
+  video with a red 60 px square in the middle. A 200 % push-in from 2 to
+  4 s: the square's measured width matches the eased zoom at 1, 3, 3.8 and
+  5 s (1× outside) and stays centred; the same with a 1:1 crop and a 2×
+  second clip (4.5 s export, zoom at edited 3.2–4.2 s). The title mid-way
+  through a 1 s slide sits left of centre by the eased offset for that
+  frame's time (within 8 px), is centred after, has fewer white pixels
+  while fading, and is gone after its end. The lower third is absent before
+  its start, short of its place by the eased offset late in its slide
+  (within 5 px), at the lower left, absent after. Text popping in is seen
+  faint and narrower (48 → 55 → 61 of 65 px) before it's whole. Checks
+  read the frame's real time, so where export frames land doesn't matter.
+- **Left out:** more than one lower third or zoom, a zoom toward a point
+  other than the centre (Ken Burns pan), motion on captions or the logo,
+  per-letter or path animations, keyframes.
+- **Real Gemini, 2026-10-04:** "add a lower third saying Jane, CEO from 5
+  to 10 seconds", "slide the title in from the left", "zoom in slowly from
+  10 to 15 seconds" (130 %), "fade the title out", "make the title pop in
+  over 1 second", "pull out from 150% between 2 and 6 seconds", and the
+  regressions "fade out the last 2 seconds" (still a clip fade), "add a
+  fade between clips 1 and 2" (still a transition), "add a title saying
+  Hello", "zoom to 150%", "make the title red": all right. Rows 221–231,
+  11 calls, 7,020 micro-USD ($0.0070); **~853–865 input tokens, ~626–651
+  micro-USD a command** (was ~766 and ~579–593).
+
+---
+
 ## 4. Unresolved issues
 
 ### 4a. The command-test regression from earlier instructions is solved
@@ -1864,6 +1939,14 @@ mechanism; not checked. The by-ear e2e test also moved to its own spec,
 after another, its extra real-time recording and export were followed by
 failures in the file's other timing checks.
 
+**Motion graphics runs (2026-10-04, local, full suite ×6):** the reorder
+test (now `editor.spec.ts:444`) failed once more under load, the same way
+(the jump back wasn't below 1 s: 1.5), and passed 3/3 alone. Known flake,
+left as is. The motion spec's first versions read slide and pop positions
+at one fixed time, and failed when an export frame landed a few
+hundredths early; they now compare against the eased value at the frame's
+actual time, or sample several frames through the pop.
+
 ### 4d. Low memory on this machine (observed 2026-10-02)
 
 - The machine has 7.5 GB of RAM. With many apps open (Edge WebView2 apps,
@@ -2009,10 +2092,12 @@ This explains the e2e export-length failures in section 4c (0.39 s long,
 23. ~~Separate audio clips (the Audio lane)~~: done (section 3p).
 24. ~~Several videos in one project~~: done (section 3q).
 25. ~~Save and reopen projects~~: done (section 3r).
+26. ~~Motion graphics: entrances and exits, a lower third, a zoom~~: done
+    (section 3s).
 
 Not yet queued by the user:
 
-- lower thirds, animated overlays, more than one title
+- more than one title, lower third or zoom; a zoom that pans
 - any new abilities must be added to `COMMAND_ABILITIES`/`EDITOR_ABILITIES`
   in `command-reply.tsx`, so the honest reply stays accurate
 

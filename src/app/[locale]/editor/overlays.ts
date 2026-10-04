@@ -9,6 +9,15 @@ import {
 } from './annotations'
 import { captionAt, type Caption } from './captions'
 import { editedStarts, type Segment } from './sequence'
+import {
+	animationAt,
+	LOWER_THIRD_ANIMATION,
+	zoomAt,
+	type Animation,
+	type LowerThird,
+	type MotionState,
+	type Zoom
+} from './motion'
 import { bandColor, canvasFont, DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
 import { outputSize, pictureMatrix, type PictureTransform, type Size } from './transform'
 
@@ -28,6 +37,8 @@ export type TitleCard = {
 	startSeconds: number
 	durationSeconds: number
 	style?: TextStyle
+	/** How it comes in and goes out; absent: it just appears and disappears. */
+	animation?: Animation
 }
 
 /** A PNG logo, as a data URL, kept in one corner for the whole video. */
@@ -40,7 +51,21 @@ export type Overlays = {
 	captions: Caption[]
 	captionStyle: TextStyle
 	annotations: Annotation[]
+	lowerThird: LowerThird | null
+	/** A push-in or pull-out on the whole picture (annotations with it; not the frame's text). */
+	zoom: Zoom | null
 }
+
+// The lower third's band, in the frame: its left edge and its bottom (above
+// two lines of captions), as fractions of the frame; its name's and
+// subtitle's text heights, of the frame's shorter side; line spacing and the
+// space inside the band, of the name's height.
+export const LOWER_THIRD_LEFT_FRACTION = 0.05
+export const LOWER_THIRD_BOTTOM_FRACTION = 0.28
+export const LOWER_THIRD_NAME_FRACTION = 0.065
+export const LOWER_THIRD_SUBTITLE_FRACTION = 0.045
+export const LOWER_THIRD_LINE_SCALE = 1.3
+export const LOWER_THIRD_PADDING_SCALE = 0.35
 
 /** The title's text height, as a fraction of the frame's shorter side. */
 export const TITLE_FONT_FRACTION = 0.08
@@ -219,13 +244,27 @@ function drawAnnotations(
 			drawStroke(context, item.points, pixels, item.color, picture.width)
 			continue
 		}
-		const style = item.kind === 'text' ? (item.style ?? DEFAULT_TEXT_STYLE) : null
-		if (item.kind === 'box' || style?.background) {
-			context.fillStyle =
-				item.kind === 'box' ? item.color : bandColor(style?.background ?? '#000000')
+		if (item.kind === 'box') {
+			context.fillStyle = item.color
+			context.fillRect(pixels.x, pixels.y, pixels.width, pixels.height)
+			continue
+		}
+		const style = item.style ?? DEFAULT_TEXT_STYLE
+		// Text comes in and goes out as its animation says, across the picture.
+		const motion = animationAt(item.animation, item.startSeconds, item.endSeconds, seconds)
+		if (!motion) continue
+		context.save()
+		applyMotion(
+			context,
+			motion,
+			{ x: picture.width, y: picture.height },
+			{ x: pixels.x + pixels.width / 2, y: pixels.y + pixels.height / 2 }
+		)
+		if (style.background) {
+			context.fillStyle = bandColor(style.background)
 			context.fillRect(pixels.x, pixels.y, pixels.width, pixels.height)
 		}
-		if (item.kind === 'text' && style) {
+		{
 			// Clipped to its band, as the preview's overflow is.
 			context.save()
 			context.beginPath()
@@ -240,6 +279,45 @@ function drawAnnotations(
 			context.fillText(item.text, 0, 0)
 			context.restore()
 		}
+		context.restore()
+	}
+}
+
+/**
+ * Sets `context` up to draw an element where its motion has it: faded,
+ * moved (by fractions of `across`) and scaled about `centre`.
+ */
+function applyMotion(
+	context: CanvasRenderingContext2D,
+	motion: MotionState,
+	across: { x: number; y: number },
+	centre: { x: number; y: number }
+) {
+	context.globalAlpha *= motion.opacity
+	context.translate(motion.dx * across.x + centre.x, motion.dy * across.y + centre.y)
+	context.scale(motion.scale, motion.scale)
+	context.translate(-centre.x, -centre.y)
+}
+
+/**
+ * The picture's matrix with a zoom of `zoom` about the frame's centre: the
+ * crop and rotation first, then the push-in, so it magnifies what the
+ * output shows.
+ */
+export function zoomedMatrix(
+	m: { a: number; b: number; c: number; d: number; e: number; f: number },
+	zoom: number,
+	frame: { width: number; height: number }
+) {
+	const cx = frame.width / 2
+	const cy = frame.height / 2
+	return {
+		a: m.a * zoom,
+		b: m.b * zoom,
+		c: m.c * zoom,
+		d: m.d * zoom,
+		e: (m.e - cx) * zoom + cx,
+		f: (m.f - cy) * zoom + cy
 	}
 }
 
@@ -309,7 +387,9 @@ export function drawFrame(
 	context.setTransform(1, 0, 0, 1, 0, 0)
 	context.fillStyle = '#000000'
 	context.fillRect(0, 0, width, height)
-	context.setTransform(m.a, m.b, m.c, m.d, m.e, m.f)
+	const zoom = zoomAt(overlays.zoom, seconds)
+	const z = zoom === 1 ? m : zoomedMatrix(m, zoom, { width, height })
+	context.setTransform(z.a, z.b, z.c, z.d, z.e, z.f)
 	const { incoming, incomingAlpha, light, filter = null, incomingFilter = null } = mix
 	// The grade only where there is one: an ungraded frame costs nothing extra.
 	if (filter) context.filter = filter
@@ -340,6 +420,50 @@ export function drawFrame(
 		context.fillRect(0, 0, width, height)
 	}
 	drawFrameOverlays(context, overlays, seconds, logo)
+}
+
+/** The lower third, while it shows: its band at the frame's lower left, sliding in and out. */
+function drawLowerThird(context: CanvasRenderingContext2D, lower: LowerThird, seconds: number) {
+	const end = lower.startSeconds + lower.durationSeconds
+	const motion = animationAt(LOWER_THIRD_ANIMATION, lower.startSeconds, end, seconds)
+	if (!motion) return
+	const { width, height } = context.canvas
+	const shorter = Math.min(width, height)
+	const { style } = lower
+	const nameFont = shorter * LOWER_THIRD_NAME_FRACTION * style.size
+	const subtitleFont = shorter * LOWER_THIRD_SUBTITLE_FRACTION * style.size
+	const nameLine = nameFont * LOWER_THIRD_LINE_SCALE
+	const subtitleLine = lower.subtitle ? subtitleFont * LOWER_THIRD_LINE_SCALE : 0
+	const padding = nameFont * LOWER_THIRD_PADDING_SCALE
+	context.font = canvasFont(style, nameFont)
+	const nameWidth = context.measureText(lower.name).width
+	context.font = canvasFont(style, subtitleFont)
+	const subtitleWidth = lower.subtitle ? context.measureText(lower.subtitle).width : 0
+	const bandWidth = Math.max(nameWidth, subtitleWidth) + padding * 2
+	const bandHeight = nameLine + subtitleLine + padding
+	const x = width * LOWER_THIRD_LEFT_FRACTION
+	const y = height * (1 - LOWER_THIRD_BOTTOM_FRACTION) - bandHeight
+	context.save()
+	applyMotion(
+		context,
+		motion,
+		{ x: width, y: height },
+		{ x: x + bandWidth / 2, y: y + bandHeight / 2 }
+	)
+	if (style.background) {
+		context.fillStyle = bandColor(style.background)
+		context.fillRect(x, y, bandWidth, bandHeight)
+	}
+	context.textAlign = 'left'
+	context.textBaseline = 'middle'
+	context.fillStyle = style.color
+	context.font = canvasFont(style, nameFont)
+	context.fillText(lower.name, x + padding, y + padding / 2 + nameLine / 2)
+	if (lower.subtitle) {
+		context.font = canvasFont(style, subtitleFont)
+		context.fillText(lower.subtitle, x + padding, y + padding / 2 + nameLine + subtitleLine / 2)
+	}
+	context.restore()
 }
 
 /**
@@ -376,10 +500,20 @@ function drawFrameOverlays(
 			context.fillText(line, width / 2, middle)
 		}
 	}
-	if (title && titleShownAt(title, seconds)) {
+	const titleMotion =
+		title &&
+		animationAt(
+			title.animation,
+			title.startSeconds,
+			title.startSeconds + title.durationSeconds,
+			seconds
+		)
+	if (title && titleMotion) {
 		const style = title.style ?? DEFAULT_TEXT_STYLE
 		const fontPixels = Math.round(shorter * TITLE_FONT_FRACTION * style.size)
 		const band = fontPixels * TITLE_BAND_SCALE
+		context.save()
+		applyMotion(context, titleMotion, { x: width, y: height }, { x: width / 2, y: height / 2 })
 		if (style.background) {
 			context.fillStyle = bandColor(style.background)
 			context.fillRect(0, (height - band) / 2, width, band)
@@ -389,7 +523,9 @@ function drawFrameOverlays(
 		context.textBaseline = 'middle'
 		context.fillStyle = style.color
 		context.fillText(title.text, width / 2, height / 2, width * TITLE_MAX_WIDTH_FRACTION)
+		context.restore()
 	}
+	if (overlays.lowerThird) drawLowerThird(context, overlays.lowerThird, seconds)
 	if (watermark && logo) {
 		const rect = watermarkRect(watermark, width, height)
 		context.drawImage(logo, rect.x, rect.y, rect.width, rect.height)

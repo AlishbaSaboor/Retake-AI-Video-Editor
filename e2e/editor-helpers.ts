@@ -131,6 +131,7 @@ export const editCommand = (
 	color: null,
 	background: null,
 	font: null,
+	effect: null,
 	...fields
 })
 

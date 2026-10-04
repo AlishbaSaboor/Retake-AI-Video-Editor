@@ -7,13 +7,27 @@ import {
 	CAPTION_FONT_FRACTION,
 	CAPTION_LINE_SCALE,
 	CAPTION_PADDING_SCALE,
+	LOWER_THIRD_BOTTOM_FRACTION,
+	LOWER_THIRD_LEFT_FRACTION,
+	LOWER_THIRD_LINE_SCALE,
+	LOWER_THIRD_NAME_FRACTION,
+	LOWER_THIRD_PADDING_SCALE,
+	LOWER_THIRD_SUBTITLE_FRACTION,
 	TITLE_BAND_SCALE,
 	TITLE_FONT_FRACTION,
-	titleShownAt,
 	watermarkRect,
 	type Overlays
 } from './overlays'
+import { animationAt, LOWER_THIRD_ANIMATION, type MotionState } from './motion'
 import { bandColor, DEFAULT_TEXT_STYLE, fontFamily } from './text-style'
+
+/** An element where its motion has it: faded, moved across the frame, scaled about its centre. */
+export function motionStyle(motion: MotionState) {
+	return {
+		opacity: motion.opacity,
+		transform: `translate(${motion.dx * PERCENT}cqw, ${motion.dy * PERCENT}cqh) scale(${motion.scale})`
+	}
+}
 
 const PERCENT = 100
 
@@ -37,10 +51,27 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 	const { title, watermark, captions, captionStyle } = overlays
 	const caption = captionAt(captions, editedSeconds)
 	const titleStyle = title?.style ?? DEFAULT_TEXT_STYLE
+	const titleMotion =
+		title &&
+		animationAt(
+			title.animation,
+			title.startSeconds,
+			title.startSeconds + title.durationSeconds,
+			editedSeconds
+		)
+	const lower = overlays.lowerThird
+	const lowerMotion =
+		lower &&
+		animationAt(
+			LOWER_THIRD_ANIMATION,
+			lower.startSeconds,
+			lower.startSeconds + lower.durationSeconds,
+			editedSeconds
+		)
 	const logo = watermark && watermarkRect(watermark, frame.width, frame.height)
 	return (
 		<div className="pointer-events-none absolute inset-0" style={{ containerType: 'size' }}>
-			{title && titleShownAt(title, editedSeconds) && (
+			{title && titleMotion && (
 				<div
 					className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center font-bold"
 					style={{
@@ -48,7 +79,8 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 						fontSize: `${TITLE_FONT_FRACTION * titleStyle.size * PERCENT}cqmin`,
 						background: titleStyle.background ? bandColor(titleStyle.background) : 'none',
 						color: titleStyle.color,
-						fontFamily: fontFamily(titleStyle.font)
+						fontFamily: fontFamily(titleStyle.font),
+						...motionStyle(titleMotion)
 					}}
 				>
 					{title.text}
@@ -76,6 +108,33 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 							{line}
 						</span>
 					))}
+				</div>
+			)}
+			{lower && lowerMotion && (
+				<div
+					data-testid="lower-third"
+					className="absolute flex flex-col items-start font-bold whitespace-nowrap"
+					style={{
+						left: `${LOWER_THIRD_LEFT_FRACTION * PERCENT}cqw`,
+						bottom: `${LOWER_THIRD_BOTTOM_FRACTION * PERCENT}cqh`,
+						fontSize: `${LOWER_THIRD_NAME_FRACTION * lower.style.size * PERCENT}cqmin`,
+						lineHeight: LOWER_THIRD_LINE_SCALE,
+						padding: `${LOWER_THIRD_PADDING_SCALE / 2}em ${LOWER_THIRD_PADDING_SCALE}em`,
+						background: lower.style.background ? bandColor(lower.style.background) : 'none',
+						color: lower.style.color,
+						fontFamily: fontFamily(lower.style.font),
+						transformOrigin: 'center',
+						...motionStyle(lowerMotion)
+					}}
+				>
+					<span>{lower.name}</span>
+					{lower.subtitle && (
+						<span
+							style={{ fontSize: `${LOWER_THIRD_SUBTITLE_FRACTION / LOWER_THIRD_NAME_FRACTION}em` }}
+						>
+							{lower.subtitle}
+						</span>
+					)}
 				</div>
 			)}
 			{watermark && logo && (

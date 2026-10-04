@@ -21,6 +21,7 @@ import {
 } from './annotations'
 import { DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
 import { TextStyleFields } from './text-style-fields'
+import { AnimationFields } from './motion-panels'
 import { formatTimecode, timeToPercent, type TrimEdge } from './timeline-scale'
 import { TrimHandle } from './trim-handle'
 
@@ -160,6 +161,14 @@ export function AnnotationPanel({
 				style={shownStyle}
 				onChange={(style) => (styled ? onChange({ ...styled, style }) : tools.setTextStyle(style))}
 			/>
+			{styled && (
+				<AnimationFields
+					key={`${styled.id}-${JSON.stringify(styled.animation ?? null)}`}
+					label={t('selectedTextMotion')}
+					animation={styled.animation}
+					onChange={(animation) => onChange({ ...styled, animation })}
+				/>
+			)}
 			<p className="text-text-muted -mt-2 text-xs">
 				{canDraw ? t('hint') : t('originalHint')} {t('staysPut')}
 			</p>

@@ -151,7 +151,8 @@ const NONE: Omit<EditCommand, 'action'> = {
 	target: null,
 	color: null,
 	background: null,
-	font: null
+	font: null,
+	effect: null
 }
 const CONTEXT: CommandContext = {
 	durationSeconds: 12,

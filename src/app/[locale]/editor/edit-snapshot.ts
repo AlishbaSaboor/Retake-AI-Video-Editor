@@ -1,6 +1,7 @@
 import type { Annotation } from './annotations'
 import type { AudioItem } from './audio-lane'
 import type { AddedVideo } from './sources'
+import type { LowerThird, Zoom } from './motion'
 import type { Cut } from './cleanup'
 import type { TitleCard, Watermark } from './overlays'
 import type { ReplacementTake } from './re-record'
@@ -31,6 +32,9 @@ export type EditSnapshot<R = ReplacementTake> = {
 	/** Videos added after the main one, and each one's trim, by id. */
 	addedVideos: AddedVideo[]
 	sourceTrims: Readonly<Record<string, TrimRange>>
+	/** The lower third and the zoom (motion.ts). */
+	lowerThird: LowerThird | null
+	zoom: Zoom | null
 }
 
 /** The edit right after upload: the whole take, untouched. */
@@ -48,7 +52,9 @@ export const ORIGINAL_EDIT: EditSnapshot = {
 	captionStyle: DEFAULT_TEXT_STYLE,
 	audioItems: [],
 	addedVideos: [],
-	sourceTrims: {}
+	sourceTrims: {},
+	lowerThird: null,
+	zoom: null
 }
 
 /**
@@ -74,6 +80,8 @@ export function isOriginalEdit<R>(edit: EditSnapshot<R>, durationSeconds: number
 		isDefaultStyle(edit.captionStyle) &&
 		edit.audioItems.length === 0 &&
 		edit.addedVideos.length === 0 &&
+		!edit.lowerThird &&
+		!edit.zoom &&
 		(edit.clips === null ||
 			(otherClips.length === 0 &&
 				otherRanges.length === 0 &&

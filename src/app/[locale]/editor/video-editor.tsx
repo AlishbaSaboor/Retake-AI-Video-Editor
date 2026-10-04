@@ -71,6 +71,15 @@ import {
 } from './color-grade'
 import { ColorPanel, GradeFilters } from './color-panel'
 import { DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
+import {
+	NO_ANIMATION,
+	zoomAt,
+	type Animation,
+	type LowerThird,
+	type Motion,
+	type Zoom
+} from './motion'
+import { ZoomPanel } from './motion-panels'
 import { ProjectList, ProjectPanel, RelinkPanel, type SaveStatus } from './project-panel'
 import {
 	deleteProject,
@@ -209,6 +218,9 @@ export function VideoEditor() {
 	// The whole video's color adjustments (a clip's own are on the clip), and the captions' look.
 	const [color, setColor] = useState<ColorGrade>(NEUTRAL_GRADE)
 	const [captionStyle, setCaptionStyle] = useState<TextStyle>(DEFAULT_TEXT_STYLE)
+	// The lower third and the zoom (motion.ts), in the edited video's time.
+	const [lowerThird, setLowerThird] = useState<LowerThird | null>(null)
+	const [zoom, setZoom] = useState<Zoom | null>(null)
 	// The Audio lane (audio-lane.ts), and the take's own sound, decoded the
 	// first time a clip's sound is taken out into it.
 	const [audioItems, setAudioItems] = useState<AudioItem[]>([])
@@ -253,7 +265,9 @@ export function VideoEditor() {
 		captionStyle,
 		audioItems,
 		addedVideos,
-		sourceTrims
+		sourceTrims,
+		lowerThird,
+		zoom
 	}
 	const trimDragRef = useRef<{ recorded: boolean } | null>(null)
 	// The filler cut editor: which filler is open and where its handles sit.
@@ -302,6 +316,8 @@ export function VideoEditor() {
 		watermark,
 		annotations,
 		captionStyle,
+		lowerThird,
+		zoom,
 		captions:
 			captionsOn && analysis.transcript.status === 'ready'
 				? editedCaptions(analysis.transcript.transcript.words, editedSegments)
@@ -407,6 +423,8 @@ export function VideoEditor() {
 	// Turned or flipped, the player's own controls would turn too: they're
 	// hidden, and a Play button under the player stands in.
 	const pictureTransformed = !isIdentity(shownTransform)
+	// The zoom at the playhead, in the Edited view only.
+	const shownZoom = editedNow === null ? 1 : zoomAt(zoom, editedNow)
 	// The player's own controls only play the main video: with more than one,
 	// or turned or flipped, the editor's Play button stands in.
 	const ownControls = pictureTransformed || addedVideos.length > 0
@@ -452,6 +470,8 @@ export function VideoEditor() {
 		soundsRef.current.clear()
 		setAddedVideos([])
 		setSourceTrims({})
+		setLowerThird(null)
+		setZoom(null)
 		releaseAddedUrls()
 		setTransformMode(null)
 		setPicture(null)
@@ -486,6 +506,9 @@ export function VideoEditor() {
 		setAudioItems(saved.audioItems)
 		setAddedVideos(saved.addedVideos)
 		setSourceTrims(saved.sourceTrims)
+		// Saved before these existed: none.
+		setLowerThird(saved.lowerThird ?? null)
+		setZoom(saved.zoom ?? null)
 	}
 
 	/** Saves the project under `name` (a new one the first time): its media once, its edit each time. */
@@ -826,6 +849,8 @@ export function VideoEditor() {
 		setAudioItems(step.restore.audioItems)
 		setAddedVideos(step.restore.addedVideos)
 		setSourceTrims(step.restore.sourceTrims)
+		setLowerThird(step.restore.lowerThird)
+		setZoom(step.restore.zoom)
 		applyTrim(step.restore.trim, step.restore.trim?.startSeconds ?? 0)
 	}
 
@@ -854,7 +879,9 @@ export function VideoEditor() {
 		captionStyle,
 		audioItems,
 		addedVideos,
-		sourceTrims
+		sourceTrims,
+		lowerThird,
+		zoom
 	])
 
 	// Ctrl/⌘+Z undoes; Ctrl/⌘+Shift+Z or Ctrl+Y redoes. Not while typing:
@@ -929,9 +956,38 @@ export function VideoEditor() {
 		return { x: (clientX - box.left) / box.width, y: (clientY - box.top) / box.height }
 	}
 
-	/** A pointer's screen position as fractions of the source picture, through the shown transform. */
+	/** A pointer's screen position as fractions of the source picture, through the shown transform and zoom. */
 	function toPicture(clientX: number, clientY: number) {
-		return outputToPicture(pictureSize, shownTransform, toFrame(clientX, clientY))
+		const frame = toFrame(clientX, clientY)
+		const unzoomed = { x: 0.5 + (frame.x - 0.5) / shownZoom, y: 0.5 + (frame.y - 0.5) / shownZoom }
+		return outputToPicture(pictureSize, shownTransform, unzoomed)
+	}
+
+	function changeLowerThird(next: LowerThird | null) {
+		recordEdit()
+		setLowerThird(next)
+	}
+
+	/** The title's or every annotation text's entrance or exit: one change. */
+	function animateText(target: 'title' | 'text', phase: 'in' | 'out', motion: Motion) {
+		const animated = (animation: Animation | undefined) => ({
+			...(animation ?? NO_ANIMATION),
+			[phase]: motion
+		})
+		recordEdit()
+		if (target === 'title' && title) setTitle({ ...title, animation: animated(title.animation) })
+		if (target === 'text') {
+			setAnnotations(
+				annotations.map((item) =>
+					item.kind === 'text' ? { ...item, animation: animated(item.animation) } : item
+				)
+			)
+		}
+	}
+
+	function changeZoom(next: Zoom | null) {
+		recordEdit()
+		setZoom(next)
 	}
 
 	/** Clips' volume, mute and fades, all in one change. A take never split becomes one clip. */
@@ -1208,6 +1264,21 @@ export function VideoEditor() {
 			case 'saveProject':
 				void save(plan.name)
 				break
+			case 'lowerThird':
+				changeLowerThird({
+					name: plan.name,
+					subtitle: plan.subtitle,
+					startSeconds: plan.startSeconds,
+					durationSeconds: plan.durationSeconds,
+					style: lowerThird?.style ?? DEFAULT_TEXT_STYLE
+				})
+				break
+			case 'animate':
+				animateText(plan.target, plan.phase, plan.motion)
+				break
+			case 'zoom':
+				changeZoom(plan.zoom)
+				break
 			case 'openProject':
 				void openSaved(plan.id)
 				break
@@ -1391,6 +1462,7 @@ export function VideoEditor() {
 					<PictureFrame
 						picture={pictureSize}
 						transform={shownTransform}
+						zoom={shownZoom}
 						frameRef={frameRef}
 						video={
 							<>
@@ -1715,6 +1787,16 @@ export function VideoEditor() {
 				/>
 			)}
 			{video && hasDuration && (
+				<ZoomPanel
+					key={JSON.stringify(zoom)}
+					zoom={zoom}
+					editedSeconds={editedSeconds}
+					playheadSeconds={editedNow}
+					canEdit={!showOriginal}
+					onChange={changeZoom}
+				/>
+			)}
+			{video && hasDuration && (
 				<AnnotationPanel
 					tools={annotationTools}
 					annotations={annotations}
@@ -1741,6 +1823,8 @@ export function VideoEditor() {
 						onCaptionsChange={changeCaptions}
 						captionStyle={captionStyle}
 						onCaptionStyleChange={changeCaptionStyle}
+						lowerThird={lowerThird}
+						onLowerThirdChange={changeLowerThird}
 					/>
 					<input
 						ref={videoInputRef}

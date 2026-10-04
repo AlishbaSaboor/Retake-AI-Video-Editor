@@ -32,7 +32,8 @@ const UNSUPPORTED: EditCommand = {
 	target: null,
 	color: null,
 	background: null,
-	font: null
+	font: null,
+	effect: null
 }
 
 // Gemini and Deepgram both answer 429 (rate-limited) or 503 (overloaded)
@@ -70,6 +71,10 @@ function systemInstruction(durationSeconds: number, clipCount: number): string {
 		'add_video: add another video file to the project, after the clips.',
 		'save_project: text the name to save it as (null: its name). open_project: text the saved',
 		'project\'s name ("open my project Holiday": Holiday).',
+		'lower_third: text "name, subtitle", startSeconds to endSeconds.',
+		'animate_in, animate_out: target title or text comes in or goes out with effect fade, slide or',
+		'pop (none: still), region the side, seconds long. zoom_in (push in), zoom_out (pull out):',
+		'the picture, startSeconds to endSeconds, percent the zoom (null: 130).',
 		'color: property brightness, contrast or saturation with percent the change (more: 20,',
 		'less: -20), or property black_and_white, warm, cool, or normal (colors back to normal);',
 		'fromClip (null: whole video).',

@@ -2,6 +2,20 @@ import { z } from 'zod'
 import { regionRect, REGIONS, type NewAnnotation, type Region } from './annotations'
 import type { ExtractBlocker } from './audio-lane'
 import { findProject, type ProjectSummary } from './projects'
+import {
+	clampMotionSeconds,
+	clampZoom,
+	DEFAULT_MOTION_SECONDS,
+	DEFAULT_ZOOM,
+	MOTIONS,
+	SIDES,
+	splitLowerThird,
+	type Motion,
+	type Zoom
+} from './motion'
+/** A lower third or a zoom with no end given: this long. */
+const DEFAULT_LOWER_THIRD_SECONDS = 4
+const DEFAULT_ZOOM_SECONDS = 3
 import { clampVolume, DEFAULT_FADE_SECONDS, VOLUME_STEP, type ClipAudio } from './clip-audio'
 import {
 	clampLevel,
@@ -86,6 +100,11 @@ const ACTIONS = [
 	'add_video',
 	'save_project',
 	'open_project',
+	'lower_third',
+	'animate_in',
+	'animate_out',
+	'zoom_in',
+	'zoom_out',
 	'unsupported'
 ] as const
 /** What a color command changes: a level, a look, or back to normal. */
@@ -133,7 +152,9 @@ export const editCommandSchema = z.object({
 	/** Text color and band color, #rrggbb; background "none" takes the band off. */
 	color: z.string().nullish().transform(orNull),
 	background: z.string().nullish().transform(orNull),
-	font: z.enum(FONTS).nullish().transform(orNull)
+	font: z.enum(FONTS).nullish().transform(orNull),
+	/** An entrance's or exit's kind. */
+	effect: z.enum(MOTIONS).nullish().transform(orNull)
 })
 export type EditCommand = z.infer<typeof editCommandSchema>
 
@@ -165,7 +186,8 @@ export const EDIT_COMMAND_JSON_SCHEMA = {
 		target: { type: ['string', 'null'] },
 		color: { type: ['string', 'null'] },
 		background: { type: ['string', 'null'] },
-		font: { type: ['string', 'null'] }
+		font: { type: ['string', 'null'] },
+		effect: { type: ['string', 'null'] }
 	},
 	// Every field, null when unused. Tried 2026-10-04 with only the action
 	// required: half the cost (output ~23 tokens, not ~143), but Gemini then
@@ -190,7 +212,8 @@ export const EDIT_COMMAND_JSON_SCHEMA = {
 		'target',
 		'color',
 		'background',
-		'font'
+		'font',
+		'effect'
 	]
 }
 
@@ -247,6 +270,17 @@ export type CommandPlan =
 	| { kind: 'deleteAudio'; item: number }
 	/** Another video into the project, after the clips: the file picker opens on Apply. */
 	| { kind: 'addVideo' }
+	/** The lower third set: a name and subtitle shown from `startSeconds` for `durationSeconds`. */
+	| {
+			kind: 'lowerThird'
+			name: string
+			subtitle: string
+			startSeconds: number
+			durationSeconds: number
+	  }
+	/** The title's or every annotation text's entrance (`in`) or exit (`out`). */
+	| { kind: 'animate'; target: 'title' | 'text'; phase: 'in' | 'out'; motion: Motion }
+	| { kind: 'zoom'; zoom: Zoom }
 	/** The project saved under `name`. */
 	| { kind: 'saveProject'; name: string }
 	/** A saved project opened in place of this edit; `unsaved`: this edit has changes never saved. */
@@ -434,6 +468,69 @@ export function commandToPlan(command: EditCommand, context: CommandContext): Co
 			return textStyleCommand(command, context)
 		case 'add_video':
 			return plan({ kind: 'addVideo' })
+		case 'lower_third': {
+			const { name, subtitle } = splitLowerThird(command.text ?? '')
+			if (!name) return refuse('unsupported')
+			const start = command.startSeconds ?? context.playheadSeconds
+			const end = Math.min(
+				command.endSeconds ?? start + DEFAULT_LOWER_THIRD_SECONDS,
+				context.editedSeconds
+			)
+			if (start < 0 || start >= end) return refuse('out_of_range')
+			return plan({
+				kind: 'lowerThird',
+				name,
+				subtitle,
+				startSeconds: start,
+				durationSeconds: end - start
+			})
+		}
+		case 'animate_in':
+		case 'animate_out': {
+			const target =
+				command.target === 'text' ? 'text' : command.target === 'title' ? 'title' : null
+			const which = target ?? (context.hasTitle ? 'title' : 'text')
+			if (which === 'title' && !context.hasTitle) return refuse('no_title')
+			if (which === 'text' && context.textCount === 0) return refuse('no_text')
+			const side = SIDES.find((s) => s === command.region) ?? 'left'
+			const motion: Motion = {
+				kind: command.effect ?? 'fade',
+				side,
+				seconds: clampMotionSeconds(command.seconds ?? DEFAULT_MOTION_SECONDS)
+			}
+			return plan({
+				kind: 'animate',
+				target: which,
+				phase: command.action === 'animate_in' ? 'in' : 'out',
+				motion
+			})
+		}
+		case 'zoom_in':
+		case 'zoom_out': {
+			const start = command.startSeconds ?? context.playheadSeconds
+			const end = Math.min(
+				command.endSeconds ?? start + DEFAULT_ZOOM_SECONDS,
+				context.editedSeconds
+			)
+			if (start < 0 || start >= end) return refuse('out_of_range')
+			// A percent over 100 is the zoom itself ("to 150%"); up to 100, how much more ("20%").
+			const percent = command.percent
+			const amount =
+				percent === null
+					? DEFAULT_ZOOM
+					: percent > PERCENT
+						? percent / PERCENT
+						: 1 + percent / PERCENT
+			return plan({
+				kind: 'zoom',
+				zoom: {
+					startSeconds: start,
+					endSeconds: end,
+					direction: command.action === 'zoom_in' ? 'in' : 'out',
+					amount: clampZoom(amount)
+				}
+			})
+		}
 		case 'save_project':
 			return plan({ kind: 'saveProject', name: command.text?.trim() || context.projectName })
 		case 'open_project': {
