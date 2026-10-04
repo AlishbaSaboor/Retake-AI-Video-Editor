@@ -1576,6 +1576,14 @@ more full runs: 48/48 (2.4 GB free) and 48/48 (2.5 GB free). Watch it.
   overlap; the captions judged at each frame's own time with 0.1 s either
   side of the caption's start and end, and seen both shown and gone. 9/9
   with 150 ms frames; full suite 53/53 twice.
+- **Run #51 (`4acecca`): green, 1 flaky:** the dissolve's sound half way
+  read 440 Hz 0.72 (on time) and 880 Hz 0.44: **on the slow runner the
+  incoming clip's sound reached the recording ~0.2 s late** (its frames
+  were sparse too: the frame at 0.5 s was from 0 s, at 1.5 s from 1.235 s).
+  The same lead-in as section 4b, now inside a dissolve. Not fixed in the
+  product (it would mean starting the incoming player's sound early); the
+  test now asks for both tones over 0.3 and their powers adding up to
+  0.6–1.3 of the full tone's. Locally 0.73/0.64–0.68.
 
 **Measured 2026-10-04, picture transforms work: two more watched misses.**
 In four full runs after the feature was finished (2.3–2.7 GB free), two
