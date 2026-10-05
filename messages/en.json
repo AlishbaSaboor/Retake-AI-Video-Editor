@@ -1037,14 +1037,28 @@
 		},
 		"projects": {
 			"title": "Saved projects",
-			"description": "Projects saved in this browser. Open one to carry on editing.",
+			"description": "Projects saved in this browser. Open one to carry on, or rename, download or delete it.",
 			"new": "New project",
 			"listLabel": "Saved projects",
 			"edited": "Edited {when}",
 			"empty": {
 				"title": "No saved projects yet",
 				"body": "Save a project in the editor and it shows up here."
-			}
+			},
+			"open": "Open {name}",
+			"nameLabel": "Project name",
+			"rename": "Rename {name}",
+			"renameShort": "Rename",
+			"download": "Download the video of {name}",
+			"downloadShort": "Download video",
+			"downloadFailed": "Couldn’t download the video of {name}: this browser no longer holds it.",
+			"delete": "Delete {name}",
+			"deleteShort": "Delete",
+			"deleteTitle": "Delete “{name}”?",
+			"deleteBody": "This removes the project and its saved video from this browser. It can’t be undone.",
+			"keep": "Keep it",
+			"deleteYes": "Delete project",
+			"deleteFailed": "Couldn’t delete the project"
 		}
 	}
 }
