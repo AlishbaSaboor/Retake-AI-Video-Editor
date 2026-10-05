@@ -1,19 +1,18 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { useFormatter, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { PlusIcon, ProjectsIcon } from '@/components/ui/icons'
 import { listProjects } from '@/app/[locale]/editor/projects'
 import { Link } from '@/i18n/routing'
-import { ProjectThumbnail } from './project-thumbnail'
+import { ProjectCard } from './project-card'
 
 const SKELETONS = 3
 
 /** The projects saved in this browser, newest first, each opening in the editor. */
 export function ProjectGrid() {
 	const t = useTranslations('Site.projects')
-	const format = useFormatter()
 	const projects = useQuery({ queryKey: ['projects'], queryFn: listProjects })
 
 	if (projects.isPending) {
@@ -53,23 +52,7 @@ export function ProjectGrid() {
 		<ul aria-label={t('listLabel')} className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
 			{projects.data.map((project) => (
 				<li key={project.id}>
-					<Link
-						href={{ pathname: '/editor', query: { project: project.id } }}
-						className="group border-border bg-surface hover:border-accent focus-visible:outline-accent flex flex-col overflow-hidden rounded-lg border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
-					>
-						<ProjectThumbnail id={project.id} savedAt={project.savedAt} />
-						<div className="flex flex-col gap-1 p-4">
-							<span className="text-text truncate font-semibold">{project.name}</span>
-							<span className="text-text-muted text-sm">
-								{t('edited', {
-									when: format.dateTime(project.savedAt, {
-										dateStyle: 'medium',
-										timeStyle: 'short'
-									})
-								})}
-							</span>
-						</div>
-					</Link>
+					<ProjectCard project={project} />
 				</li>
 			))}
 		</ul>

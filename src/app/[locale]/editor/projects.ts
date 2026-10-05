@@ -335,6 +335,16 @@ export async function openProject(
 	}
 }
 
+/** A project renamed: only its name changes, not when it was last edited. False when it's gone. */
+export async function renameProject(id: string, name: string): Promise<boolean> {
+	const project = await withStore<StoredProject | undefined>(PROJECTS, 'readonly', (store) =>
+		store.get(id)
+	)
+	if (!project) return false
+	await withStore(PROJECTS, 'readwrite', (store) => store.put({ ...project, name }))
+	return true
+}
+
 /** Deletes a project, and any media no other project uses. */
 export async function deleteProject(id: string): Promise<void> {
 	await withStore(PROJECTS, 'readwrite', (store) => store.delete(id))
