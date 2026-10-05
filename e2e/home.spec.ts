@@ -26,6 +26,10 @@ test('a project starts on the home page: a command and a video open the editor, 
 	// The command was asked against the video, and waits for Apply.
 	await expect(reply(page)).toContainText('Turn captions on')
 	await expect(reply(page).getByRole('button', { name: 'Apply' })).toBeVisible()
+	// Asked once, and the chat is free again: development mounts the editor
+	// twice, which once left a second "Reading" bubble stuck, the box locked.
+	await expect(page.getByText('Reading your command…')).toHaveCount(0)
+	await expect(page.getByRole('textbox', { name: 'Edit command' })).toBeEnabled()
 	await reply(page).getByRole('button', { name: 'Apply' }).click()
 	await expect(reply(page)).toHaveCount(0)
 })
@@ -67,4 +71,14 @@ test('saved projects are listed with a picture, a name and a date, and open in t
 		timeout: 30_000
 	})
 	await expect(project.getByLabel('Project name')).toHaveValue('Listed project')
+})
+
+test('signed in, the footer offers a new project, not logging in again', async ({ page }) => {
+	await page.goto('/features')
+	const signedIn = await page.getByRole('button', { name: 'Sign out' }).isVisible()
+	test.skip(!signedIn, 'accounts are off here (no Supabase): nobody is signed in')
+	const footer = page.getByRole('navigation', { name: 'Footer' })
+	await expect(footer.getByRole('link', { name: 'Log in / Sign up' })).toHaveCount(0)
+	await footer.getByRole('link', { name: 'New project' }).click()
+	await expect(page).toHaveURL(/\/home$/, { timeout: 30_000 })
 })
