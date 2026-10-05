@@ -1797,6 +1797,58 @@ atSeconds (edited time), volume (0–2), muted }`, in the snapshot
 
 ---
 
+## 3w. Whole-app QA pass on main (2026-10-05)
+
+A user's walk through everything, in Chromium driven by Playwright, with the
+real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
+
+- **Tested and fine:** sign up (bad inputs refused, existing email told to
+  log in), log in (wrong password told; `next` honoured), log out; Home,
+  Projects and the editor (`?project=` too) send a signed-out visitor to
+  log in; contact (blank refused; a real message reached
+  `contact_messages`); every page dark and light at 1440 and 390 px, no
+  horizontal scroll; Home voice (the spoken sentence came back word for
+  word), typed command, attach → editor; the transcript (30 sentences, the
+  "Transcribing…" pill meanwhile); Apply changes and Cancel; the tool search
+  (crop, volume, logo, subtitles, fade, pencil, music, save, brightness,
+  re-record, silence, zoom each found the right panel); hiding both sides
+  (player 736 → 917 px); every shortcut; title, logo (attached in the chat,
+  dragged, resized, turned), text drawn and turned by its handle, the
+  pencil, an aimed zoom, a crop; split, dissolve, volume, speed;
+  re-recording (sentences with no clean pause correctly offer "set it by
+  ear"; one with pauses took a 3.4 s take for 3.5 s); clean-up; undo, redo,
+  reset; save (0.6 s), reopen from Projects with everything the same and
+  no new transcript call; export: 108.85 s for the 108.87 s source, "Export
+  finished", the logo and the aimed zoom in the same place as the preview
+  (mean difference 2.7–3.3 levels at 6.5 and 7.5 s). No console errors.
+- **Fixed:**
+  - The command brought from Home was answered, but the chat then showed a
+    second "Reading your command…" forever and locked its box: development
+    mounts twice, and the mutation hook's pending state stuck. The chat now
+    keeps what it's reading in its own state (`command-bar.tsx`); one call
+    still (the server saw one). Test: `home.spec.ts`.
+  - On a phone the menu stayed open over the next page: the top bar stays
+    mounted across pages. `MobileMenu` closes it when the page changes.
+    Test: `site.spec.ts`.
+  - Signed in, the footer still offered "Log in / Sign up" (which only
+    bounced to Home); it offers "New project" then. Test: `home.spec.ts`.
+  - Added a test that a transcript line seeks (it did; untested before).
+- **Not changed (by decision):**
+  - Leaving the editor (New project, Projects) with an unsaved edit gives
+    no warning; the edit is lost. A guard would change what navigating does.
+  - The chat keeps a cancelled command's text in its box (to edit and send
+    again); applied ones clear it.
+  - Projects are per browser (IndexedDB): another browser, or a new
+    profile, has none. As built (section 3r).
+  - With accounts on and Supabase down, nobody can log in and the app pages
+    need one: correct, but a stopped Docker means a locked-out local app.
+- **Cost:** ~8 transcripts of the 1:48 recording (each script run that
+  loaded it) ≈ $0.06, plus ~5 Gemini calls ≈ $0.003: over the few cents
+  asked. Only the first run needed a real transcript; the rest should have
+  been mocked.
+
+---
+
 ## 4. Unresolved issues
 
 ### 4a. The command-test regression from earlier instructions is solved
