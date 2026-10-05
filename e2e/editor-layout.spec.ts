@@ -140,3 +140,50 @@ test('a transcript line moves the playhead to where it starts', async ({ page })
 		)
 		.toBeCloseTo(1.6, 1)
 })
+
+test('leaving with unsaved changes asks first; once saved, it does not', async ({ page }) => {
+	await openEditorWithVideo(page)
+	const leave = page.getByRole('dialog', { name: 'Leave without saving?' })
+	const projectsLink = page.getByRole('link', { name: 'Projects' }).first()
+
+	// Nothing changed yet: leaving just leaves.
+	await projectsLink.click()
+	await expect(page).toHaveURL(/\/projects$/, { timeout: 30_000 })
+	await openEditorWithVideo(page)
+
+	// A change, not saved: the link asks; Stay keeps the edit.
+	await seekTo(page, 1)
+	await page.locator('body').press('s')
+	await expect(clips(page)).toHaveCount(2)
+	await projectsLink.click()
+	await expect(leave).toBeVisible()
+	await leave.getByRole('button', { name: 'Stay' }).click()
+	await expect(leave).toBeHidden()
+	await expect(page).toHaveURL(/\/editor$/)
+	await expect(clips(page)).toHaveCount(2)
+
+	// Closing or reloading the tab gets the browser's own prompt.
+	const prompt = page.waitForEvent('dialog')
+	void page.reload()
+	const dialog = await prompt
+	expect(dialog.type()).toBe('beforeunload')
+	await dialog.dismiss()
+	await expect(clips(page)).toHaveCount(2)
+
+	// Saved: no question, in the app or from the browser.
+	const project = page.getByRole('region', { name: 'Project', exact: true })
+	await project.getByLabel('Project name').fill('Guarded')
+	await project.getByRole('button', { name: 'Save', exact: true }).click()
+	await expect(page.getByTestId('save-badge')).toHaveText('Saved')
+	await projectsLink.click()
+	await expect(page).toHaveURL(/\/projects$/, { timeout: 30_000 })
+	await expect(leave).toHaveCount(0)
+
+	// Leave without saving goes on.
+	await openEditorWithVideo(page)
+	await seekTo(page, 1)
+	await page.locator('body').press('s')
+	await page.getByRole('link', { name: 'New project' }).first().click()
+	await leave.getByRole('button', { name: 'Leave without saving' }).click()
+	await expect(page).toHaveURL(/\/home$/, { timeout: 30_000 })
+})
