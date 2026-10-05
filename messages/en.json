@@ -450,7 +450,8 @@
 			"unsupported": {
 				"title": "This browser can't export video.",
 				"description": "Try a current version of Chrome, Edge, Firefox or Safari."
-			}
+			},
+			"short": "Export"
 		},
 		"reRecord": {
 			"label": "Re-record the sentence at {at}",

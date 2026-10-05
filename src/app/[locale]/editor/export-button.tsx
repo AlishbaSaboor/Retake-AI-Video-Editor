@@ -166,9 +166,15 @@ export function ExportButton({ exporter }: { exporter: ReturnType<typeof useVide
 		)
 	}
 	return (
-		<Button size="sm" title={t('hint')} disabled={!exporter.canStart} onClick={exporter.start}>
+		<Button
+			size="sm"
+			title={t('hint')}
+			aria-label={t('button')}
+			disabled={!exporter.canStart}
+			onClick={exporter.start}
+		>
 			<DownloadIcon />
-			{t('button')}
+			{t('short')}
 		</Button>
 	)
 }
