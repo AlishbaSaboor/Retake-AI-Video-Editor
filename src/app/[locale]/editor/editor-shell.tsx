@@ -58,7 +58,7 @@ export function EditorShell({
 				<div
 					role="toolbar"
 					aria-label={t('toolbar')}
-					className="border-border bg-surface flex min-h-14 flex-wrap items-center gap-2 border-b px-3 py-2"
+					className="border-border bg-surface flex min-h-14 flex-wrap items-center gap-2 border-b px-3 py-2 min-[1400px]:flex-nowrap"
 				>
 					<button
 						type="button"
@@ -71,7 +71,7 @@ export function EditorShell({
 						<PanelIcon size={18} />
 					</button>
 					{toolbar}
-					<div className="ml-auto flex flex-wrap items-center gap-2">
+					<div className="ml-auto flex shrink-0 flex-wrap items-center gap-1.5 min-[1400px]:flex-nowrap">
 						{status}
 						{hasTools && (
 							<button

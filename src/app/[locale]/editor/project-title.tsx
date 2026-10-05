@@ -59,8 +59,8 @@ export function ProjectTitle({
 					onBlur={commit}
 					aria-label={t('name')}
 					title={t('rename')}
-					size={Math.max(8, Math.min(typed.length + 1, 32))}
-					className="font-display text-text hover:border-border focus-visible:border-accent focus-visible:bg-surface-inset min-w-0 truncate rounded-md border border-transparent bg-transparent px-2 py-1 text-base font-semibold transition-colors focus-visible:outline-none"
+					size={Math.max(6, Math.min(typed.length + 1, 28))}
+					className="font-display text-text hover:border-border focus-visible:border-accent focus-visible:bg-surface-inset min-w-24 truncate rounded-md border border-transparent bg-transparent px-2 py-1 text-base font-semibold transition-colors focus-visible:outline-none"
 				/>
 				<EditIcon
 					size={14}

@@ -245,7 +245,10 @@ const TOOL_TABS: Record<string, string> = {
 /** Opens the tools tab holding a panel, as a user would before using it. */
 export async function openTool(page: Page, panel: keyof typeof TOOL_TABS): Promise<void> {
 	const tab = page.getByRole('tab', { name: TOOL_TABS[panel], exact: true })
-	// No tabs while no video is in (an empty editor shows My projects itself).
-	if ((await tab.count()) === 0) return
+	// The tabs come once a video is in; an empty editor (no tabs: it shows My
+	// projects itself) has none to open.
+	const empty = page.getByText('Drop a video here, or click to choose one')
+	await expect(tab.or(empty).first()).toBeVisible({ timeout: 30_000 })
+	if (await empty.isVisible()) return
 	if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click()
 }
