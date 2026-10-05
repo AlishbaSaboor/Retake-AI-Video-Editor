@@ -20,7 +20,7 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { execFileSync, spawnSync } from 'node:child_process'
+import { execFileSync, execSync, spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 
 const AGENTS_FILE = 'AGENTS.md'
@@ -192,7 +192,13 @@ function ruleFilesIn(ctx) {
 		.sort()
 }
 
+// Windows file systems have no execute bit, and git there ignores it
+// (core.filemode=false): what a clone gets is the index mode, checked on its
+// own below, so the on-disk check only means something elsewhere.
+const WINDOWS = process.platform === 'win32'
+
 function isExecutable(ctx, path) {
+	if (WINDOWS) return true
 	const EXECUTE_BITS = 0o111
 	return (statSync(join(ctx.root, path)).mode & EXECUTE_BITS) !== 0
 }
@@ -210,19 +216,26 @@ function isIgnored(ctx, path) {
 }
 
 function runBinary(ctx, name, args) {
-	const bin = join(ctx.root, 'node_modules', '.bin', name)
+	// On Windows the package manager's shim is a .cmd script, which Node only
+	// runs through a shell: as one command line, the path quoted (it may hold
+	// spaces).
+	const bin = join(ctx.root, 'node_modules', '.bin', WINDOWS ? `${name}.cmd` : name)
 	if (!existsSync(bin)) {
 		return {
 			error: `${name} is not installed under node_modules — run the package manager's install first`
 		}
 	}
+	const options = {
+		cwd: ctx.root,
+		encoding: /** @type {const} */ ('utf8'),
+		stdio: /** @type {['ignore', 'pipe', 'pipe']} */ (['ignore', 'pipe', 'pipe'])
+	}
 	try {
 		return {
-			stdout: execFileSync(bin, args, {
-				cwd: ctx.root,
-				encoding: 'utf8',
-				stdio: ['ignore', 'pipe', 'pipe']
-			})
+			stdout: WINDOWS
+				? // One command line: the arguments are this file's own, never a user's.
+					execSync(`"${bin}" ${args.join(' ')}`, options)
+				: execFileSync(bin, args, options)
 		}
 	} catch (error) {
 		const stderr = typeof error.stderr === 'string' ? error.stderr.trim().split('\n')[0] : ''
