@@ -24,6 +24,7 @@ import { setSideOpen, useSideOpen } from './editor-layout-store'
 import { EditorShell } from './editor-shell'
 import { JobProgress, SaveBadge, type Job } from './editor-status'
 import { HistoryControls } from './history-controls'
+import { LeaveGuard } from './leave-guard'
 import { OPEN_SHORTCUTS_EVENT, ShortcutsHelp } from './shortcuts-help'
 import { ToolPanels, type Tool } from './tool-panels'
 import { takeStart } from './editor-start'
@@ -279,6 +280,10 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	// step through them (history.ts). A trim drag records once, at its first
 	// real move; each arrow-key nudge is a step of its own.
 	const [history, setHistory] = useState(emptyHistory<EditSnapshot>)
+	// The history as last saved (or as loaded). Every edit, undo and redo makes
+	// a new history, so any other one holds changes not saved yet; autosave
+	// catches up 1.5 s later, so this, not the save status, says what's at risk.
+	const [savedHistory, setSavedHistory] = useState<typeof history | null>(null)
 	const snapshot: EditSnapshot = {
 		trim,
 		cuts,
@@ -504,7 +509,10 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		setTransformMode(null)
 		setZoomAreaMode(false)
 		setPicture(null)
-		setHistory(emptyHistory())
+		// A new video starts with nothing unsaved.
+		const fresh = emptyHistory<EditSnapshot>()
+		setHistory(fresh)
+		setSavedHistory(fresh)
 		setCutEditor(null)
 		setPreview(null)
 		setReRecord(null)
@@ -548,6 +556,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		const transcript =
 			analysis.transcript.status === 'ready' ? analysis.transcript.transcript : null
 		setSaveStatus('saving')
+		// What this save holds: a change made while it runs is still unsaved.
+		const saving = history
 		try {
 			const at = await saveProject({
 				id,
@@ -559,6 +569,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 			setProject({ id, name })
 			setSaveStatus('saved')
 			setSavedAt(at)
+			setSavedHistory(saving)
 			void queryClient.invalidateQueries({ queryKey: PROJECTS_KEY })
 		} catch (error) {
 			const { userMessage } = captureClientError(error, { feature: 'save_project' })
@@ -1776,8 +1787,11 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 				]
 			: []
 
+	const unsaved = Boolean(video) && hasDuration && history !== savedHistory
+
 	return (
 		<>
+			<LeaveGuard unsaved={unsaved} />
 			<GradeFilters
 				prefix={PREVIEW_GRADE}
 				matrices={gradeMatrices.flatMap((matrix) => (matrix ? [matrix] : []))}
