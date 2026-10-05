@@ -724,6 +724,12 @@
 			"tools": "Show or hide the tools",
 			"find": "Find a tool",
 			"help": "Show this list"
+		},
+		"leave": {
+			"title": "Leave without saving?",
+			"body": "Your latest changes aren’t saved yet. If you leave now, they’re lost.",
+			"stay": "Stay",
+			"leave": "Leave without saving"
 		}
 	},
 	"Site": {

@@ -1834,8 +1834,8 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
     bounced to Home); it offers "New project" then. Test: `home.spec.ts`.
   - Added a test that a transcript line seeks (it did; untested before).
 - **Not changed (by decision):**
-  - Leaving the editor (New project, Projects) with an unsaved edit gives
-    no warning; the edit is lost. A guard would change what navigating does.
+  - Leaving the editor with an unsaved edit gave no warning. Added since
+    at the user's request: section 3x.
   - The chat keeps a cancelled command's text in its box (to edit and send
     again); applied ones clear it.
   - Projects are per browser (IndexedDB): another browser, or a new
@@ -1846,6 +1846,39 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
   loaded it) ≈ $0.06, plus ~5 Gemini calls ≈ $0.003: over the few cents
   asked. Only the first run needed a real transcript; the rest should have
   been mocked.
+
+---
+
+## 3x. "Leave without saving?" and a reused transcript (2026-10-05)
+
+- **Asked:** warn when leaving the editor with unsaved edits, including the
+  browser's own prompt on closing the tab; and in future test scripts,
+  reuse one saved transcript instead of paying for a new one each run.
+- **Unsaved** means the undo history isn't the one last saved (or loaded):
+  every edit, undo and redo makes a new history object, `savedHistory`
+  is set when a video loads (with its fresh history) and to the history a
+  save held when it succeeds. Not the save status: autosave runs 1.5 s
+  after a change, so "Saved" can show while the newest change isn't. Undo
+  back to the saved state still counts as unsaved (it's a new history):
+  asked once too often, never too seldom.
+- **`LeaveGuard`** (`leave-guard.tsx`), only while unsaved: `beforeunload`
+  (the browser's prompt on closing, reloading or typing another address),
+  and a capture-phase click listener on the document that stops any
+  same-site link out of the editor before the client-side navigation starts
+  and shows "Leave without saving?" (Stay / Leave without saving).
+- **Not caught:** the browser's Back button inside the app (client-side, no
+  `beforeunload`, and Next has no way to cancel it), and Sign out (a button
+  that navigates after its action). Listed, not changed.
+- **Transcript cache** (`e2e/transcript-cache.ts`, `reuseTranscript(page)`):
+  answers the editor's transcript request from a file keyed by the audio's
+  hash; a recording not seen before makes the real call once and its
+  transcript is kept (`RETAKE_TRANSCRIPT_CACHE`, else the temp folder:
+  outside the repo, as it's the recording's words). Spoken commands never
+  match. Tested with a stand-in for the paid call.
+- **Full suite:** 85/89 passed; `site.spec.ts:6` (a page's first compile
+  past 30 s), `motion.spec.ts:222`, `multi-video.spec.ts:195`,
+  `re-record-by-ear.spec.ts:26` failed under load (1.6 GB free) and passed
+  alone (5/5). None navigates away from an edit.
 
 ---
 
