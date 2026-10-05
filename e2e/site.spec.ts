@@ -90,3 +90,18 @@ test('the app pages ask a signed-out visitor to log in, when accounts are on', a
 	await page.getByRole('tab', { name: 'Sign up' }).click()
 	await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible()
 })
+
+test('on a phone, the menu closes once a page from it opens', async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 })
+	await page.goto('/')
+	const menu = page.locator('details:has(summary[aria-label="Menu"])')
+	await page.locator('summary[aria-label="Menu"]').click()
+	await expect(menu).toHaveAttribute('open', '')
+	await menu.getByRole('link', { name: 'Features' }).click()
+	await expect(
+		page.getByRole('heading', { level: 1, name: 'Everything you need to fix a recording' })
+	).toBeVisible({
+		timeout: 30_000
+	})
+	await expect(menu).not.toHaveAttribute('open')
+})

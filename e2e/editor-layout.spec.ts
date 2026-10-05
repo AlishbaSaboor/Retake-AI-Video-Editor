@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { editCommand, mockActions, openEditorWithVideo, seekTo } from './editor-helpers'
+import { editCommand, mockActions, openEditorWithVideo, seekTo, w } from './editor-helpers'
 
 // The editor's layout: the chat on the left, the tools on the right with a
 // search, either side hidden for a larger picture, the keyboard shortcuts,
@@ -120,4 +120,23 @@ test('the toolbar says whether the project is saved', async ({ page }) => {
 	await project.getByLabel('Project name').fill('Badge')
 	await project.getByRole('button', { name: 'Save', exact: true }).click()
 	await expect(badge).toHaveText('Saved')
+})
+
+test('a transcript line moves the playhead to where it starts', async ({ page }) => {
+	await mockActions(page, {
+		words: [w('First.', 0.2, 0.6), w('Second', 1.6, 2.0), w('line.', 2.0, 2.4)]
+	})
+	// With sound, so there's a transcript (mocked) to click.
+	await openEditorWithVideo(page, [[3, true]])
+	const line = page.getByRole('button', { name: /Second line\./ }).first()
+	await expect(line).toBeVisible({ timeout: 30_000 })
+	await line.click()
+	await expect
+		.poll(() =>
+			page
+				.locator('video')
+				.first()
+				.evaluate((v: HTMLVideoElement) => v.currentTime)
+		)
+		.toBeCloseTo(1.6, 1)
 })

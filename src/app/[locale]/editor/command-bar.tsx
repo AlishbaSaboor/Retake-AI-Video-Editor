@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
 import { useTranslations } from 'next-intl'
 import { AttachIcon, SendIcon, SparkleIcon, SpinnerIcon } from '@/components/ui/icons'
 import { toast } from '@/lib/toast'
@@ -72,36 +71,35 @@ export function CommandBar({
 		)
 	}
 
-	const parse = useMutation({
-		mutationFn: async (text: string) => {
-			const result = await parseEditCommand({
-				command: text,
-				durationSeconds: context.durationSeconds,
-				clipCount: context.clipCount
-			})
-			if (!result.ok) throw new Error(result.error)
-			return result.data
-		},
-		onSuccess: (parsed, text) => {
-			const id = nextIdRef.current++
-			const outcome = commandToPlan(parsed, context)
-			setEntries((all) => [...all, { id, type: 'command', command: text, outcome }])
-		},
-		onError: (error) => {
-			toast({ variant: 'destructive', title: t('failed'), description: error.message })
-		}
-	})
+	// The command being read now, if any. Local state, not a mutation hook: the
+	// home page's command is asked from an effect, and development mounts
+	// twice, which left a mutation's pending state stuck on (the chat locked
+	// on "Reading your command…" though the answer had come).
+	const [reading, setReading] = useState<string | null>(null)
 
-	function ask(text: string) {
-		if (!text.trim() || parse.isPending) return
+	async function ask(text: string) {
+		if (!text.trim() || reading !== null) return
 		// A new command closes any answer still open: it was passed over.
 		resolve('cancelled')
-		parse.mutate(text)
+		setReading(text)
+		const result = await parseEditCommand({
+			command: text,
+			durationSeconds: context.durationSeconds,
+			clipCount: context.clipCount
+		}).catch((error: unknown) => ({ ok: false as const, error: String(error) }))
+		setReading(null)
+		if (!result.ok) {
+			toast({ variant: 'destructive', title: t('failed'), description: result.error })
+			return
+		}
+		const id = nextIdRef.current++
+		const outcome = commandToPlan(result.data, context)
+		setEntries((all) => [...all, { id, type: 'command', command: text, outcome }])
 	}
 
 	// Asked once, though development runs effects twice: each ask is a paid call.
 	const askedRef = useRef(false)
-	const askFirst = useEffectEvent((text: string) => ask(text))
+	const askFirst = useEffectEvent((text: string) => void ask(text))
 	useEffect(() => {
 		if (askedRef.current || !initialCommand?.trim()) return
 		askedRef.current = true
@@ -110,7 +108,7 @@ export function CommandBar({
 
 	// The newest message in view.
 	const count = entries.length
-	const thinking = parse.isPending
+	const thinking = reading !== null
 	useEffect(() => {
 		endRef.current?.scrollIntoView({ block: 'nearest' })
 	}, [count, thinking])
@@ -184,7 +182,7 @@ export function CommandBar({
 				{thinking && (
 					<div className="flex flex-col gap-2">
 						<p className="bg-accent text-accent-ink max-w-[85%] self-end rounded-lg rounded-br-sm px-3 py-2 text-sm">
-							{parse.variables}
+							{reading}
 						</p>
 						<p role="status" className="text-text-muted flex items-center gap-2 text-xs">
 							<SpinnerIcon />
@@ -198,7 +196,7 @@ export function CommandBar({
 				className="border-border border-t p-3"
 				onSubmit={(event) => {
 					event.preventDefault()
-					ask(command)
+					void ask(command)
 				}}
 			>
 				{/* The focus ring lives on the card (focus-within), so the field drops its own. */}
@@ -210,7 +208,7 @@ export function CommandBar({
 							// Enter sends; Shift+Enter is a new line.
 							if (event.key !== 'Enter' || event.shiftKey) return
 							event.preventDefault()
-							ask(command)
+							void ask(command)
 						}}
 						rows={2}
 						placeholder={t('placeholder')}
