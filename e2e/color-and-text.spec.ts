@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
-import { editCommand, mockActions, seekTo, w, type TimedWord } from './editor-helpers'
+import { editCommand, mockActions, seekTo, w, type TimedWord, openTool } from './editor-helpers'
 
 // Color adjustments, text styling and the pencil, on real exports of a
 // video made for it: 320×180, the left half mid-grey (#808080), the right
@@ -163,9 +163,13 @@ async function setLevel(
 	name: 'Brightness' | 'Contrast' | 'Saturation',
 	percent: number
 ) {
+	await openTool(page, 'Color')
 	const slider = colorPanel(page).getByRole('slider', { name: new RegExp(`^${name}`) })
+	await openTool(page, 'Color')
 	await slider.fill(String(percent))
+	await openTool(page, 'Color')
 	await slider.blur()
+	await openTool(page, 'Color')
 	await expect(colorPanel(page)).toContainText(`${name} ${percent}%`)
 }
 
@@ -191,7 +195,9 @@ test('colors for the whole video and one clip, the same in the preview and the e
 	test.setTimeout(180_000)
 	await openHalves(page)
 	// The whole video black and white; clip 2 also at 150% brightness.
+	await openTool(page, 'Color')
 	await colorPanel(page).getByRole('button', { name: 'Black and white' }).click()
+	await openTool(page, 'Color')
 	await colorPanel(page)
 		.getByRole('group', { name: 'Apply to' })
 		.getByRole('button', { name: 'Clip 2' })
@@ -234,17 +240,23 @@ test('colors for the whole video and one clip, the same in the preview and the e
 	// One undo step each; Reset colors is one too; reset takes everything off.
 	const undo = page.getByRole('button', { name: 'Undo last change' })
 	await undo.click()
+	await openTool(page, 'Color')
 	await expect(colorPanel(page)).toContainText('Brightness 100%')
 	await page.getByRole('button', { name: 'Redo' }).click()
+	await openTool(page, 'Color')
 	await colorPanel(page).getByRole('button', { name: 'Reset colors' }).click()
+	await openTool(page, 'Color')
 	await expect(colorPanel(page)).toContainText('Brightness 100%')
+	await openTool(page, 'Color')
 	await colorPanel(page).getByRole('button', { name: 'Whole video' }).click()
+	await openTool(page, 'Color')
 	await expect(colorPanel(page).getByRole('button', { name: 'Black and white' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	)
 	await page.getByRole('button', { name: 'Reset to original' }).click()
 	await page.getByRole('button', { name: 'Reset', exact: true }).click()
+	await openTool(page, 'Color')
 	await expect(colorPanel(page).getByRole('button', { name: 'None' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
@@ -254,12 +266,15 @@ test('colors for the whole video and one clip, the same in the preview and the e
 test('warm and cool shift the grey either way in the export', async ({ page }) => {
 	test.setTimeout(150_000)
 	await openHalves(page)
+	await openTool(page, 'Color')
 	await colorPanel(page).getByRole('button', { name: 'Warm' }).click()
+	await openTool(page, 'Color')
 	await colorPanel(page)
 		.getByRole('group', { name: 'Apply to' })
 		.getByRole('button', { name: 'Clip 2' })
 		.click()
 	// Clip 2: cool on top of the video's warm.
+	await openTool(page, 'Color')
 	await colorPanel(page).getByRole('button', { name: 'Cool' }).click()
 	const [warm, cool] = await exportFrames(page, [1, 3], HALVES)
 	const [wr = 0, , wb = 0] = warm?.means[0] ?? []
@@ -276,10 +291,15 @@ test('title, captions and on-video text take their font, size, color and backgro
 }) => {
 	test.setTimeout(180_000)
 	await openHalves(page, [w('Hello', 0.2, 0.6), w('there.', 0.6, 1.1)])
+	await openTool(page, 'Transcript')
 	await expect(page.getByRole('button', { name: /Hello there\./ })).toBeVisible({ timeout: 30_000 })
+	await openTool(page, 'Graphics')
 	const graphics = page.getByRole('region', { name: 'Graphics' })
+	await openTool(page, 'Graphics')
 	await graphics.getByLabel('Title text').fill('HELLO')
+	await openTool(page, 'Graphics')
 	await graphics.getByRole('button', { name: 'Add title' }).click()
+	await openTool(page, 'Graphics')
 	const titleStyle = graphics.getByRole('group', { name: 'Title style' })
 	await titleStyle.getByLabel('Font').selectOption('serif')
 	await titleStyle.getByLabel('Color').fill('#ff0000')
@@ -288,7 +308,9 @@ test('title, captions and on-video text take their font, size, color and backgro
 		.getByRole('group', { name: 'Title style' })
 		.getByRole('button', { name: 'No background' })
 		.click()
+	await openTool(page, 'Graphics')
 	await graphics.getByRole('button', { name: 'Captions' }).click()
+	await openTool(page, 'Graphics')
 	const captionStyle = graphics.getByRole('group', { name: 'Caption style' })
 	await captionStyle.getByLabel('Color').fill('#ffff00')
 	await captionStyle.getByLabel('Color').blur()
@@ -297,8 +319,11 @@ test('title, captions and on-video text take their font, size, color and backgro
 	await size.press('Enter')
 
 	// On-video text in cyan, drawn top-left from 0:00.
+	await openTool(page, 'Annotations')
 	const annotations = page.getByRole('region', { name: 'Annotations' })
+	await openTool(page, 'Annotations')
 	await annotations.getByLabel('Text to add').fill('HI')
+	await openTool(page, 'Annotations')
 	const newText = annotations.getByRole('group', { name: 'New text style' })
 	await newText.getByLabel('Color').fill('#00ffff')
 	await newText.getByLabel('Color').blur()
@@ -353,8 +378,11 @@ test('the pencil draws a stroke pinned to the picture, in the export; the eraser
 }) => {
 	test.setTimeout(180_000)
 	await openHalves(page)
+	await openTool(page, 'Annotations')
 	const annotations = page.getByRole('region', { name: 'Annotations' })
+	await openTool(page, 'Annotations')
 	await annotations.getByLabel('Box color').fill('#00ff00')
+	await openTool(page, 'Annotations')
 	await annotations.getByLabel('Box color').blur()
 	await seekTo(page, 0.05)
 	const tool = (name: string) =>
@@ -390,6 +418,7 @@ test('the pencil draws a stroke pinned to the picture, in the export; the eraser
 	expect(Math.abs((preview.counts.green?.meanX ?? 0) - 80)).toBeLessThan(15)
 
 	// Pinned to the picture: flipped, the stroke is mirrored with it.
+	await openTool(page, 'Picture')
 	await page.getByRole('button', { name: 'Flip horizontally' }).click()
 	const [flipped] = await exportFrames(page, [1], query)
 	expect(
@@ -401,6 +430,7 @@ test('the pencil draws a stroke pinned to the picture, in the export; the eraser
 	await page.getByRole('button', { name: 'Undo last change' }).click()
 	// Undo goes back to the trim's start, before the stroke shows: back into it.
 	await seekTo(page, 1)
+	await openTool(page, 'Annotations')
 	await tool('Eraser').click()
 	await page.getByTestId('annotation-layer').scrollIntoViewIfNeeded()
 	const stroke = await strokes.boundingBox()
@@ -418,8 +448,11 @@ test('colors and text style work as typed commands, each confirmed and one undo 
 	const command = page.getByRole('textbox', { name: 'Edit command' })
 	const reply = page.getByRole('status').filter({ hasText: 'You asked' })
 	await openHalves(page)
+	await openTool(page, 'Graphics')
 	const graphics = page.getByRole('region', { name: 'Graphics' })
+	await openTool(page, 'Graphics')
 	await graphics.getByLabel('Title text').fill('HELLO')
+	await openTool(page, 'Graphics')
 	await graphics.getByRole('button', { name: 'Add title' }).click()
 	const run = async (text: string, fields: Parameters<typeof editCommand>[0], shown: string) => {
 		await mockActions(page, { words: [], command: editCommand(fields) })
@@ -434,6 +467,7 @@ test('colors and text style work as typed commands, each confirmed and one undo 
 		{ action: 'color', property: 'black_and_white' },
 		"I'll make the whole video black and white."
 	)
+	await openTool(page, 'Color')
 	await expect(colorPanel(page).getByRole('button', { name: 'Black and white' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
@@ -443,6 +477,7 @@ test('colors and text style work as typed commands, each confirmed and one undo 
 		{ action: 'color', property: 'brightness', percent: 20 },
 		"I'll set the brightness of the whole video to 120%."
 	)
+	await openTool(page, 'Color')
 	await expect(colorPanel(page)).toContainText('Brightness 120%')
 	await run(
 		'make the title red',
@@ -460,8 +495,10 @@ test('colors and text style work as typed commands, each confirmed and one undo 
 		'rgb(255, 255, 255)'
 	)
 	await undo.click()
+	await openTool(page, 'Color')
 	await expect(colorPanel(page)).toContainText('Brightness 100%')
 	await undo.click()
+	await openTool(page, 'Color')
 	await expect(colorPanel(page).getByRole('button', { name: 'None' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
@@ -473,12 +510,16 @@ test('on-video text turned by typing is turned the same in the preview and the e
 }) => {
 	test.setTimeout(150_000)
 	await openHalves(page, [])
+	await openTool(page, 'Annotations')
 	const annotations = page.getByRole('region', { name: 'Annotations' })
+	await openTool(page, 'Annotations')
 	await annotations.getByLabel('Text to add').fill('HI')
+	await openTool(page, 'Annotations')
 	const newText = annotations.getByRole('group', { name: 'New text style' })
 	await newText.getByLabel('Background').fill('#ff00ff')
 	await newText.getByLabel('Background').blur()
 	await seekTo(page, 0.05)
+	await openTool(page, 'Annotations')
 	const tools = annotations.getByRole('group', { name: 'Annotation tool' })
 	await tools.getByRole('button', { name: 'Text', exact: true }).click()
 	const layer = page.getByTestId('annotation-layer')
@@ -494,6 +535,7 @@ test('on-video text turned by typing is turned the same in the preview and the e
 	await expect(text).toHaveCount(1)
 	await tools.getByRole('button', { name: 'Select', exact: true }).click()
 	await text.click()
+	await openTool(page, 'Annotations')
 	const rotation = annotations.getByLabel('Text rotation (°)')
 	await rotation.fill('90')
 	await rotation.press('Enter')

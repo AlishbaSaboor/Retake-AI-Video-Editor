@@ -42,9 +42,9 @@ export function EditorShell({
 		<div
 			className={cn(
 				'grid flex-1 grid-cols-1 lg:h-[calc(100dvh-3.5rem)] lg:flex-none lg:grid-rows-[minmax(0,1fr)]',
-				chatOpen && toolsShown && 'lg:grid-cols-[20rem_minmax(0,1fr)_22rem]',
-				chatOpen && !toolsShown && 'lg:grid-cols-[20rem_minmax(0,1fr)]',
-				!chatOpen && toolsShown && 'lg:grid-cols-[minmax(0,1fr)_22rem]'
+				chatOpen && toolsShown && 'lg:grid-cols-[19rem_minmax(0,1fr)_25rem]',
+				chatOpen && !toolsShown && 'lg:grid-cols-[19rem_minmax(0,1fr)]',
+				!chatOpen && toolsShown && 'lg:grid-cols-[minmax(0,1fr)_25rem]'
 			)}
 		>
 			{/* Hidden, not removed: the chat's history and a half-typed command stay. */}

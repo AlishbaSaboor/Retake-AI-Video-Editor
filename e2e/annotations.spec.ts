@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { test, expect, type Locator, type Page } from '@playwright/test'
-import { editCommand, mockActions, openEditorWithVideo, seekTo } from './editor-helpers'
+import { editCommand, mockActions, openEditorWithVideo, seekTo, openTool } from './editor-helpers'
 
 // The test video is 320×180: a dark background (#112233) with an orange
 // square (60×60, y 60–120) crossing it at 80 px a second from x = 20. A box
@@ -15,6 +15,7 @@ const shownItems = (page: Page, kind?: string) =>
 	page.locator(kind ? `[data-annotation-kind="${kind}"]` : '[data-annotation-id]')
 
 async function pickTool(page: Page, name: string) {
+	await openTool(page, 'Annotations')
 	await panel(page)
 		.getByRole('group', { name: 'Annotation tool' })
 		.getByRole('button', { name, exact: true })
@@ -162,6 +163,7 @@ test('boxes and blurs drawn on the preview show only in their time, in the previ
 
 	// A red box in the top-left, drawn at 0.5 s.
 	await seekTo(page, 0.5)
+	await openTool(page, 'Annotations')
 	await panel(page).getByLabel('Box color').fill('#ff0000')
 	await pickTool(page, 'Box')
 	await dragOnPicture(page, [0.05, 0.05], [0.3, 0.28])
@@ -244,12 +246,14 @@ test('boxes and blurs drawn on the preview show only in their time, in the previ
 	const undo = page.getByRole('button', { name: 'Undo last change' })
 	const redo = page.getByRole('button', { name: 'Redo' })
 	for (let step = 0; step < 5; step++) await undo.click()
+	await openTool(page, 'Annotations')
 	await expect(panel(page).getByText('Nothing drawn yet.')).toBeVisible()
 	for (let step = 0; step < 5; step++) await redo.click()
 	expect(await lanePosition(page, 'Box 1')).toEqual(box)
 	expect(await lanePosition(page, 'Blur 2')).toEqual(blur)
 	await page.getByRole('button', { name: 'Reset to original' }).click()
 	await page.getByRole('button', { name: 'Reset', exact: true }).click()
+	await openTool(page, 'Annotations')
 	await expect(panel(page).getByText('Nothing drawn yet.')).toBeVisible()
 	await undo.click()
 	expect(await lanePosition(page, 'Box 1')).toEqual(box)
@@ -303,6 +307,7 @@ test('the eraser, the Delete key and a typed command add and remove items, one u
 		"I'll blur the top-right corner from 0:01 to 0:02. It stays in place: it won't follow anything that moves."
 	)
 	await reply.getByRole('button', { name: 'Cancel' }).click()
+	await openTool(page, 'Annotations')
 	await expect(panel(page).getByText('Nothing drawn yet.')).toBeVisible()
 	await run()
 	await reply.getByRole('button', { name: 'Apply' }).click()
@@ -316,13 +321,16 @@ test('the eraser, the Delete key and a typed command add and remove items, one u
 	await expect(shownItems(page)).toHaveCount(0)
 
 	// Text needs words before it can be drawn.
+	await openTool(page, 'Annotations')
 	const textTool = panel(page).getByRole('group', { name: 'Annotation tool' }).getByRole('button', {
 		name: 'Text',
 		exact: true
 	})
 	await expect(textTool).toBeDisabled()
+	await openTool(page, 'Annotations')
 	await panel(page).getByLabel('Text to add').fill('Hello')
 	await seekTo(page, 1.2)
+	await openTool(page, 'Annotations')
 	await textTool.click()
 	await dragOnPicture(page, [0.1, 0.6], [0.6, 0.8])
 	await expect(shownItems(page, 'text')).toHaveText('Hello')

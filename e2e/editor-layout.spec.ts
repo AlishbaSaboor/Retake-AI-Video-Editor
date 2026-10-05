@@ -1,5 +1,12 @@
 import { test, expect, type Page } from '@playwright/test'
-import { editCommand, mockActions, openEditorWithVideo, seekTo, w } from './editor-helpers'
+import {
+	editCommand,
+	mockActions,
+	openEditorWithVideo,
+	seekTo,
+	w,
+	openTool
+} from './editor-helpers'
 
 // The editor's layout: the chat on the left, the tools on the right with a
 // search, either side hidden for a larger picture, the keyboard shortcuts,
@@ -22,6 +29,7 @@ test('the chat keeps a record: an answer applied or cancelled stays, and only th
 	await reply(page).getByRole('button', { name: 'Cancel' }).click()
 	await expect(reply(page)).toHaveCount(0)
 	await expect(chat(page).getByText('Cancelled — nothing changed')).toBeVisible()
+	await openTool(page, 'Graphics')
 	const captions = page
 		.getByRole('region', { name: 'Graphics' })
 		.getByRole('button', { name: 'Captions' })
@@ -42,7 +50,9 @@ test('the tools are found by name or by what they do; the side columns hide for 
 }) => {
 	await openEditorWithVideo(page)
 	const search = page.getByRole('searchbox', { name: 'Find a tool' })
+	await openTool(page, 'Picture')
 	const picture = page.getByRole('region', { name: 'Picture' })
+	await openTool(page, 'Color')
 	const color = page.getByRole('region', { name: 'Color' })
 	await search.fill('crop')
 	await expect(picture).toBeVisible()
@@ -112,14 +122,24 @@ test('keyboard shortcuts play, split, delete and undo, and ? lists them', async 
 	await expect(help).toBeHidden()
 })
 
-test('the toolbar says whether the project is saved', async ({ page }) => {
+test('the project is named and saved at the top of the editor', async ({ page }) => {
 	await openEditorWithVideo(page)
+	// Named at the top of the editor; until it's saved, Save sits beside the name.
 	const badge = page.getByTestId('save-badge')
-	await expect(badge).toHaveText('Not saved')
-	const project = page.getByRole('region', { name: 'Project', exact: true })
-	await project.getByLabel('Project name').fill('Badge')
-	await project.getByRole('button', { name: 'Save', exact: true }).click()
+	await expect(badge).toHaveCount(0)
+	await page.getByLabel('Project name').fill('Badge')
+	await page.getByRole('button', { name: 'Save', exact: true }).click()
 	await expect(badge).toHaveText('Saved')
+	await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0)
+	// A saved project renamed there is saved under the new name.
+	await page.getByLabel('Project name').fill('Badge renamed')
+	await page.getByLabel('Project name').press('Enter')
+	await openTool(page, 'Project')
+	await expect(
+		page
+			.getByRole('region', { name: 'Project', exact: true })
+			.getByRole('listitem', { name: 'Badge renamed' })
+	).toBeVisible()
 })
 
 test('a transcript line moves the playhead to where it starts', async ({ page }) => {
@@ -128,6 +148,7 @@ test('a transcript line moves the playhead to where it starts', async ({ page })
 	})
 	// With sound, so there's a transcript (mocked) to click.
 	await openEditorWithVideo(page, [[3, true]])
+	await openTool(page, 'Transcript')
 	const line = page.getByRole('button', { name: /Second line\./ }).first()
 	await expect(line).toBeVisible({ timeout: 30_000 })
 	await line.click()
@@ -171,9 +192,8 @@ test('leaving with unsaved changes asks first; once saved, it does not', async (
 	await expect(clips(page)).toHaveCount(2)
 
 	// Saved: no question, in the app or from the browser.
-	const project = page.getByRole('region', { name: 'Project', exact: true })
-	await project.getByLabel('Project name').fill('Guarded')
-	await project.getByRole('button', { name: 'Save', exact: true }).click()
+	await page.getByLabel('Project name').fill('Guarded')
+	await page.getByRole('button', { name: 'Save', exact: true }).click()
 	await expect(page.getByTestId('save-badge')).toHaveText('Saved')
 	await projectsLink.click()
 	await expect(page).toHaveURL(/\/projects$/, { timeout: 30_000 })

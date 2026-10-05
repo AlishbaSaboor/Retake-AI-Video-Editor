@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { editCommand, mockActions, recordTestVideo } from './editor-helpers'
+import { editCommand, mockActions, recordTestVideo, openTool } from './editor-helpers'
 
 const reply = (page: Page) => page.getByRole('status').filter({ hasText: 'You asked' })
 
@@ -73,9 +73,11 @@ test('saved projects are listed with a picture, a name and a date, and open in t
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
 		timeout: 30_000
 	})
+	await openTool(page, 'Project')
 	const project = page.getByRole('region', { name: 'Project', exact: true })
-	await project.getByLabel('Project name').fill('Listed project')
-	await project.getByRole('button', { name: 'Save', exact: true }).click()
+	await page.getByLabel('Project name').fill('Listed project')
+	await page.getByRole('button', { name: 'Save', exact: true }).click()
+	await openTool(page, 'Project')
 	await expect(project.getByRole('status')).toContainText('Saved at')
 
 	await page.getByRole('link', { name: 'Projects' }).first().click()
@@ -92,7 +94,7 @@ test('saved projects are listed with a picture, a name and a date, and open in t
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
 		timeout: 30_000
 	})
-	await expect(project.getByLabel('Project name')).toHaveValue('Listed project')
+	await expect(page.getByLabel('Project name')).toHaveValue('Listed project')
 })
 
 test('signed in, the footer offers a new project, not logging in again', async ({ page }) => {

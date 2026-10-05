@@ -13,6 +13,7 @@ import {
 	type Transition,
 	type TransitionKind
 } from './transitions'
+import { MoreInfo } from './more-info'
 
 const SECONDS_STEP = 0.1
 
@@ -52,7 +53,7 @@ export function TransitionPanel({ joins, canEdit, onChange }: TransitionPanelPro
 					onChange={(transition) => onChange(index + 1, transition)}
 				/>
 			))}
-			<p className="text-text-muted text-xs">{t('hint')}</p>
+			<MoreInfo>{t('hint')}</MoreInfo>
 		</section>
 	)
 }

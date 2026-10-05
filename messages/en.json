@@ -32,7 +32,8 @@
 			"reset": "Reset to original",
 			"resetConfirm": "Reset to the original take? This removes every trim, cut, clip change, re-recorded sentence, graphic and annotation. Undo brings them all back.",
 			"resetApply": "Reset",
-			"resetShort": "Reset"
+			"resetShort": "Reset",
+			"reading": "Still reading the recording: silences and filler words show here once the transcript is in."
 		},
 		"fillerCut": {
 			"label": "Cut editor for \"{word}\"",
@@ -262,7 +263,7 @@
 			},
 			"chat": {
 				"label": "Chat",
-				"intro": "Tell me what to change, in your own words, or speak it. I’ll say what I understood first; nothing changes until you press Apply changes.",
+				"intro": "Say what to change in your own words. Retake shows what it understood first; nothing changes until you press Apply changes.",
 				"thinking": "Reading your command…",
 				"attach": "Attach a file",
 				"attachHint": "A video is added to the project, a PNG or JPG becomes the logo, and an audio file goes on the Audio lane.",
@@ -272,12 +273,16 @@
 					"audio": "Put {name} on the Audio lane at the playhead.",
 					"unknown": "I can’t use {name}: attach a video, a PNG or JPG image, or an audio file."
 				},
-				"examples": "Try",
+				"examples": "Try one",
 				"example": {
 					"cleanup": "Remove the filler words and long silences",
 					"captions": "Turn captions on",
-					"title": "Add a title that says Welcome"
-				}
+					"title": "Add a title that says Welcome",
+					"zoom": "Zoom in slowly from 2 to 5 seconds"
+				},
+				"title": "Ask Retake to edit",
+				"voiceTip": "Tip: press the mic below to say it instead.",
+				"short": "Retake shows what it understood first; nothing changes until you press Apply changes."
 			}
 		},
 		"timeline": {
@@ -600,7 +605,8 @@
 			"relinkLabel": "Find the missing files",
 			"relinkHint": "This browser no longer holds some of this project’s files (its storage was cleared). Pick each one again; it’s taken only if its name and size match.",
 			"find": "Find {name}",
-			"relinkCancel": "Cancel"
+			"relinkCancel": "Cancel",
+			"rename": "Click to rename"
 		},
 		"motion": {
 			"in": {
@@ -687,7 +693,8 @@
 				"color": "Color",
 				"transitions": "Transitions",
 				"annotations": "Annotations",
-				"graphics": "Graphics"
+				"graphics": "Graphics",
+				"chat": "Ask in the chat"
 			},
 			"keywords": {
 				"project": "save name open my projects autosave",
@@ -700,7 +707,51 @@
 				"color": "brightness contrast saturation black white warm cool look grade",
 				"transitions": "fade dissolve black between clips join",
 				"annotations": "draw pencil box blur pixelate text eraser hide cover",
-				"graphics": "title captions subtitles logo watermark lower third name text style font"
+				"graphics": "title captions subtitles logo watermark lower third name text style font",
+				"chat": "ai chat ask command type speak voice gemini"
+			},
+			"tabs": {
+				"ai": {
+					"label": "AI & Clean up",
+					"description": "Tidy the recording in one step. For anything else, ask in the chat."
+				},
+				"picture": {
+					"label": "Picture",
+					"description": "Crop, turn or flip the picture, zoom in on part of it, and set its colours."
+				},
+				"sound": {
+					"label": "Sound",
+					"description": "Each clip’s volume, fades and speed, and extra sound such as music."
+				},
+				"graphics": {
+					"label": "Graphics",
+					"description": "Titles, captions and your logo, plus boxes, text and drawings on the video."
+				},
+				"transitions": {
+					"label": "Transitions",
+					"description": "How each clip leads into the next: a cut, a fade or a dissolve."
+				},
+				"transcript": {
+					"label": "Transcript",
+					"description": "What’s said, sentence by sentence. Click one to jump to it, or re-record it."
+				},
+				"project": {
+					"label": "Project",
+					"description": "Whether this edit is saved, and your other projects."
+				}
+			},
+			"results": "Search results",
+			"inTab": "In {tab}",
+			"tabsLabel": "Tool tabs",
+			"howItWorks": "How this works",
+			"chat": {
+				"body": "Type or say what you want, and Retake does the clicking for you. For example:",
+				"items": {
+					"cut": "“Cut from 0:12 to 0:20” or “remove the ums”",
+					"look": "“Crop it square” or “make it black and white”",
+					"add": "“Add a title that says Welcome” or “turn captions on”"
+				},
+				"open": "Open the chat"
 			}
 		},
 		"layout": {

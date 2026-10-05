@@ -17,6 +17,7 @@ import {
 import { MAX_VOLUME } from './clip-audio'
 import { formatTimecode, timeToPercent, type TrimEdge } from './timeline-scale'
 import { TrimHandle } from './trim-handle'
+import { MoreInfo } from './more-info'
 
 const PERCENT = 100
 const VOLUME_STEP_PERCENT = 5
@@ -134,7 +135,7 @@ export function AudioLanePanel({
 					))}
 				</div>
 			)}
-			<p className="text-text-muted text-xs">{t('hint')}</p>
+			<MoreInfo>{t('hint')}</MoreInfo>
 		</section>
 	)
 }
