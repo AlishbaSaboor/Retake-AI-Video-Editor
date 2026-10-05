@@ -1882,6 +1882,57 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
 
 ---
 
+## 3y. Clearer Home and editor; projects you can manage (2026-10-05)
+
+- **Asked:** Home and the editor clear to a first-time user at once, with
+  real design effort; no feature's behaviour changed, only layout, grouping
+  and wording; plus rename, delete (confirmed) and download on Projects.
+- **Home:** two choices side by side, each an icon, a title and a line:
+  "Edit with AI" (an optional first command, voice, the example commands)
+  and "Edit by hand" (four tiles of what's in front). Both "Upload & edit",
+  or take a video dropped on the card. By hand sets the remembered columns
+  (`setSideOpen`): chat hidden, tools shown. The by-hand input is labelled
+  "Video to edit by hand" (the AI one keeps "Choose a video file").
+- **Editor, top:** the project's name in the toolbar, an input that reads
+  as a title (`ProjectTitle`), with Save beside it until first saved, then
+  the saved badge. Enter on a new project saves it under that name; a saved
+  project renamed (Enter or leaving the field) is saved under the new name.
+  The Project panel lost its name field, Save and toggle: it's the Project
+  tab (status line, My projects always shown). Export's visible text is
+  "Export" (still named "Export video"). The toolbar is one row from 1400 px.
+- **Editor, right:** tabs (`ToolPanels`): a vertical rail, icon and label
+  each: AI & Clean up (clean-up, and "Ask in the chat" with examples and
+  Open the chat when it's hidden), Picture (crop/rotate, zoom, colour),
+  Sound (clip sound and speed, audio lane), Graphics (title, captions, logo,
+  lower third; then annotations), Transitions, Transcript, Project. Each
+  tab: a heading and one line, then its panels. The search looks across all
+  tabs and labels each result with its tab. Every panel stays mounted.
+  Long explanations fold behind "How this works" (`MoreInfo`); state notes
+  (the Original view, "Add a zoom first") stay visible.
+- **Chat, empty:** a heading, how it works, four examples with icons, a
+  voice tip; the conversation takes the space once it starts.
+- **Clean-up while reading:** "Still reading the recording…" instead of
+  "Nothing flagged" until the transcript is in.
+- **Projects page:** each card: open (picture or name), rename in place
+  (Enter keeps, Escape cancels; `renameProject` changes only the name),
+  download its video (the saved original: a project stores the video and
+  its edit, and the edit itself comes out through Export), delete after a
+  "Delete …?" dialog (Keep it / Delete project).
+- **Theme script:** tried `next/script` (beforeInteractive) to silence
+  React's dev warning about a `<script>` in a component; measured with
+  Next's JS delayed 3 s, a light-mode page was still dark at
+  DOMContentLoaded. Kept the plain `<script>` (light at once), with a note.
+- **Tests:** `openTool(page, panel)` (`editor-helpers.ts`) opens the tab
+  holding a panel, as a user would; it waits for the tabs (or an empty
+  editor, which has none). A codemod inserted it before each use of a
+  tabbed panel, then hand fixes. Tests save through the name at the top.
+  New: by-hand start, renaming at the top, Projects rename / download /
+  delete.
+- **Cost:** one Deepgram transcript of `Cap.mp4` (~$0.008), then every
+  screenshot run used the saved copy (`reuseTranscript`: 0 paid calls).
+
+---
+
 ## 4. Unresolved issues
 
 ### 4a. The command-test regression from earlier instructions is solved
@@ -2278,6 +2329,11 @@ error 0.05 of the 0.12 allowed.
 84 tests: `re-record.spec.ts:21` failed once (a take's "New take" line not
 shown in time) and `clip-speed.spec.ts:142` once (exported 3.31 s for 3 s,
 section 4f); both passed alone (1/1, 2/2). Recorded, not changed.
+
+**Clearer editor runs (2026-10-05, ~0.6–1.5 GB free):** the last full run
+83/90; the 7 failures (typed-command replies slow under load, export
+lengths and tones off, an export toast late) all passed alone or with one
+worker. Recorded, not changed.
 
 **CI run 61 (2026-10-05, a logs-only commit, same code as green run 60):
 the export drops frames under load, and two tests read frames as if it

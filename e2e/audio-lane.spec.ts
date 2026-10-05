@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
-import { editCommand, mockActions, seekTo } from './editor-helpers'
+import { editCommand, mockActions, seekTo, openTool } from './editor-helpers'
 
 // The Audio lane on real exports. The video: 2 s of red with a 440 Hz tone,
 // then 2 s of blue with 880 Hz, split at 2 s into two clips. The added file:
@@ -99,16 +99,20 @@ const laneItem = (page: Page, n: number) =>
 /** Adds the 660 Hz file to the lane (through the picker the button opens), starting at `seconds`. */
 async function addTone(page: Page, seconds: number) {
 	const choosing = page.waitForEvent('filechooser')
+	await openTool(page, 'Audio')
 	await lane(page).getByRole('button', { name: 'Add audio file' }).click()
 	await (await choosing).setFiles({ name: 'tone.wav', mimeType: 'audio/wav', buffer: toneWav() })
+	await openTool(page, 'Audio')
 	await expect(laneItem(page, 1)).toBeVisible()
 	await setStart(page, 1, seconds)
 }
 
 async function setStart(page: Page, n: number, seconds: number) {
+	await openTool(page, 'Audio')
 	const field = laneItem(page, n).getByLabel('Starts at (s)')
 	await field.fill(String(seconds))
 	await field.press('Enter')
+	await openTool(page, 'Audio')
 	await expect(laneItem(page, n).getByLabel('Starts at (s)')).toHaveValue(String(seconds))
 }
 
@@ -196,26 +200,32 @@ test('an added audio file plays where it is put, mixed over the video, at its vo
 	expect(after?.high, "the video's own 880 Hz").toBeGreaterThan(PRESENT)
 
 	// At 50%, half as loud; muted, gone; each one change.
+	await openTool(page, 'Audio')
 	const volume = laneItem(page, 1).getByRole('slider', { name: /^Volume/ })
 	await volume.fill('50')
 	await volume.blur()
+	await openTool(page, 'Audio')
 	await expect(laneItem(page, 1)).toContainText('Volume 50%')
 	const [, half] = await exportAndProbe(page, [0.5, 1.75])
 	expect(Math.abs((half?.mid ?? 0) - 0.5), `660 Hz at ${half?.mid} for 0.5`).toBeLessThan(0.12)
+	await openTool(page, 'Audio')
 	await laneItem(page, 1).getByRole('button', { name: 'Mute' }).click()
 	const [, muted] = await exportAndProbe(page, [0.5, 1.75])
 	expect(muted?.mid, 'muted').toBeLessThan(ABSENT)
 
 	const undo = page.getByRole('button', { name: 'Undo last change' })
 	await undo.click()
+	await openTool(page, 'Audio')
 	await expect(laneItem(page, 1).getByRole('button', { name: 'Mute' })).toHaveAttribute(
 		'aria-pressed',
 		'false'
 	)
 	await undo.click()
+	await openTool(page, 'Audio')
 	await expect(laneItem(page, 1)).toContainText('Volume 100%')
 	await page.getByRole('button', { name: 'Reset to original' }).click()
 	await page.getByRole('button', { name: 'Reset', exact: true }).click()
+	await openTool(page, 'Audio')
 	await expect(laneItem(page, 1)).toHaveCount(0)
 })
 
@@ -224,9 +234,13 @@ test("a clip's sound taken out plays where it is moved, while the clip plays sil
 }) => {
 	test.setTimeout(180_000)
 	await openRedBlue(page)
+	await openTool(page, 'Audio')
 	await lane(page).getByLabel('Clip', { exact: true }).selectOption('1')
+	await openTool(page, 'Audio')
 	await lane(page).getByRole('button', { name: "Extract the clip's sound" }).click()
+	await openTool(page, 'Audio')
 	await expect(laneItem(page, 1)).toContainText('Clip 2 sound')
+	await openTool(page, 'Clip sound and speed')
 	await expect(
 		page
 			.getByRole('region', { name: 'Clip sound and speed' })
@@ -245,14 +259,18 @@ test("a clip's sound taken out plays where it is moved, while the clip plays sil
 	expect(late?.blue, "clip 2's picture still there").toBeGreaterThan(200)
 
 	// A sped clip's sound can't be taken out.
+	await openTool(page, 'Clip sound and speed')
 	const speed = page
 		.getByRole('region', { name: 'Clip sound and speed' })
 		.getByRole('group', { name: 'Clip 1' })
 		.getByLabel('Speed (×)')
 	await speed.fill('2')
 	await speed.press('Enter')
+	await openTool(page, 'Audio')
 	await lane(page).getByLabel('Clip', { exact: true }).selectOption('0')
+	await openTool(page, 'Audio')
 	await expect(lane(page).getByRole('button', { name: "Extract the clip's sound" })).toBeDisabled()
+	await openTool(page, 'Audio')
 	await expect(lane(page)).toContainText('Sped up or slowed: set it back to 1× first.')
 
 	// Undo puts the clip's sound back in it.
@@ -260,7 +278,9 @@ test("a clip's sound taken out plays where it is moved, while the clip plays sil
 	await undo.click()
 	await undo.click()
 	await undo.click()
+	await openTool(page, 'Audio')
 	await expect(laneItem(page, 1)).toHaveCount(0)
+	await openTool(page, 'Clip sound and speed')
 	await expect(
 		page
 			.getByRole('region', { name: 'Clip sound and speed' })
@@ -339,7 +359,9 @@ test('audio lane commands are confirmed first and are one undo step each', async
 	const choosing = page.waitForEvent('filechooser')
 	await reply.getByRole('button', { name: 'Apply' }).click()
 	await (await choosing).setFiles({ name: 'music.wav', mimeType: 'audio/wav', buffer: toneWav() })
+	await openTool(page, 'Audio')
 	await expect(laneItem(page, 1)).toContainText('music.wav')
+	await openTool(page, 'Audio')
 	await expect(laneItem(page, 1).getByLabel('Starts at (s)')).toHaveValue('1')
 
 	await ask(
@@ -348,6 +370,7 @@ test('audio lane commands are confirmed first and are one undo step each', async
 		"I'll take clip 2's sound out into its own track in the Audio lane"
 	)
 	await reply.getByRole('button', { name: 'Apply' }).click()
+	await openTool(page, 'Audio')
 	await expect(laneItem(page, 2)).toContainText('Clip 2 sound')
 
 	await ask(
@@ -356,7 +379,9 @@ test('audio lane commands are confirmed first and are one undo step each', async
 		"I'll delete audio track 1"
 	)
 	await reply.getByRole('button', { name: 'Apply' }).click()
+	await openTool(page, 'Audio')
 	await expect(laneItem(page, 1)).toContainText('Clip 2 sound')
+	await openTool(page, 'Audio')
 	await expect(laneItem(page, 2)).toHaveCount(0)
 
 	await ask(
@@ -368,9 +393,12 @@ test('audio lane commands are confirmed first and are one undo step each', async
 
 	const undo = page.getByRole('button', { name: 'Undo last change' })
 	await undo.click()
+	await openTool(page, 'Audio')
 	await expect(laneItem(page, 2)).toContainText('Clip 2 sound')
 	await undo.click()
+	await openTool(page, 'Audio')
 	await expect(laneItem(page, 2)).toHaveCount(0)
 	await undo.click()
+	await openTool(page, 'Audio')
 	await expect(laneItem(page, 1)).toHaveCount(0)
 })

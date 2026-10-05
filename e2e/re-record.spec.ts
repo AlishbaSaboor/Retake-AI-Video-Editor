@@ -7,7 +7,8 @@ import {
 	reRecordButton,
 	ROOM_TONE,
 	seekTo,
-	w
+	w,
+	openTool
 } from './editor-helpers'
 import { FAKE_MIC_LAUNCH, recordTake } from './fake-mic'
 
@@ -48,11 +49,13 @@ test('a re-recorded take replaces only its sentence, in playback and export, and
 	)
 	const reRecord = (at: string) =>
 		page.getByRole('button', { name: `Re-record the sentence at ${at}` })
+	await openTool(page, 'Transcript')
 	await expect(reRecord('0:01')).toBeVisible({ timeout: 30_000 })
 	const clip = page.getByRole('region', { name: 'Clips' }).getByRole('option')
 
 	// A sentence with no pause before it says why, and can't be recorded
 	// until its join is set by ear.
+	await openTool(page, 'Transcript')
 	await reRecord('0:00').click()
 	const blocked = page.getByRole('region', { name: 'Re-record the sentence at 0:00' })
 	await expect(blocked.getByText(/no clear pause before this sentence/)).toBeVisible()
@@ -61,6 +64,7 @@ test('a re-recorded take replaces only its sentence, in playback and export, and
 	await blocked.getByRole('button', { name: 'Cancel' }).click()
 
 	// Cancel after recording leaves everything as it was.
+	await openTool(page, 'Transcript')
 	await reRecord('0:01').click()
 	await (await recordTake(page)).getByRole('button', { name: 'Cancel' }).click()
 	await expect(page.getByText('re-recorded', { exact: true })).toHaveCount(0)
@@ -68,8 +72,10 @@ test('a re-recorded take replaces only its sentence, in playback and export, and
 	await expect(clip).toHaveAttribute('aria-label', /plays 0:06,/)
 
 	// Use the take for B, then one for C.
+	await openTool(page, 'Transcript')
 	await reRecord('0:01').click()
 	await (await recordTake(page)).getByRole('button', { name: 'Use new take' }).click()
+	await openTool(page, 'Transcript')
 	await reRecord('0:04').click()
 	await (await recordTake(page)).getByRole('button', { name: 'Use new take' }).click()
 	await expect(page.getByText('re-recorded', { exact: true })).toHaveCount(2)
@@ -191,6 +197,7 @@ test('undo steps back through several edits, a re-record among them, and redo re
 }) => {
 	test.setTimeout(300_000)
 	const duration = await openThreeSentences(page)
+	await openTool(page, 'Transcript')
 	const reRecordB = reRecordButton(page, '0:01')
 	const clips = clipOptions(page)
 	const trimEnd = page.getByRole('slider', { name: 'Trim end' })
@@ -279,6 +286,7 @@ test('reset to original removes every edit as one step that Undo brings back, an
 	await expect(resetButton).toHaveCount(0)
 
 	// Re-record B, trim a second off the end, split at 0.8 s.
+	await openTool(page, 'Transcript')
 	await reRecordButton(page, '0:01').click()
 	await (await recordTake(page)).getByRole('button', { name: 'Use new take' }).click()
 	await page.getByRole('slider', { name: 'Trim end' }).press('Shift+ArrowLeft')
@@ -401,6 +409,7 @@ test('at 2× preview speed the editor plays twice as fast through jumps, a take 
 		}
 	})
 	const duration = await openThreeSentences(page)
+	await openTool(page, 'Transcript')
 	await reRecordButton(page, '0:01').click()
 	await (await recordTake(page)).getByRole('button', { name: 'Use new take' }).click()
 	// Split at 0.8 s and move A to the end, so playback jumps back to it.
@@ -455,6 +464,7 @@ test("a clip's volume applies on top of a re-recorded take, which keeps its leve
 }) => {
 	test.setTimeout(150_000)
 	await openThreeSentences(page)
+	await openTool(page, 'Transcript')
 	await reRecordButton(page, '0:01').click()
 	await (await recordTake(page)).getByRole('button', { name: 'Use new take' }).click()
 	await expect(page.getByText('re-recorded', { exact: true })).toHaveCount(1)
@@ -490,8 +500,11 @@ test("a clip's volume applies on top of a re-recorded take, which keeps its leve
 		)
 	}
 	const full = await strengths()
+	await openTool(page, 'Clip sound and speed')
 	const slider = page.getByRole('region', { name: 'Clip sound and speed' }).getByRole('slider')
+	await openTool(page, 'Clip sound and speed')
 	await slider.fill('50')
+	await openTool(page, 'Clip sound and speed')
 	await slider.blur()
 	const half = await strengths()
 	// Both halve: the clip's volume is on top of the take's own gain.

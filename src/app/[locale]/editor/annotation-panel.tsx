@@ -22,6 +22,7 @@ import {
 import { DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
 import { TextStyleFields } from './text-style-fields'
 import { DegreesField } from './degrees-field'
+import { MoreInfo } from './more-info'
 import { AnimationFields } from './motion-panels'
 import { formatTimecode, timeToPercent, type TrimEdge } from './timeline-scale'
 import { TrimHandle } from './trim-handle'
@@ -178,9 +179,13 @@ export function AnnotationPanel({
 					onChange={(animation) => onChange({ ...styled, animation })}
 				/>
 			)}
-			<p className="text-text-muted -mt-2 text-xs">
-				{canDraw ? t('hint') : t('originalHint')} {t('staysPut')}
-			</p>
+			{canDraw ? (
+				<MoreInfo>
+					{t('hint')} {t('staysPut')}
+				</MoreInfo>
+			) : (
+				<p className="text-text-muted -mt-2 text-xs">{t('originalHint')}</p>
+			)}
 			<AnnotationLane
 				annotations={annotations}
 				editedSeconds={editedSeconds}

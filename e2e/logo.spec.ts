@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
-import { editCommand, mockActions, openEditorWithVideo } from './editor-helpers'
+import { editCommand, mockActions, openEditorWithVideo, openTool } from './editor-helpers'
 
 // The logo placed and sized by hand. The video is 320×180; the logo a solid
 // green 2:1 JPG, so where it lands in the export is the green box's bounds.
@@ -103,6 +103,7 @@ test('a JPG logo is dragged anywhere and resized by hand, in the preview and the
 	await openEditorWithVideo(page)
 	const jpg = await greenJpg(page)
 	const choosing = page.waitForEvent('filechooser')
+	await openTool(page, 'Graphics')
 	await graphics(page).getByRole('button', { name: 'Add logo (PNG or JPG)' }).click()
 	const chooser = await choosing
 	expect(await chooser.element().getAttribute('accept')).toBe('image/png,image/jpeg')
@@ -122,6 +123,7 @@ test('a JPG logo is dragged anywhere and resized by hand, in the preview and the
 	const moved = await previewBox(page)
 	expect(moved.x).toBeCloseTo(cornered.x - 0.5, 2)
 	expect(moved.y).toBeCloseTo(cornered.y - 0.4, 2)
+	await openTool(page, 'Graphics')
 	await expect(graphics(page).getByRole('button', { name: 'Bottom right' })).toHaveAttribute(
 		'aria-pressed',
 		'false'
@@ -137,8 +139,10 @@ test('a JPG logo is dragged anywhere and resized by hand, in the preview and the
 	expect(resized.width).toBeCloseTo(0.3, 2)
 	expect(resized.x).toBeCloseTo(moved.x, 2)
 	expect((resized.width * 320) / (resized.height * 180)).toBeCloseTo(2, 1)
+	await openTool(page, 'Graphics')
 	await expect(graphics(page).getByLabel('Logo size (%)')).toHaveValue('30')
 
+	await openTool(page, 'Graphics')
 	// The export puts it at the same place and size.
 	const exported = await exportedLogo(page)
 	expect(
@@ -154,11 +158,15 @@ test('a JPG logo is dragged anywhere and resized by hand, in the preview and the
 	await page.keyboard.press('ArrowRight')
 	expect((await previewBox(page)).x).toBeCloseTo(resized.x + 0.01, 2)
 	await page.keyboard.press('-')
+	await openTool(page, 'Graphics')
 	await expect(graphics(page).getByLabel('Logo size (%)')).toHaveValue('29')
 
 	// Typed size; then each step undoes on its own.
+	await openTool(page, 'Graphics')
 	const size = graphics(page).getByLabel('Logo size (%)')
+	await openTool(page, 'Graphics')
 	await size.fill('20')
+	await openTool(page, 'Graphics')
 	await size.press('Enter')
 	expect((await previewBox(page)).width).toBeCloseTo(0.2, 2)
 	const undo = page.getByRole('button', { name: 'Undo last change' })
@@ -173,8 +181,10 @@ test('a JPG logo is dragged anywhere and resized by hand, in the preview and the
 	await undo.click()
 	expect((await previewBox(page)).x).toBeCloseTo(cornered.x, 2)
 
+	await openTool(page, 'Graphics')
 	// A corner puts a placed logo back in it, at its size.
 	await dragInFrame(page, middle, [0.5, 0.5])
+	await openTool(page, 'Graphics')
 	await graphics(page).getByRole('button', { name: 'Top left' }).click()
 	const top = await previewBox(page)
 	expect(top.x).toBeCloseTo(0.03, 2)
@@ -203,8 +213,11 @@ test('a logo attached in the chat turns by typing, by keys and by its handle, an
 		.setInputFiles({ name: 'logo.jpg', mimeType: 'image/jpeg', buffer: await greenJpg(page) })
 	await expect(page.getByText('Using logo.jpg as the logo.')).toBeVisible()
 	await expect(logoImage(page)).toBeVisible()
+	await openTool(page, 'Graphics')
 	const size = graphics(page).getByLabel('Logo size (%)')
+	await openTool(page, 'Graphics')
 	await size.fill('30')
+	await openTool(page, 'Graphics')
 	await size.press('Enter')
 	// In the middle, so the turned logo stays inside the frame (past its edges, it's cut off).
 	const placed = await previewBox(page)
@@ -212,8 +225,11 @@ test('a logo attached in the chat turns by typing, by keys and by its handle, an
 
 	// A quarter turn, typed: the 2:1 logo now stands tall, about the same centre.
 	const upright = await previewBox(page)
+	await openTool(page, 'Graphics')
 	const rotation = graphics(page).getByLabel('Logo rotation (°)')
+	await openTool(page, 'Graphics')
 	await rotation.fill('90')
+	await openTool(page, 'Graphics')
 	await rotation.press('Enter')
 	const turned = await previewBox(page)
 	// In pixels: 96×48 upright, 48×96 turned (the frame is 320×180).

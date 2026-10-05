@@ -16,6 +16,7 @@ import {
 	type Motion,
 	type Zoom
 } from './motion'
+import { MoreInfo } from './more-info'
 
 const PERCENT = 100
 const SECONDS_STEP = 0.1
@@ -271,8 +272,10 @@ export function ZoomPanel({
 					{t('aim')}
 				</Button>
 			</form>
-			<p className="text-text-muted text-xs">{t('hint')}</p>
-			<p className="text-text-muted text-xs">{zoom ? t('aimHint') : t('aimNeedsZoom')}</p>
+			{!zoom && <p className="text-text-muted text-xs">{t('aimNeedsZoom')}</p>}
+			<MoreInfo>
+				{t('hint')} {zoom && t('aimHint')}
+			</MoreInfo>
 		</section>
 	)
 }

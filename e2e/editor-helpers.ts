@@ -222,6 +222,33 @@ export async function openThreeSentences(page: Page): Promise<number> {
 		],
 		ROOM_TONE
 	)
+	await openTool(page, 'Transcript')
 	await expect(reRecordButton(page, '0:01')).toBeVisible({ timeout: 30_000 })
 	return duration
+}
+
+// Which tab of the tools column holds each panel (by the panel's name).
+const TOOL_TABS: Record<string, string> = {
+	'Clean up': 'AI & Clean up',
+	Picture: 'Picture',
+	Zoom: 'Picture',
+	Color: 'Picture',
+	'Clip sound and speed': 'Sound',
+	Audio: 'Sound',
+	Graphics: 'Graphics',
+	Annotations: 'Graphics',
+	Transitions: 'Transitions',
+	Transcript: 'Transcript',
+	Project: 'Project'
+}
+
+/** Opens the tools tab holding a panel, as a user would before using it. */
+export async function openTool(page: Page, panel: keyof typeof TOOL_TABS): Promise<void> {
+	const tab = page.getByRole('tab', { name: TOOL_TABS[panel], exact: true })
+	// The tabs come once a video is in; an empty editor (no tabs: it shows My
+	// projects itself) has none to open.
+	const empty = page.getByText('Drop a video here, or click to choose one')
+	await expect(tab.or(empty).first()).toBeVisible({ timeout: 30_000 })
+	if (await empty.isVisible()) return
+	if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click()
 }
