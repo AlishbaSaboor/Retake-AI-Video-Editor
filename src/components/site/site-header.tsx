@@ -6,6 +6,7 @@ import { Link } from '@/i18n/routing'
 import { cn } from '@/lib/cn'
 import { currentUser } from '@/server/auth/session'
 import { Logo } from './logo'
+import { MobileMenu } from './mobile-menu'
 import { SignOutButton } from './sign-out-button'
 
 const PUBLIC_LINKS = [
@@ -77,13 +78,16 @@ export async function SiteHeader({ app = false, wide = false }: { app?: boolean;
 				<div className="ml-auto flex items-center gap-2">
 					<ThemeToggle />
 					<div className="hidden md:block">{account}</div>
-					<details className="group relative md:hidden">
-						<summary
-							aria-label={t('menu')}
-							className="border-border bg-surface text-text hover:bg-surface-hover flex size-9 cursor-pointer list-none items-center justify-center rounded-lg border [&::-webkit-details-marker]:hidden"
-						>
-							<MenuIcon size={18} />
-						</summary>
+					<MobileMenu
+						summary={
+							<summary
+								aria-label={t('menu')}
+								className="border-border bg-surface text-text hover:bg-surface-hover flex size-9 cursor-pointer list-none items-center justify-center rounded-lg border [&::-webkit-details-marker]:hidden"
+							>
+								<MenuIcon size={18} />
+							</summary>
+						}
+					>
 						<nav
 							aria-label={t('label')}
 							className="border-border bg-surface absolute right-0 mt-2 flex w-56 flex-col gap-1 rounded-lg border p-2 shadow-xl"
@@ -91,7 +95,7 @@ export async function SiteHeader({ app = false, wide = false }: { app?: boolean;
 							{links}
 							<div className="border-border mt-1 border-t pt-2">{account}</div>
 						</nav>
-					</details>
+					</MobileMenu>
 				</div>
 			</div>
 		</header>
