@@ -17,7 +17,7 @@ export default async function HomePage() {
 				aria-hidden
 				className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-[radial-gradient(60%_60%_at_50%_0%,var(--accent-soft),transparent)]"
 			/>
-			<div className="relative mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-16 md:py-24">
+			<div className="relative mx-auto flex w-full max-w-5xl flex-col gap-10 px-4 py-14 md:py-20">
 				<div className="flex flex-col gap-3 text-center">
 					<h1 className="font-display text-text text-4xl font-bold tracking-tight text-balance md:text-5xl">
 						{t('title')}

@@ -34,6 +34,28 @@ test('a project starts on the home page: a command and a video open the editor, 
 	await expect(reply(page)).toHaveCount(0)
 })
 
+test('editing by hand opens the editor with the chat put away and the tools in front', async ({
+	page
+}) => {
+	await page.goto('/home')
+	const byHand = page.getByRole('region', { name: 'Edit by hand' })
+	await expect(page.getByRole('region', { name: 'Edit with AI' })).toBeVisible()
+	await expect(byHand.getByRole('button', { name: 'Upload & edit' })).toBeVisible()
+	const video = await recordTestVideo(page)
+	await page
+		.getByLabel('Video to edit by hand')
+		.setInputFiles({ name: 'by-hand.webm', mimeType: 'video/webm', buffer: video })
+	await expect(page).toHaveURL(/\/editor$/, { timeout: 30_000 })
+	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
+		timeout: 30_000
+	})
+	await expect(page.getByRole('region', { name: 'Chat' })).toBeHidden()
+	await expect(page.getByRole('searchbox', { name: 'Find a tool' })).toBeVisible()
+	// The chat is one click away.
+	await page.getByRole('button', { name: 'Show the chat' }).click()
+	await expect(page.getByRole('region', { name: 'Chat' })).toBeVisible()
+})
+
 test('the editor opened directly starts empty', async ({ page }) => {
 	await page.goto('/editor')
 	await expect(page.getByText('Drop a video here, or click to choose one')).toBeVisible()

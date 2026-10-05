@@ -950,14 +950,11 @@
 		"home": {
 			"metaTitle": "New project",
 			"title": "What are we fixing today?",
-			"description": "Attach a video and say what to change. The editor opens as soon as it’s in.",
-			"boxLabel": "Start a project",
+			"description": "Pick how you want to work. You can switch at any time in the editor.",
 			"commandLabel": "Command",
-			"placeholder": "Describe your edit… for example “remove the ums and long pauses”",
-			"attach": "Attach video",
-			"dropHint": "or drop a video here",
+			"placeholder": "What should change first? e.g. “remove the ums and long pauses”",
+			"dropHint": "or drop a video on this card",
 			"dropHere": "Drop the video to start",
-			"start": "Choose video",
 			"opening": "Opening {name} in the editor…",
 			"openSaved": "Open a saved project",
 			"examplesLabel": "Try a command",
@@ -967,6 +964,24 @@
 				"trim": "Keep 0:05 to 0:40",
 				"title": "Add a title that says Welcome",
 				"zoom": "Zoom in slowly from 2 to 5 seconds"
+			},
+			"upload": "Upload & edit",
+			"ai": {
+				"title": "Edit with AI",
+				"body": "Upload a video, then tell Retake what to change in the chat.",
+				"inputLabel": "Choose a video file",
+				"optional": "Optional — you can also ask in the editor"
+			},
+			"hand": {
+				"title": "Edit by hand",
+				"body": "Upload a video and open the editor with the chat hidden and the manual tools in front.",
+				"inputLabel": "Video to edit by hand",
+				"items": {
+					"cut": "Trim, split and reorder",
+					"picture": "Crop, zoom and colour",
+					"sound": "Volume, fades and speed",
+					"graphics": "Titles, captions and logo"
+				}
 			}
 		},
 		"projects": {
