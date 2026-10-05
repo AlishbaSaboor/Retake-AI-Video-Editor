@@ -2361,6 +2361,36 @@ timestamp (up to 0.16 s at 8×; at least 0.105 s on CI).
   export length, re-record, dissolve) passed on retry: flaky under the same
   load, recorded, not changed.
 
+**CI run 75 (main, after PR #5), 2026-10-05: two export tests failed every
+try, 9 more flaky. Fixed once for all export readers.** The motion title
+test and the clip-speed captions test read frames at fixed times and failed
+when the export had dropped frames (the same cause as above). Instead of
+fixing them one at a time, every spec that reads an exported file now goes
+through one helper, `e2e/export-frames.ts`:
+
+- `exportVideo(page)` exports and returns the file. `readExportFrames(page,
+bytes, times, read, { size, args })` seeks each time, records the time of
+  the frame actually shown (`shown`, via `requestVideoFrameCallback`) and
+  runs `read` (sent to the page as source; constants go in `args`) on it.
+  `readToneLevels` reads tone levels at the asked times, because sound
+  doesn't drop like frames do.
+- A frame's picture can be from `FRAME_LAG_SECONDS` (0.25) before its time
+  to `FRAME_LEAD_SECONDS` (0.15) after. These were measured at 4× CPU
+  throttling: a picture up to ~0.12 s newer, and up to ~0.18 s older (about
+  0.18 s on CI run 75). `rangeOverLag`, `surelyAfter` and `surelyBefore`
+  judge a check only where every moment the frame could hold is on one side
+  of an edge.
+- 12 readers moved: annotations, audio-lane, clip-speed, color-and-text,
+  editor, graphics, logo, motion, multi-video, projects, transform (×2),
+  transitions. Tests on something that moves or switches at a time ask for
+  frames every 50–100 ms. Under load several asks land on one frame, and
+  they need some to fall clearly on each side.
+- The title and captions tests pass 3 out of 3 at 4× throttling. At 8×
+  the export keeps only one frame every ~0.45 s, which is longer than the
+  0.4 s caption, so no frame check can resolve it; 4× is the target (CI
+  lands between the two). At 4× the export length still varied by ±0.27 s
+  once; see 4f.
+
 ### 4d. Low memory on this machine (observed 2026-10-02)
 
 - The machine has 7.5 GB of RAM. With many apps open (Edge WebView2 apps,

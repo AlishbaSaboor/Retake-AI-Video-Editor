@@ -1,6 +1,6 @@
-import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
 import { editCommand, mockActions, openTool } from './editor-helpers'
+import { exportVideo, readExportFrames, readToneLevels } from './export-frames'
 
 // Several videos in one project, on real exports. The main video: 320×180,
 // red, with a 440 Hz tone, 4 s. The added one: square (240×240), green, with
@@ -76,72 +76,44 @@ async function openTwoVideos(page: Page, words = mockActions(page, { words: [] }
 	await expect(clips(page).nth(1)).toContainText('green.webm')
 }
 
-type Probe = { at: number; low: number; added: number; centre: number[]; edge: number[] }
+type Probe = {
+	at: number
+	/** The time of the frame the export had for `at` (export-frames.ts); the levels are read at `at`. */
+	shown: number
+	low: number
+	added: number
+	centre: number[]
+	edge: number[]
+}
 
 /** Exports and reads, at each time, the two tones and the picture at its centre and left edge. */
 async function exportAndProbe(page: Page, times: number[], seconds: number) {
-	const downloading = page.waitForEvent('download')
-	await page.getByRole('button', { name: 'Export video' }).click()
-	const bytes = await readFile(await (await downloading).path())
-	await expect(page.getByRole('button', { name: 'Export video' })).toBeVisible()
-	const result = await page.evaluate(
-		async ({ bytes, times, amplitude }) => {
-			const blob = new Blob([new Uint8Array(bytes)], { type: 'video/webm' })
-			const audio = await new OfflineAudioContext(1, 1, 48_000).decodeAudioData(
-				await blob.arrayBuffer()
-			)
-			const samples = audio.getChannelData(0)
-			const level = (at: number, hz: number) => {
-				const from = Math.max(0, Math.floor((at - 0.05) * audio.sampleRate))
-				const to = Math.min(samples.length, Math.floor((at + 0.05) * audio.sampleRate))
-				const w = (2 * Math.PI * hz) / audio.sampleRate
-				let re = 0
-				let im = 0
-				for (let i = from; i < to; i++) {
-					re += (samples[i] ?? 0) * Math.cos(w * i)
-					im += (samples[i] ?? 0) * Math.sin(w * i)
-				}
-				return (2 * Math.hypot(re, im)) / Math.max(1, to - from) / amplitude
-			}
-			const video = Object.assign(document.createElement('video'), {
-				src: URL.createObjectURL(blob),
-				muted: true
-			})
-			const next = (type: string) =>
-				new Promise((resolve) => video.addEventListener(type, resolve, { once: true }))
-			await next('loadedmetadata')
-			if (!Number.isFinite(video.duration)) {
-				video.currentTime = 1e9
-				while (!Number.isFinite(video.duration)) await next('durationchange')
-			}
-			const canvas = Object.assign(document.createElement('canvas'), { width: 320, height: 180 })
-			const context = canvas.getContext('2d', { willReadFrequently: true })
-			if (!context) throw new Error('no 2d context')
-			const probes: Probe[] = []
-			for (const at of times) {
-				video.currentTime = at
-				await next('seeked')
-				context.drawImage(video, 0, 0, 320, 180)
-				probes.push({
-					at,
-					low: +level(at, 440).toFixed(3),
-					added: +level(at, 660).toFixed(3),
-					centre: [...context.getImageData(160, 90, 1, 1).data.slice(0, 3)],
-					edge: [...context.getImageData(20, 90, 1, 1).data.slice(0, 3)]
-				})
-			}
-			return { seconds: video.duration, probes }
-		},
-		{ bytes: [...bytes], times, amplitude: TONE_AMPLITUDE }
+	const bytes = await exportVideo(page)
+	const { seconds: exported, frames } = await readExportFrames(
+		page,
+		bytes,
+		times,
+		({ context }) => ({
+			centre: [...context.getImageData(160, 90, 1, 1).data.slice(0, 3)],
+			edge: [...context.getImageData(20, 90, 1, 1).data.slice(0, 3)]
+		}),
+		{ size: { width: 320, height: 180 } }
 	)
-	console.log('EXPORT', result.seconds.toFixed(3), JSON.stringify(result.probes))
+	const levels = await readToneLevels(page, bytes, times, { low: 440, added: 660 }, TONE_AMPLITUDE)
+	const probes: Probe[] = frames.map((frame, index) => ({
+		...frame,
+		low: 0,
+		added: 0,
+		...levels[index]
+	}))
+	console.log('EXPORT', exported.toFixed(3), JSON.stringify(probes))
 	expect(
-		Math.abs(result.seconds - seconds),
-		`exported ${result.seconds.toFixed(2)} s for ${seconds} s`
+		Math.abs(exported - seconds),
+		`exported ${exported.toFixed(2)} s for ${seconds} s`
 	).toBeLessThan(LENGTH_TOLERANCE_SECONDS)
 	// Its toast goes after 5 s; until then it can cover what the test clicks next.
 	await expect(page.getByText('Export finished')).toHaveCount(0, { timeout: 10_000 })
-	return result.probes
+	return probes
 }
 
 const isRed = ([r = 0, g = 0, b = 0]: number[]) => r > 200 && g < 60 && b < 60
