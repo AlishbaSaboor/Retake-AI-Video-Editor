@@ -11,6 +11,7 @@ import {
 	w,
 	openTool
 } from './editor-helpers'
+import { readExportFrames } from './export-frames'
 
 test('a picked video plays in the editor and can be scrubbed on the timeline', async ({ page }) => {
 	await openEditorWithVideo(page)
@@ -634,7 +635,7 @@ test('export records a real video of the edit: its length, sound and pictures fo
 	const frames = [1.75, 0.5].map((source) => ({ source, at: toExport(source) }))
 
 	const measured = await page.evaluate(
-		async ({ bytes, probeTimes, frameTimes }) => {
+		async ({ bytes, probeTimes }) => {
 			const blob = new Blob([new Uint8Array(bytes)], { type: 'video/webm' })
 			const audio = await new OfflineAudioContext(1, 1, 48_000).decodeAudioData(
 				await blob.arrayBuffer()
@@ -648,51 +649,27 @@ test('export records a real video of the edit: its length, sound and pictures fo
 				return Math.sqrt(sum / (to - from))
 			}
 
-			const video = Object.assign(document.createElement('video'), {
-				src: URL.createObjectURL(blob),
-				muted: true
-			})
-			const next = (type: string) =>
-				new Promise((resolve) => video.addEventListener(type, resolve, { once: true }))
-			await next('loadedmetadata')
-			// A recorded WebM has no duration header; seeking past the end makes
-			// the browser scan for it, as the editor does.
-			if (!Number.isFinite(video.duration)) {
-				video.currentTime = 1e9
-				while (!Number.isFinite(video.duration)) await next('durationchange')
-			}
-			const canvas = Object.assign(document.createElement('canvas'), { width: 320, height: 180 })
-			const context = canvas.getContext('2d', { willReadFrequently: true })
-			if (!context) throw new Error('no 2d context')
-			const squareLeft = async (at: number) => {
-				video.currentTime = at
-				await next('seeked')
-				context.drawImage(video, 0, 0, 320, 180)
-				const row = context.getImageData(0, 90, 320, 1).data
-				for (let x = 0; x < 320; x++) {
-					const [r = 0, g = 0, b = 0] = row.slice(x * 4, x * 4 + 3)
-					if (r > 180 && g > 60 && g < 150 && b < 110) return x
-				}
-				return null
-			}
-			const squares: Array<number | null> = []
-			for (const at of frameTimes) squares.push(await squareLeft(at))
-			return {
-				videoSeconds: video.duration,
-				audioSeconds: audio.duration,
-				loudness: probeTimes.map(rms),
-				squares
-			}
+			return { audioSeconds: audio.duration, loudness: probeTimes.map(rms) }
 		},
-		{
-			bytes: [...bytes],
-			probeTimes: probes.map((p) => p.at),
-			frameTimes: frames.map((f) => f.at)
-		}
+		{ bytes: [...bytes], probeTimes: probes.map((p) => p.at) }
+	)
+	const pictures = await readExportFrames(
+		page,
+		bytes,
+		frames.map((f) => f.at),
+		({ context }) => {
+			const row = context.getImageData(0, 90, 320, 1).data
+			for (let x = 0; x < 320; x++) {
+				const [r = 0, g = 0, b = 0] = row.slice(x * 4, x * 4 + 3)
+				if (r > 180 && g > 60 && g < 150 && b < 110) return { square: x }
+			}
+			return { square: null }
+		},
+		{ size: { width: 320, height: 180 } }
 	)
 
 	// As long as the edit — no stalls recorded at the jump between clips.
-	expect(Math.abs(measured.videoSeconds - duration)).toBeLessThan(0.25)
+	expect(Math.abs(pictures.seconds - duration)).toBeLessThan(0.25)
 	expect(Math.abs(measured.audioSeconds - duration)).toBeLessThan(0.25)
 	// The sound is the edit's order, not the take's: silence first, then tone.
 	for (const [index, probe] of probes.entries()) {
@@ -701,10 +678,14 @@ test('export records a real video of the edit: its length, sound and pictures fo
 		else expect(loudness, `silence at ${probe.at.toFixed(2)}s`).toBeLessThan(0.02)
 	}
 	// And so are the pictures: each frame shows the square where it was at
-	// that source time (20 px + 80 px a second), within a few frames.
+	// its source time (20 px + 80 px a second), within a few frames. That's
+	// the time of the frame the export had, not always the one asked
+	// (export-frames.ts); both stay inside one clip.
 	for (const [index, frame] of frames.entries()) {
-		expect(measured.squares[index], `frame for source ${frame.source}s`).not.toBeNull()
-		expect(Math.abs((measured.squares[index] ?? 0) - (20 + frame.source * 80))).toBeLessThan(30)
+		const read = pictures.frames[index]
+		const source = frame.source + (read?.shown ?? frame.at) - frame.at
+		expect(read?.square, `frame for source ${source.toFixed(2)}s`).not.toBeNull()
+		expect(Math.abs((read?.square ?? 0) - (20 + source * 80))).toBeLessThan(30)
 	}
 })
 

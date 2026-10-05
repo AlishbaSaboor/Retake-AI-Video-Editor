@@ -1,6 +1,6 @@
-import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
 import { editCommand, mockActions, seekTo, w, type TimedWord, openTool } from './editor-helpers'
+import { exportVideo, readExportFrames } from './export-frames'
 
 // Color adjustments, text styling and the pencil, on real exports of a
 // video made for it: 320×180, the left half mid-grey (#808080), the right
@@ -103,33 +103,14 @@ const READ_FRAME = `(context, query) => {
 
 /** Exports, then reads the file's frames at `times` with `query`. */
 async function exportFrames(page: Page, times: number[], query: FrameQuery) {
-	const downloading = page.waitForEvent('download')
-	await page.getByRole('button', { name: 'Export video' }).click()
-	const bytes = await readFile(await (await downloading).path())
-	await expect(page.getByRole('button', { name: 'Export video' })).toBeVisible()
-	const frames: FrameResult[] = await page.evaluate(
-		async ({ bytes, times, query, read }) => {
-			const readFrame = new Function(`return ${read}`)()
-			const video = Object.assign(document.createElement('video'), {
-				src: URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'video/webm' })),
-				muted: true
-			})
-			const next = (type: string) =>
-				new Promise((resolve) => video.addEventListener(type, resolve, { once: true }))
-			await next('loadeddata')
-			const canvas = Object.assign(document.createElement('canvas'), { width: 320, height: 180 })
-			const context = canvas.getContext('2d', { willReadFrequently: true })
-			if (!context) throw new Error('no 2d context')
-			const out = []
-			for (const at of times) {
-				video.currentTime = at
-				await next('seeked')
-				context.drawImage(video, 0, 0, 320, 180)
-				out.push(readFrame(context, query))
-			}
-			return out
-		},
-		{ bytes: [...bytes], times, query, read: READ_FRAME }
+	const bytes = await exportVideo(page)
+	const { frames } = await readExportFrames(
+		page,
+		bytes,
+		times,
+		({ context }, { read, query }) =>
+			new Function(`return ${read}`)()(context, query) as FrameResult,
+		{ size: { width: 320, height: 180 }, args: { read: READ_FRAME, query } }
 	)
 	console.log('EXPORT', JSON.stringify(frames))
 	// Its toast goes after 5 s; until then it can cover what the test clicks next.

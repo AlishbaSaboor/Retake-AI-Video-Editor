@@ -1,6 +1,6 @@
-import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
 import { editCommand, mockActions, seekTo, w, openTool } from './editor-helpers'
+import { exportVideo, readExportFrames, readToneLevels } from './export-frames'
 
 // Saving and reopening projects (kept in the browser, IndexedDB). The main
 // video: 2 s of red with a 440 Hz tone, then 2 s of blue with 880 Hz. An
@@ -232,6 +232,8 @@ async function editorState(page: Page) {
 
 type Probe = {
 	at: number
+	/** The time of the frame the export had for `at` (export-frames.ts); the tones are read at `at`. */
+	shown: number
 	centre: number[]
 	corner: number[]
 	red: number
@@ -240,70 +242,34 @@ type Probe = {
 
 /** Exports and reads, at each time: the centre's and top-left corner's colour, red title pixels, and four tones. */
 async function exportAndProbe(page: Page, times: number[]) {
-	const downloading = page.waitForEvent('download')
-	await page.getByRole('button', { name: 'Export video' }).click()
-	const bytes = await readFile(await (await downloading).path())
-	await expect(page.getByRole('button', { name: 'Export video' })).toBeVisible()
-	const result = await page.evaluate(
-		async ({ bytes, times, amplitude }) => {
-			const blob = new Blob([new Uint8Array(bytes)], { type: 'video/webm' })
-			const audio = await new OfflineAudioContext(1, 1, 48_000).decodeAudioData(
-				await blob.arrayBuffer()
-			)
-			const samples = audio.getChannelData(0)
-			const level = (at: number, hz: number) => {
-				const from = Math.max(0, Math.floor((at - 0.05) * audio.sampleRate))
-				const to = Math.min(samples.length, Math.floor((at + 0.05) * audio.sampleRate))
-				const w = (2 * Math.PI * hz) / audio.sampleRate
-				let re = 0
-				let im = 0
-				for (let i = from; i < to; i++) {
-					re += (samples[i] ?? 0) * Math.cos(w * i)
-					im += (samples[i] ?? 0) * Math.sin(w * i)
-				}
-				return +((2 * Math.hypot(re, im)) / Math.max(1, to - from) / amplitude).toFixed(2)
+	const bytes = await exportVideo(page)
+	const { seconds, frames } = await readExportFrames(
+		page,
+		bytes,
+		times,
+		({ context }) => {
+			const band = context.getImageData(0, 76, 320, 28).data
+			let red = 0
+			for (let i = 0; i < band.length; i += 4) {
+				if ((band[i] ?? 0) > 180 && (band[i + 1] ?? 0) < 90 && (band[i + 2] ?? 0) < 90) red++
 			}
-			const video = Object.assign(document.createElement('video'), {
-				src: URL.createObjectURL(blob),
-				muted: true
-			})
-			const next = (type: string) =>
-				new Promise((resolve) => video.addEventListener(type, resolve, { once: true }))
-			await next('loadedmetadata')
-			if (!Number.isFinite(video.duration)) {
-				video.currentTime = 1e9
-				while (!Number.isFinite(video.duration)) await next('durationchange')
+			return {
+				centre: [...context.getImageData(160, 140, 1, 1).data.slice(0, 3)],
+				corner: [...context.getImageData(20, 15, 1, 1).data.slice(0, 3)],
+				red
 			}
-			const canvas = Object.assign(document.createElement('canvas'), { width: 320, height: 180 })
-			const context = canvas.getContext('2d', { willReadFrequently: true })
-			if (!context) throw new Error('no 2d context')
-			const probes: Probe[] = []
-			for (const at of times) {
-				video.currentTime = at
-				await next('seeked')
-				context.drawImage(video, 0, 0, 320, 180)
-				const band = context.getImageData(0, 76, 320, 28).data
-				let red = 0
-				for (let i = 0; i < band.length; i += 4) {
-					if ((band[i] ?? 0) > 180 && (band[i + 1] ?? 0) < 90 && (band[i + 2] ?? 0) < 90) red++
-				}
-				probes.push({
-					at,
-					centre: [...context.getImageData(160, 140, 1, 1).data.slice(0, 3)],
-					corner: [...context.getImageData(20, 15, 1, 1).data.slice(0, 3)],
-					red,
-					tones: {
-						330: level(at, 330),
-						440: level(at, 440),
-						660: level(at, 660),
-						880: level(at, 880)
-					}
-				})
-			}
-			return { seconds: +video.duration.toFixed(2), probes }
 		},
-		{ bytes: [...bytes], times, amplitude: AMPLITUDE }
+		{ size: { width: 320, height: 180 } }
 	)
+	const levels = await readToneLevels(
+		page,
+		bytes,
+		times,
+		{ 330: 330, 440: 440, 660: 660, 880: 880 },
+		AMPLITUDE
+	)
+	const probes: Probe[] = frames.map((frame, index) => ({ ...frame, tones: levels[index] ?? {} }))
+	const result = { seconds, probes }
 	console.log('EXPORT', JSON.stringify(result))
 	await expect(page.getByText('Export finished')).toHaveCount(0, { timeout: 10_000 })
 	return result
