@@ -1,6 +1,13 @@
 import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
-import { editCommand, mockActions, openEditorWithVideo, seekTo, w } from './editor-helpers'
+import {
+	editCommand,
+	mockActions,
+	openEditorWithVideo,
+	seekTo,
+	w,
+	openTool
+} from './editor-helpers'
 
 // Clip speed, measured on real exports: the file's length, the tone's
 // pitch (440 Hz, kept at any speed), and the captions' timing.
@@ -27,11 +34,13 @@ async function splitAt(page: Page, seconds: number) {
 		.getByRole('region', { name: 'Clips' })
 		.getByRole('button', { name: 'Split at playhead' })
 		.click()
+	await openTool(page, 'Clip sound and speed')
 	await expect(clipRow(page, 2)).toBeVisible()
 }
 
 /** Types a clip's speed: one change, on Enter. */
 async function setSpeed(page: Page, n: number, speed: number) {
+	await openTool(page, 'Clip sound and speed')
 	const input = clipRow(page, n).getByLabel('Speed (×)')
 	await input.fill(String(speed))
 	await input.press('Enter')
@@ -163,6 +172,7 @@ test('a clip at 2× or ½× exports at its played length with its pitch kept, an
 	expectPitchKept(slow, [2, 4.5])
 
 	// Each speed was one undo step; reset takes them off.
+	await openTool(page, 'Clip sound and speed')
 	const speed = (n: number) => clipRow(page, n).getByLabel('Speed (×)')
 	await page.getByRole('button', { name: 'Undo last change' }).click()
 	await expect(speed(1)).toHaveValue('1')
@@ -171,6 +181,7 @@ test('a clip at 2× or ½× exports at its played length with its pitch kept, an
 	await expect(speed(1)).toHaveValue('0.5')
 	await page.getByRole('button', { name: 'Reset to original' }).click()
 	await page.getByRole('button', { name: 'Reset', exact: true }).click()
+	await openTool(page, 'Clip sound and speed')
 	await expect(clipRow(page, 2)).toHaveCount(0)
 	await expect(speed(1)).toHaveValue('1')
 })
@@ -241,7 +252,9 @@ test('captions in a sped-up clip keep pace with its words in the export', async 
 		[1.2, true],
 		[0.6, false]
 	])
+	await openTool(page, 'Transcript')
 	await expect(page.getByRole('button', { name: /Hello there\./ })).toBeVisible({ timeout: 30_000 })
+	await openTool(page, 'Graphics')
 	await page
 		.getByRole('region', { name: 'Graphics' })
 		.getByRole('button', { name: 'Captions' })
@@ -297,6 +310,7 @@ test('clip speed works as a typed command, confirmed first and one undo step eac
 		await reply.getByRole('button', { name: 'Apply' }).click()
 		await expect(reply).toHaveCount(0)
 	}
+	await openTool(page, 'Clip sound and speed')
 	const speed = (n: number) => clipRow(page, n).getByLabel('Speed (×)')
 	await run(
 		'make clip 2 play at 2x',

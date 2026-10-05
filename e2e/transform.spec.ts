@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
-import { editCommand, mockActions, openEditorWithVideo, seekTo } from './editor-helpers'
+import { editCommand, mockActions, openEditorWithVideo, seekTo, openTool } from './editor-helpers'
 
 // The test video is 320×180: a dark background (#112233) and an orange
 // square, 60×60 at y 60–120, crossing at 80 px a second from x = 20. Where
@@ -182,8 +182,11 @@ test('flip, a quarter turn and a crop move the picture, its pinned box and nothi
 
 	// A red box pinned to the picture's top-left (source x 16–96, y 9–50).
 	await seekTo(page, 0.2)
+	await openTool(page, 'Annotations')
 	const annotations = page.getByRole('region', { name: 'Annotations' })
+	await openTool(page, 'Annotations')
 	await annotations.getByLabel('Box color').fill('#ff0000')
+	await openTool(page, 'Annotations')
 	const boxTool = annotations.getByRole('group', { name: 'Annotation tool' }).getByRole('button', {
 		name: 'Box',
 		exact: true
@@ -193,9 +196,12 @@ test('flip, a quarter turn and a crop move the picture, its pinned box and nothi
 	await boxTool.click()
 
 	// A quarter turn right: the frame becomes 180×320. Source (x, y) lands at (180 − y, x).
+	await openTool(page, 'Picture')
 	await picturePanel(page).getByRole('button', { name: 'Rotate right 90°' }).click()
+	await openTool(page, 'Picture')
 	await expect(degreesField(page)).toHaveValue('90')
 	// Then mirrored left-right first: source x becomes 320 − x before the turn.
+	await openTool(page, 'Picture')
 	await picturePanel(page).getByRole('button', { name: 'Flip horizontally' }).click()
 
 	// At 1.5 s the square spans source x 140–200, y 60–120. Flipped: x 120–180;
@@ -231,10 +237,12 @@ test('flip, a quarter turn and a crop move the picture, its pinned box and nothi
 
 	// A 1:1 crop of the 180×320 frame: 180×180 from y 70. The square (y
 	// 120–180) is now at y 50–110.
+	await openTool(page, 'Picture')
 	await picturePanel(page)
 		.getByRole('group', { name: 'Crop shape' })
 		.getByRole('button', { name: '1:1' })
 		.click()
+	await openTool(page, 'Picture')
 	await picturePanel(page).getByRole('button', { name: 'Adjust crop' }).click()
 	await seekTo(page, 1.5)
 	const croppedPreview = await previewOrange(page)
@@ -257,8 +265,11 @@ test('flip, a quarter turn and a crop move the picture, its pinned box and nothi
 	// The title belongs to the frame: in the turned, cropped output its text
 	// runs across the middle, sized to that frame. (Added only now: its band
 	// would darken the square under it.)
+	await openTool(page, 'Graphics')
 	const graphics = page.getByRole('region', { name: 'Graphics' })
+	await openTool(page, 'Graphics')
 	await graphics.getByLabel('Title text').fill('Hi')
+	await openTool(page, 'Graphics')
 	await graphics.getByRole('button', { name: 'Add title' }).click()
 	const [titled] = await exportFrames(page, [0.5], [])
 	expect(titled?.middleWhite, 'title text across the middle of the cropped frame').toBeGreaterThan(
@@ -269,17 +280,22 @@ test('flip, a quarter turn and a crop move the picture, its pinned box and nothi
 	// Each was one undo step; reset takes them all off.
 	const undo = page.getByRole('button', { name: 'Undo last change' })
 	await undo.click()
+	await openTool(page, 'Picture')
 	await expect(picturePanel(page).getByRole('button', { name: 'No crop' })).toHaveCount(0)
 	await undo.click()
+	await openTool(page, 'Picture')
 	await expect(
 		picturePanel(page).getByRole('button', { name: 'Flip horizontally' })
 	).toHaveAttribute('aria-pressed', 'false')
 	await undo.click()
+	await openTool(page, 'Picture')
 	await expect(degreesField(page)).toHaveValue('0')
 	await page.getByRole('button', { name: 'Redo' }).click()
+	await openTool(page, 'Picture')
 	await expect(degreesField(page)).toHaveValue('90')
 	await page.getByRole('button', { name: 'Reset to original' }).click()
 	await page.getByRole('button', { name: 'Reset', exact: true }).click()
+	await openTool(page, 'Picture')
 	await expect(degreesField(page)).toHaveValue('0')
 })
 
@@ -289,7 +305,9 @@ test('any angle frames the whole turned picture with black corners; the handle a
 	test.setTimeout(120_000)
 	await mockActions(page, { words: [] })
 	await openEditorWithVideo(page)
+	await openTool(page, 'Picture')
 	await degreesField(page).fill('15')
+	await openTool(page, 'Picture')
 	await degreesField(page).press('Enter')
 	// 320×180 turned 15°: a 355.7×256.7 frame, rounded to even pixels.
 	const [tilted] = await exportFrames(
@@ -307,6 +325,7 @@ test('any angle frames the whole turned picture with black corners; the handle a
 
 	// The rotation handle: dragged a quarter of the way round, it turns ~90°
 	// more, in one undoable change.
+	await openTool(page, 'Picture')
 	await picturePanel(page).getByRole('button', { name: 'Rotate by dragging' }).click()
 	const handle = page.getByRole('slider', { name: 'Rotation' })
 	await handle.scrollIntoViewIfNeeded()
@@ -323,14 +342,17 @@ test('any angle frames the whole turned picture with black corners; the handle a
 	await page.mouse.up()
 	// The release commits the last angle (it once committed the 75° passed on
 	// the way), which shows once React has rendered it.
+	await openTool(page, 'Picture')
 	await expect
 		.poll(async () => Math.abs(Number(await degreesField(page).inputValue()) - 90))
 		.toBeLessThan(3)
 	await page.getByRole('button', { name: 'Undo last change' }).click()
+	await openTool(page, 'Picture')
 	await expect(degreesField(page)).toHaveValue('15')
 	// Arrow keys on the handle: a degree each.
 	await handle.focus()
 	await page.keyboard.press('ArrowRight')
+	await openTool(page, 'Picture')
 	await expect(degreesField(page)).toHaveValue('16')
 })
 
@@ -341,6 +363,7 @@ test('pixelate hides what is under it in hard blocks, only in its time, unlike b
 	await mockActions(page, { words: [] })
 	await openEditorWithVideo(page)
 	await seekTo(page, 1)
+	await openTool(page, 'Annotations')
 	const tool = page
 		.getByRole('region', { name: 'Annotations' })
 		.getByRole('group', { name: 'Annotation tool' })
@@ -428,12 +451,14 @@ test('typed commands rotate, flip, crop and pixelate, each confirmed first and o
 		{ action: 'rotate', degrees: 15 },
 		"I'll turn the video 15° clockwise, to 15°."
 	)
+	await openTool(page, 'Picture')
 	await expect(degreesField(page)).toHaveValue('15')
 	await run(
 		'flip it horizontally',
 		{ action: 'flip', axis: 'horizontal' },
 		"I'll flip the video horizontally"
 	)
+	await openTool(page, 'Picture')
 	await expect(
 		picturePanel(page).getByRole('button', { name: 'Flip horizontally' })
 	).toHaveAttribute('aria-pressed', 'true')
@@ -442,6 +467,7 @@ test('typed commands rotate, flip, crop and pixelate, each confirmed first and o
 		{ action: 'crop', aspect: '9:16' },
 		"I'll crop the video to 9:16, centred."
 	)
+	await openTool(page, 'Picture')
 	await expect(
 		picturePanel(page)
 			.getByRole('group', { name: 'Crop shape' })
@@ -452,10 +478,12 @@ test('typed commands rotate, flip, crop and pixelate, each confirmed first and o
 		{ action: 'pixelate', region: 'top-left', startSeconds: 0.5, endSeconds: 2 },
 		"I'll pixelate the top-left corner from 0:00 to 0:02."
 	)
+	await openTool(page, 'Annotations')
 	await expect(page.getByRole('button', { name: /^Pixelate 1, / })).toBeVisible()
 	// Four commands, four undo steps.
 	const undo = page.getByRole('button', { name: 'Undo last change' })
 	for (let i = 0; i < 4; i++) await undo.click()
+	await openTool(page, 'Picture')
 	await expect(degreesField(page)).toHaveValue('0')
 	await expect(undo).toHaveCount(0)
 })

@@ -44,6 +44,10 @@ export default async function LocaleLayout({
 			className={cn(geist.variable, geistMono.variable, grotesk.variable)}
 		>
 			<head>
+				{/* A plain <script>, run by the browser as it reads the page, so a
+				    light-mode visitor never sees dark first. React warns about it in
+				    development (it never runs it on the client); next/script would
+				    run it only once Next's own code loads: measured, a dark flash. */}
 				<script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
 			</head>
 			<body className="min-h-screen">

@@ -1,7 +1,14 @@
 import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
 import type { EditCommand } from '../src/app/[locale]/editor/edit-command'
-import { editCommand, mockActions, openEditorWithVideo, seekTo, w } from './editor-helpers'
+import {
+	editCommand,
+	mockActions,
+	openEditorWithVideo,
+	seekTo,
+	w,
+	openTool
+} from './editor-helpers'
 
 // The test video is 320×180: a dark background with an orange square
 // crossing y 60–120. The title's band is drawn across the middle (y ~76–104)
@@ -128,6 +135,7 @@ test('a title and a watermark set by hand show in the preview and the export, at
 	await mockActions(page, { words: [] })
 	const duration = await openEditorWithVideo(page)
 	const logo = await greenLogo(page)
+	await openTool(page, 'Graphics')
 	const graphics = page.getByRole('region', { name: 'Graphics' })
 	const undo = page.getByRole('button', { name: 'Undo last change' })
 	const redo = page.getByRole('button', { name: 'Redo' })
@@ -135,10 +143,15 @@ test('a title and a watermark set by hand show in the preview and the export, at
 	// Trim the first second away: the edited video starts at source 1 s.
 	await page.getByRole('slider', { name: 'Trim start' }).press('Shift+ArrowRight')
 	// A title for the edited video's first second; the logo bottom-right.
+	await openTool(page, 'Graphics')
 	await graphics.getByLabel('Title text').fill('Hello')
+	await openTool(page, 'Graphics')
 	await graphics.getByLabel('Starts at (s)').fill('0')
+	await openTool(page, 'Graphics')
 	await graphics.getByLabel('Duration (s)').fill('1')
+	await openTool(page, 'Graphics')
 	await graphics.getByRole('button', { name: 'Add title' }).click()
+	await openTool(page, 'Graphics')
 	await chooseLogo(
 		page,
 		() => graphics.getByRole('button', { name: 'Add logo (PNG or JPG)' }).click(),
@@ -173,7 +186,9 @@ test('a title and a watermark set by hand show in the preview and the export, at
 	}
 
 	// Move the logo top-left and remove the title: one step each.
+	await openTool(page, 'Graphics')
 	await graphics.getByRole('button', { name: 'Top left' }).click()
+	await openTool(page, 'Graphics')
 	await graphics.getByRole('button', { name: 'Remove title' }).click()
 	await seekTo(page, 1.5)
 	await expect(titleOver(page, 'Hello')).toHaveCount(0)
@@ -205,6 +220,7 @@ test('a title and a watermark set by hand show in the preview and the export, at
 
 	// Only a PNG or a JPG becomes a watermark.
 	const choosing = page.waitForEvent('filechooser')
+	await openTool(page, 'Graphics')
 	await graphics.getByRole('button', { name: 'Replace logo' }).click()
 	await (
 		await choosing
@@ -293,7 +309,9 @@ test('captions follow the edited video in the preview and the export, and switch
 		[1.2, true],
 		[0.6, false]
 	])
+	await openTool(page, 'Transcript')
 	await expect(page.getByRole('button', { name: /Hello there\./ })).toBeVisible({ timeout: 30_000 })
+	await openTool(page, 'Graphics')
 	const toggle = page
 		.getByRole('region', { name: 'Graphics' })
 		.getByRole('button', { name: 'Captions' })

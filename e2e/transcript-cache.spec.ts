@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test, expect, type Route } from '@playwright/test'
-import { recordTestVideo, w } from './editor-helpers'
+import { recordTestVideo, w, openTool } from './editor-helpers'
 import { toTranscript } from '../src/app/[locale]/editor/transcript'
 import { reuseTranscript } from './transcript-cache'
 
@@ -37,6 +37,7 @@ test('a recording is transcribed once; opened again, its saved transcript is use
 			.getByLabel('Choose a video file')
 			.first()
 			.setInputFiles({ name: 'same.webm', mimeType: 'video/webm', buffer: video })
+		await openTool(page, 'Transcript')
 		await expect(page.getByRole('button', { name: /Paid once\./ }).first()).toBeVisible({
 			timeout: 30_000
 		})

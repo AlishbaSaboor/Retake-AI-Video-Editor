@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { clampVolume, DEFAULT_CLIP_AUDIO, MAX_VOLUME, type ClipAudio } from './clip-audio'
 import { clampSpeed, MAX_CLIP_SPEED, MIN_CLIP_SPEED, type Clip } from './sequence'
+import { MoreInfo } from './more-info'
 
 const PERCENT = 100
 const VOLUME_STEP_PERCENT = 5
@@ -59,7 +60,7 @@ export function ClipAudioPanel({
 					onSpeedChange={(speed) => onSpeedChange(index, speed)}
 				/>
 			))}
-			<p className="text-text-muted text-xs">{t('hint')}</p>
+			<MoreInfo>{t('hint')}</MoreInfo>
 		</section>
 	)
 }

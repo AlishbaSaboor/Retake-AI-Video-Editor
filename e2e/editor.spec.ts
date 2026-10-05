@@ -8,7 +8,8 @@ import {
 	recordTestVideo,
 	RECORDING_SECONDS,
 	seekTo,
-	w
+	w,
+	openTool
 } from './editor-helpers'
 
 test('a picked video plays in the editor and can be scrubbed on the timeline', async ({ page }) => {
@@ -128,6 +129,7 @@ test('filler words in the transcript are flagged apart from silences and open th
 		.getByLabel('Choose a video file')
 		.setInputFiles({ name: 'take-with-fillers.webm', mimeType: 'video/webm', buffer: video })
 
+	await openTool(page, 'Transcript')
 	await expect(page.getByText('So, um, this is, like, the take.')).toBeVisible({ timeout: 30_000 })
 	await expect(page.getByText('2 filler words', { exact: true })).toBeVisible()
 	await expect(page.getByRole('button', { name: /^Filler word/ })).toHaveCount(2)
@@ -147,6 +149,7 @@ test('filler words in the transcript are flagged apart from silences and open th
 	await expect.poll(() => playheadSeconds(page)).toBeCloseTo(0.5, 1)
 
 	// Nothing here is safe to remove automatically.
+	await openTool(page, 'Clean up')
 	await expect(page.getByRole('button', { name: 'Clean up recording' })).toBeDisabled()
 })
 
@@ -184,6 +187,7 @@ test('clean-up cuts a filler with clear gaps around it, keeps one without, and u
 		page.getByRole('button', { name: /^Filler word "uh" at 0:03, needs a manual cut/ })
 	).toBeVisible()
 
+	await openTool(page, 'Clean up')
 	await page.getByRole('button', { name: 'Clean up recording' }).click()
 	await expect(page.getByText('(0 silences, 1 filler word)')).toBeVisible()
 	await expect(page.getByText(/^1 filler word runs straight into the next word/)).toBeVisible()
@@ -228,6 +232,7 @@ test('clean-up removes flagged silences after an estimate, and undo restores the
 		await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
 	}
 
+	await openTool(page, 'Clean up')
 	await page.getByRole('button', { name: 'Clean up recording' }).click()
 	await expect(page.getByText(/This will remove approximately [78] seconds\./)).toBeVisible()
 	await page.getByRole('button', { name: 'Apply clean-up' }).click()
@@ -252,6 +257,7 @@ test('clean-up removes flagged silences after an estimate, and undo restores the
 	await expect(page.getByRole('button', { name: 'Undo last change' })).toHaveCount(0)
 	await seekToMiddle()
 	await expect.poll(() => playheadSeconds(page)).toBeLessThan(6.5)
+	await openTool(page, 'Clean up')
 	await expect(page.getByRole('button', { name: 'Clean up recording' })).toBeEnabled()
 })
 

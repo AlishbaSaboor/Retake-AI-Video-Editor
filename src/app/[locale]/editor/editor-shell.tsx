@@ -42,9 +42,9 @@ export function EditorShell({
 		<div
 			className={cn(
 				'grid flex-1 grid-cols-1 lg:h-[calc(100dvh-3.5rem)] lg:flex-none lg:grid-rows-[minmax(0,1fr)]',
-				chatOpen && toolsShown && 'lg:grid-cols-[20rem_minmax(0,1fr)_22rem]',
-				chatOpen && !toolsShown && 'lg:grid-cols-[20rem_minmax(0,1fr)]',
-				!chatOpen && toolsShown && 'lg:grid-cols-[minmax(0,1fr)_22rem]'
+				chatOpen && toolsShown && 'lg:grid-cols-[19rem_minmax(0,1fr)_25rem]',
+				chatOpen && !toolsShown && 'lg:grid-cols-[19rem_minmax(0,1fr)]',
+				!chatOpen && toolsShown && 'lg:grid-cols-[minmax(0,1fr)_25rem]'
 			)}
 		>
 			{/* Hidden, not removed: the chat's history and a half-typed command stay. */}
@@ -58,7 +58,7 @@ export function EditorShell({
 				<div
 					role="toolbar"
 					aria-label={t('toolbar')}
-					className="border-border bg-surface flex min-h-14 flex-wrap items-center gap-2 border-b px-3 py-2"
+					className="border-border bg-surface flex min-h-14 flex-wrap items-center gap-2 border-b px-3 py-2 min-[1400px]:flex-nowrap"
 				>
 					<button
 						type="button"
@@ -71,7 +71,7 @@ export function EditorShell({
 						<PanelIcon size={18} />
 					</button>
 					{toolbar}
-					<div className="ml-auto flex flex-wrap items-center gap-2">
+					<div className="ml-auto flex shrink-0 flex-wrap items-center gap-1.5 min-[1400px]:flex-nowrap">
 						{status}
 						{hasTools && (
 							<button

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { editCommand, mockActions, recordTestVideo } from './editor-helpers'
+import { editCommand, mockActions, recordTestVideo, openTool } from './editor-helpers'
 
 const reply = (page: Page) => page.getByRole('status').filter({ hasText: 'You asked' })
 
@@ -34,6 +34,28 @@ test('a project starts on the home page: a command and a video open the editor, 
 	await expect(reply(page)).toHaveCount(0)
 })
 
+test('editing by hand opens the editor with the chat put away and the tools in front', async ({
+	page
+}) => {
+	await page.goto('/home')
+	const byHand = page.getByRole('region', { name: 'Edit by hand' })
+	await expect(page.getByRole('region', { name: 'Edit with AI' })).toBeVisible()
+	await expect(byHand.getByRole('button', { name: 'Upload & edit' })).toBeVisible()
+	const video = await recordTestVideo(page)
+	await page
+		.getByLabel('Video to edit by hand')
+		.setInputFiles({ name: 'by-hand.webm', mimeType: 'video/webm', buffer: video })
+	await expect(page).toHaveURL(/\/editor$/, { timeout: 30_000 })
+	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
+		timeout: 30_000
+	})
+	await expect(page.getByRole('region', { name: 'Chat' })).toBeHidden()
+	await expect(page.getByRole('searchbox', { name: 'Find a tool' })).toBeVisible()
+	// The chat is one click away.
+	await page.getByRole('button', { name: 'Show the chat' }).click()
+	await expect(page.getByRole('region', { name: 'Chat' })).toBeVisible()
+})
+
 test('the editor opened directly starts empty', async ({ page }) => {
 	await page.goto('/editor')
 	await expect(page.getByText('Drop a video here, or click to choose one')).toBeVisible()
@@ -51,26 +73,56 @@ test('saved projects are listed with a picture, a name and a date, and open in t
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
 		timeout: 30_000
 	})
+	await openTool(page, 'Project')
 	const project = page.getByRole('region', { name: 'Project', exact: true })
-	await project.getByLabel('Project name').fill('Listed project')
-	await project.getByRole('button', { name: 'Save', exact: true }).click()
+	await page.getByLabel('Project name').fill('Listed project')
+	await page.getByRole('button', { name: 'Save', exact: true }).click()
+	await openTool(page, 'Project')
 	await expect(project.getByRole('status')).toContainText('Saved at')
 
 	await page.getByRole('link', { name: 'Projects' }).first().click()
 	await expect(page.getByRole('heading', { level: 1, name: 'Saved projects' })).toBeVisible()
 	const card = page
 		.getByRole('list', { name: 'Saved projects' })
-		.getByRole('link')
-		.filter({ hasText: 'Listed project' })
+		.getByRole('article', { name: 'Listed project' })
 	await expect(card).toContainText(/Edited \w+/)
 	// The picture is drawn from the saved video, not a placeholder.
 	await expect(card.locator('img')).toHaveAttribute('src', /^data:image\/jpeg/, { timeout: 15_000 })
-	await card.click()
+
+	// Renamed in place: Escape keeps the old name, Enter the new one.
+	await card.getByRole('button', { name: 'Rename Listed project' }).click()
+	await page.getByRole('textbox', { name: 'Project name' }).fill('Not this')
+	await page.getByRole('textbox', { name: 'Project name' }).press('Escape')
+	await expect(card).toContainText('Listed project')
+	await card.getByRole('button', { name: 'Rename Listed project' }).click()
+	await page.getByRole('textbox', { name: 'Project name' }).fill('Renamed project')
+	await page.getByRole('textbox', { name: 'Project name' }).press('Enter')
+	const renamed = page.getByRole('article', { name: 'Renamed project' })
+	await expect(renamed).toBeVisible()
+
+	// Its video downloads, as saved.
+	const downloading = page.waitForEvent('download')
+	await renamed.getByRole('button', { name: 'Download the video of Renamed project' }).click()
+	expect((await downloading).suggestedFilename()).toBe('listed.webm')
+
+	await renamed.getByRole('link', { name: 'Renamed project', exact: true }).click()
 	await expect(page).toHaveURL(/\/editor\?project=/)
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
 		timeout: 30_000
 	})
-	await expect(project.getByLabel('Project name')).toHaveValue('Listed project')
+	await expect(page.getByLabel('Project name')).toHaveValue('Renamed project')
+
+	// Deleted only once confirmed.
+	await page.getByRole('link', { name: 'Projects' }).first().click()
+	const doomed = page.getByRole('article', { name: 'Renamed project' })
+	await doomed.getByRole('button', { name: 'Delete Renamed project' }).click()
+	const confirm = page.getByRole('dialog', { name: 'Delete “Renamed project”?' })
+	await confirm.getByRole('button', { name: 'Keep it' }).click()
+	await expect(doomed).toBeVisible()
+	await doomed.getByRole('button', { name: 'Delete Renamed project' }).click()
+	await confirm.getByRole('button', { name: 'Delete project' }).click()
+	await expect(doomed).toHaveCount(0)
+	await expect(page.getByText('No saved projects yet')).toBeVisible()
 })
 
 test('signed in, the footer offers a new project, not logging in again', async ({ page }) => {

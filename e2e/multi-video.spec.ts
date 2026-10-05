@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
-import { editCommand, mockActions } from './editor-helpers'
+import { editCommand, mockActions, openTool } from './editor-helpers'
 
 // Several videos in one project, on real exports. The main video: 320×180,
 // red, with a 440 Hz tone, 4 s. The added one: square (240×240), green, with
@@ -201,6 +201,7 @@ test('clips of an added video reorder, speed up, take a colour and dissolve like
 	await clips(page).nth(1).press('Alt+ArrowLeft')
 	await expect(clips(page).nth(0)).toContainText('green.webm')
 	// At 2×: 1.5 s.
+	await openTool(page, 'Clip sound and speed')
 	const speed = page
 		.getByRole('region', { name: 'Clip sound and speed' })
 		.getByRole('group', { name: 'Clip 1' })
@@ -213,12 +214,15 @@ test('clips of an added video reorder, speed up, take a colour and dissolve like
 	expect(isRed(reordered[1]?.centre ?? []), 'then red').toBe(true)
 
 	// Black and white on the green clip; a 1 s dissolve into the red one.
+	await openTool(page, 'Color')
 	const color = page.getByRole('region', { name: 'Color' })
 	await color
 		.getByRole('group', { name: 'Apply to' })
 		.getByRole('button', { name: 'Clip 1' })
 		.click()
+	await openTool(page, 'Color')
 	await color.getByRole('button', { name: 'Black and white' }).click()
+	await openTool(page, 'Transitions')
 	const join = page
 		.getByRole('region', { name: 'Transitions' })
 		.getByRole('group', { name: 'Clip 1 to clip 2' })
