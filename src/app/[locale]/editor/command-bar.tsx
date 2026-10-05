@@ -2,7 +2,16 @@
 
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { AttachIcon, SendIcon, SparkleIcon, SpinnerIcon } from '@/components/ui/icons'
+import {
+	AttachIcon,
+	CleanupIcon,
+	ImageIcon,
+	MicIcon,
+	SendIcon,
+	SparkleIcon,
+	SpinnerIcon,
+	TextIcon
+} from '@/components/ui/icons'
 import { toast } from '@/lib/toast'
 import { parseEditCommand } from './actions'
 import { CommandReply } from './command-reply'
@@ -37,7 +46,13 @@ type Answer = {
 }
 type Entry = Answer | { id: number; type: 'note'; text: string }
 
-const EXAMPLES = ['cleanup', 'captions', 'title'] as const
+/** What to try first, each with what it touches. */
+const EXAMPLES = [
+	{ key: 'cleanup', icon: CleanupIcon },
+	{ key: 'captions', icon: TextIcon },
+	{ key: 'title', icon: SparkleIcon },
+	{ key: 'zoom', icon: ImageIcon }
+] as const
 
 /**
  * The editor's chat. Type (or speak) an edit in plain English; Gemini parses
@@ -130,33 +145,43 @@ export function CommandBar({
 	return (
 		<section aria-label={t('chat.label')} className="flex h-full min-h-0 flex-col">
 			<div className="relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
-				<div className="flex gap-2">
-					<span
-						aria-hidden
-						className="bg-accent-soft text-accent mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full"
-					>
-						<SparkleIcon size={14} />
-					</span>
-					<div className="flex flex-col gap-2">
-						<p className="bg-surface-hover text-text rounded-lg rounded-tl-sm px-3 py-2 text-sm">
-							{t('chat.intro')}
+				{entries.length === 0 && !thinking ? (
+					// Empty: what the chat is for, and a few things to try, filling the space.
+					<div className="flex flex-1 flex-col justify-center gap-5 px-1 py-4">
+						<div className="flex flex-col items-start gap-3">
+							<span
+								aria-hidden
+								className="bg-accent-soft text-accent flex size-11 items-center justify-center rounded-lg"
+							>
+								<SparkleIcon size={22} />
+							</span>
+							<h2 className="font-display text-text text-lg font-semibold">{t('chat.title')}</h2>
+							<p className="text-text-muted text-sm leading-relaxed">{t('chat.intro')}</p>
+						</div>
+						<div className="flex flex-col gap-2">
+							<p className="text-text-faint text-xs font-medium tracking-wide uppercase">
+								{t('chat.examples')}
+							</p>
+							{EXAMPLES.map(({ key, icon: Icon }) => (
+								<button
+									key={key}
+									type="button"
+									onClick={() => setCommand(t(`chat.example.${key}`))}
+									className="border-border bg-surface-inset text-text hover:border-accent focus-visible:outline-accent flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors focus-visible:outline-2"
+								>
+									<Icon size={16} className="text-accent shrink-0" />
+									{t(`chat.example.${key}`)}
+								</button>
+							))}
+						</div>
+						<p className="text-text-faint flex items-center gap-2 text-xs">
+							<MicIcon size={14} />
+							{t('chat.voiceTip')}
 						</p>
-						{entries.length === 0 && (
-							<div className="flex flex-wrap gap-1.5">
-								{EXAMPLES.map((example) => (
-									<button
-										key={example}
-										type="button"
-										onClick={() => setCommand(t(`chat.example.${example}`))}
-										className="border-border text-text-muted hover:border-accent hover:text-text focus-visible:outline-accent rounded-full border px-2.5 py-1 text-xs transition-colors focus-visible:outline-2"
-									>
-										{t(`chat.example.${example}`)}
-									</button>
-								))}
-							</div>
-						)}
 					</div>
-				</div>
+				) : (
+					<p className="text-text-faint text-xs">{t('chat.short')}</p>
+				)}
 				{entries.map((entry) =>
 					entry.type === 'note' ? (
 						<p key={entry.id} className="text-text-muted self-center px-2 text-center text-xs">

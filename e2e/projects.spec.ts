@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
-import { editCommand, mockActions, seekTo, w } from './editor-helpers'
+import { editCommand, mockActions, seekTo, w, openTool } from './editor-helpers'
 
 // Saving and reopening projects (kept in the browser, IndexedDB). The main
 // video: 2 s of red with a 440 Hz tone, then 2 s of blue with 880 Hz. An
@@ -135,27 +135,36 @@ async function makeEdits(page: Page, added: Buffer) {
 		.getByRole('button', { name: 'Split at playhead' })
 		.click()
 	await expect(clips(page)).toHaveCount(2)
+	await openTool(page, 'Clip sound and speed')
 	const speed = page
 		.getByRole('region', { name: 'Clip sound and speed' })
 		.getByRole('group', { name: 'Clip 2' })
 		.getByLabel('Speed (×)')
 	await speed.fill('2')
 	await speed.press('Enter')
+	await openTool(page, 'Color')
 	const color = page.getByRole('region', { name: 'Color' })
 	await color
 		.getByRole('group', { name: 'Apply to' })
 		.getByRole('button', { name: 'Clip 1' })
 		.click()
+	await openTool(page, 'Color')
 	await color.getByRole('button', { name: 'Black and white' }).click()
+	await openTool(page, 'Graphics')
 	const graphics = page.getByRole('region', { name: 'Graphics' })
+	await openTool(page, 'Graphics')
 	await graphics.getByLabel('Title text').fill('HELLO')
+	await openTool(page, 'Graphics')
 	await graphics.getByRole('button', { name: 'Add title' }).click()
+	await openTool(page, 'Graphics')
 	const titleColor = graphics.getByRole('group', { name: 'Title style' }).getByLabel('Color')
 	await titleColor.fill('#ff0000')
 	await titleColor.blur()
+	await openTool(page, 'Graphics')
 	await graphics.getByRole('button', { name: 'Captions' }).click()
 	// A box over the top-left corner, from the start.
 	await seekTo(page, 0.05)
+	await openTool(page, 'Annotations')
 	const annotations = page.getByRole('region', { name: 'Annotations' })
 	await annotations
 		.getByRole('group', { name: 'Annotation tool' })
@@ -174,12 +183,15 @@ async function makeEdits(page: Page, added: Buffer) {
 		.getByRole('button', { name: 'Box', exact: true })
 		.click()
 	// An audio file at 0.5 s.
+	await openTool(page, 'Audio')
 	const lane = page.getByRole('region', { name: 'Audio', exact: true })
 	const choosingAudio = page.waitForEvent('filechooser')
+	await openTool(page, 'Audio')
 	await lane.getByRole('button', { name: 'Add audio file' }).click()
 	await (
 		await choosingAudio
 	).setFiles({ name: 'tone.wav', mimeType: 'audio/wav', buffer: toneWav() })
+	await openTool(page, 'Audio')
 	const start = lane.getByRole('group', { name: /^1\. / }).getByLabel('Starts at (s)')
 	await start.fill('0.5')
 	await start.press('Enter')
@@ -198,20 +210,20 @@ async function editorState(page: Page) {
 		clips: await clips(page).evaluateAll((items) =>
 			items.map((item) => item.getAttribute('aria-label'))
 		),
-		lane: await page
+		lane: await (await openTool(page, 'Audio'), page)
 			.getByRole('region', { name: 'Audio', exact: true })
 			.getByRole('group')
 			.evaluateAll((items) => items.map((item) => item.getAttribute('aria-label'))),
-		title: await page
+		title: await (await openTool(page, 'Graphics'), page)
 			.getByRole('region', { name: 'Graphics' })
 			.getByLabel('Title text')
 			.inputValue(),
-		speed: await page
+		speed: await (await openTool(page, 'Clip sound and speed'), page)
 			.getByRole('region', { name: 'Clip sound and speed' })
 			.getByRole('group', { name: 'Clip 2' })
 			.getByLabel('Speed (×)')
 			.inputValue(),
-		captions: await page
+		captions: await (await openTool(page, 'Graphics'), page)
 			.getByRole('region', { name: 'Graphics' })
 			.getByRole('button', { name: 'Captions' })
 			.getAttribute('aria-pressed')
@@ -343,6 +355,7 @@ test('a project with several kinds of edits, saved, survives a reload: same time
 	const main = await recordVideo(page, MAIN)
 	const added = await recordVideo(page, ADDED)
 	await openMain(page, main)
+	await openTool(page, 'Transcript')
 	await expect(page.getByRole('button', { name: /Hello there\./ })).toBeVisible({ timeout: 30_000 })
 	await makeEdits(page, added)
 	// 2 s grey (clip 1, black and white), 1 s of blue at 2×, 1.5 s of green.
@@ -357,8 +370,9 @@ test('a project with several kinds of edits, saved, survives a reload: same time
 	expect(three?.tones['330'], 'the added video').toBeGreaterThan(0.75)
 	const state = await editorState(page)
 
-	await projectPanel(page).getByLabel('Project name').fill('Saved edit')
-	await projectPanel(page).getByRole('button', { name: 'Save', exact: true }).click()
+	await page.getByLabel('Project name').fill('Saved edit')
+	await page.getByRole('button', { name: 'Save', exact: true }).click()
+	await openTool(page, 'Project')
 	await expect(projectPanel(page).getByRole('status')).toContainText('Saved at')
 
 	// Reload: nothing in the editor; the project in My projects.
@@ -368,12 +382,14 @@ test('a project with several kinds of edits, saved, survives a reload: same time
 	const listed = page
 		.getByRole('list', { name: 'My projects' })
 		.getByRole('listitem', { name: 'Saved edit' })
+	await openTool(page, 'Project')
 	await listed.getByRole('button', { name: 'Open' }).click()
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
 		timeout: 30_000
 	})
 	await expect(clips(page)).toHaveCount(3)
 	expect(await editorState(page)).toEqual(state)
+	await openTool(page, 'Transcript')
 	await expect(page.getByRole('button', { name: /Hello there\./ })).toBeVisible({ timeout: 30_000 })
 	expect(transcriptions.count, 'no transcription on reopening: the saved transcript').toBe(0)
 	// A reopened project starts with no history: nothing to undo.
@@ -388,13 +404,16 @@ test('a saved project saves itself after each change', async ({ page }) => {
 	await mockActions(page, { words: [] })
 	await page.goto('/editor')
 	await openMain(page, await recordVideo(page, MAIN))
-	await projectPanel(page).getByRole('button', { name: 'Save', exact: true }).click()
+	await page.getByRole('button', { name: 'Save', exact: true }).click()
+	await openTool(page, 'Project')
 	await expect(projectPanel(page).getByRole('status')).toContainText('Saved at')
 	// A change after saving: no Save pressed.
+	await openTool(page, 'Clip sound and speed')
 	const mute = page
 		.getByRole('region', { name: 'Clip sound and speed' })
 		.getByRole('group', { name: 'Clip 1' })
 		.getByRole('button', { name: 'Mute' })
+	await openTool(page, 'Clip sound and speed')
 	await mute.click()
 	await page.waitForTimeout(3000)
 	await page.reload()
@@ -406,6 +425,7 @@ test('a saved project saves itself after each change', async ({ page }) => {
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
 		timeout: 30_000
 	})
+	await openTool(page, 'Clip sound and speed')
 	await expect(mute).toHaveAttribute('aria-pressed', 'true')
 })
 
@@ -417,8 +437,9 @@ test('a project whose video the browser lost asks for the file; a deleted projec
 	await page.goto('/editor')
 	const main = await recordVideo(page, MAIN)
 	await openMain(page, main)
-	await projectPanel(page).getByLabel('Project name').fill('Lost video')
-	await projectPanel(page).getByRole('button', { name: 'Save', exact: true }).click()
+	await page.getByLabel('Project name').fill('Lost video')
+	await page.getByRole('button', { name: 'Save', exact: true }).click()
+	await openTool(page, 'Project')
 	await expect(projectPanel(page).getByRole('status')).toContainText('Saved at')
 	// The browser's copy of the video gone, as if its storage were cleared.
 	await page.evaluate(
@@ -453,17 +474,20 @@ test('a project whose video the browser lost asks for the file; a deleted projec
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
 		timeout: 30_000
 	})
-	await expect(projectPanel(page).getByLabel('Project name')).toHaveValue('Lost video')
+	await expect(page.getByLabel('Project name')).toHaveValue('Lost video')
 
 	// Deleting asks first, then it's gone.
-	await projectPanel(page).getByRole('button', { name: 'My projects' }).click()
+	await openTool(page, 'Project')
 	const listed = projectPanel(page).getByRole('listitem', { name: 'Lost video' })
+	await openTool(page, 'Project')
 	await listed.getByRole('button', { name: 'Delete' }).click()
 	await expect(listed).toContainText('Delete this project?')
+	await openTool(page, 'Project')
 	await listed.getByRole('button', { name: 'Delete' }).click()
 	// The project open was the one deleted: the panel starts afresh, unsaved.
+	await openTool(page, 'Project')
 	await expect(projectPanel(page).getByRole('status')).toContainText('Not saved yet.')
-	await projectPanel(page).getByRole('button', { name: 'My projects' }).click()
+	await openTool(page, 'Project')
 	await expect(projectPanel(page)).toContainText('No saved projects yet.')
 	await page.reload()
 	await expect(page.getByText('No saved projects yet.', { exact: false })).toBeVisible()
@@ -489,12 +513,15 @@ test('save and open as typed commands, each confirmed first', async ({ page }) =
 		"I'll save this project as “Demo”."
 	)
 	await reply.getByRole('button', { name: 'Apply' }).click()
+	await openTool(page, 'Project')
 	await expect(projectPanel(page).getByRole('status')).toContainText('Saved at')
 	// A new video, edited and never saved: opening Demo warns.
 	await page
 		.getByLabel('Choose a video file')
 		.setInputFiles({ name: 'second.webm', mimeType: 'video/webm', buffer: main })
+	await openTool(page, 'Project')
 	await expect(projectPanel(page).getByRole('status')).toContainText('Not saved yet.')
+	await openTool(page, 'Clip sound and speed')
 	await page
 		.getByRole('region', { name: 'Clip sound and speed' })
 		.getByRole('group', { name: 'Clip 1' })
@@ -506,7 +533,7 @@ test('save and open as typed commands, each confirmed first', async ({ page }) =
 		"I'll open “Demo” in place of this edit. This edit has changes that were never saved: they'll be lost."
 	)
 	await reply.getByRole('button', { name: 'Apply' }).click()
-	await expect(projectPanel(page).getByLabel('Project name')).toHaveValue('Demo')
+	await expect(page.getByLabel('Project name')).toHaveValue('Demo')
 	await ask(
 		'open my project wedding',
 		{ action: 'open_project', text: 'wedding' },

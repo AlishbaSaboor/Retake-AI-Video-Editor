@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
 import { zoomedPoint, zoomViewAt } from '../src/app/[locale]/editor/motion'
-import { editCommand, mockActions, seekTo } from './editor-helpers'
+import { editCommand, mockActions, seekTo, openTool } from './editor-helpers'
 
 // Motion graphics on real exports. The video: 320×180, grey (#606060), a red
 // 60×60 square in the middle, a 440 Hz tone, 6 s. The square's measured
@@ -184,11 +184,17 @@ function slideOffset(t: number, start: number, seconds: number, width: number) {
 }
 
 async function setZoom(page: Page, from: number, to: number, percent: number) {
+	await openTool(page, 'Zoom')
 	const panel = page.getByRole('region', { name: 'Zoom', exact: true })
+	await openTool(page, 'Zoom')
 	await panel.getByLabel('From (s)').fill(String(from))
+	await openTool(page, 'Zoom')
 	await panel.getByLabel('To (s)').fill(String(to))
+	await openTool(page, 'Zoom')
 	await panel.getByLabel('Zoom (%)').fill(String(percent))
+	await openTool(page, 'Zoom')
 	await panel.getByRole('button', { name: 'Add zoom' }).click()
+	await openTool(page, 'Zoom')
 	await expect(panel.getByRole('button', { name: 'Update zoom' })).toBeVisible()
 }
 
@@ -225,12 +231,14 @@ test('a zoom works on the cropped picture and on the edited timeline, past a spe
 	test.setTimeout(180_000)
 	await openSquare(page)
 	// Crop to 1:1 (180×180 frame), and the second half (3–6 s) at 2×: 3 + 1.5 s.
+	await openTool(page, 'Picture')
 	await page.getByRole('region', { name: 'Picture' }).getByRole('button', { name: '1:1' }).click()
 	await seekTo(page, 3)
 	await page
 		.getByRole('region', { name: 'Clips' })
 		.getByRole('button', { name: 'Split at playhead' })
 		.click()
+	await openTool(page, 'Clip sound and speed')
 	const speed = page
 		.getByRole('region', { name: 'Clip sound and speed' })
 		.getByRole('group', { name: 'Clip 2' })
@@ -268,10 +276,14 @@ test('the title slides in and fades out; a lower third slides in at its time; te
 }) => {
 	test.setTimeout(240_000)
 	await openSquare(page)
+	await openTool(page, 'Graphics')
 	const graphics = page.getByRole('region', { name: 'Graphics' })
 	// The title, 0–3 s: in from the left over 1 s, out with a 1 s fade.
+	await openTool(page, 'Graphics')
 	await graphics.getByLabel('Title text').fill('HELLO')
+	await openTool(page, 'Graphics')
 	await graphics.getByRole('button', { name: 'Add title' }).click()
+	await openTool(page, 'Graphics')
 	const titleMotion = graphics.getByRole('group', { name: 'Title motion' })
 	await titleMotion.getByLabel('Comes in').selectOption('slide')
 	await titleMotion.getByLabel('From').selectOption('left')
@@ -283,6 +295,7 @@ test('the title slides in and fades out; a lower third slides in at its time; te
 	await outSeconds.fill('1')
 	await outSeconds.press('Enter')
 	// The lower third, 3.5–5.5 s; no title band then.
+	await openTool(page, 'Graphics')
 	const lower = graphics.getByRole('group', { name: 'Lower third' })
 	await lower.getByLabel('Lower third name').fill('JANE')
 	await lower.getByLabel('Subtitle').fill('CEO')
@@ -293,7 +306,9 @@ test('the title slides in and fades out; a lower third slides in at its time; te
 
 	// Text on the video at 3.3 s for 3 s, in the top-left quarter, popping in (capped at half its
 	// time on screen: 1.5 s).
+	await openTool(page, 'Annotations')
 	const annotations = page.getByRole('region', { name: 'Annotations' })
+	await openTool(page, 'Annotations')
 	await annotations.getByLabel('Text to add').fill('POP')
 	await seekTo(page, 3.3)
 	await annotations
@@ -315,11 +330,13 @@ test('the title slides in and fades out; a lower third slides in at its time; te
 		.getByRole('button', { name: 'Select', exact: true })
 		.click()
 	await page.locator('[data-annotation-kind="text"]').click()
+	await openTool(page, 'Annotations')
 	const textMotion = annotations.getByRole('group', { name: 'Selected text motion' })
 	await textMotion.getByLabel('Comes in').selectOption('pop')
 	const popSeconds = textMotion.getByLabel('In (s)')
 	await popSeconds.fill('3')
 	await popSeconds.press('Enter')
+	await openTool(page, 'Annotations')
 	await expect(
 		annotations.getByRole('group', { name: 'Selected text motion' }).getByLabel('Comes in')
 	).toHaveValue('pop')
@@ -397,8 +414,11 @@ test('motion as typed commands, confirmed first; undo; saved with the project', 
 	const command = page.getByRole('textbox', { name: 'Edit command' })
 	const reply = page.getByRole('status').filter({ hasText: 'You asked' })
 	await openSquare(page)
+	await openTool(page, 'Graphics')
 	const graphics = page.getByRole('region', { name: 'Graphics' })
+	await openTool(page, 'Graphics')
 	await graphics.getByLabel('Title text').fill('HELLO')
+	await openTool(page, 'Graphics')
 	await graphics.getByRole('button', { name: 'Add title' }).click()
 	const run = async (text: string, fields: Parameters<typeof editCommand>[0], shown: string) => {
 		await mockActions(page, { words: [], command: editCommand(fields) })
@@ -413,12 +433,14 @@ test('motion as typed commands, confirmed first; undo; saved with the project', 
 		{ action: 'lower_third', text: 'Jane, CEO', startSeconds: 1, endSeconds: 4 },
 		"I'll show a lower third saying “Jane, CEO” from 0:01 to 0:04, sliding in and out."
 	)
+	await openTool(page, 'Graphics')
 	await expect(graphics.getByLabel('Lower third name')).toHaveValue('Jane')
 	await run(
 		'slide the title in from the left',
 		{ action: 'animate_in', target: 'title', effect: 'slide', region: 'left' },
 		"I'll make the title come in with a slide from the left over 0.5 s."
 	)
+	await openTool(page, 'Graphics')
 	await expect(
 		graphics.getByRole('group', { name: 'Title motion' }).getByLabel('Comes in')
 	).toHaveValue('slide')
@@ -427,12 +449,16 @@ test('motion as typed commands, confirmed first; undo; saved with the project', 
 		{ action: 'zoom_in', startSeconds: 2, endSeconds: 5 },
 		"I'll push in to 130% from 0:02 to 0:05, on the whole picture."
 	)
+	await openTool(page, 'Zoom')
 	const zoomPanel = page.getByRole('region', { name: 'Zoom', exact: true })
+	await openTool(page, 'Zoom')
 	await expect(zoomPanel.getByLabel('From (s)')).toHaveValue('2')
 
 	// Saved with the project: back after a reload.
+	await openTool(page, 'Project')
 	const project = page.getByRole('region', { name: 'Project', exact: true })
-	await project.getByRole('button', { name: 'Save', exact: true }).click()
+	await page.getByRole('button', { name: 'Save', exact: true }).click()
+	await openTool(page, 'Project')
 	await expect(project.getByRole('status')).toContainText('Saved at')
 	await page.reload()
 	await page
@@ -443,12 +469,15 @@ test('motion as typed commands, confirmed first; undo; saved with the project', 
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
 		timeout: 30_000
 	})
+	await openTool(page, 'Graphics')
 	await expect(
 		page.getByRole('region', { name: 'Graphics' }).getByLabel('Lower third name')
 	).toHaveValue('Jane')
+	await openTool(page, 'Zoom')
 	await expect(
 		page.getByRole('region', { name: 'Zoom', exact: true }).getByLabel('To (s)')
 	).toHaveValue('5')
+	await openTool(page, 'Graphics')
 	await expect(
 		page
 			.getByRole('region', { name: 'Graphics' })
@@ -457,16 +486,19 @@ test('motion as typed commands, confirmed first; undo; saved with the project', 
 	).toHaveValue('slide')
 
 	// Undo steps back through them (a reopened project starts its history afresh: one change).
+	await openTool(page, 'Zoom')
 	await page
 		.getByRole('region', { name: 'Zoom', exact: true })
 		.getByRole('button', { name: 'Remove zoom' })
 		.click()
+	await openTool(page, 'Zoom')
 	await expect(
 		page
 			.getByRole('region', { name: 'Zoom', exact: true })
 			.getByRole('button', { name: 'Add zoom' })
 	).toBeVisible()
 	await page.getByRole('button', { name: 'Undo last change' }).click()
+	await openTool(page, 'Zoom')
 	await expect(
 		page
 			.getByRole('region', { name: 'Zoom', exact: true })
@@ -480,7 +512,9 @@ test('a zoom aimed on the video goes to that area, closer for a smaller one, in 
 	test.setTimeout(180_000)
 	await openSquare(page)
 	await setZoom(page, 2, 4, 200)
+	await openTool(page, 'Zoom')
 	const panel = page.getByRole('region', { name: 'Zoom', exact: true })
+	await openTool(page, 'Zoom')
 	await panel.getByRole('button', { name: 'Set area on video' }).click()
 	// The whole picture shows, with the zoom's area on it: half the frame, centred.
 	const area = page.getByRole('img', { name: /^Zoom area/ })
@@ -511,6 +545,7 @@ test('a zoom aimed on the video goes to that area, closer for a smaller one, in 
 	await page.mouse.move(moved.x + frame.width * 0.45, moved.y + frame.height * 0.45)
 	await page.mouse.move(moved.x + frame.width * 0.4, moved.y + frame.height * 0.4)
 	await page.mouse.up()
+	await openTool(page, 'Zoom')
 	await expect(panel.getByLabel('Zoom (%)')).toHaveValue('250')
 	await expect(area).toHaveAccessibleName('Zoom area, 250%')
 	const sized = await area.boundingBox()
@@ -521,6 +556,7 @@ test('a zoom aimed on the video goes to that area, closer for a smaller one, in 
 	}
 	// From the top-left it kept (0.7 − 0.25 = 0.45), 0.4 wide: centred at 0.65.
 	expect(focus.x).toBeCloseTo(0.65, 2)
+	await openTool(page, 'Zoom')
 	await panel.getByRole('button', { name: 'Set area on video' }).click()
 	await expect(area).toHaveCount(0)
 

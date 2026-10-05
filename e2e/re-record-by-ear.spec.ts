@@ -6,7 +6,8 @@ import {
 	reRecordButton,
 	ROOM_TONE,
 	seekTo,
-	w
+	w,
+	openTool
 } from './editor-helpers'
 import { FAKE_MIC_LAUNCH, recordTake } from './fake-mic'
 
@@ -84,7 +85,9 @@ test('a sentence with no pause gets its joins set by ear, and its take records, 
 		],
 		ROOM_TONE
 	)
+	await openTool(page, 'Transcript')
 	await expect(reRecordButton(page, '0:01')).toBeVisible({ timeout: 30_000 })
+	await openTool(page, 'Transcript')
 	await reRecordButton(page, '0:01').click()
 	const panel = page.getByRole('region', { name: 'Re-record the sentence at 0:01' })
 	await expect(panel).toContainText('There is no clear pause before this sentence')
@@ -227,6 +230,7 @@ test('a sentence with no pause gets its joins set by ear, and its take records, 
 	await expect(page.getByText('re-recorded', { exact: true })).toHaveCount(0)
 	await page.getByRole('button', { name: 'Redo' }).click()
 	await expect(page.getByText('re-recorded', { exact: true })).toHaveCount(1)
+	await openTool(page, 'Transcript')
 	await reRecordButton(page, '0:01').click()
 	await expect(panel.getByText(/join set by ear isn’t guaranteed/)).toBeVisible()
 	expect(await at(startHandle)).toBeCloseTo(joins.start, 3)

@@ -17,6 +17,7 @@ import {
 	type ColorGrade,
 	type Level
 } from './color-grade'
+import { MoreInfo } from './more-info'
 
 const PERCENT = 100
 const LEVEL_STEP_PERCENT = 5
@@ -88,7 +89,7 @@ export function ColorPanel({ video, clips, canEdit, onChange }: ColorPanelProps)
 				canEdit={canEdit}
 				onChange={(next) => onChange(target, next)}
 			/>
-			<p className="text-text-muted text-xs">{t('hint')}</p>
+			<MoreInfo>{t('hint')}</MoreInfo>
 		</section>
 	)
 }

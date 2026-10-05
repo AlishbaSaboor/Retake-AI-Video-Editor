@@ -14,6 +14,8 @@ type CleanupBarProps = {
 	/** Filler words with no clear gap — left flagged for a manual cut. */
 	fillerReviewCount: number
 	onApply: () => void
+	/** Still reading the recording (its sound, then its transcript): nothing is known yet. */
+	reading: boolean
 }
 
 /**
@@ -26,7 +28,8 @@ export function CleanupBar({
 	silenceCount,
 	fillerCutCount,
 	fillerReviewCount,
-	onApply
+	onApply,
+	reading
 }: CleanupBarProps) {
 	const t = useTranslations('Editor.cleanup')
 	const [isConfirming, setIsConfirming] = useState(false)
@@ -81,7 +84,7 @@ export function CleanupBar({
 				{t('button')}
 			</Button>
 			<span className="text-text-muted text-xs">
-				{removableSeconds > 0 ? t('hint') : t('nothing')}
+				{reading ? t('reading') : removableSeconds > 0 ? t('hint') : t('nothing')}
 			</span>
 		</div>
 	)

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { mockActions, playheadSeconds } from './editor-helpers'
+import { mockActions, playheadSeconds, openTool } from './editor-helpers'
 
 // A 36 s take recorded in the page, its sound a 200 Hz tone in syllable-like
 // bursts (0.3 s on, 0.2 s off) with one problem at a known time each:
@@ -144,6 +144,7 @@ test('clipping, quiet speech and a loud background are flagged where they are, a
 	expect(at).toBeLessThan(quiet.from + 1)
 
 	// The (mocked) transcript settles before the page closes.
+	await openTool(page, 'Transcript')
 	await expect(page.getByText('No speech detected.')).toBeVisible({ timeout: 30_000 })
 
 	// They're not edits: nothing to undo.

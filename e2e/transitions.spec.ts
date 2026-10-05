@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
-import { editCommand, mockActions, seekTo } from './editor-helpers'
+import { editCommand, mockActions, seekTo, openTool } from './editor-helpers'
 
 // Transitions, delete and duplicate, measured on real exports of a video
 // made for it: 2 s of red with a 440 Hz tone, then 2 s of blue with an
@@ -83,7 +83,9 @@ const joinRow = (page: Page, from: number) =>
 		.getByRole('group', { name: `Clip ${from} to clip ${from + 1}` })
 
 async function setTransition(page: Page, kind: 'Fade' | 'Dissolve' | 'None', seconds?: number) {
+	await openTool(page, 'Transitions')
 	await joinRow(page, 1).getByRole('button', { name: kind }).click()
+	await openTool(page, 'Transitions')
 	await expect(joinRow(page, 1).getByRole('button', { name: kind })).toHaveAttribute(
 		'aria-pressed',
 		'true'
@@ -304,6 +306,7 @@ test('delete and duplicate clips: what plays changes, a duplicate keeps its sett
 	test.setTimeout(180_000)
 	await openRedBlue(page)
 	// The red clip at 2×: its duplicate plays at 2× too.
+	await openTool(page, 'Clip sound and speed')
 	const speed = page
 		.getByRole('region', { name: 'Clip sound and speed' })
 		.getByRole('group', { name: 'Clip 1' })
@@ -363,6 +366,7 @@ test('transitions, delete and duplicate work as typed commands, each confirmed a
 		{ action: 'fade_transition', fromClip: 1, toClip: 2 },
 		"I'll add a fade through black of 1 s between clips 1 and 2."
 	)
+	await openTool(page, 'Transitions')
 	await expect(joinRow(page, 1).getByRole('button', { name: 'Fade' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
@@ -374,6 +378,7 @@ test('transitions, delete and duplicate work as typed commands, each confirmed a
 	)
 	await expect(clips(page)).toHaveCount(3)
 	// The fade now follows the copy: clip 2 to clip 3.
+	await openTool(page, 'Transitions')
 	await expect(joinRow(page, 2).getByRole('button', { name: 'Fade' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
@@ -390,6 +395,7 @@ test('transitions, delete and duplicate work as typed commands, each confirmed a
 	await undo.click()
 	await expect(clips(page)).toHaveCount(2)
 	await undo.click()
+	await openTool(page, 'Transitions')
 	await expect(joinRow(page, 1).getByRole('button', { name: 'None' })).toHaveAttribute(
 		'aria-pressed',
 		'true'

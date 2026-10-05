@@ -6,7 +6,19 @@ import { useTranslations } from 'next-intl'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { captureClientError } from '@/lib/observability/capture-client-error'
 import { Button } from '@/components/ui/button'
-import { PauseIcon, PlayIcon, PlusIcon, ReplaceIcon } from '@/components/ui/icons'
+import {
+	ArticleIcon,
+	ImageIcon,
+	PauseIcon,
+	PlayIcon,
+	PlusIcon,
+	ProjectsIcon,
+	ReplaceIcon,
+	SoundIcon,
+	SparkleIcon,
+	TextIcon,
+	TransitionIcon
+} from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { toast } from '@/lib/toast'
 import { AnnotationLayer } from './annotation-layer'
@@ -22,11 +34,12 @@ import { editedCaptions } from './captions'
 import { CommandBar, type AttachedAs } from './command-bar'
 import { setSideOpen, useSideOpen } from './editor-layout-store'
 import { EditorShell } from './editor-shell'
-import { JobProgress, SaveBadge, type Job } from './editor-status'
+import { JobProgress, type Job } from './editor-status'
 import { HistoryControls } from './history-controls'
 import { LeaveGuard } from './leave-guard'
 import { OPEN_SHORTCUTS_EVENT, ShortcutsHelp } from './shortcuts-help'
-import { ToolPanels, type Tool } from './tool-panels'
+import { ToolPanels, type Tool, type ToolTab } from './tool-panels'
+import { ProjectTitle } from './project-title'
 import { takeStart } from './editor-start'
 import type { CommandContext, CommandPlan, TextTarget } from './edit-command'
 import { isOriginalEdit, ORIGINAL_EDIT, type EditSnapshot } from './edit-snapshot'
@@ -1549,21 +1562,33 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 
 	// The tools column, in the order a recording is usually fixed: what's said,
 	// how it sounds, then the picture, then what's laid over it.
+	// The tools column's tabs, in the order a recording is usually fixed.
+	const tabText = (id: string) => ({
+		label: t(`tools.tabs.${id}.label`),
+		description: t(`tools.tabs.${id}.description`)
+	})
+	const toolTabs: ToolTab[] = [
+		{ id: 'ai', icon: <SparkleIcon size={20} />, ...tabText('ai') },
+		{ id: 'picture', icon: <ImageIcon size={20} />, ...tabText('picture') },
+		{ id: 'sound', icon: <SoundIcon size={20} />, ...tabText('sound') },
+		{ id: 'graphics', icon: <TextIcon size={20} />, ...tabText('graphics') },
+		{ id: 'transitions', icon: <TransitionIcon size={20} />, ...tabText('transitions') },
+		{ id: 'transcript', icon: <ArticleIcon size={20} />, ...tabText('transcript') },
+		{ id: 'project', icon: <ProjectsIcon size={20} />, ...tabText('project') }
+	]
 	const tools: Tool[] =
 		video && hasDuration
 			? [
 					{
 						id: 'project',
+						tab: 'project',
 						title: t('tools.names.project'),
 						keywords: t('tools.keywords.project'),
 						panel: (
 							<ProjectPanel
-								key={project?.id ?? `new-${video.url}`}
 								name={project?.name ?? null}
-								suggestedName={video.name.replace(/\.[^.]*$/, '')}
 								status={saveStatus}
 								savedAt={savedAt}
-								onSave={(name) => void save(name)}
 								projects={projects.data ?? []}
 								onOpen={(id) => void openSaved(id)}
 								onDelete={(id) => void removeProject(id)}
@@ -1572,6 +1597,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 					},
 					{
 						id: 'cleanup',
+						tab: 'ai',
 						title: t('tools.names.cleanup'),
 						keywords: t('tools.keywords.cleanup'),
 						heading: true,
@@ -1582,11 +1608,48 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 								fillerCutCount={fillerCuts.length}
 								fillerReviewCount={analysis.fillerPlans.length - fillerCuts.length}
 								onApply={applyCleanup}
+								reading={
+									analysis.transcript.status === 'analyzing' ||
+									analysis.transcript.status === 'transcribing'
+								}
 							/>
 						)
 					},
 					{
+						id: 'chat',
+						tab: 'ai',
+						title: t('tools.names.chat'),
+						keywords: t('tools.keywords.chat'),
+						heading: true,
+						panel: (
+							<div className="flex flex-col gap-3">
+								<p className="text-text-muted text-sm">{t('tools.chat.body')}</p>
+								<ul className="text-text flex flex-col gap-1.5 text-sm">
+									{(['cut', 'look', 'add'] as const).map((item) => (
+										<li key={item} className="flex gap-2">
+											<span aria-hidden className="bg-accent mt-2 size-1.5 shrink-0 rounded-full" />
+											{t(`tools.chat.items.${item}`)}
+										</li>
+									))}
+								</ul>
+								{!chatOpen && (
+									<Button
+										type="button"
+										size="sm"
+										variant="outline"
+										className="self-start"
+										onClick={() => setSideOpen('chat', true)}
+									>
+										<SparkleIcon />
+										{t('tools.chat.open')}
+									</Button>
+								)}
+							</div>
+						)
+					},
+					{
 						id: 'transcript',
+						tab: 'transcript',
 						title: t('tools.names.transcript'),
 						keywords: t('tools.keywords.transcript'),
 						panel: (
@@ -1600,6 +1663,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 					},
 					{
 						id: 'sound',
+						tab: 'sound',
 						title: t('tools.names.sound'),
 						keywords: t('tools.keywords.sound'),
 						panel: (
@@ -1615,6 +1679,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 					},
 					{
 						id: 'audio',
+						tab: 'sound',
 						title: t('tools.names.audio'),
 						keywords: t('tools.keywords.audio'),
 						panel: (
@@ -1651,6 +1716,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 						? [
 								{
 									id: 'picture',
+									tab: 'picture',
 									title: t('tools.names.picture'),
 									keywords: t('tools.keywords.picture'),
 									panel: (
@@ -1669,6 +1735,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 						: []),
 					{
 						id: 'zoom',
+						tab: 'picture',
 						title: t('tools.names.zoom'),
 						keywords: t('tools.keywords.zoom'),
 						panel: (
@@ -1686,6 +1753,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 					},
 					{
 						id: 'color',
+						tab: 'picture',
 						title: t('tools.names.color'),
 						keywords: t('tools.keywords.color'),
 						panel: (
@@ -1699,6 +1767,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 					},
 					{
 						id: 'transitions',
+						tab: 'transitions',
 						title: t('tools.names.transitions'),
 						keywords: t('tools.keywords.transitions'),
 						panel: (
@@ -1713,22 +1782,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 						)
 					},
 					{
-						id: 'annotations',
-						title: t('tools.names.annotations'),
-						keywords: t('tools.keywords.annotations'),
-						panel: (
-							<AnnotationPanel
-								tools={annotationTools}
-								annotations={annotations}
-								editedSeconds={editedSeconds}
-								playheadSeconds={editedNow}
-								onChange={changeAnnotation}
-								onErase={removeAnnotation}
-							/>
-						)
-					},
-					{
 						id: 'graphics',
+						tab: 'graphics',
 						title: t('tools.names.graphics'),
 						keywords: t('tools.keywords.graphics'),
 						panel: (
@@ -1783,6 +1838,22 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 								/>
 							</>
 						)
+					},
+					{
+						id: 'annotations',
+						tab: 'graphics',
+						title: t('tools.names.annotations'),
+						keywords: t('tools.keywords.annotations'),
+						panel: (
+							<AnnotationPanel
+								tools={annotationTools}
+								annotations={annotations}
+								editedSeconds={editedSeconds}
+								playheadSeconds={editedNow}
+								onChange={changeAnnotation}
+								onErase={removeAnnotation}
+							/>
+						)
 					}
 				]
 			: []
@@ -1817,9 +1888,14 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 				toolbar={
 					video ? (
 						<>
-							<p className="text-text max-w-48 truncate text-sm font-medium" title={video.name}>
-								{video.name}
-							</p>
+							<ProjectTitle
+								key={project?.id ?? `new-${video.url}`}
+								name={project?.name ?? null}
+								suggestedName={video.name.replace(/\.[^.]*$/, '')}
+								status={saveStatus}
+								savedAt={savedAt}
+								onSave={(name) => void save(name)}
+							/>
 							{hasDuration && (
 								<CompareToggle showOriginal={showOriginal} onChange={setShowOriginal} />
 							)}
@@ -1829,7 +1905,6 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 				status={
 					<>
 						<JobProgress jobs={jobs} />
-						{hasDuration && <SaveBadge status={saveStatus} savedAt={savedAt} />}
 						{hasDuration && (
 							<HistoryControls
 								canUndo={history.past.length > 0}
@@ -1870,7 +1945,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 						{video && hasDuration && <ExportButton exporter={exporter} />}
 					</>
 				}
-				tools={tools.length > 0 ? <ToolPanels tools={tools} /> : null}
+				tools={tools.length > 0 ? <ToolPanels tabs={toolTabs} tools={tools} /> : null}
 			>
 				{video ? (
 					<>

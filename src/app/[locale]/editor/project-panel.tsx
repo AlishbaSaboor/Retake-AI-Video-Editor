@@ -3,7 +3,6 @@
 import { useId, useState } from 'react'
 import { useFormatter, useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { MediaRef, ProjectSummary } from './projects'
 
@@ -12,78 +11,39 @@ export type SaveStatus = 'unsaved' | 'saving' | 'saved' | 'failed'
 type ProjectPanelProps = {
 	/** The project being edited, once saved; null for an edit never saved. */
 	name: string | null
-	/** What a first save is called unless renamed: the video's name. */
-	suggestedName: string
 	status: SaveStatus
 	savedAt: number | null
-	onSave: (name: string) => void
 	projects: ProjectSummary[]
 	onOpen: (id: string) => void
 	onDelete: (id: string) => void
 }
 
 /**
- * The project: its name, Save (once saved, it saves itself after each
- * change), and My projects to reopen or delete one. Render with a `key`
- * that follows the project, so its name field starts from the saved name.
+ * The Project tab: whether this edit is saved (it's named and saved from the
+ * top of the editor), and My projects, to reopen or delete one.
  */
 export function ProjectPanel({
 	name,
-	suggestedName,
 	status,
 	savedAt,
-	onSave,
 	projects,
 	onOpen,
 	onDelete
 }: ProjectPanelProps) {
 	const t = useTranslations('Editor.projects')
 	const format = useFormatter()
-	const id = useId()
-	const [typed, setTyped] = useState(name ?? suggestedName)
-	const [listOpen, setListOpen] = useState(false)
-	const trimmed = typed.trim()
 	return (
 		<section
 			aria-label={t('label')}
 			className="border-border bg-surface flex flex-col gap-3 rounded-lg border p-4"
 		>
-			<form
-				className="flex flex-wrap items-end gap-3"
-				onSubmit={(event) => {
-					event.preventDefault()
-					if (trimmed) onSave(trimmed)
-				}}
-			>
-				<div className="flex min-w-48 flex-1 flex-col gap-1">
-					<Label htmlFor={`${id}-name`}>{t('name')}</Label>
-					<Input
-						id={`${id}-name`}
-						value={typed}
-						onChange={(event) => setTyped(event.target.value)}
-					/>
-				</div>
-				<Button type="submit" size="sm" disabled={!trimmed || status === 'saving'}>
-					{t('save')}
-				</Button>
-				<Button
-					type="button"
-					size="sm"
-					variant={listOpen ? 'secondary' : 'outline'}
-					aria-expanded={listOpen}
-					onClick={() => setListOpen(!listOpen)}
-				>
-					{t('myProjects')}
-				</Button>
-				<p role="status" className="text-text-muted pb-2 text-xs">
-					{status === 'saved' && savedAt !== null
-						? t('savedAt', { time: format.dateTime(savedAt, { timeStyle: 'medium' }) })
-						: t(`status.${status}`)}
-				</p>
-			</form>
-			{listOpen && (
-				<ProjectList projects={projects} current={name} onOpen={onOpen} onDelete={onDelete} />
-			)}
+			<p role="status" className="text-text-muted text-sm">
+				{status === 'saved' && savedAt !== null
+					? t('savedAt', { time: format.dateTime(savedAt, { timeStyle: 'medium' }) })
+					: t(`status.${status}`)}
+			</p>
+			<h3 className="text-text text-xs font-bold tracking-wider uppercase">{t('myProjects')}</h3>
+			<ProjectList projects={projects} current={name} onOpen={onOpen} onDelete={onDelete} />
 		</section>
 	)
 }

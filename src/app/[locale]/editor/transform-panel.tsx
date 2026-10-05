@@ -19,6 +19,7 @@ import {
 	type PictureTransform,
 	type Size
 } from './transform'
+import { MoreInfo } from './more-info'
 
 /** Setting the picture by hand on the preview: the crop box, or the rotation handle. */
 export type TransformMode = 'crop' | 'rotate'
@@ -200,7 +201,11 @@ export function TransformPanel({
 					</>
 				)}
 			</div>
-			<p className="text-text-muted -mt-2 text-xs">{canEdit ? t('hint') : t('originalHint')}</p>
+			{canEdit ? (
+				<MoreInfo>{t('hint')}</MoreInfo>
+			) : (
+				<p className="text-text-muted -mt-2 text-xs">{t('originalHint')}</p>
+			)}
 		</section>
 	)
 }

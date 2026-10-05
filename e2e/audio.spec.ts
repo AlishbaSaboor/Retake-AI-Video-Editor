@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
-import { editCommand, mockActions, openEditorWithVideo, seekTo } from './editor-helpers'
+import { editCommand, mockActions, openEditorWithVideo, seekTo, openTool } from './editor-helpers'
 
 // A 4 s take of one steady 440 Hz tone at amplitude 0.5 (RMS 0.354), split
 // at 2 s into two clips. Levels are read from the exported file's audio:
@@ -23,15 +23,18 @@ async function openTwoClips(page: Page) {
 		.getByRole('region', { name: 'Clips' })
 		.getByRole('button', { name: 'Split at playhead' })
 		.click()
+	await openTool(page, 'Clip sound and speed')
 	await expect(clipRow(page, 2)).toBeVisible()
 	return duration
 }
 
 /** Sets a clip's volume with its slider: one change, on release. */
 async function setVolume(page: Page, n: number, percent: number) {
+	await openTool(page, 'Clip sound and speed')
 	const slider = clipRow(page, n).getByRole('slider')
 	await slider.fill(String(percent))
 	await slider.blur()
+	await openTool(page, 'Clip sound and speed')
 	await expect(clipRow(page, n)).toContainText(`Volume ${percent}%`)
 }
 
@@ -41,6 +44,7 @@ async function setFade(
 	field: 'Fade in (s)' | 'Fade out (s)',
 	seconds: number
 ) {
+	await openTool(page, 'Clip sound and speed')
 	const input = clipRow(page, n).getByLabel(field)
 	await input.fill(String(seconds))
 	await input.press('Enter')
@@ -77,6 +81,7 @@ test('a clip at 50% is 6 dB down, a muted one silent, one at 200% 6 dB up, in th
 	test.setTimeout(150_000)
 	await openTwoClips(page)
 	await setVolume(page, 1, 50)
+	await openTool(page, 'Clip sound and speed')
 	await clipRow(page, 2).getByRole('button', { name: 'Mute' }).click()
 	const [half, muted] = await exportedLevels(page, [1, 3])
 	expect(Math.abs((half ?? 0) - 0.5), `clip 1 at ${half?.toFixed(3)} of the tone`).toBeLessThan(
@@ -84,6 +89,7 @@ test('a clip at 50% is 6 dB down, a muted one silent, one at 200% 6 dB up, in th
 	)
 	expect(muted, 'clip 2 muted').toBeLessThan(0.02)
 
+	await openTool(page, 'Clip sound and speed')
 	await clipRow(page, 2).getByRole('button', { name: 'Mute' }).click()
 	await setVolume(page, 2, 200)
 	const [, double] = await exportedLevels(page, [1, 3])
@@ -94,8 +100,10 @@ test('a clip at 50% is 6 dB down, a muted one silent, one at 200% 6 dB up, in th
 	// Each change was one undo step; reset takes them all off.
 	const undo = page.getByRole('button', { name: 'Undo last change' })
 	await undo.click()
+	await openTool(page, 'Clip sound and speed')
 	await expect(clipRow(page, 2)).toContainText('Volume 100%')
 	await undo.click()
+	await openTool(page, 'Clip sound and speed')
 	await expect(clipRow(page, 2).getByRole('button', { name: 'Mute' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
@@ -103,7 +111,9 @@ test('a clip at 50% is 6 dB down, a muted one silent, one at 200% 6 dB up, in th
 	await page.getByRole('button', { name: 'Redo' }).click()
 	await page.getByRole('button', { name: 'Reset to original' }).click()
 	await page.getByRole('button', { name: 'Reset', exact: true }).click()
+	await openTool(page, 'Clip sound and speed')
 	await expect(clipRow(page, 1)).toContainText('Volume 100%')
+	await openTool(page, 'Clip sound and speed')
 	await expect(clipRow(page, 2)).toHaveCount(0)
 })
 
@@ -194,6 +204,7 @@ test('mute, fade and louder work as typed commands, each confirmed first and one
 		await expect(reply).toHaveCount(0)
 	}
 	await run('mute clip 2', { action: 'mute', fromClip: 2 }, "I'll mute clip 2.")
+	await openTool(page, 'Clip sound and speed')
 	await expect(clipRow(page, 2).getByRole('button', { name: 'Mute' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
@@ -203,19 +214,24 @@ test('mute, fade and louder work as typed commands, each confirmed first and one
 		{ action: 'fade_out', seconds: 2 },
 		"I'll fade clip 2 out over its last 2 s."
 	)
+	await openTool(page, 'Clip sound and speed')
 	await expect(clipRow(page, 2).getByLabel('Fade out (s)')).toHaveValue('2')
 	await run(
 		'make it louder',
 		{ action: 'louder' },
 		"I'll make the whole video louder (×1.5, up to 200%)."
 	)
+	await openTool(page, 'Clip sound and speed')
 	await expect(clipRow(page, 1)).toContainText('Volume 150%')
+	await openTool(page, 'Clip sound and speed')
 	await expect(clipRow(page, 2)).toContainText('Volume 150%')
 	const undo = page.getByRole('button', { name: 'Undo last change' })
 	for (let i = 0; i < 3; i++) await undo.click()
+	await openTool(page, 'Clip sound and speed')
 	await expect(clipRow(page, 2).getByRole('button', { name: 'Mute' })).toHaveAttribute(
 		'aria-pressed',
 		'false'
 	)
+	await openTool(page, 'Clip sound and speed')
 	await expect(clipRow(page, 1)).toContainText('Volume 100%')
 })
