@@ -2,13 +2,33 @@ import { getTranslations } from 'next-intl/server'
 import { Button } from '@/components/ui/button'
 import { ArrowRightIcon } from '@/components/ui/icons'
 import { EditorPreview } from '@/components/site/editor-preview'
-import { FaqSection, FeaturesSection, HowItWorksSection } from '@/components/site/landing-sections'
+import {
+	FaqSection,
+	FeaturesSummary,
+	HowItWorksSummary,
+	SectionHeading
+} from '@/components/site/landing-sections'
+import { RetakeDemo } from '@/components/site/retake-demo'
 import { Link } from '@/i18n/routing'
-import { ContactForm } from './contact/contact-form'
+
+// Who Retake is for: recordings people already have.
+const AUDIENCE = ['teach', 'demo', 'talk', 'team'] as const
+
+/** The Start a project button: the one way in, wherever it shows on the page. */
+async function StartButton() {
+	const t = await getTranslations('Site.landing')
+	return (
+		<Button asChild size="lg">
+			<Link href="/home">
+				{t('start')}
+				<ArrowRightIcon />
+			</Link>
+		</Button>
+	)
+}
 
 export default async function LandingPage() {
 	const t = await getTranslations('Site.landing')
-	const tc = await getTranslations('Site.contact')
 	return (
 		<main>
 			<section className="relative overflow-hidden">
@@ -29,14 +49,9 @@ export default async function LandingPage() {
 							{t('description')}
 						</p>
 						<div className="flex flex-wrap gap-3">
-							<Button asChild size="lg">
-								<Link href="/home">
-									{t('start')}
-									<ArrowRightIcon />
-								</Link>
-							</Button>
+							<StartButton />
 							<Button asChild size="lg" variant="outline">
-								<a href="#how-it-works">{t('howItWorks')}</a>
+								<Link href="/how-it-works">{t('howItWorks')}</Link>
 							</Button>
 						</div>
 					</div>
@@ -45,23 +60,57 @@ export default async function LandingPage() {
 			</section>
 
 			<div className="mx-auto flex max-w-6xl flex-col gap-24 px-4 py-20 md:px-6">
-				<HowItWorksSection />
-				<FeaturesSection />
-				<section aria-labelledby="contact" className="grid gap-10 lg:grid-cols-[1fr_1.2fr]">
-					<div className="flex max-w-xl flex-col gap-3">
-						<p className="text-accent font-mono text-xs font-medium tracking-widest uppercase">
-							{tc('eyebrow')}
-						</p>
-						<h2
-							id="contact"
-							className="font-display text-text text-3xl font-bold tracking-tight md:text-4xl"
-						>
-							{tc('title')}
-						</h2>
-						<p className="text-text-muted leading-relaxed">{tc('description')}</p>
-					</div>
-					<ContactForm />
+				<HowItWorksSummary />
+
+				<section
+					aria-labelledby="demo"
+					className="grid items-center gap-10 lg:grid-cols-[1fr_1.1fr]"
+				>
+					<SectionHeading
+						id="demo"
+						eyebrow={t('demo.eyebrow')}
+						title={t('demo.title')}
+						description={t('demo.body')}
+					/>
+					<RetakeDemo />
 				</section>
+
+				<FeaturesSummary />
+
+				<section aria-labelledby="audience" className="flex flex-col gap-8">
+					<SectionHeading
+						id="audience"
+						eyebrow={t('audience.eyebrow')}
+						title={t('audience.title')}
+					/>
+					<ul className="grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">
+						{AUDIENCE.map((key) => (
+							<li key={key} className="border-border flex flex-col gap-1 border-t pt-4">
+								<h3 className="text-text font-semibold">{t(`audience.${key}.title`)}</h3>
+								<p className="text-text-muted text-sm leading-relaxed">
+									{t(`audience.${key}.body`)}
+								</p>
+							</li>
+						))}
+					</ul>
+				</section>
+
+				<section
+					aria-labelledby="start"
+					className="border-border bg-surface flex flex-col items-start gap-5 rounded-lg border p-8 md:flex-row md:items-center md:justify-between md:p-10"
+				>
+					<div className="flex max-w-xl flex-col gap-2">
+						<h2
+							id="start"
+							className="font-display text-text text-2xl font-bold tracking-tight md:text-3xl"
+						>
+							{t('closing.title')}
+						</h2>
+						<p className="text-text-muted">{t('closing.body')}</p>
+					</div>
+					<StartButton />
+				</section>
+
 				<FaqSection />
 			</div>
 		</main>
