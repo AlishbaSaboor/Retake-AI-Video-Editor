@@ -296,12 +296,28 @@ test('captions follow the edited video in the preview and the export, and switch
 		.getByRole('region', { name: 'Captions' })
 		.getByRole('button', { name: 'Captions' })
 	const caption = (text: string) => titleOver(page, text)
-	const expectCaptions = (frames: Frame[], shown: boolean[]) => {
-		for (const [index, frame] of frames.entries()) {
+	/**
+	 * Captions on in `spoken` stretches of the export, off elsewhere: each
+	 * frame judged by the time it really shows (export-frames.ts), only where
+	 * it's surely inside a stretch or surely outside them all.
+	 */
+	const expectCaptions = (frames: Frame[], spoken: Array<[number, number]>) => {
+		let inside = 0
+		for (const frame of frames) {
 			const label = `caption at ${frame.shown} s: ${frame.captionWhite} white px`
-			if (shown[index]) expect(frame.captionWhite, label).toBeGreaterThan(15)
-			else expect(frame.captionWhite, label).toBe(0)
+			const on = spoken.some(
+				([from, to]) => surelyAfter(frame.shown, from) && surelyBefore(frame.shown, to)
+			)
+			const off = spoken.every(
+				([from, to]) => surelyBefore(frame.shown, from) || surelyAfter(frame.shown, to)
+			)
+			if (on) {
+				inside++
+				expect(frame.captionWhite, label).toBeGreaterThan(15)
+			}
+			if (off) expect(frame.captionWhite, label).toBe(0)
 		}
+		if (spoken.length > 0) expect(inside, 'a frame surely inside a sentence').toBeGreaterThan(0)
 	}
 
 	// Off by default: nothing in the preview or the export.
@@ -324,17 +340,20 @@ test('captions follow the edited video in the preview and the export, and switch
 	await expect(caption('Second line.')).toHaveCount(0)
 	await page.getByRole('button', { name: 'Edited', exact: true }).click()
 	await expect(caption('Second line.')).toBeVisible()
-	expectCaptions((await exportFrames(page, [0.7, 1.7, 2.7])).frames, [true, false, true])
+	expectCaptions((await exportFrames(page, [0.6, 0.7, 0.8, 1.7, 2.6, 2.7, 2.8])).frames, [
+		[0.2, 1.1],
+		[2.3, 3.1]
+	])
 
 	// Trim the first second away: its words go, the second sentence moves up 1 s.
 	await page.getByRole('slider', { name: 'Trim start' }).press('Shift+ArrowRight')
-	expectCaptions((await exportFrames(page, [0.5, 1.7])).frames, [false, true])
+	expectCaptions((await exportFrames(page, [0.5, 1.6, 1.7, 1.8])).frames, [[1.3, 2.1]])
 	await page.getByRole('button', { name: 'Undo last change' }).click()
 
 	// Off is one step: the export has no captions; Undo turns them back on.
 	await toggle.click()
 	await expect(toggle).toHaveAttribute('aria-pressed', 'false')
-	expectCaptions((await exportFrames(page, [0.7, 2.7])).frames, [false, false])
+	expectCaptions((await exportFrames(page, [0.7, 2.7])).frames, [])
 	await page.getByRole('button', { name: 'Undo last change' }).click()
 	await expect(toggle).toHaveAttribute('aria-pressed', 'true')
 	await page.getByRole('button', { name: 'Redo' }).click()
@@ -356,6 +375,7 @@ test('captions follow the edited video in the preview and the export, and switch
 	const reply = page.getByRole('status').filter({ hasText: 'You asked' })
 	await expect(reply).toContainText("I'll turn captions on, from the transcript.")
 	await reply.getByRole('button', { name: 'Apply' }).click()
+	await openTool(page, 'Captions')
 	await expect(toggle).toHaveAttribute('aria-pressed', 'true')
 	await seekTo(page, 0.7)
 	await expect(caption('Hello there.')).toBeVisible()

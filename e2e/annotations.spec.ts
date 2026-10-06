@@ -48,12 +48,18 @@ async function rectOf(item: Locator) {
 	})
 }
 
-const lanePosition = async (page: Page, name: string) => ({
-	start: Number(
-		await page.getByRole('slider', { name: `${name} start` }).getAttribute('aria-valuenow')
-	),
-	end: Number(await page.getByRole('slider', { name: `${name} end` }).getAttribute('aria-valuenow'))
-})
+/** An item's bar in the Annotate tool's lane (the tool opened first: it shares the panel). */
+const lanePosition = async (page: Page, name: string) => {
+	await openTool(page, 'Annotations')
+	return {
+		start: Number(
+			await page.getByRole('slider', { name: `${name} start` }).getAttribute('aria-valuenow')
+		),
+		end: Number(
+			await page.getByRole('slider', { name: `${name} end` }).getAttribute('aria-valuenow')
+		)
+	}
+}
 
 /** Drags an item's end handle in the lane to `seconds` of the edited video. */
 async function dragEndTo(page: Page, name: string, seconds: number, editedSeconds: number) {
@@ -195,8 +201,8 @@ test('boxes and blurs drawn on the preview show only in their time, in the previ
 
 	// The preview really blurs: no sharp square edge on the row under it, but
 	// the square still shows through. Before the blur, the edge is sharp.
-	// Measured with the tool panel folded away, the player at its usual width.
-	await page.getByRole('button', { name: 'Close the panel' }).click()
+	// Measured with the tool panel hidden, the player at its usual width.
+	await page.getByRole('button', { name: 'Hide the tool panel' }).click()
 	const previewBlurred = await previewReading(page, boxCentre)
 	await seekTo(page, blur.start - 0.4)
 	await expect(shownItems(page, 'blur')).toHaveCount(0)

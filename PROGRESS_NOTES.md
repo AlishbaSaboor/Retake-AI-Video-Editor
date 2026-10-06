@@ -2036,6 +2036,34 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
   heard"), the contact form on a cold compile, a projects reload export.
   Recorded in 4c.
 
+## 3za. A calmer site and editor (2026-10-06)
+
+- **Header:** signed out, only Retake, How it works, Features, Contact us
+  and Sign in (no theme switch); signed in, only New project, Projects, the
+  theme switch and Sign out.
+- **Landing page:** a new hero, How it works (four steps), Features (asking
+  for edits, the timeline, motion graphics, re-recording a sentence), the
+  contact form, and Frequently asked questions (seven `<details>` rows: a
+  click opens the answer, another closes it). The How it works and Features
+  pages render the same sections (`components/site/landing-sections.tsx`).
+  Every claim is about something the app does.
+- **Contact us:** Email and Message only. `ContactMessage.name` is now
+  optional (older messages keep theirs); CI generates the migration.
+- **Editor:** one panel on the left. The Assistant and the Transcript are
+  tools on its rail with the others (the Assistant open to begin with,
+  "Edit by hand" opening on the Transcript); the right column is gone. One
+  tool is always open; the panel hides and shows only from a small icon on
+  the left edge ("Hide the tool panel"), remembered as before. Hide panels,
+  Show tools and chat and the panel's close button are gone. Inside the
+  panel, labels, legends, sub-headings, buttons and fields are a size
+  smaller and quieter, help lines are one short sentence, and the outer
+  cards around each tool's fields are gone. The chat's empty state lost its
+  icon and heading (the panel already names it).
+- **Tests run:** site, home, editor-layout, annotations, the typed-command
+  and chat tests, and the transcript and re-record tests. `openTool` shows
+  the panel first if it's hidden; tests that read a tool's fields after a
+  typed command open that tool first (it shares the panel with the chat).
+
 ---
 
 ## 4. Unresolved issues

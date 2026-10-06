@@ -40,7 +40,6 @@ async function splitAt(page: Page, seconds: number) {
 async function setSpeed(page: Page, n: number, speed: number) {
 	await openTool(page, 'Clip sound and speed')
 	const input = clipRow(page, n).getByLabel('Speed (×)')
-	await openTool(page, 'Assistant')
 	await input.fill(String(speed))
 	await input.press('Enter')
 	await expect(
@@ -303,21 +302,24 @@ test('clip speed works as a typed command, confirmed first and one undo step eac
 		await reply.getByRole('button', { name: 'Apply' }).click()
 		await expect(reply).toHaveCount(0)
 	}
-	await openTool(page, 'Clip sound and speed')
-	const speed = (n: number) => clipRow(page, n).getByLabel('Speed (×)')
+	// The field's tool opened first: it shares the panel with the assistant.
+	const speed = async (n: number) => {
+		await openTool(page, 'Clip sound and speed')
+		return clipRow(page, n).getByLabel('Speed (×)')
+	}
 	await run(
 		'make clip 2 play at 2x',
 		{ action: 'clip_speed', rate: 2, fromClip: 2 },
 		"I'll make clip 2 play at 2×, in the preview and the export, its pitch kept."
 	)
-	await expect(speed(2)).toHaveValue('2')
-	await expect(speed(1)).toHaveValue('1')
+	await expect(await speed(2)).toHaveValue('2')
+	await expect(await speed(1)).toHaveValue('1')
 	await run(
 		'slow the last clip to half speed',
 		{ action: 'clip_speed', rate: 0.5, fromClip: 2 },
 		"I'll make clip 2 play at 0.5×"
 	)
-	await expect(speed(2)).toHaveValue('0.5')
+	await expect(await speed(2)).toHaveValue('0.5')
 
 	// Out of range is refused, nothing changes.
 	await mockActions(page, {
@@ -332,7 +334,7 @@ test('clip speed works as a typed command, confirmed first and one undo step eac
 
 	const undo = page.getByRole('button', { name: 'Undo last change' })
 	await undo.click()
-	await expect(speed(2)).toHaveValue('2')
+	await expect(await speed(2)).toHaveValue('2')
 	await undo.click()
-	await expect(speed(2)).toHaveValue('1')
+	await expect(await speed(2)).toHaveValue('1')
 })

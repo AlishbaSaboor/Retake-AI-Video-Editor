@@ -144,32 +144,22 @@ export function CommandBar({
 
 	return (
 		<section aria-label={t('chat.label')} className="flex h-full min-h-0 flex-col">
-			<div className="relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+			<div className="relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 pb-4">
 				{entries.length === 0 && !thinking ? (
-					// Empty: what the chat is for, and a few things to try, filling the space.
-					<div className="flex flex-1 flex-col justify-center gap-5 px-1 py-4">
-						<div className="flex flex-col items-start gap-3">
-							<span
-								aria-hidden
-								className="bg-accent-soft text-accent flex size-11 items-center justify-center rounded-lg"
-							>
-								<SparkleIcon size={22} />
-							</span>
-							<h2 className="font-display text-text text-lg font-semibold">{t('chat.title')}</h2>
-							<p className="text-text-muted text-sm leading-relaxed">{t('chat.intro')}</p>
-						</div>
-						<div className="flex flex-col gap-2">
-							<p className="text-text-faint text-xs font-medium tracking-wide uppercase">
-								{t('chat.examples')}
-							</p>
+					// Empty: what the chat is for, and a few things to try. The panel
+					// above already says what it is, so no heading of its own.
+					<div className="flex flex-col gap-5">
+						<p className="text-text-muted text-xs leading-relaxed">{t('chat.intro')}</p>
+						<div className="flex flex-col gap-1">
+							<p className="text-text-faint pb-1 text-[11px]">{t('chat.examples')}</p>
 							{EXAMPLES.map(({ key, icon: Icon }) => (
 								<button
 									key={key}
 									type="button"
 									onClick={() => setCommand(t(`chat.example.${key}`))}
-									className="border-border bg-surface-inset text-text hover:border-accent focus-visible:outline-accent flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors focus-visible:outline-2"
+									className="text-text-muted hover:bg-surface-hover hover:text-text focus-visible:outline-accent flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors focus-visible:outline-2"
 								>
-									<Icon size={16} className="text-accent shrink-0" />
+									<Icon size={14} className="text-text-faint shrink-0" />
 									{t(`chat.example.${key}`)}
 								</button>
 							))}

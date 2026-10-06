@@ -19,10 +19,9 @@ const navLink =
 	'text-text-muted hover:text-text hover:bg-surface-hover focus-visible:outline-accent inline-flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-2'
 
 /**
- * The top bar on every page. Signed-out visitors see the site's pages and a
- * way in; signed-in ones the app's (a new project, saved projects). The theme
- * switch is in both. `app`: the signed-in pages' links only; `wide`: full
- * width, for the editor.
+ * The top bar on every page. Signed-out visitors see the site's pages and
+ * Sign in; signed-in ones only the app's (a new project, saved projects),
+ * the theme switch and Sign out. `wide`: full width.
  */
 export async function SiteHeader({ app = false, wide = false }: { app?: boolean; wide?: boolean }) {
 	const t = await getTranslations('Site.nav')
@@ -31,22 +30,19 @@ export async function SiteHeader({ app = false, wide = false }: { app?: boolean;
 		{ href: '/home', key: 'newProject', icon: <HomeIcon /> },
 		{ href: '/projects', key: 'projects', icon: <ProjectsIcon /> }
 	] as const
-	const links = (
-		<>
-			{(app ? [] : PUBLIC_LINKS).map(({ href, key }) => (
+	const signedIn = app || user !== null
+	const links = signedIn
+		? appLinks.map(({ href, key, icon }) => (
+				<Link key={href} href={href} className={navLink}>
+					{icon}
+					{t(key)}
+				</Link>
+			))
+		: PUBLIC_LINKS.map(({ href, key }) => (
 				<Link key={href} href={href} className={navLink}>
 					{t(key)}
 				</Link>
-			))}
-			{(app || user) &&
-				appLinks.map(({ href, key, icon }) => (
-					<Link key={href} href={href} className={navLink}>
-						{icon}
-						{t(key)}
-					</Link>
-				))}
-		</>
-	)
+			))
 	const account = user ? (
 		<SignOutButton email={user.email} />
 	) : (
@@ -76,7 +72,7 @@ export async function SiteHeader({ app = false, wide = false }: { app?: boolean;
 					{links}
 				</nav>
 				<div className="ml-auto flex items-center gap-2">
-					<ThemeToggle />
+					{signedIn && <ThemeToggle />}
 					<div className="hidden md:block">{account}</div>
 					<MobileMenu
 						summary={
