@@ -2573,6 +2573,12 @@ now a matrix of four shards (`--shard=n/4`), each on its own runner with
 `--workers=1`, so no two tests share a CPU and the wall time stays about
 the same. Retries stay at two. Locally the config still runs four workers.
 
+The first run with the shards had no flaky failures at all, and one real
+one the noise had been hiding: a logo attached in the chat switched the
+shared tool panel to Text & logo, hiding the chat's "Using logo.jpg as the
+logo." (`logo.spec.ts`). A logo from the chat now leaves the chat open; it
+is still on the video, picked.
+
 ### 4d. Low memory on this machine (observed 2026-10-02)
 
 - The machine has 7.5 GB of RAM. With many apps open (Edge WebView2 apps,
