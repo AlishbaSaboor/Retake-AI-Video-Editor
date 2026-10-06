@@ -41,7 +41,6 @@ export function ContactForm() {
 				setError(null)
 				startTransition(async () => {
 					const result = await sendContactMessage({
-						name: form.get('name'),
 						email: form.get('email'),
 						message: form.get('message')
 					})
@@ -50,22 +49,16 @@ export function ContactForm() {
 				})
 			}}
 		>
-			<div className="grid gap-5 sm:grid-cols-2">
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="contact-name">{t('name')}</Label>
-					<Input id="contact-name" name="name" required maxLength={100} autoComplete="name" />
-				</div>
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="contact-email">{t('email')}</Label>
-					<Input
-						id="contact-email"
-						name="email"
-						type="email"
-						required
-						maxLength={254}
-						autoComplete="email"
-					/>
-				</div>
+			<div className="flex flex-col gap-2">
+				<Label htmlFor="contact-email">{t('email')}</Label>
+				<Input
+					id="contact-email"
+					name="email"
+					type="email"
+					required
+					maxLength={254}
+					autoComplete="email"
+				/>
 			</div>
 			<div className="flex flex-col gap-2">
 				<Label htmlFor="contact-message">{t('message')}</Label>

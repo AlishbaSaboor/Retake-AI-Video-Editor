@@ -1,26 +1,14 @@
 import { getTranslations } from 'next-intl/server'
 import { Button } from '@/components/ui/button'
-import {
-	AiIcon,
-	ArrowRightIcon,
-	CleanupIcon,
-	MicIcon,
-	ProjectsIcon,
-	SplitIcon
-} from '@/components/ui/icons'
+import { ArrowRightIcon } from '@/components/ui/icons'
 import { EditorPreview } from '@/components/site/editor-preview'
+import { FaqSection, FeaturesSection, HowItWorksSection } from '@/components/site/landing-sections'
 import { Link } from '@/i18n/routing'
-
-const HIGHLIGHTS = [
-	{ key: 'type', icon: AiIcon },
-	{ key: 'cleanup', icon: CleanupIcon },
-	{ key: 'rerecord', icon: MicIcon },
-	{ key: 'hand', icon: SplitIcon },
-	{ key: 'saved', icon: ProjectsIcon }
-] as const
+import { ContactForm } from './contact/contact-form'
 
 export default async function LandingPage() {
 	const t = await getTranslations('Site.landing')
+	const tc = await getTranslations('Site.contact')
 	return (
 		<main>
 			<section className="relative overflow-hidden">
@@ -48,7 +36,7 @@ export default async function LandingPage() {
 								</Link>
 							</Button>
 							<Button asChild size="lg" variant="outline">
-								<Link href="/how-it-works">{t('howItWorks')}</Link>
+								<a href="#how-it-works">{t('howItWorks')}</a>
 							</Button>
 						</div>
 					</div>
@@ -56,39 +44,26 @@ export default async function LandingPage() {
 				</div>
 			</section>
 
-			<section className="border-border bg-surface-inset border-y">
-				<div className="mx-auto grid max-w-6xl gap-px px-4 py-14 sm:grid-cols-2 md:px-6 lg:grid-cols-5">
-					{HIGHLIGHTS.map(({ key, icon: Icon }) => (
-						<div key={key} className="flex flex-col gap-3 p-4">
-							<span className="bg-accent-soft text-accent flex size-10 items-center justify-center rounded-lg">
-								<Icon size={20} />
-							</span>
-							<h2 className="text-text font-semibold">{t(`highlights.${key}.title`)}</h2>
-							<p className="text-text-muted text-sm leading-relaxed">
-								{t(`highlights.${key}.body`)}
-							</p>
-						</div>
-					))}
-				</div>
-			</section>
-
-			<section className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-4 py-20 text-center md:px-6">
-				<h2 className="font-display text-text max-w-2xl text-3xl font-bold tracking-tight text-balance md:text-4xl">
-					{t('closing.title')}
-				</h2>
-				<p className="text-text-muted max-w-xl text-pretty">{t('closing.body')}</p>
-				<div className="flex flex-wrap justify-center gap-3">
-					<Button asChild size="lg">
-						<Link href="/home">
-							{t('start')}
-							<ArrowRightIcon />
-						</Link>
-					</Button>
-					<Button asChild size="lg" variant="ghost">
-						<Link href="/features">{t('seeFeatures')}</Link>
-					</Button>
-				</div>
-			</section>
+			<div className="mx-auto flex max-w-6xl flex-col gap-24 px-4 py-20 md:px-6">
+				<HowItWorksSection />
+				<FeaturesSection />
+				<section aria-labelledby="contact" className="grid gap-10 lg:grid-cols-[1fr_1.2fr]">
+					<div className="flex max-w-xl flex-col gap-3">
+						<p className="text-accent font-mono text-xs font-medium tracking-widest uppercase">
+							{tc('eyebrow')}
+						</p>
+						<h2
+							id="contact"
+							className="font-display text-text text-3xl font-bold tracking-tight md:text-4xl"
+						>
+							{tc('title')}
+						</h2>
+						<p className="text-text-muted leading-relaxed">{tc('description')}</p>
+					</div>
+					<ContactForm />
+				</section>
+				<FaqSection />
+			</div>
 		</main>
 	)
 }

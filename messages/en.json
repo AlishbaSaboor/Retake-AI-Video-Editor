@@ -729,68 +729,76 @@
 			"rail": {
 				"cleanup": {
 					"label": "Clean up",
-					"help": "Remove silences and filler words in one click.",
+					"help": "Remove silences and filler words.",
 					"keywords": "remove silences filler words ums uhs pauses tidy cut"
 				},
 				"captions": {
 					"label": "Captions",
-					"help": "Show what's said as captions, and choose how they look.",
+					"help": "Captions from the transcript.",
 					"keywords": "subtitles words text bottom style"
 				},
 				"text": {
 					"label": "Text & logo",
-					"help": "Add a title, text or your logo.",
+					"help": "A title, text or your logo.",
 					"keywords": "title text logo watermark lower third name font words"
 				},
 				"annotate": {
 					"label": "Annotate",
-					"help": "Box, blur or pixelate part of the picture, or draw on it.",
+					"help": "Boxes, blurs and drawings.",
 					"keywords": "draw pencil box blur pixelate hide cover eraser mark"
 				},
 				"audio": {
 					"label": "Audio",
-					"help": "Add music or a voice-over, or take a clip's sound out to its own lane.",
+					"help": "Music, voice-over, or a clip’s own sound.",
 					"keywords": "music voice-over soundtrack track lane add audio file extract"
 				},
 				"videos": {
 					"label": "Videos",
-					"help": "Add more videos after this one, or replace it.",
+					"help": "Add videos, or replace the first.",
 					"keywords": "add video clip another file replace"
 				},
 				"frame": {
 					"label": "Frame",
-					"help": "Crop, turn or flip the picture, and zoom in on part of it.",
+					"help": "Crop, turn, flip and zoom.",
 					"keywords": "crop rotate turn flip mirror size aspect zoom push in pull out magnify"
 				},
 				"colour": {
 					"label": "Colour",
-					"help": "Brightness, contrast and colour, for the whole video or one clip.",
+					"help": "Brightness, contrast and colour.",
 					"keywords": "color brightness contrast saturation black white warm cool look grade"
 				},
 				"speed": {
 					"label": "Speed & fades",
-					"help": "Each clip's speed, volume and fades.",
+					"help": "Speed, volume and fades per clip.",
 					"keywords": "speed slow fast volume mute fade in out loud quiet sound"
 				},
 				"transitions": {
 					"label": "Transitions",
-					"help": "How each clip leads into the next: a cut, a fade or a dissolve.",
+					"help": "Cuts, fades and dissolves between clips.",
 					"keywords": "fade dissolve black between clips join"
 				},
 				"project": {
 					"label": "Project",
-					"help": "Whether this edit is saved, and your other projects.",
+					"help": "Save status and your other projects.",
 					"keywords": "save name open my projects autosave"
+				},
+				"assistant": {
+					"label": "Assistant",
+					"help": "Type or say an edit. You check it before it applies.",
+					"keywords": "ai chat ask command type speak voice gemini"
+				},
+				"transcript": {
+					"label": "Transcript",
+					"help": "What is said. Click a sentence to go to it.",
+					"keywords": "words text sentences re-record retake speech pauses filler"
 				}
 			}
 		},
 		"layout": {
 			"toolbar": "Editor toolbar",
 			"back": "Back to Home",
-			"hidePanels": "Hide panels",
-			"showPanels": "Show panels",
-			"showToolsAndChat": "Show tools and chat",
-			"chatWaits": "The assistant is ready once a video is in."
+			"hidePanel": "Hide the tool panel",
+			"showPanel": "Show the tool panel"
 		},
 		"leave": {
 			"title": "Leave without saving?",
@@ -843,18 +851,11 @@
 			"newTitle": "Your title",
 			"newText": "Your text"
 		},
-		"side": {
-			"label": "Assistant and transcript",
-			"assistant": "Assistant",
-			"transcript": "Transcript",
-			"sentences": "{count, plural, one {# sentence} other {# sentences}}"
-		},
 		"original": {
 			"title": "Original — view only.",
 			"body": "This is your recording as it came in. Switch to Edited to make changes.",
 			"switch": "Switch to Edited",
-			"toolsNote": "You're looking at the original. Nothing can be changed here: switch to Edited to edit.",
-			"chatNote": "You're looking at the original. Switch to Edited to ask for changes."
+			"toolsNote": "You're looking at the original. Nothing can be changed here: switch to Edited to edit."
 		},
 		"videoTools": {
 			"label": "On the video",
@@ -878,7 +879,7 @@
 			"howItWorks": "How it works",
 			"features": "Features",
 			"contact": "Contact us",
-			"signIn": "Log in / Sign up",
+			"signIn": "Sign in",
 			"signOut": "Sign out",
 			"newProject": "New project",
 			"projects": "Projects"
@@ -893,12 +894,11 @@
 			"tagline": "Fix the flaws in a recording without starting over — by typing, speaking, or by hand."
 		},
 		"landing": {
-			"badge": "A video editor you can talk to",
-			"title": "Fix the take. Keep the moment.",
-			"description": "Retake removes the ums, long pauses and fluffed lines from a recording. Say what you want changed, check what Retake understood, and apply it — or edit by hand on the timeline.",
+			"badge": "For recordings you already have",
+			"title": "Fix the take. Keep the recording.",
+			"description": "Retake edits videos you have already recorded. Say what to change, or edit on the timeline. Say one sentence again and Retake splices it back in.",
 			"start": "Start a project",
 			"howItWorks": "How it works",
-			"seeFeatures": "See every feature",
 			"preview": {
 				"file": "interview-final.mp4",
 				"ask": "Remove the ums and the long pause after the intro",
@@ -909,140 +909,51 @@
 				"typeHere": "Type or speak a command",
 				"caption": "so here’s what we found",
 				"saved": "Saved"
-			},
-			"highlights": {
-				"type": {
-					"title": "Edit by asking",
-					"body": "Type or speak what you want. Retake shows what it understood before anything changes."
-				},
-				"cleanup": {
-					"title": "Clean up in one go",
-					"body": "Filler words and long silences found in the audio and cut at the real gaps."
-				},
-				"rerecord": {
-					"title": "Re-record a sentence",
-					"body": "Say one line again and splice it in, with the rest of the take untouched."
-				},
-				"hand": {
-					"title": "Or do it by hand",
-					"body": "Split, trim, reorder and speed up clips; crop, zoom, draw and place text on the picture."
-				},
-				"saved": {
-					"title": "Saved as you go",
-					"body": "Projects stay in your browser and reopen exactly where you left them."
-				}
-			},
-			"closing": {
-				"title": "Your next video is one good take away.",
-				"body": "Start with a recording you already have. Retake does the fiddly part."
 			}
 		},
 		"howItWorks": {
 			"metaTitle": "How it works",
 			"eyebrow": "How it works",
-			"title": "From rough take to finished video in four steps",
-			"description": "Retake is built around one idea: you say what you want, you see what will happen, and only then does anything change.",
+			"title": "From recording to finished video",
 			"steps": {
-				"start": {
-					"title": "Start a project",
-					"body": "On your home page, attach a video, or drop it on the box. You can type or speak a first command with it; the editor opens as soon as the video is in."
+				"add": {
+					"title": "Add your video",
+					"body": "Upload a recording. Retake writes a transcript and flags long pauses and filler words."
 				},
 				"ask": {
-					"title": "Ask for a change",
-					"body": "In the editor, type or speak an edit like “remove the long pauses” or “add a title that says Welcome”. Retake replies with what it understood, with Apply changes and Cancel. Nothing changes until you apply."
+					"title": "Say what to change",
+					"body": "Type or speak an edit. Retake shows what it understood. Apply it, or cancel."
 				},
 				"hand": {
-					"title": "Fine-tune by hand",
-					"body": "Every change can be made by hand too: on the timeline (split, trim, reorder, speed), on the picture (crop, zoom, logo, text, pencil) and in the tool panels. Undo and redo cover all of it."
+					"title": "Adjust by hand",
+					"body": "Trim, split and reorder clips on the timeline. Add titles, text and transitions."
 				},
-				"finish": {
-					"title": "Save and export",
-					"body": "Save the project to come back later, and export the finished video as a file, with captions, graphics and sound as you set them."
+				"export": {
+					"title": "Export",
+					"body": "Download the finished video. Save the project to keep working later."
 				}
-			},
-			"privacy": {
-				"title": "What leaves your computer",
-				"browser": {
-					"title": "Your videos stay in your browser",
-					"body": "Editing, previews and export all run on your computer. Saved projects are kept in this browser."
-				},
-				"speech": {
-					"title": "Speech is transcribed by Deepgram",
-					"body": "To find filler words, and to understand spoken commands, the audio is sent to Deepgram for a transcript."
-				},
-				"commands": {
-					"title": "Commands are read by Gemini",
-					"body": "A typed or spoken command is sent as text to Google’s Gemini to work out the edit. Your video isn’t."
-				}
-			},
-			"cta": "Start a project"
+			}
 		},
 		"features": {
 			"metaTitle": "Features",
 			"eyebrow": "Features",
-			"title": "Everything you need to fix a recording",
-			"description": "Each tool works from a command or by hand, previews instantly, and comes out the same in the export.",
-			"groups": {
-				"commands": {
-					"title": "Commands",
-					"items": {
-						"0": "Type or speak an edit in plain English",
-						"1": "See what Retake understood, then apply or cancel",
-						"2": "Undo, redo and start over, as commands too"
-					}
+			"title": "What Retake does",
+			"items": {
+				"ai": {
+					"title": "Edit by asking",
+					"body": "Say what you want, like “remove the long pauses”. Check what Retake understood, then apply it. Undo works as usual."
 				},
-				"cut": {
-					"title": "Cut and clean up",
-					"items": {
-						"0": "Remove filler words and long silences in one step",
-						"1": "Trim the start and end",
-						"2": "Re-record a single sentence and splice it in",
-						"3": "Set a join by ear where there’s no clean pause"
-					}
-				},
-				"clips": {
-					"title": "Clips",
-					"items": {
-						"0": "Split, merge, reorder, duplicate and delete",
-						"1": "Speed a clip up or down, pitch kept",
-						"2": "Fade through black or dissolve between clips",
-						"3": "Add more videos to the same project"
-					}
-				},
-				"picture": {
-					"title": "Picture",
-					"items": {
-						"0": "Crop, rotate and flip",
-						"1": "Push-in and pull-out zooms",
-						"2": "Brightness, contrast, saturation and looks",
-						"3": "Pixelate or blur part of the picture"
-					}
+				"timeline": {
+					"title": "Edit on the timeline",
+					"body": "Split, trim, reorder, merge and speed up clips. Crop, zoom and colour the picture. Set volume and fades."
 				},
 				"graphics": {
-					"title": "Text and graphics",
-					"items": {
-						"0": "Title card and lower third that slide, fade or pop",
-						"1": "Automatic captions from the transcript",
-						"2": "Your logo, placed and sized by hand",
-						"3": "Boxes, text and a pencil drawn on the video"
-					}
+					"title": "Motion graphics",
+					"body": "Titles and text that slide, fade or pop in. Captions from the transcript, a lower third, your logo, and fades or dissolves between clips."
 				},
-				"sound": {
-					"title": "Sound",
-					"items": {
-						"0": "Volume, mute and fades per clip",
-						"1": "An audio lane for music and voice-over",
-						"2": "Flags for clipping, quiet speech and loud background",
-						"3": "Take a clip’s sound out onto its own track"
-					}
-				},
-				"projects": {
-					"title": "Projects and export",
-					"items": {
-						"0": "Save projects and reopen them later",
-						"1": "Autosave after every change once saved",
-						"2": "Export a finished video file"
-					}
+				"rerecord": {
+					"title": "Re-record one sentence",
+					"body": "Pick a sentence in the transcript and say it again. Retake splices the new take in where the old one was."
 				}
 			}
 		},
@@ -1050,15 +961,14 @@
 			"metaTitle": "Contact us",
 			"eyebrow": "Contact us",
 			"title": "Talk to us",
-			"description": "Questions, ideas or something not working? Send a message and it reaches the team.",
+			"description": "Questions, ideas or something not working? Send us a message.",
 			"form": {
-				"name": "Name",
 				"email": "Email",
 				"message": "Message",
 				"send": "Send message",
-				"invalid": "Check your name, email and message, then try again.",
+				"invalid": "Check your email and message, then try again.",
 				"sentTitle": "Message sent",
-				"sentBody": "Thanks — we’ve got it.",
+				"sentBody": "Thanks, we have it.",
 				"another": "Send another"
 			}
 		},
@@ -1147,6 +1057,40 @@
 			"keep": "Keep it",
 			"deleteYes": "Delete project",
 			"deleteFailed": "Couldn’t delete the project"
+		},
+		"faq": {
+			"eyebrow": "FAQ",
+			"title": "Frequently asked questions",
+			"items": {
+				"what": {
+					"question": "What does Retake do?",
+					"answer": "It edits videos you have already recorded. It cuts pauses and filler words, lets you re-record one sentence, adds titles, captions and transitions, and exports the result."
+				},
+				"byHand": {
+					"question": "Do I have to edit by hand?",
+					"answer": "No. Type or say what you want changed. Retake shows what it understood, and nothing changes until you apply it. You can also do everything by hand on the timeline."
+				},
+				"rerecord": {
+					"question": "How does re-recording a sentence work?",
+					"answer": "Pick the sentence in the transcript and record it again. Retake puts the new take where the old one was. If there is no clear pause around the sentence, you set the joins by ear."
+				},
+				"add": {
+					"question": "What can I add to a video?",
+					"answer": "Titles, text, captions, a lower third, your logo, boxes, blurs, drawings, music or a voice-over, and fades or dissolves between clips."
+				},
+				"privacy": {
+					"question": "Is my video uploaded?",
+					"answer": "No. Editing, previews and export run in your browser. The audio is sent to Deepgram for a transcript, and commands are sent as text to Google Gemini."
+				},
+				"saved": {
+					"question": "Where are my projects saved?",
+					"answer": "In your browser. Open them again from Projects, where you can also rename, download or delete them."
+				},
+				"export": {
+					"question": "What do I get when I export?",
+					"answer": "A video file of your edit, with its cuts, graphics, captions and sound."
+				}
+			}
 		}
 	}
 }

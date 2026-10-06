@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { captureClientError } from '@/lib/observability/capture-client-error'
 import { Button } from '@/components/ui/button'
 import {
+	ArticleIcon,
 	CaptionsIcon,
 	CleanupIcon,
 	ColourIcon,
@@ -16,6 +17,7 @@ import {
 	PlayIcon,
 	ProjectsIcon,
 	SelectIcon,
+	SparkleIcon,
 	SpeedIcon,
 	TextIcon,
 	TransitionIcon,
@@ -42,7 +44,6 @@ import { HistoryControls } from './history-controls'
 import { ItemToolbar, type Timing } from './item-toolbar'
 import { LeaveGuard } from './leave-guard'
 import { AnnotatePanel, TextLogoPanel, type MarkKind, type Picked } from './on-video-panels'
-import { SideTabs } from './side-tabs'
 import { TitleBox } from './title-box'
 import { ToolRail, type Tool } from './tool-rail'
 import { ProjectTitle } from './project-title'
@@ -293,10 +294,9 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	// The side panels, shown or hidden; remembered in this browser. The open
 	// tool on the rail; what's picked on the video; the title while it's dragged.
 	const panelsShown = useSideOpen('panels')
-	const [openTool, setOpenTool] = useState<string | null>(null)
+	const [openTool, setOpenTool] = useState('assistant')
 	const [picked, setPicked] = useState<Picked | null>(null)
 	const [titleDraft, setTitleDraft] = useState<TitleCard | null>(null)
-	const [sideTab, setSideTab] = useState<'assistant' | 'transcript'>('assistant')
 	const [clipSelection, setClipSelection] = useState<ClipSelection | null>(null)
 	// Aiming the zoom on the video: the whole frame shows, with the zoom's area on it.
 	const [zoomAreaMode, setZoomAreaMode] = useState(false)
@@ -1601,7 +1601,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		if (!start) return
 		loadFile(start.file)
 		setStartCommand(start.command)
-		if (start.byHand) setSideTab('transcript')
+		if (start.byHand) setOpenTool('transcript')
 	})
 	// After mount, as the opening of a project or a picked file would be: from
 	// a callback, not inside the effect's own render pass.
@@ -1770,6 +1770,33 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	const tools: Tool[] =
 		video && hasDuration
 			? [
+					{
+						...tool('assistant', 'assist', <SparkleIcon size={18} />, null),
+						fill: true,
+						panel: (
+							<CommandBar
+								context={commandContext}
+								hasWatermark={watermark !== null}
+								onApply={applyCommand}
+								onAttach={attachFile}
+								initialCommand={startCommand}
+							/>
+						)
+					},
+					tool(
+						'transcript',
+						'assist',
+						<ArticleIcon size={18} />,
+						<TranscriptPanel
+							state={analysis.transcript}
+							onSeek={playback.seek}
+							onReRecord={analysis.loudness && canEdit ? openReRecord : undefined}
+							replacedSpans={replacedSpans}
+							silences={analysis.silences}
+							fillerPlans={analysis.fillerPlans}
+							audioIssues={analysis.audioIssues}
+						/>
+					),
 					tool(
 						'cleanup',
 						'fix',
@@ -2104,52 +2131,6 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 							disabledNote={showOriginal ? t('original.toolsNote') : null}
 						/>
 					) : null
-				}
-				side={
-					<SideTabs
-						tab={sideTab}
-						onTab={setSideTab}
-						transcriptCount={
-							analysis.transcript.status === 'ready'
-								? analysis.transcript.transcript.segments.length
-								: null
-						}
-						assistant={
-							video && hasDuration ? (
-								<fieldset disabled={showOriginal} className="flex min-h-0 flex-1 flex-col">
-									{showOriginal && (
-										<p className="text-text-muted border-border border-b p-3 text-sm">
-											{t('original.chatNote')}
-										</p>
-									)}
-									<CommandBar
-										context={commandContext}
-										hasWatermark={watermark !== null}
-										onApply={applyCommand}
-										onAttach={attachFile}
-										initialCommand={startCommand}
-									/>
-								</fieldset>
-							) : (
-								<p className="text-text-muted p-4 text-sm">{t('layout.chatWaits')}</p>
-							)
-						}
-						transcript={
-							video ? (
-								<TranscriptPanel
-									state={analysis.transcript}
-									onSeek={playback.seek}
-									onReRecord={analysis.loudness && canEdit ? openReRecord : undefined}
-									replacedSpans={replacedSpans}
-									silences={analysis.silences}
-									fillerPlans={analysis.fillerPlans}
-									audioIssues={analysis.audioIssues}
-								/>
-							) : (
-								<p className="text-text-muted p-4 text-sm">{t('layout.chatWaits')}</p>
-							)
-						}
-					/>
 				}
 			>
 				{video ? (

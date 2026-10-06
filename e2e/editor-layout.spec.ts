@@ -41,19 +41,22 @@ test('the chat keeps a record: an answer applied or cancelled stays, and only th
 	await page.getByRole('button', { name: 'Run' }).click()
 	await reply(page).getByRole('button', { name: 'Apply changes' }).click()
 	await expect(chat(page).getByText('Applied', { exact: true })).toBeVisible()
+	await openTool(page, 'Captions')
 	await expect(captions).toHaveAttribute('aria-pressed', 'true')
 	// Both questions are still there, in order.
+	await openTool(page, 'Assistant')
 	await expect(chat(page).getByText('turn captions on', { exact: true })).toBeVisible()
 	await expect(chat(page).getByText('captions on please', { exact: true })).toBeVisible()
 })
 
-test('the tools sit in a rail, each opening its panel; a search finds them; Hide panels gives the video the room', async ({
+test('the tools sit in one panel, the assistant and transcript among them; a search finds them; one icon hides it', async ({
 	page
 }) => {
 	await openEditorWithVideo(page)
 	const tool = (name: string) => page.getByRole('tab', { name, exact: true })
-	// Grouped: Fix, Add, Adjust.
 	for (const name of [
+		'Assistant',
+		'Transcript',
 		'Clean up',
 		'Captions',
 		'Text & logo',
@@ -63,13 +66,16 @@ test('the tools sit in a rail, each opening its panel; a search finds them; Hide
 		'Colour'
 	])
 		await expect(tool(name)).toBeVisible()
-	// One opens its panel, with its heading and a line of help; clicked again, it folds away.
+	// The assistant is open to begin with; a tool opens in its place, with its
+	// heading and a line of help, and clicked again it stays open.
+	await expect(tool('Assistant')).toHaveAttribute('aria-selected', 'true')
 	await tool('Colour').click()
 	const panel = page.getByRole('tabpanel', { name: 'Colour' })
 	await expect(panel.getByRole('heading', { name: 'Colour' })).toBeVisible()
-	await expect(panel.getByText('Brightness, contrast and colour')).toBeVisible()
+	await expect(panel.getByText('Brightness, contrast and colour.')).toBeVisible()
+	await expect(chat(page)).toBeHidden()
 	await tool('Colour').click()
-	await expect(panel).toBeHidden()
+	await expect(panel).toBeVisible()
 	// The search finds a tool by what it does, and opens it.
 	await tool('Frame').click()
 	const search = page.getByRole('searchbox', { name: 'Find a tool' })
@@ -84,20 +90,22 @@ test('the tools sit in a rail, each opening its panel; a search finds them; Hide
 	await expect(page.getByText('No tool matches “nothing like this”.')).toBeVisible()
 	await search.press('Escape')
 
-	// Hide panels: the tools and the chat fold away and the picture grows; remembered.
-	const player = page.getByTestId('player')
-	const width = async () => (await player.boundingBox())?.width ?? 0
-	const withPanels = await width()
-	await page.getByRole('button', { name: 'Hide panels' }).click()
-	await expect(chat(page)).toBeHidden()
+	// One icon on the left edge hides the panel, and the middle (the picture
+	// and the timeline) gets its room; remembered.
+	await expect(page.getByRole('button', { name: 'Hide panels' })).toHaveCount(0)
+	const timeline = page.getByRole('region', { name: 'Timeline' })
+	const width = async () => (await timeline.boundingBox())?.width ?? 0
+	const withPanel = await width()
+	await page.getByRole('button', { name: 'Hide the tool panel' }).click()
 	await expect(tool('Colour')).toBeHidden()
-	expect(await width(), 'the picture grows').toBeGreaterThan(withPanels)
+	expect(await width(), 'the middle grows').toBeGreaterThan(withPanel)
 	await page.reload()
 	await openEditorWithVideo(page)
-	await expect(chat(page)).toBeHidden()
-	await page.getByRole('button', { name: 'Show tools and chat' }).click()
-	await expect(chat(page)).toBeVisible()
+	await expect(tool('Colour')).toBeHidden()
+	await page.getByRole('button', { name: 'Show the tool panel' }).click()
 	await expect(tool('Colour')).toBeVisible()
+	await tool('Assistant').click()
+	await expect(chat(page)).toBeVisible()
 })
 
 test('only undo and redo have keys; no single-key shortcuts', async ({ page }) => {
