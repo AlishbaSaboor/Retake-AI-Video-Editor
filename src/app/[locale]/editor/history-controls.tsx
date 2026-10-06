@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button'
 import { RedoIcon, ResetIcon, UndoIcon } from '@/components/ui/icons'
 
 /**
- * Undo and Redo step back and forth through every edit; Reset to original
- * removes them all as one step, after asking, since it takes out so much at
- * once. Each shows only when there's something for it to do.
+ * Undo and Redo step back and forth through every edit, greyed out when
+ * there's nothing to step to; Reset to original removes them all as one
+ * step, after asking, since it takes out so much at once, and shows only
+ * when there's something to reset.
  */
 export function HistoryControls({
 	canUndo,
@@ -31,30 +32,28 @@ export function HistoryControls({
 
 	return (
 		<div className="relative flex items-center gap-1">
-			{canUndo && (
-				<Button
-					variant="ghost"
-					size="icon"
-					aria-label={t('undo')}
-					title={`${t('undo')} (Ctrl+Z)`}
-					aria-keyshortcuts="Control+Z"
-					onClick={onUndo}
-				>
-					<UndoIcon size={18} />
-				</Button>
-			)}
-			{canRedo && (
-				<Button
-					variant="ghost"
-					size="icon"
-					aria-label={t('redo')}
-					title={`${t('redo')} (Ctrl+Shift+Z)`}
-					aria-keyshortcuts="Control+Shift+Z Control+Y"
-					onClick={onRedo}
-				>
-					<RedoIcon size={18} />
-				</Button>
-			)}
+			<Button
+				variant="ghost"
+				size="icon"
+				aria-label={t('undo')}
+				title={`${t('undo')} (Ctrl+Z)`}
+				aria-keyshortcuts="Control+Z"
+				disabled={!canUndo}
+				onClick={onUndo}
+			>
+				<UndoIcon size={18} />
+			</Button>
+			<Button
+				variant="ghost"
+				size="icon"
+				aria-label={t('redo')}
+				title={`${t('redo')} (Ctrl+Shift+Z)`}
+				aria-keyshortcuts="Control+Shift+Z Control+Y"
+				disabled={!canRedo}
+				onClick={onRedo}
+			>
+				<RedoIcon size={18} />
+			</Button>
 			{canReset && (
 				<Button
 					variant="ghost"

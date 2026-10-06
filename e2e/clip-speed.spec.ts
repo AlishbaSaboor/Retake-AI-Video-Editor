@@ -40,6 +40,7 @@ async function splitAt(page: Page, seconds: number) {
 async function setSpeed(page: Page, n: number, speed: number) {
 	await openTool(page, 'Clip sound and speed')
 	const input = clipRow(page, n).getByLabel('Speed (×)')
+	await openTool(page, 'Assistant')
 	await input.fill(String(speed))
 	await input.press('Enter')
 	await expect(
@@ -233,9 +234,9 @@ test('captions in a sped-up clip keep pace with its words in the export', async 
 	])
 	await openTool(page, 'Transcript')
 	await expect(page.getByRole('button', { name: /Hello there\./ })).toBeVisible({ timeout: 30_000 })
-	await openTool(page, 'Graphics')
+	await openTool(page, 'Captions')
 	await page
-		.getByRole('region', { name: 'Graphics' })
+		.getByRole('region', { name: 'Captions' })
 		.getByRole('button', { name: 'Captions' })
 		.click()
 	await splitAt(page, 2)
@@ -295,6 +296,7 @@ test('clip speed works as a typed command, confirmed first and one undo step eac
 	await splitAt(page, 2)
 	const run = async (text: string, fields: Parameters<typeof editCommand>[0], shown: string) => {
 		await mockActions(page, { words: [], command: editCommand(fields) })
+		await openTool(page, 'Assistant')
 		await command.fill(text)
 		await page.getByRole('button', { name: 'Run' }).click()
 		await expect(reply).toContainText(shown)
@@ -322,6 +324,7 @@ test('clip speed works as a typed command, confirmed first and one undo step eac
 		words: [],
 		command: editCommand({ action: 'clip_speed', rate: 8, fromClip: 1 })
 	})
+	await openTool(page, 'Assistant')
 	await command.fill('make clip 1 play at 8x')
 	await page.getByRole('button', { name: 'Run' }).click()
 	await expect(reply).toContainText('A clip can play from 0.25× to 4×.')

@@ -68,7 +68,7 @@ test('a re-recorded take replaces only its sentence, in playback and export, and
 	await reRecord('0:01').click()
 	await (await recordTake(page)).getByRole('button', { name: 'Cancel' }).click()
 	await expect(page.getByText('re-recorded', { exact: true })).toHaveCount(0)
-	await expect(page.getByRole('button', { name: 'Undo last change' })).toHaveCount(0)
+	await expect(page.getByRole('button', { name: 'Undo last change' })).toBeDisabled()
 	await expect(clip).toHaveAttribute('aria-label', /plays 0:06,/)
 
 	// Use the take for B, then one for C.
@@ -241,9 +241,10 @@ test('undo steps back through several edits, a re-record among them, and redo re
 
 	// Ctrl+Z in the command bar is the text field's own undo, not the editor's.
 	const command = page.getByRole('textbox', { name: 'Edit command' })
+	await openTool(page, 'Assistant')
 	await command.fill('cut')
 	await command.press('Control+z')
-	await expect(redoButton).toHaveCount(0)
+	await expect(redoButton).toBeDisabled()
 	await expect.poll(timeline).toEqual(steps[4]?.timeline)
 
 	// Undo all four, by button and by Ctrl+Z.
@@ -253,7 +254,7 @@ test('undo steps back through several edits, a re-record among them, and redo re
 		await page.keyboard.press('Control+z')
 		await expectStep(index)
 	}
-	await expect(undoButton).toHaveCount(0)
+	await expect(undoButton).toBeDisabled()
 
 	// Redo all four, by button, Ctrl+Shift+Z and Ctrl+Y. The re-recorded take
 	// comes back from the redo branch: no new recording is made.
@@ -265,13 +266,13 @@ test('undo steps back through several edits, a re-record among them, and redo re
 	await expectStep(3)
 	await redoButton.click()
 	await expectStep(4)
-	await expect(redoButton).toHaveCount(0)
+	await expect(redoButton).toBeDisabled()
 
 	// A new edit after an undo ends the redo branch.
 	await undoButton.click()
 	await expectStep(3)
 	await clips.first().press('Alt+ArrowRight')
-	await expect(redoButton).toHaveCount(0)
+	await expect(redoButton).toBeDisabled()
 })
 
 test('reset to original removes every edit as one step that Undo brings back, and export ignores the preview speed', async ({

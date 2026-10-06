@@ -289,10 +289,10 @@ test('title, captions and on-video text take their font, size, color and backgro
 		.getByRole('group', { name: 'Title style' })
 		.getByRole('button', { name: 'No background' })
 		.click()
-	await openTool(page, 'Graphics')
-	await graphics.getByRole('button', { name: 'Captions' }).click()
-	await openTool(page, 'Graphics')
-	const captionStyle = graphics.getByRole('group', { name: 'Caption style' })
+	await openTool(page, 'Captions')
+	const captions = page.getByRole('region', { name: 'Captions' })
+	await captions.getByRole('button', { name: 'Captions' }).click()
+	const captionStyle = captions.getByRole('group', { name: 'Caption style' })
 	await captionStyle.getByLabel('Color').fill('#ffff00')
 	await captionStyle.getByLabel('Color').blur()
 	const size = captionStyle.getByLabel('Size (%)')
@@ -345,6 +345,7 @@ test('title, captions and on-video text take their font, size, color and backgro
 	expect(frame?.counts['cyan text']?.pixels, 'cyan on-video text').toBeGreaterThan(20)
 
 	// The bigger captions really are bigger: back to 100%, fewer yellow pixels.
+	await openTool(page, 'Captions')
 	await size.fill('100')
 	await size.press('Enter')
 	const [smaller] = await exportFrames(page, [0.7], query)
@@ -437,6 +438,7 @@ test('colors and text style work as typed commands, each confirmed and one undo 
 	await graphics.getByRole('button', { name: 'Add title' }).click()
 	const run = async (text: string, fields: Parameters<typeof editCommand>[0], shown: string) => {
 		await mockActions(page, { words: [], command: editCommand(fields) })
+		await openTool(page, 'Assistant')
 		await command.fill(text)
 		await page.getByRole('button', { name: 'Run' }).click()
 		await expect(reply).toContainText(shown)

@@ -390,6 +390,7 @@ test('typed commands rotate, flip, crop and pixelate, each confirmed first and o
 	await openEditorWithVideo(page)
 	const run = async (text: string, fields: Parameters<typeof editCommand>[0], shown: string) => {
 		await mockActions(page, { words: [], command: editCommand(fields) })
+		await openTool(page, 'Assistant')
 		await command.fill(text)
 		await page.getByRole('button', { name: 'Run' }).click()
 		await expect(reply).toContainText(shown)
@@ -435,5 +436,5 @@ test('typed commands rotate, flip, crop and pixelate, each confirmed first and o
 	for (let i = 0; i < 4; i++) await undo.click()
 	await openTool(page, 'Picture')
 	await expect(degreesField(page)).toHaveValue('0')
-	await expect(undo).toHaveCount(0)
+	await expect(undo).toBeDisabled()
 })

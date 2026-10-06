@@ -148,5 +148,5 @@ test('clipping, quiet speech and a loud background are flagged where they are, a
 	await expect(page.getByText('No speech detected.')).toBeVisible({ timeout: 30_000 })
 
 	// They're not edits: nothing to undo.
-	await expect(page.getByRole('button', { name: 'Undo last change' })).toHaveCount(0)
+	await expect(page.getByRole('button', { name: 'Undo last change' })).toBeDisabled()
 })

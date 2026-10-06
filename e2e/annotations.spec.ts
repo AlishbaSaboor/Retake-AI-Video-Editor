@@ -290,6 +290,7 @@ test('the eraser, the Delete key and a typed command add and remove items, one u
 	})
 	const run = async () => {
 		await mockActions(page, { words: [], command: blurCommand })
+		await openTool(page, 'Assistant')
 		await command.fill('blur the top-right corner from 1 to 2 seconds')
 		await page.getByRole('button', { name: 'Run' }).click()
 	}

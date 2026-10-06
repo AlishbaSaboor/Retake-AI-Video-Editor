@@ -161,7 +161,9 @@ test('an added video plays after the first, fitted into its frame, with its own 
 	await page.getByRole('button', { name: 'Pause', exact: true }).click()
 	await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible()
 	// The timeline shows the video the playhead is in.
-	await expect(page.getByText('green.webm', { exact: true }).first()).toBeVisible()
+	await expect(
+		page.getByRole('region', { name: 'Clips' }).getByText('green.webm').first()
+	).toBeVisible()
 })
 
 test('clips of an added video reorder, speed up, take a colour and dissolve like any other', async ({
@@ -270,6 +272,7 @@ test('"add another video" is a command, confirmed first; undo and reset take the
 		timeout: 30_000
 	})
 	await mockActions(page, { words: [], command: editCommand({ action: 'add_video' }) })
+	await openTool(page, 'Assistant')
 	await command.fill('add another video')
 	await page.getByRole('button', { name: 'Run' }).click()
 	await expect(reply).toContainText("I'll add another video after the clips. Choose the file next.")
@@ -284,6 +287,7 @@ test('"add another video" is a command, confirmed first; undo and reset take the
 		words: [],
 		command: editCommand({ action: 'merge', fromClip: 1, toClip: 2 })
 	})
+	await openTool(page, 'Assistant')
 	await command.fill('merge clips 1 and 2')
 	await page.getByRole('button', { name: 'Run' }).click()
 	await expect(reply).toContainText(
