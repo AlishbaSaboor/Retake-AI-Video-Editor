@@ -69,8 +69,6 @@ See `.claude/skills/*/SKILL.md` for full detail. In short:
 - `e2e-review` — before opening a PR for a UI/flow change.
 - `preview-acceptance-testing` — the pre-merge gate against the PR's live
   Vercel preview, once a PR is open.
-- `e2e-build` — orchestrates all of the above plus Codex, driving an
-  already-approved plan to a merge-ready PR. Requires Codex installed.
 
 **Day-to-day helpers**
 
@@ -97,5 +95,3 @@ See `.claude/skills/*/SKILL.md` for full detail. In short:
 
 `/cicd` (`.claude/commands/cicd.md`) reviews the diff, fixes what matters,
 opens or updates the PR, watches CI to green, and works the review comments.
-`.codex/commands/cicd.md` is its Codex-facing mirror — same checklist, Codex
-tool conventions. Keep the two in sync when either changes.

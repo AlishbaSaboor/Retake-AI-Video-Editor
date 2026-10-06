@@ -75,10 +75,6 @@ export function animationAt(
 	return AT_REST
 }
 
-export function isStill(animation: Animation | undefined): boolean {
-	return !animation || (animation.in.kind === 'none' && animation.out.kind === 'none')
-}
-
 export function clampMotionSeconds(seconds: number): number {
 	return Math.min(MAX_MOTION_SECONDS, Math.max(MIN_MOTION_SECONDS, seconds))
 }

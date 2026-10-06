@@ -2081,6 +2081,24 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
   form is only on its page now.
 - **Tests run:** site and home.
 
+## 3zc. Repo clean-up (2026-10-06)
+
+- **Removed, unused here:**
+  - the entry points and folders for other agents (`GEMINI.md`, `QWEN.md`,
+    `.cursor/`, `.codex/`, the empty `.codex-logs/`), which the standards
+    check marks optional; this repo uses Claude Code only;
+  - the `e2e-build` skill, which needs Codex;
+  - nine compiled Python caches committed in `skill-creator` (now ignored);
+  - two dead editor exports (`isStill`, `TITLE_BAND_COLOR`) and thirteen icon
+    wrappers nothing used.
+- `check-standards.test.mjs` now writes those optional files into its own
+  fixture instead of copying them from the repo, so their checks stay
+  covered. AGENTS.md and CLAUDE.md no longer list the removed files.
+- **Kept, though unused by Retake, because the template's rules describe
+  them:** the admin RBAC console and feature flags (with their tables), the
+  example Prisma model, the analytics helpers, `ErrorBoundary`, `Card` and
+  `Badge`, the route factory, Sentry and PostHog wiring and their skills.
+
 ---
 
 ## 4. Unresolved issues

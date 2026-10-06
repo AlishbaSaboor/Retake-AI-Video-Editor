@@ -94,7 +94,6 @@ export const TITLE_FONT_FRACTION = 0.08
 export const TITLE_BAND_SCALE = 2
 /** The widest the title's text may be, as a fraction of the picture's width. */
 export const TITLE_MAX_WIDTH_FRACTION = 0.9
-export const TITLE_BAND_COLOR = 'rgba(0, 0, 0, 0.6)'
 /** Caption text height (of the frame's shorter side), and the gap below the last line (of its height). */
 export const CAPTION_FONT_FRACTION = 0.06
 export const CAPTION_BOTTOM_FRACTION = 0.06
