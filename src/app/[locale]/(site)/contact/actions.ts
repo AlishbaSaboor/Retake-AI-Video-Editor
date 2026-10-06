@@ -7,8 +7,8 @@ import { contactSchema } from './contact-schema'
 /** Keeps a Contact us message in the database. */
 export const sendContactMessage = validatedAction({
 	input: contactSchema,
-	handler: async ({ name, email, message }) => {
-		await db.contactMessage.create({ data: { name, email, message } })
+	handler: async ({ email, message }) => {
+		await db.contactMessage.create({ data: { email, message } })
 		return null
 	}
 })

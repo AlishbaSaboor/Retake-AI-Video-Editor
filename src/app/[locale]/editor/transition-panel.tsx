@@ -39,10 +39,7 @@ export function TransitionPanel({ joins, canEdit, onChange }: TransitionPanelPro
 	// One clip has no joins: say how to get some, rather than show nothing.
 	if (joins.length === 0) return <p className="text-text-muted text-sm">{t('none')}</p>
 	return (
-		<section
-			aria-label={t('label')}
-			className="border-border bg-surface flex flex-col gap-3 rounded-lg border p-4"
-		>
+		<section aria-label={t('label')} className="flex flex-col gap-3">
 			<h2 className="sr-only">{t('label')}</h2>
 			{joins.map((join, index) => (
 				<JoinRow

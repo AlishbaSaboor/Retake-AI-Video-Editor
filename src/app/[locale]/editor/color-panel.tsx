@@ -63,10 +63,7 @@ export function ColorPanel({ video, clips, canEdit, onChange }: ColorPanelProps)
 	const target = scope !== null && scope < clips.length ? scope : null
 	const grade = target === null ? video : (clips[target] ?? NEUTRAL_GRADE)
 	return (
-		<section
-			aria-label={t('label')}
-			className="border-border bg-surface flex flex-col gap-3 rounded-lg border p-4"
-		>
+		<section aria-label={t('label')} className="flex flex-col gap-3">
 			<h2 className="sr-only">{t('label')}</h2>
 			<div role="group" aria-label={t('scope')} className="flex flex-wrap gap-1">
 				{[null, ...clips.keys()].map((option) => (

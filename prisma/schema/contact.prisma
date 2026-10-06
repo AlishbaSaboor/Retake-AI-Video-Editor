@@ -4,7 +4,8 @@
 // not, so no user is attached.
 model ContactMessage {
 	id        String   @id @default(cuid())
-	name      String
+	/// Only on messages sent before the form dropped its Name field.
+	name      String?
 	email     String
 	message   String
 	createdAt DateTime @default(now()) @db.Timestamptz(6)

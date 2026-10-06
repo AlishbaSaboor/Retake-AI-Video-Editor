@@ -8,18 +8,16 @@ import { cn } from '@/lib/cn'
 
 /**
  * The editor's layout, the whole window: a top bar (back, the project's name
- * and whether it's saved, undo and redo, Before / After, hide panels,
- * export); under it the tool rail and its open panel on the left, the
- * picture and the timeline in the middle, and the assistant and the
- * transcript on the right. "Hide panels" folds both sides away to give the
- * video the room. Below `lg` they stack, the video first.
+ * and whether it's saved, undo and redo, Before / After, export); under it
+ * the tool panel on the left (the tools, the assistant and the transcript)
+ * and the picture and the timeline. One small icon on the left edge hides
+ * and shows the panel. Below `lg` they stack, the video first.
  */
 export function EditorShell({
 	title,
 	centre,
 	actions,
 	rail,
-	side,
 	children,
 	panelsShown,
 	onPanelsShown
@@ -30,10 +28,8 @@ export function EditorShell({
 	centre: React.ReactNode
 	/** Export and the like, on the top bar's right. */
 	actions: React.ReactNode
-	/** The tool rail; null before a video is in. */
+	/** The tool panel; null before a video is in. */
 	rail: React.ReactNode
-	/** The assistant and transcript column. */
-	side: React.ReactNode
 	/** The middle: the picture, its controls, the timeline. */
 	children: React.ReactNode
 	panelsShown: boolean
@@ -41,7 +37,8 @@ export function EditorShell({
 }) {
 	const t = useTranslations('Editor.layout')
 	const hasRail = rail !== null
-	const toggleLabel = panelsShown ? t('hidePanels') : t('showPanels')
+	const shown = hasRail && panelsShown
+	const toggleLabel = panelsShown ? t('hidePanel') : t('showPanel')
 	return (
 		<div className="flex min-h-dvh flex-col lg:h-dvh">
 			<header
@@ -65,57 +62,43 @@ export function EditorShell({
 				<div className="flex items-center gap-1.5 lg:mx-auto">{centre}</div>
 				<div className="ml-auto flex shrink-0 items-center gap-1.5 lg:ml-0">
 					<ThemeToggle />
-					{hasRail && (
-						<button
-							type="button"
-							aria-pressed={!panelsShown}
-							onClick={() => onPanelsShown(!panelsShown)}
-							className="border-border text-text-muted hover:bg-surface-hover hover:text-text focus-visible:outline-accent inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium focus-visible:outline-2"
-						>
-							<PanelIcon size={16} />
-							<span className="max-sm:sr-only">{toggleLabel}</span>
-						</button>
-					)}
 					{actions}
 				</div>
 			</header>
 			<div
 				className={cn(
 					'flex min-h-0 flex-1 flex-col lg:grid lg:grid-rows-[minmax(0,1fr)]',
-					hasRail && panelsShown
-						? 'lg:grid-cols-[auto_minmax(0,1fr)_24rem]'
-						: 'lg:grid-cols-[minmax(0,1fr)_24rem]',
-					!panelsShown && 'lg:grid-cols-[minmax(0,1fr)]'
+					shown ? 'lg:grid-cols-[auto_auto_minmax(0,1fr)]' : 'lg:grid-cols-[auto_minmax(0,1fr)]'
 				)}
 			>
+				{hasRail && (
+					<div className="border-border flex shrink-0 border-b px-1 py-1 lg:flex-col lg:border-r lg:border-b-0 lg:py-2">
+						<button
+							type="button"
+							aria-label={toggleLabel}
+							title={toggleLabel}
+							aria-expanded={panelsShown}
+							aria-controls="tool-rail"
+							onClick={() => onPanelsShown(!panelsShown)}
+							className="text-text-faint hover:bg-surface-hover hover:text-text focus-visible:outline-accent inline-flex size-7 items-center justify-center rounded-md focus-visible:outline-2"
+						>
+							<PanelIcon size={15} />
+						</button>
+					</div>
+				)}
 				{/* Hidden, not removed: a half-typed field or command stays. */}
 				{hasRail && (
 					<aside
+						id="tool-rail"
 						hidden={!panelsShown}
 						className="order-2 min-h-0 lg:order-none lg:h-full lg:overflow-hidden"
 					>
 						{rail}
 					</aside>
 				)}
-				<div className="relative order-1 flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto p-3 lg:order-none lg:p-4">
-					{!panelsShown && hasRail && (
-						<button
-							type="button"
-							onClick={() => onPanelsShown(true)}
-							className="border-border bg-surface text-text hover:bg-surface-hover focus-visible:outline-accent inline-flex h-9 items-center gap-2 self-start rounded-lg border px-3 text-sm font-medium focus-visible:outline-2"
-						>
-							<PanelIcon size={16} />
-							{t('showToolsAndChat')}
-						</button>
-					)}
+				<div className="relative order-1 flex min-h-0 min-w-0 flex-col gap-4 overflow-y-auto p-4 lg:order-none lg:p-6">
 					{children}
 				</div>
-				<aside
-					hidden={!panelsShown}
-					className="border-border bg-surface order-3 flex min-h-0 flex-col border-t lg:order-none lg:border-t-0 lg:border-l"
-				>
-					{side}
-				</aside>
 			</div>
 		</div>
 	)
