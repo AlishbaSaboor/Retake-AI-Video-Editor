@@ -113,6 +113,7 @@
 				"speed": "I'll preview at {rate}×. The export isn't affected: to change a clip's real speed, say “make clip 2 play at 2x”.",
 				"rerecord": "I'll open the re-record panel for “{text}” at {at}.",
 				"export": "I'll export the edit as a video file. It takes as long as the edit plays.",
+				"findHighlights": "I'll find the best moments in the transcript and show them in a pop-up, to watch and download. Your edit won't change.",
 				"box": "I'll cover the {region} with a black box from {start} to {end}. It stays in place: it won't follow anything that moves.",
 				"blur": "I'll blur the {region} from {start} to {end}. It stays in place: it won't follow anything that moves.",
 				"pixelate": "I'll pixelate the {region} from {start} to {end}. It stays in place: it won't follow anything that moves.",
@@ -188,6 +189,7 @@
 				"speed": "Change the preview speed: “play at 2x”",
 				"reRecord": "Re-record a sentence: “re-record the sentence at 0:25”",
 				"export": "Export the edit: “export the video”",
+				"highlights": "Find the best moments to watch and download: “find the highlights”",
 				"addTitle": "Add a title card: “add the title Welcome for the first 3 seconds”",
 				"addWatermark": "Add a logo watermark: “put my logo in the top-right corner”",
 				"captions": "Turn captions on or off: “turn captions on”",
@@ -469,6 +471,32 @@
 			"label": "Preview speed",
 			"hint": "Only how fast the editor plays. The export always runs at normal speed.",
 			"rate": "{rate}×"
+		},
+		"highlights": {
+			"title": "Highlights",
+			"panel": "Retake picks the 3 to 5 best moments from the transcript, each on whole sentences. Watch them and download any one. Your edit stays as it is.",
+			"open": "Find highlights",
+			"description": "The best moments of your video, from its transcript. Pick one to watch it. A download is that moment of the original recording, without your edits. Nothing here changes your edit.",
+			"finding": "Finding the best moments…",
+			"failed": "The highlights couldn't be found.",
+			"retry": "Try again",
+			"none": "No clear highlights were found in this video.",
+			"noTranscript": {
+				"analyzing": "Retake is still reading the video. Highlights come from its transcript, and appear here once it is ready.",
+				"transcribing": "Retake is still writing the transcript. Highlights come from it, and appear here once it is ready.",
+				"too_long": "Highlights need a transcript, and Retake writes transcripts only for videos up to 5 minutes long. This video is longer, so Retake can't find its highlights.",
+				"no_audio": "This video has no sound, so there is no transcript to find highlights in.",
+				"failed": "The transcript couldn't be written, so Retake can't find highlights in this video.",
+				"empty": "No speech was heard in this video, so there are no highlights to find."
+			},
+			"player": "Highlight: {title}",
+			"seconds": "{seconds} s",
+			"download": "Download the highlight {title}",
+			"downloadShort": "Download",
+			"downloading": "Downloading… {percent}%",
+			"cancel": "Cancel",
+			"vertical": "Crop to vertical (9:16)",
+			"close": "Close"
 		},
 		"export": {
 			"button": "Export video",
@@ -791,6 +819,11 @@
 					"label": "Transcript",
 					"help": "What is said. Click a sentence to go to it.",
 					"keywords": "words text sentences re-record retake speech pauses filler"
+				},
+				"highlights": {
+					"label": "Find highlights",
+					"help": "The best moments of the video, to watch and download.",
+					"keywords": "highlights best moments clips shorts reels short vertical"
 				}
 			}
 		},
@@ -994,8 +1027,8 @@
 					"body": "To write the transcript and to understand spoken commands, the audio is sent to Deepgram."
 				},
 				"commands": {
-					"title": "Commands are sent to Gemini",
-					"body": "A typed or spoken command is sent as text to Google Gemini to work out the edit. Your video is not."
+					"title": "Text is sent to Gemini",
+					"body": "A typed or spoken command is sent as text to Google Gemini to work out the edit. When you find highlights, the transcript's text is sent to Gemini to pick the moments. Your video is not."
 				}
 			}
 		},
@@ -1012,7 +1045,8 @@
 						"1": "Retake shows what it understood. Nothing changes until you apply it.",
 						"2": "Ask for cuts, clean-up, titles, captions, zooms, colour, speed, transitions and more.",
 						"3": "Attach a logo, music or another video in the chat.",
-						"4": "Undo, redo and reset work as commands too."
+						"4": "Undo, redo and reset work as commands too.",
+						"5": "Find highlights picks 3 to 5 of the best moments from the transcript. Watch each one and download it as its own video, cropped to 9:16 if you like. It needs a transcript, so videos up to 5 minutes."
 					}
 				},
 				"timeline": {
@@ -1176,7 +1210,7 @@
 				},
 				"privacy": {
 					"question": "Is my video uploaded?",
-					"answer": "No. Editing, previews and export run in your browser. The audio is sent to Deepgram for a transcript, and commands are sent as text to Google Gemini."
+					"answer": "No. Editing, previews and export run in your browser. The audio is sent to Deepgram for a transcript. Commands, and the transcript when you find highlights, are sent as text to Google Gemini."
 				},
 				"saved": {
 					"question": "Where are my projects saved?",

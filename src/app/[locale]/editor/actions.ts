@@ -6,6 +6,14 @@ import { deepgramWords, transcribeAudio } from '@/server/ai/deepgram'
 import { generateContent } from '@/server/ai/google'
 import { validatedAction } from '@/server/actions/validated-action'
 import { EDIT_COMMAND_JSON_SCHEMA, editCommandSchema, type EditCommand } from './edit-command'
+import {
+	HIGHLIGHTS_JSON_SCHEMA,
+	highlightsReplySchema,
+	MAX_HIGHLIGHTS,
+	MIN_HIGHLIGHTS,
+	numberedSentences,
+	type HighlightPick
+} from './highlights'
 import { MAX_AUDIO_BASE64_LENGTH } from './take-audio'
 import { toTranscript, type Transcript } from './transcript'
 import { MAX_VOICE_BASE64_LENGTH } from './voice-command'
@@ -13,6 +21,11 @@ import { MAX_VOICE_BASE64_LENGTH } from './voice-command'
 // A command is a sentence, not a document — this also caps what one request
 // can spend.
 const MAX_COMMAND_LENGTH = 300
+
+// A transcript is at most 5 minutes of speech: far fewer sentences than
+// this, each far shorter. Caps what one request can send to the model.
+const MAX_SENTENCES = 400
+const MAX_SENTENCE_LENGTH = 1000
 
 const UNSUPPORTED: EditCommand = {
 	action: 'unsupported',
@@ -60,6 +73,7 @@ function systemInstruction(durationSeconds: number, clipCount: number): string {
 		'split at startSeconds. merge fromClip to toClip (both null: all clips).',
 		'move fromClip to position toClip (null: the end).',
 		'cleanup: remove silences and filler words. undo, redo, reset (start over), export (or download).',
+		'find_highlights: find the best moments, highlights or clips worth sharing.',
 		'speed: preview rate only, no clip named ("play at 2x": 2). rerecord: the sentence at startSeconds.',
 		'clip_speed: how fast clips really play, rate 0.25 to 4, fromClip (null: every clip)',
 		'("make clip 2 play at 2x", "slow the last clip to half speed", "speed the whole video up 1.5x").',
@@ -126,6 +140,60 @@ export const parseEditCommand = validatedAction({
 			return parsed.success ? parsed.data : UNSUPPORTED
 		} catch {
 			return UNSUPPORTED
+		}
+	}
+})
+
+// Terse for the same reason as the command prompt: paid for on every call.
+const HIGHLIGHTS_INSTRUCTION = [
+	'You pick the best moments of a spoken video, to share as short clips.',
+	'You get its transcript, one numbered sentence a line, with its start and end in seconds.',
+	`Pick ${MIN_HIGHLIGHTS} to ${MAX_HIGHLIGHTS} moments, best first, fewer only if the video is too short.`,
+	'Each is a run of whole sentences, firstSentence to lastSentence (the same for one sentence),',
+	'that makes sense on its own: a strong point, a story, a clear explanation, a memorable line.',
+	'Aim for 10 to 60 seconds each where the video allows. Moments must not overlap.',
+	'title: at most 6 words. description: one line, at most 15 words, saying what happens.',
+	"Write both in the transcript's language. Never invent anything not in the transcript."
+].join(' ')
+
+/**
+ * Asks Gemini for a take's best moments, given its transcript's sentences.
+ * Returns the picks as sentence numbers; the client turns them into times
+ * (planHighlights), so a moment always starts and ends on a sentence's edge.
+ * A reply that isn't valid JSON in the expected shape comes back as no
+ * picks, which the dialog reports as none found.
+ */
+export const findHighlights = validatedAction({
+	input: z.object({
+		sentences: z
+			.array(
+				z.object({
+					startSeconds: z.number().nonnegative(),
+					endSeconds: z.number().nonnegative(),
+					text: z.string().max(MAX_SENTENCE_LENGTH)
+				})
+			)
+			.min(1)
+			.max(MAX_SENTENCES)
+	}),
+	handler: async ({ sentences }): Promise<HighlightPick[]> => {
+		const response = await generateContent(
+			{ feature: 'find_highlights', model: 'gemini-3.5-flash-lite' },
+			{
+				contents: numberedSentences(sentences),
+				config: {
+					systemInstruction: HIGHLIGHTS_INSTRUCTION,
+					responseMimeType: 'application/json',
+					responseJsonSchema: HIGHLIGHTS_JSON_SCHEMA,
+					temperature: 0
+				}
+			}
+		).catch(rethrowAsBusy)
+		try {
+			const parsed = highlightsReplySchema.safeParse(JSON.parse(response.text ?? ''))
+			return parsed.success ? parsed.data.highlights : []
+		} catch {
+			return []
 		}
 	}
 })

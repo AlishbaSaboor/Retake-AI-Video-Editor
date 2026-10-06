@@ -2099,6 +2099,48 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
   example Prisma model, the analytics helpers, `ErrorBoundary`, `Card` and
   `Badge`, the route factory, Sentry and PostHog wiring and their skills.
 
+## 3zd. Highlights: the best moments, to watch and download (2026-10-07)
+
+- **Find highlights**, a tool in the left panel (group with Assistant and
+  Transcript), opens a pop-up with 3 to 5 cards. Each card has a title, a
+  one-line description, its times, and a small muted preview that plays
+  the moment while pointed at. Picking a card plays that moment in the
+  pop-up and stops at its end.
+- **Download** on each card records just that moment of the original
+  video with the existing export (`useVideoExport`), with none of the
+  edit's text, graphics, colour or sound changes; the file is
+  `<name>-highlight-<n>.webm`. "Crop to vertical (9:16)" crops the
+  downloads only (a centred 9:16 crop). One download at a time, since
+  each plays through in real time. Close, or Escape, shuts it; there is no
+  Apply, and the edit and timeline are never touched.
+- **How moments are chosen:** `findHighlights` (actions.ts) sends the
+  transcript's sentences, numbered with their times, to Gemini
+  (`gemini-3.5-flash-lite`, `feature: 'find_highlights'`, so each call is a
+  costed `ai_usage` row through `generateContent`). Gemini answers with
+  sentence numbers only; `planHighlights` (highlights.ts) turns them into
+  times from the transcript, so a moment always starts on a sentence's
+  first word and ends on its last, padded up to 0.15 s into the pause,
+  never into a neighbouring word. Invalid or overlapping picks are dropped,
+  at most 5 kept, in playing order. The result is cached for the session
+  (TanStack Query), so reopening the pop-up doesn't pay again.
+- **No transcript, no guess:** over 5 minutes, no sound, a failed or empty
+  transcript, or one still being written each get their own message, and
+  no AI call is made.
+- **Assistant:** "find the best moments" (`find_highlights`) opens the
+  pop-up after the usual confirm.
+- **Site copy:** a Features point for highlights, and the privacy notes
+  (How it works, FAQ) now say the transcript text goes to Gemini when you
+  find highlights.
+- **Tests:** unit tests for the planning (`highlights.test.mts`); e2e
+  `highlights.spec.ts` with a canned transcript and canned Gemini picks via
+  `mockActions` (no paid calls): card order and times, playback stopping at
+  the end, the downloaded files' length, picture (the test square at its
+  ~0.95 s place) and 9:16 size, the timeline unchanged after Close, no
+  second request on reopening, the Assistant command, and the no-sound
+  message. The prompt itself was not tried against real Gemini (zero API
+  cost rule); the reply is schema-checked and a bad one shows "No clear
+  highlights were found".
+
 ---
 
 ## 4. Unresolved issues
@@ -2596,6 +2638,11 @@ one the noise had been hiding: a logo attached in the chat switched the
 shared tool panel to Text & logo, hiding the chat's "Using logo.jpg as the
 logo." (`logo.spec.ts`). A logo from the chat now leaves the chat open; it
 is still on the video, picked.
+
+**Local, 2026-10-07:** `commands.spec.ts`'s clean-up/export test failed 1
+run in 3 on this machine, both on `main` and on the highlights branch
+(export 3.6 s or 3.9 s against > 3.9 s; once clean-up found no silence in
+the recorded take). It passes on retry. Not changed.
 
 ### 4d. Low memory on this machine (observed 2026-10-02)
 
