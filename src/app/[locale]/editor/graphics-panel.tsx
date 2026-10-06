@@ -191,12 +191,16 @@ export function GraphicsPanel({
 export function CaptionsPanel({
 	captionsOn,
 	onCaptionsChange,
+	captionWords,
+	onCaptionWordsChange,
 	captionStyle,
 	onCaptionStyleChange,
 	canEdit
 }: {
 	captionsOn: boolean
 	onCaptionsChange: (on: boolean) => void
+	captionWords: boolean
+	onCaptionWordsChange: (on: boolean) => void
 	captionStyle: TextStyle
 	onCaptionStyleChange: (style: TextStyle) => void
 	canEdit: boolean
@@ -221,6 +225,16 @@ export function CaptionsPanel({
 					{captionsOn ? t('captionsOn') : t('captionsOff')}
 				</Button>
 			</div>
+			<label className="text-text-muted flex items-center gap-2 text-xs">
+				<input
+					type="checkbox"
+					checked={captionWords}
+					disabled={!canEdit}
+					onChange={(event) => onCaptionWordsChange(event.target.checked)}
+					className="accent-accent"
+				/>
+				{t('captionWords')}
+			</label>
 			<MoreOptions>
 				<TextStyleFields
 					key={`caption-${JSON.stringify(captionStyle)}`}

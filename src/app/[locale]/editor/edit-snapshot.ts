@@ -21,6 +21,8 @@ export type EditSnapshot<R = ReplacementTake> = {
 	title: TitleCard | null
 	watermark: Watermark | null
 	captionsOn: boolean
+	/** Captions one word at a time, instead of a line or two. */
+	captionWords: boolean
 	annotations: Annotation[]
 	/** Flip, rotation and crop of the whole picture. */
 	transform: PictureTransform
@@ -35,6 +37,8 @@ export type EditSnapshot<R = ReplacementTake> = {
 	/** The lower third and the zoom (motion.ts). */
 	lowerThird: LowerThird | null
 	zoom: Zoom | null
+	/** More zooms, from Make it: the panel sets the one above by hand. */
+	autoZooms: Zoom[]
 }
 
 /** The edit right after upload: the whole take, untouched. */
@@ -46,6 +50,7 @@ export const ORIGINAL_EDIT: EditSnapshot = {
 	title: null,
 	watermark: null,
 	captionsOn: false,
+	captionWords: false,
 	annotations: [],
 	transform: IDENTITY_TRANSFORM,
 	color: NEUTRAL_GRADE,
@@ -54,7 +59,8 @@ export const ORIGINAL_EDIT: EditSnapshot = {
 	addedVideos: [],
 	sourceTrims: {},
 	lowerThird: null,
-	zoom: null
+	zoom: null,
+	autoZooms: []
 }
 
 /**
@@ -74,6 +80,7 @@ export function isOriginalEdit<R>(edit: EditSnapshot<R>, durationSeconds: number
 		edit.title === null &&
 		edit.watermark === null &&
 		!edit.captionsOn &&
+		!edit.captionWords &&
 		edit.annotations.length === 0 &&
 		isIdentity(edit.transform) &&
 		isNeutral(edit.color) &&
@@ -82,6 +89,7 @@ export function isOriginalEdit<R>(edit: EditSnapshot<R>, durationSeconds: number
 		edit.addedVideos.length === 0 &&
 		!edit.lowerThird &&
 		!edit.zoom &&
+		edit.autoZooms.length === 0 &&
 		(edit.clips === null ||
 			(otherClips.length === 0 &&
 				otherRanges.length === 0 &&

@@ -4,6 +4,8 @@ import { useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import {
+	AiIcon,
+	ArrowRightIcon,
 	ImageIcon,
 	ManualIcon,
 	SoundIcon,
@@ -16,7 +18,7 @@ import {
 import { handOffStart } from '@/app/[locale]/editor/editor-start'
 import { setSideOpen } from '@/app/[locale]/editor/editor-layout-store'
 import { VoiceCommandButton } from '@/app/[locale]/editor/voice-command-button'
-import { useRouter } from '@/i18n/routing'
+import { Link, useRouter } from '@/i18n/routing'
 import { cn } from '@/lib/cn'
 
 const EXAMPLES = ['cleanup', 'captions', 'trim', 'title', 'zoom'] as const
@@ -126,6 +128,26 @@ export function StartBox() {
 					</ul>
 				</Choice>
 			</div>
+			<section
+				aria-labelledby="start-make"
+				className="bg-surface border-border hover:border-border-strong flex flex-col gap-4 rounded-lg border p-6 shadow-xl transition-colors sm:flex-row sm:items-center"
+			>
+				<span className="bg-accent-soft text-accent flex size-11 shrink-0 items-center justify-center rounded-lg">
+					<AiIcon size={22} />
+				</span>
+				<div className="flex flex-1 flex-col gap-1">
+					<h2 id="start-make" className="font-display text-text text-xl font-semibold">
+						{t('make.title')}
+					</h2>
+					<p className="text-text-muted text-sm leading-relaxed">{t('make.body')}</p>
+				</div>
+				<Button asChild size="lg" variant="secondary">
+					<Link href="/make">
+						{t('make.open')}
+						<ArrowRightIcon />
+					</Link>
+				</Button>
+			</section>
 			{opening && (
 				<p role="status" className="text-text-muted flex items-center justify-center gap-2 text-sm">
 					<SpinnerIcon />

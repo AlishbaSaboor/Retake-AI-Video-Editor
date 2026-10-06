@@ -6,7 +6,16 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **Read this first: where things stand right now**
 >
-> - Branch `main`. Updated 2026-10-05.
+> - Branch `main`. Updated 2026-10-07.
+> - **Make it, part 1** (section 3ze): a Make it page and Home card. Upload a
+>   video, say "make this a reel / funny / professional / an ad"; Gemini reads
+>   the transcript and a small picture every 2 s, asks 1–3 questions only when
+>   the request is unclear, and the plan is shown with Apply / Cancel. Apply
+>   opens it in the editor as one undo step: cut dead parts and fillers,
+>   word-by-word captions, zooms, transitions, ducked music from
+>   `public/music` (empty for now: no music, said so), a 9:16 crop that
+>   follows the face (centred when none). Not built yet: create-from-scratch,
+>   follow-up requests, the second plan check.
 > - **Redesign, stage 2: the editor** (section 3v): chat left, video and
 >   timeline centre, searchable tools right, hideable sides, saved sign and
 >   job progress, keyboard shortcuts; new: logo and text rotation, a zoom
@@ -262,7 +271,8 @@ separate `chore(logs)` commit.
 | Motion graphics: title/text entrances and exits (fade, slide, pop), a lower third, an animated zoom                                                                                                                      | `feat(editor): animated text, a lower third and zoom`                    | Unit tests for the easing, the half-time cap, the zoom matrix and the commands. e2e measures real exports: the zoom (square width, centred, with a crop and a sped clip), the title sliding and fading, the lower third at the lower left sliding in and gone outside its time, a text pop; typed commands, save/reopen, undo.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | The logo by hand: drag anywhere, resize by its corner, keys, a size field; PNG or JPG                                                                                                                                    | `feat(editor): place and resize the logo by hand, PNG or JPG`            | Unit tests for placing, moving, resizing and clamping. e2e drags and resizes a JPG logo, checks the export puts it at the same place and size, the keys, the size field, undo per step, corners and the default-corner command.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
-**Current totals:** 333 unit tests (`src/**/*.test.mts`) and 70 e2e tests.
+**Current totals** (2026-10-07, Make it part 1): 363 unit tests
+(`src/**/*.test.mts`) and 97 e2e tests (plus the sign-in setup).
 Everything passes locally. On the meter commit the full e2e suite passed
 18/18 in each of two runs.
 
@@ -2141,6 +2151,109 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
   cost rule); the reply is schema-checked and a bad one shows "No clear
   highlights were found".
 
+## 3ze. Make it, part 1: a whole edit from one request (2026-10-07)
+
+- **Asked:** a Make it page and a Home card ("Make it with AI"). Upload a
+  video, type or say a request ("make this an Instagram reel", "make it
+  funny", "make it professional", "make this an ad"); Retake plans the whole
+  edit, guesses what's missing, asks 1 to 3 short questions first only when
+  the request is unclear, and shows the plan with Apply / Cancel. Apply
+  builds it in the normal editor (undo, redo, save and export as usual).
+  Edit mode only (the user's footage). **Not in part 1:** create from
+  scratch, follow-up requests, the second plan check.
+- **Flow** (`(app)/make/`): `make-it.tsx` reads the file (`probeVideo`; up to
+  5 minutes), runs the editor's own `useTakeAnalysis` (Deepgram transcript,
+  filler cuts with clean gaps), takes a 256 px JPEG every 2 s (`frames.ts`,
+  from the middle of each 2 s stretch), then calls `planMakeIt`
+  (`actions.ts`). Pictures are sent in every case. The plan is a TanStack
+  query keyed by the video, the request and any answers, so the same request
+  isn't paid for twice.
+- **The AI call:** `planMakeIt` → `generateContent` with `feature: 'make_it'`
+  on `gemini-3.5-flash-lite` (already registered), so each call is a costed
+  `ai_usage` row. The reply is structured JSON (`MAKE_REPLY_JSON_SCHEMA`):
+  questions, style, a one-line summary, whether the picture matters, sentence
+  numbers to drop and to zoom on, dead stretches (only when the picture
+  matters), captions mode, transition kind, vertical, face positions per
+  picture (0–1000 grid), a music file name from the folder's list, an
+  optional title, and what it can't do. With answers given, questions are
+  ignored. A meeting, call, slides or screen recording is judged by its
+  speech only (no zooms, no faces, no dead stretches): the prompt says so,
+  and `pictureMatters: false` plans from the sentences.
+- **Planning** (`make-plan.ts`, `planMake`, pure and unit-tested): the model
+  names only sentence numbers, picture numbers and choices from fixed lists;
+  times come from the transcript. A talking video keeps its kept sentences
+  with 0.25 s of room (from the pause only), joined across pauses up to
+  0.8 s; a video whose picture matters keeps everything but dropped
+  sentences and dead stretches, a stretch never cutting into a kept
+  sentence. Each kept piece is a clip; fillers with clean gaps are cuts; a
+  fade or dissolve goes only where at least 1.5 s was taken out. Zooms are
+  push-ins over the named sentences (in edited time, never overlapping, at
+  most 6; 1.12× professional to 1.4× funny). Removing every sentence
+  removes none. The result is one `EditSnapshot`.
+- **Never invents names:** the title is the only text Make it writes on
+  screen (captions are the transcript). `inventedNames` drops a title with a
+  capitalised word mid-sentence, or an @/# handle, that was never said nor in
+  the request, and the plan says "Left out a title that named someone…".
+  What can't be done is listed under "What Retake can't do here".
+- **New in the editor** (each kept through save, undo and reset):
+  - Captions **word by word** (`captionWords` in the snapshot,
+    `editedCaptions(..., true)`): one word at a time, held to the next unless
+    a pause over 0.7 s comes first. A "Word by word" box in Captions.
+  - **Several zooms**: `autoZooms` in the snapshot beside the hand-set
+    `zoom`; `zoomsViewAt` shows whichever is under way (preview and export).
+    Not on the timeline or editable one by one yet: Undo/Reset take them away.
+  - **A crop that follows a face**: `Crop.follow` keys (the crop's left edge
+    at seconds of the main video), eased between keys (`transformAt`), in the
+    preview (at the playhead) and the export (per frame, from the main
+    video's own time). The face may drift a fifth of the crop's width before
+    the crop moves; a run at one place keeps only its ends, so it pans
+    between them. No face in any picture: a centred 9:16 crop. Turning the
+    picture or setting the crop by hand drops the follow. An already-vertical
+    video isn't cropped.
+  - **Ducked music**: an Audio lane item with `duck: true` goes down to a
+    quarter (about −12 dB) under speech, ramping over 0.3 s (`duckingPoints`,
+    `speechSpans` from the words in edited time), in the preview and the
+    export. Make it lays the track at 35%, repeated to fill the edit.
+- **Music:** `public/music/` with `LICENSES.md` (free-licence only: CC0,
+  Pixabay, CC BY with credit). It holds no tracks yet: Gemini is told "Music
+  files: none", the plan says "No music: there are no tracks in public/music
+  yet", and nothing fails. Files are listed server-side (`readdir`), named
+  for their mood, fetched from `/music/<name>` and decoded in the browser.
+- **Apply:** `handOffStart` now carries the transcript and the edit; the
+  editor loads the file with that transcript (no second Deepgram call) and
+  sets the history to one step after the untouched video, so one Undo takes
+  the whole plan away and Redo brings it back.
+- **Privacy copy:** How it works and the FAQ say Make it sends the
+  transcript and small pictures (one every 2 s) to Gemini; the video file
+  itself is never uploaded. The Make it page says so while it works.
+- **Tests:** unit tests for planning (`make-plan.test.mts`: kept ranges both
+  ways, face follow, invented names, a whole plan, no speech / no faces / no
+  music, already vertical, the reply schema), word captions, ducking, the
+  following crop, several zooms, reset. e2e `make-it.spec.ts` with a canned
+  transcript and canned Gemini replies (no paid calls): Home's card; a reel
+  planned (the request carried the transcript and 3 pictures for 6 s), the
+  plan's lines, Apply → two clips, word captions on, no second transcript
+  request, the export 102×180 with the crop following the square (mutation:
+  without the follow the square is out of the frame at 3 s), one Undo back
+  to one clip and Redo; questions then a plan, the dropped title and the
+  "can't do" line, Cancel keeps the request; music measured in the export
+  (660 Hz 0.35 in the pause, under 0.15 under speech; mutation without
+  ducking: 0.348 under speech).
+- **Real footage, no paid call:** `Cap.mp4` (1:48, 1080p) with its cached
+  transcript and a canned reply (3 sentences dropped, 3 zooms, word
+  captions, vertical, a title, a 660 Hz "track"): 55 pictures sent (396 KB
+  request); plan 1:48 → 1:40; the export 608×1080, 100.52 s for a 100.46 s
+  edit; the title and single-word captions in its frames, the zoom visible;
+  music 0.07–0.10 under speech (0.0875 due) and 0.349 in a pause (0.35 due).
+  (Reading frames by seeking a 100 s recorder WebM returned the first frame
+  every time; playing it and grabbing frames on the way worked.)
+- **Not tried against real Gemini** (zero API cost rule): the prompt, the
+  face positions it gives and the questions it asks are untested on the
+  real model. A reply that doesn't fit the schema shows "Retake couldn't
+  make a plan from that". Expected cost: ~260 tokens a picture, so a
+  5-minute video is ~40k input tokens a plan, well under a cent on
+  Flash-Lite.
+
 ---
 
 ## 4. Unresolved issues
@@ -2644,6 +2757,15 @@ run in 3 on this machine, both on `main` and on the highlights branch
 (export 3.6 s or 3.9 s against > 3.9 s; once clean-up found no silence in
 the recorded take). It passes on retry. Not changed.
 
+**Local, 2026-10-07 (Make it branch, ~1.4–2 GB free):** in one full run,
+`clip-speed.spec.ts:130` (exported 4.69 s for 5 s) and
+`multi-video.spec.ts:175` (6.20 s for 4.75 s) missed on export length, the
+memory-pressure miss of 4f; `editor.spec.ts:331` waited past 5 s for a
+command's reply (the request was still in flight when the test ended). All
+three passed when run again. Not changed. A second full run was stopped by
+Claude Code for low memory (many tests failing as the machine starved); the
+user chose to let CI's e2e shards be the second check.
+
 ### 4d. Low memory on this machine (observed 2026-10-02)
 
 - The machine has 7.5 GB of RAM. With many apps open (Edge WebView2 apps,
@@ -2793,6 +2915,9 @@ This explains the e2e export-length failures in section 4c (0.39 s long,
     (section 3s).
 27. ~~The logo by hand (drag, resize, PNG or JPG); captions checked~~: done
     (section 3t).
+
+Make it (section 3ze): part 1 done. Later parts, as the user listed them:
+create-from-scratch mode, follow-up requests, the second plan check.
 
 Not yet queued by the user:
 

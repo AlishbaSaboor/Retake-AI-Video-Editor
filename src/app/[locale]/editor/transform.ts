@@ -16,8 +16,15 @@ import type { Rect } from './annotations'
 export const CROP_ASPECTS = ['free', '16:9', '9:16', '1:1', '4:5'] as const
 export type CropAspect = (typeof CROP_ASPECTS)[number]
 
-/** `rect` is fractions of the rotated frame; `aspect` is kept when the frame changes shape. */
-export type Crop = { rect: Rect; aspect: CropAspect }
+/** Where a following crop's left edge is (a fraction of the frame) at a second of the main video. */
+export type CropKey = { seconds: number; x: number }
+
+/**
+ * `rect` is fractions of the rotated frame; `aspect` is kept when the frame
+ * changes shape. `follow` (Make it's crop that follows a face) moves the
+ * crop across the frame over the main video's own time, from key to key.
+ */
+export type Crop = { rect: Rect; aspect: CropAspect; follow?: CropKey[] }
 
 export type PictureTransform = {
 	/** Degrees clockwise, in (-180, 180]. */
@@ -181,8 +188,39 @@ export function centredCrop(ratio: number, frame: Size): Rect {
  */
 export function refitCrop(crop: Crop | null, frame: Size): Crop | null {
 	if (!crop) return null
+	// A followed face was found in the frame before the turn: it no longer applies.
+	const still: Crop = { rect: crop.rect, aspect: crop.aspect }
 	const ratio = aspectRatio(crop.aspect)
-	return ratio === null ? crop : { ...crop, rect: centredCrop(ratio, frame) }
+	return ratio === null ? still : { ...still, rect: centredCrop(ratio, frame) }
+}
+
+/** Eases in and out between keys: a camera pan, not a jump. */
+const smooth = (p: number) => p * p * (3 - 2 * p)
+
+/** A following crop's left edge at `seconds`: eased between the keys either side, held before the first and after the last. */
+export function followedX(follow: readonly CropKey[], seconds: number): number {
+	const next = follow.findIndex((key) => key.seconds > seconds)
+	const after = follow[next]
+	const before = follow[next - 1]
+	if (!after) return follow.at(-1)?.x ?? 0
+	if (!before) return after.x
+	const p = smooth((seconds - before.seconds) / (after.seconds - before.seconds))
+	return before.x + (after.x - before.x) * p
+}
+
+/**
+ * The transform as it is at `sourceSeconds` of the main video: a following
+ * crop moved to where it is then. Null (another video is playing) keeps
+ * the crop where it's set.
+ */
+export function transformAt(
+	transform: PictureTransform,
+	sourceSeconds: number | null
+): PictureTransform {
+	const crop = transform.crop
+	if (!crop?.follow?.length || sourceSeconds === null) return transform
+	const x = clamp(followedX(crop.follow, sourceSeconds), 0, 1 - crop.rect.width)
+	return { ...transform, crop: { ...crop, rect: { ...crop.rect, x } } }
 }
 
 /** Turns the picture to `rotation` degrees, refitting a preset crop to the new frame. */
