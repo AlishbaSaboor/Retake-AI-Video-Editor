@@ -2009,6 +2009,33 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
   on the timeline before Apply. Pages other than the editor (site, log in,
   Home, Projects) weren't asked for.
 
+**Stage 2: the remaining tools** (same day):
+
+- **Clean up** (`cleanup-bar.tsx`, now `CleanupPanel`): the preview is up
+  front, not behind a first click: how many long silences and filler words,
+  "Saves about N seconds", the length before and after (left off when both
+  round to the same), and one button, "Remove silences and filler words",
+  that does it; Undo puts them back. Filler words with no clear pause stay
+  flagged for a hand cut, as before.
+- **Transcript** (`transcript-panel.tsx`): the checks' flags in place:
+  filler words highlighted in their sentence (outlined when they need a
+  hand cut), a "2.4 s pause" chip after the sentence a long silence
+  follows, and "Background noise / Quiet speech / Distorted at 0:12" under
+  the sentence a problem is in; pauses and problems jump there. Chips at
+  the top count each kind (Filler words, Pauses, Bad audio) and show only
+  the sentences with it. Re-record stays on each sentence, with the
+  automatic splice and "Set the join by ear" unchanged.
+- **Captions:** on/off up front, the style under More options.
+- **Speed & fades:** a card per clip (name and Mute, volume, then fade in,
+  fade out and speed in one row) to fit the panel. **Transitions:** says
+  how to get a join when there's only one clip, instead of nothing.
+  Section headings that repeated the panel's own title are for screen
+  readers only (Colour, Audio, Transitions, Speed & fades).
+- **Flaky under full local load** (passed alone, one worker): the two
+  re-record specs (the fake mic sometimes delivered silence: "No speech was
+  heard"), the contact form on a cold compile, a projects reload export.
+  Recorded in 4c.
+
 ---
 
 ## 4. Unresolved issues
@@ -2468,6 +2495,12 @@ bytes, times, read, { size, args })` seeks each time, records the time of
   0.4 s caption, so no frame check can resolve it; 4× is the target (CI
   lands between the two). At 4× the export length still varied by ±0.27 s
   once; see 4f.
+
+**Editor redesign run, 2026-10-06 (full suite, local, 4 workers):** the
+re-record and re-record-by-ear specs failed under load when the fake mic
+delivered silence ("No speech was heard in that recording"); both pass
+alone and with one worker. The contact form's send timed out once on a
+cold compile, then passed. Not changed.
 
 ### 4d. Low memory on this machine (observed 2026-10-02)
 

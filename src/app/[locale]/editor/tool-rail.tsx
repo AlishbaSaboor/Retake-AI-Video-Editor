@@ -88,7 +88,7 @@ export function ToolRail({
 							{group !== 'project' && (
 								<p
 									role="presentation"
-									className="text-text-faint pt-1.5 pb-0.5 text-center font-mono text-[10px] tracking-widest uppercase"
+									className="text-text-faint pt-1 pb-0.5 text-center font-mono text-[9px] tracking-widest uppercase"
 								>
 									{t(`groups.${group}`)}
 								</p>
@@ -109,7 +109,7 @@ export function ToolRail({
 											onOpen(selected ? null : each.id)
 										}}
 										className={cn(
-											'focus-visible:outline-accent flex flex-col items-center gap-0.5 rounded-lg px-0.5 py-1.5 text-center text-[11px] leading-tight font-medium transition-colors focus-visible:outline-2',
+											'focus-visible:outline-accent flex flex-col items-center gap-0.5 rounded-lg px-0.5 py-1 text-center text-[10.5px] leading-tight font-medium transition-colors focus-visible:outline-2',
 											selected
 												? 'bg-accent-soft text-accent'
 												: 'text-text-muted hover:bg-surface-hover hover:text-text'

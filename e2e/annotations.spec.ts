@@ -195,6 +195,8 @@ test('boxes and blurs drawn on the preview show only in their time, in the previ
 
 	// The preview really blurs: no sharp square edge on the row under it, but
 	// the square still shows through. Before the blur, the edge is sharp.
+	// Measured with the tool panel folded away, the player at its usual width.
+	await page.getByRole('button', { name: 'Close the panel' }).click()
 	const previewBlurred = await previewReading(page, boxCentre)
 	await seekTo(page, blur.start - 0.4)
 	await expect(shownItems(page, 'blur')).toHaveCount(0)

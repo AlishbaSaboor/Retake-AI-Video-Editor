@@ -36,13 +36,14 @@ type TransitionPanelProps = {
  */
 export function TransitionPanel({ joins, canEdit, onChange }: TransitionPanelProps) {
 	const t = useTranslations('Editor.transitions')
-	if (joins.length === 0) return null
+	// One clip has no joins: say how to get some, rather than show nothing.
+	if (joins.length === 0) return <p className="text-text-muted text-sm">{t('none')}</p>
 	return (
 		<section
 			aria-label={t('label')}
 			className="border-border bg-surface flex flex-col gap-3 rounded-lg border p-4"
 		>
-			<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
+			<h2 className="sr-only">{t('label')}</h2>
 			{joins.map((join, index) => (
 				<JoinRow
 					// Follows what's set, so an undo resets what's typed.

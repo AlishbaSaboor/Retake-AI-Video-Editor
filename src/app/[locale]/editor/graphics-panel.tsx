@@ -18,6 +18,7 @@ import type { Size } from './transform'
 import { DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
 import { TextStyleFields } from './text-style-fields'
 import { AnimationFields } from './motion-panels'
+import { MoreOptions } from './on-video-panels'
 import type { LowerThird } from './motion'
 
 /** A new title's stretch, before the user sets one: the first 3 seconds. */
@@ -220,12 +221,14 @@ export function CaptionsPanel({
 					{captionsOn ? t('captionsOn') : t('captionsOff')}
 				</Button>
 			</div>
-			<TextStyleFields
-				key={`caption-${JSON.stringify(captionStyle)}`}
-				label={t('captionStyle')}
-				style={captionStyle}
-				onChange={onCaptionStyleChange}
-			/>
+			<MoreOptions>
+				<TextStyleFields
+					key={`caption-${JSON.stringify(captionStyle)}`}
+					label={t('captionStyle')}
+					style={captionStyle}
+					onChange={onCaptionStyleChange}
+				/>
+			</MoreOptions>
 		</section>
 	)
 }

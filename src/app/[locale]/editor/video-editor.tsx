@@ -29,7 +29,7 @@ import { newSpan, type Annotation, type NewAnnotation, type Rect } from './annot
 import { keptSeconds, mergeCuts, planCleanup, type Cut, type Edit } from './cleanup'
 import { DEFAULT_CLIP_AUDIO, type ClipAudio } from './clip-audio'
 import { ClipAudioPanel } from './clip-audio-panel'
-import { CleanupBar } from './cleanup-bar'
+import { CleanupPanel } from './cleanup-bar'
 import type { ClipSelection } from './clip-selection'
 import { CompareToggle } from './compare-toggle'
 import { editedCaptions } from './captions'
@@ -230,7 +230,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	const [relink, setRelink] = useState<{ id: string; missing: MediaRef[] } | null>(null)
 	const queryClient = useQueryClient()
 	const projects = useQuery({ queryKey: PROJECTS_KEY, queryFn: listProjects })
-	// Source ranges playback skips, from "Clean up recording". Like trim, a
+	// Source ranges playback skips, from Clean up. Like trim, a
 	// cut never touches the file.
 	const [cuts, setCuts] = useState<Cut[]>([])
 	const edit: Edit = { trim: range, cuts }
@@ -1774,8 +1774,10 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 						'cleanup',
 						'fix',
 						<CleanupIcon size={18} />,
-						<CleanupBar
+						<CleanupPanel
 							removableSeconds={removableSeconds}
+							editedSeconds={editedSeconds}
+							canEdit={canEdit}
 							silenceCount={analysis.silences.length}
 							fillerCutCount={fillerCuts.length}
 							fillerReviewCount={analysis.fillerPlans.length - fillerCuts.length}
@@ -2139,6 +2141,9 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 									onSeek={playback.seek}
 									onReRecord={analysis.loudness && canEdit ? openReRecord : undefined}
 									replacedSpans={replacedSpans}
+									silences={analysis.silences}
+									fillerPlans={analysis.fillerPlans}
+									audioIssues={analysis.audioIssues}
 								/>
 							) : (
 								<p className="text-text-muted p-4 text-sm">{t('layout.chatWaits')}</p>
