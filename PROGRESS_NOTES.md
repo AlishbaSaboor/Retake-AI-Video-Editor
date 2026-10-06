@@ -2502,6 +2502,17 @@ delivered silence ("No speech was heard in that recording"); both pass
 alone and with one worker. The contact form's send timed out once on a
 cold compile, then passed. Not changed.
 
+**CI on PR #7 (stage 2):** `transform.spec.ts`'s flip test failed all three
+tries: the square read 11–14 px off 150 by its frame's time. Locally one
+run had a frame stamped ~1.16 s whose picture showed the square at its 1.5 s
+place, 0.34 s apart: the test video is recorded in real time too, so its
+frame times can drift from where the square was drawn, on top of the
+export's own lag and lead. The test now allows 0.35 s either way for the
+square's position (`SQUARE_SLACK_SECONDS`); the flip and turn are proven by
+the pixel probes (orange at the square's centre, the pinned red box), which
+don't depend on time. The clip-reorder and export-length tests also failed
+once each in that run and passed on retry.
+
 ### 4d. Low memory on this machine (observed 2026-10-02)
 
 - The machine has 7.5 GB of RAM. With many apps open (Edge WebView2 apps,
