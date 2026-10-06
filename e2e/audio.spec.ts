@@ -46,7 +46,6 @@ async function setFade(
 ) {
 	await openTool(page, 'Clip sound and speed')
 	const input = clipRow(page, n).getByLabel(field)
-	await openTool(page, 'Assistant')
 	await input.fill(String(seconds))
 	await input.press('Enter')
 }

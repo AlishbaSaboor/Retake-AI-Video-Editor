@@ -82,10 +82,7 @@ export function TransformPanel({
 	}
 
 	return (
-		<section
-			aria-label={t('label')}
-			className="border-border bg-surface flex flex-col gap-4 rounded-lg border p-4"
-		>
+		<section aria-label={t('label')} className="flex flex-col gap-4">
 			<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
 			<div className="flex flex-wrap items-end gap-3">
 				<form

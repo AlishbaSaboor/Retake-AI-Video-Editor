@@ -55,7 +55,7 @@ export function CleanupPanel({
 
 	return (
 		<section aria-label={t('label')} className="flex flex-col gap-4">
-			<div className="border-border bg-surface flex flex-col gap-3 rounded-lg border p-4">
+			<div className="flex flex-col gap-3">
 				<ul className="flex flex-col gap-1.5 text-sm">
 					<li className="flex items-center gap-2">
 						<span aria-hidden className="bg-warning size-2 rounded-full" />

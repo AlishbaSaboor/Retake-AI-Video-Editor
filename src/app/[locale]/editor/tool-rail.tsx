@@ -5,9 +5,14 @@ import { useTranslations } from 'next-intl'
 import { CloseIcon, SearchIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 
-/** The rail's groups, top to bottom: the project, then fixing what's there, adding to it, adjusting how it looks. */
-export const TOOL_GROUPS = ['project', 'fix', 'add', 'adjust'] as const
+/**
+ * The rail's groups, top to bottom: the project; the assistant and the
+ * transcript; then fixing what's there, adding to it, adjusting how it looks.
+ */
+export const TOOL_GROUPS = ['project', 'assist', 'fix', 'add', 'adjust'] as const
 export type ToolGroup = (typeof TOOL_GROUPS)[number]
+/** Groups with no label over them: a line sets them apart instead. */
+const UNLABELLED: readonly ToolGroup[] = ['project', 'assist']
 
 /** One tool: its place on the rail, its name and help line, other words to find it by, its panel. */
 export type Tool = {
@@ -20,6 +25,8 @@ export type Tool = {
 	/** More words someone might search for: what the tool does, in plain terms. */
 	keywords: string
 	panel: React.ReactNode
+	/** Its panel fills the column and scrolls itself (the assistant's chat). */
+	fill?: boolean
 }
 
 const words = (text: string) =>
@@ -34,12 +41,24 @@ export function toolMatches(tool: Pick<Tool, 'label' | 'help' | 'keywords'>, que
 	return words(query).every((want) => have.some((word) => word.startsWith(want)))
 }
 
+// Inside a panel, everything is a size down and quieter than the app's
+// defaults: field labels, legends and sub-headings small and muted, buttons
+// and fields at 13 px.
+const QUIET_PANEL = cn(
+	'text-[13px]',
+	'[&_label]:text-text-muted [&_label]:text-xs [&_label]:font-normal',
+	'[&_legend]:text-text-muted [&_legend]:text-xs [&_legend]:font-normal',
+	'[&_h2]:text-text-faint [&_h2]:text-[11px] [&_h2]:font-medium [&_h2]:tracking-wide',
+	'[&_h3]:text-text-muted [&_h3]:text-xs [&_h3]:font-medium [&_h3]:tracking-normal [&_h3]:normal-case',
+	'[&_button]:font-normal [&_button]:text-[13px] [&_input]:text-[13px] [&_select]:text-[13px] [&_textarea]:text-[13px]'
+)
+
 /**
  * The tools: a narrow rail of icons and names in groups, and beside it the
  * open tool's panel, with its heading, a line about it and a search across
- * every tool. Clicking the open tool again folds the panel away. Every panel
- * stays mounted (hidden when not shown), so nothing typed in one is lost by
- * switching away.
+ * every tool. One tool is always open; the panel as a whole is hidden and
+ * shown from the editor's edge (editor-shell.tsx). Every panel stays mounted
+ * (hidden when not shown), so nothing typed in one is lost by switching away.
  */
 export function ToolRail({
 	tools,
@@ -48,17 +67,18 @@ export function ToolRail({
 	disabledNote = null
 }: {
 	tools: Tool[]
-	/** The open tool's id; null when the panel is folded away. */
-	open: string | null
-	onOpen: (id: string | null) => void
+	/** The open tool's id. */
+	open: string
+	onOpen: (id: string) => void
 	/** Why nothing in the panels can be changed right now (the Original view); null when it can. */
 	disabledNote?: string | null
 }) {
 	const t = useTranslations('Editor.tools')
 	const [query, setQuery] = useState('')
 	const searching = query.trim() !== ''
-	const tool = tools.find((each) => each.id === open) ?? null
+	const tool = tools.find((each) => each.id === open) ?? tools[0]
 	const found = searching ? tools.filter((each) => toolMatches(each, query)) : []
+	const fill = !searching && tool?.fill === true
 
 	function choose(id: string) {
 		setQuery('')
@@ -66,12 +86,12 @@ export function ToolRail({
 	}
 
 	return (
-		<section aria-label={t('label')} className="flex h-full min-h-0">
+		<section aria-label={t('label')} className="flex h-full min-h-0 max-lg:flex-col">
 			<div
 				role="tablist"
 				aria-label={t('tabsLabel')}
 				aria-orientation="vertical"
-				className="border-border bg-surface flex min-h-0 w-[4.5rem] shrink-0 flex-col gap-0.5 overflow-y-auto border-r px-1 py-1.5"
+				className="border-border flex min-h-0 w-[4.5rem] shrink-0 flex-col gap-0.5 overflow-y-auto border-r px-1 py-2 max-lg:w-full max-lg:flex-row max-lg:overflow-x-auto max-lg:border-r-0 max-lg:border-b"
 			>
 				{TOOL_GROUPS.map((group) => {
 					const inGroup = tools.filter((each) => each.group === group)
@@ -81,20 +101,21 @@ export function ToolRail({
 							key={group}
 							role="presentation"
 							className={cn(
-								'flex flex-col gap-0.5',
-								group === 'project' && 'border-border border-b pb-1.5'
+								'flex flex-col gap-0.5 max-lg:flex-row',
+								UNLABELLED.includes(group) &&
+									'border-border border-b pb-1.5 max-lg:border-r max-lg:border-b-0 max-lg:pr-1 max-lg:pb-0'
 							)}
 						>
-							{group !== 'project' && (
+							{!UNLABELLED.includes(group) && (
 								<p
 									role="presentation"
-									className="text-text-faint pt-1 pb-0.5 text-center font-mono text-[9px] tracking-widest uppercase"
+									className="text-text-faint pt-1.5 pb-0.5 text-center font-mono text-[9px] tracking-widest uppercase max-lg:hidden"
 								>
 									{t(`groups.${group}`)}
 								</p>
 							)}
 							{inGroup.map((each) => {
-								const selected = each.id === open
+								const selected = each.id === tool?.id
 								return (
 									<button
 										key={each.id}
@@ -104,14 +125,11 @@ export function ToolRail({
 										aria-selected={selected}
 										aria-controls="tool-panel"
 										title={each.help}
-										onClick={() => {
-											setQuery('')
-											onOpen(selected ? null : each.id)
-										}}
+										onClick={() => choose(each.id)}
 										className={cn(
-											'focus-visible:outline-accent flex flex-col items-center gap-0.5 rounded-lg px-0.5 py-1 text-center text-[10.5px] leading-tight font-medium transition-colors focus-visible:outline-2',
+											'focus-visible:outline-accent flex shrink-0 flex-col items-center gap-0.5 rounded-lg px-0.5 py-1 text-center text-[10.5px] leading-tight transition-colors focus-visible:outline-2 max-lg:w-16',
 											selected
-												? 'bg-accent-soft text-accent'
+												? 'bg-accent-soft text-accent font-medium'
 												: 'text-text-muted hover:bg-surface-hover hover:text-text'
 										)}
 									>
@@ -126,28 +144,17 @@ export function ToolRail({
 			</div>
 			<div
 				id="tool-panel"
-				hidden={tool === null}
 				role="tabpanel"
 				aria-labelledby={tool ? `tool-tab-${tool.id}` : undefined}
-				className="border-border bg-bg flex min-h-0 w-[min(22rem,calc(100vw-5rem))] shrink-0 flex-col border-r"
+				className="border-border flex min-h-0 w-[min(21rem,calc(100vw-5rem))] shrink-0 flex-col border-r max-lg:w-full max-lg:border-r-0"
 			>
-				<div className="border-border flex flex-col gap-3 border-b p-4">
-					<div className="flex items-start gap-2">
-						<div className="flex min-w-0 flex-1 flex-col gap-1">
-							<h2 className="font-display text-text text-lg font-semibold">{tool?.label}</h2>
-							<p className="text-text-muted text-sm leading-snug">{tool?.help}</p>
-						</div>
-						<button
-							type="button"
-							aria-label={t('close')}
-							onClick={() => onOpen(null)}
-							className="text-text-faint hover:text-text hover:bg-surface-hover focus-visible:outline-accent rounded-md p-1 focus-visible:outline-2"
-						>
-							<CloseIcon />
-						</button>
+				<div className="flex flex-col gap-3 px-5 pt-5 pb-4">
+					<div className="flex flex-col gap-0.5">
+						<h2 className="text-text text-[15px] font-semibold">{tool?.label}</h2>
+						<p className="text-text-faint text-xs leading-snug">{tool?.help}</p>
 					</div>
-					<div className="border-border bg-surface-inset focus-within:border-accent focus-within:ring-accent-glow flex items-center gap-2 rounded-lg border px-2.5 transition-shadow focus-within:ring-2">
-						<SearchIcon className="text-text-faint" />
+					<div className="border-border focus-within:border-accent flex items-center gap-2 rounded-md border px-2 transition-colors">
+						<SearchIcon size={14} className="text-text-faint" />
 						<input
 							type="search"
 							value={query}
@@ -158,7 +165,7 @@ export function ToolRail({
 							}}
 							placeholder={t('searchPlaceholder')}
 							aria-label={t('search')}
-							className="text-text placeholder:text-text-faint h-9 w-full bg-transparent text-sm focus-visible:outline-none [&::-webkit-search-cancel-button]:hidden"
+							className="text-text placeholder:text-text-faint h-8 w-full bg-transparent text-[13px] focus-visible:outline-none [&::-webkit-search-cancel-button]:hidden"
 						/>
 						{query && (
 							<button
@@ -167,14 +174,14 @@ export function ToolRail({
 								onClick={() => setQuery('')}
 								className="text-text-faint hover:text-text"
 							>
-								<CloseIcon />
+								<CloseIcon size={14} />
 							</button>
 						)}
 					</div>
 				</div>
 				{searching && (
-					<div role="region" aria-label={t('results')} className="flex flex-col gap-2 p-4">
-						<p role="status" className="text-text-muted text-xs">
+					<div role="region" aria-label={t('results')} className="flex flex-col gap-1 px-5 pb-5">
+						<p role="status" className="text-text-faint pb-1 text-xs">
 							{found.length ? t('found', { count: found.length }) : t('none', { query })}
 						</p>
 						{found.map((each) => (
@@ -182,12 +189,12 @@ export function ToolRail({
 								key={each.id}
 								type="button"
 								onClick={() => choose(each.id)}
-								className="border-border bg-surface hover:border-border-strong hover:bg-surface-hover focus-visible:outline-accent flex items-center gap-3 rounded-lg border p-3 text-left focus-visible:outline-2"
+								className="hover:bg-surface-hover focus-visible:outline-accent flex items-center gap-3 rounded-md px-2 py-2 text-left focus-visible:outline-2"
 							>
-								<span className="text-accent">{each.icon}</span>
+								<span className="text-text-muted">{each.icon}</span>
 								<span className="flex flex-col">
-									<span className="text-text text-sm font-semibold">{each.label}</span>
-									<span className="text-text-muted text-xs">{each.help}</span>
+									<span className="text-text text-[13px] font-medium">{each.label}</span>
+									<span className="text-text-faint text-xs">{each.help}</span>
 								</span>
 							</button>
 						))}
@@ -196,19 +203,27 @@ export function ToolRail({
 				<fieldset
 					hidden={searching}
 					disabled={disabledNote !== null}
-					className="relative flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4"
+					className={cn(
+						'relative flex min-h-0 min-w-0 flex-1 flex-col',
+						!fill && 'gap-6 overflow-y-auto px-5 pb-6',
+						QUIET_PANEL
+					)}
 				>
 					{disabledNote && (
-						<p role="note" className="bg-surface-inset text-text rounded-lg p-3 text-sm">
+						<p role="note" className="text-text-muted mx-5 rounded-md text-xs">
 							{disabledNote}
 						</p>
 					)}
 					{tools.map((each) => (
 						<div
 							key={each.id}
-							hidden={each.id !== open}
+							hidden={each.id !== tool?.id}
 							data-tool={each.id}
-							className="flex flex-col gap-4"
+							className={cn(
+								'flex-col gap-6',
+								each.id === tool?.id && 'flex',
+								each.fill && 'min-h-0 flex-1'
+							)}
 						>
 							{each.panel}
 						</div>

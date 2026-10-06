@@ -284,8 +284,11 @@ export async function openTool(page: Page, panel: keyof typeof TOOL_TABS): Promi
 	// The tools come once a video is in; an empty editor (it shows My projects
 	// itself) has none to open.
 	const empty = page.getByText('Drop a video here, or click to choose one')
-	await expect(tab.or(empty).first()).toBeVisible({ timeout: 30_000 })
+	// The panel may be hidden: its one icon brings it back.
+	const show = page.getByRole('button', { name: 'Show the tool panel' })
+	await expect(tab.or(empty).or(show).first()).toBeVisible({ timeout: 30_000 })
 	if (await empty.isVisible()) return
+	if (await show.isVisible()) await show.click()
 	if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click()
 	if (!where.more) return
 	const more = page.locator(`[data-tool]:not([hidden]) details[data-more-options]`)

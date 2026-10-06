@@ -33,10 +33,7 @@ export function ProjectPanel({
 	const t = useTranslations('Editor.projects')
 	const format = useFormatter()
 	return (
-		<section
-			aria-label={t('label')}
-			className="border-border bg-surface flex flex-col gap-3 rounded-lg border p-4"
-		>
+		<section aria-label={t('label')} className="flex flex-col gap-3">
 			<p role="status" className="text-text-muted text-sm">
 				{status === 'saved' && savedAt !== null
 					? t('savedAt', { time: format.dateTime(savedAt, { timeStyle: 'medium' }) })
