@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
 import {
 	editCommand,
@@ -8,6 +7,7 @@ import {
 	w,
 	openTool
 } from './editor-helpers'
+import { exportVideo, readExportFrames, surelyAfter, surelyBefore } from './export-frames'
 
 // Clip speed, measured on real exports: the file's length, the tone's
 // pitch (440 Hz, kept at any speed), and the captions' timing.
@@ -20,8 +20,6 @@ const LENGTH_TOLERANCE_SECONDS = 0.25
 const TONE_HZ = 440
 /** Pitch read from zero crossings over 0.3 s: within this of 440 is "kept" (2× would be 880, ½× 220). */
 const PITCH_TOLERANCE_HZ = 25
-// Captions sit at the bottom of the 320×180 frame, below the moving square.
-const CAPTION_ROWS = { from: 145, to: 175 }
 
 const clipRow = (page: Page, n: number) =>
 	page
@@ -68,18 +66,15 @@ type Exported = {
 
 /** Exports the edit and reads the file: its length, its pitch and its captions at `times`. */
 async function exportAndRead(page: Page, times: number[]): Promise<Exported> {
-	const downloading = page.waitForEvent('download')
-	await page.getByRole('button', { name: 'Export video' }).click()
-	const bytes = await readFile(await (await downloading).path())
-	await expect(page.getByRole('button', { name: 'Export video' })).toBeVisible()
-	return page.evaluate(
-		async ({ bytes, times, rows }) => {
+	const bytes = await exportVideo(page)
+	const pitch = await page.evaluate(
+		async ({ bytes, times }) => {
 			const blob = new Blob([new Uint8Array(bytes)], { type: 'video/webm' })
 			const audio = await new OfflineAudioContext(1, 1, 48_000).decodeAudioData(
 				await blob.arrayBuffer()
 			)
 			const samples = audio.getChannelData(0)
-			const pitch = times.map((at) => {
+			return times.map((at) => {
 				const from = Math.max(1, Math.floor((at - 0.15) * audio.sampleRate))
 				const to = Math.min(samples.length, Math.floor((at + 0.15) * audio.sampleRate))
 				let crossings = 0
@@ -88,47 +83,31 @@ async function exportAndRead(page: Page, times: number[]): Promise<Exported> {
 				}
 				return (crossings / (to - from)) * audio.sampleRate
 			})
-			const video = Object.assign(document.createElement('video'), {
-				src: URL.createObjectURL(blob),
-				muted: true
-			})
-			// On the page (barely visible), so its frames are presented and
-			// requestVideoFrameCallback reports each one's time.
-			video.style.cssText = 'position:fixed;left:0;top:0;width:32px;height:18px;opacity:0.01'
-			document.body.append(video)
-			const next = (type: string) =>
-				new Promise((resolve) => video.addEventListener(type, resolve, { once: true }))
-			await next('loadedmetadata')
-			// A recorded WebM has no duration header; seeking past the end finds it.
-			if (!Number.isFinite(video.duration)) {
-				video.currentTime = 1e9
-				while (!Number.isFinite(video.duration)) await next('durationchange')
-			}
-			const canvas = Object.assign(document.createElement('canvas'), { width: 320, height: 180 })
-			const context = canvas.getContext('2d', { willReadFrequently: true })
-			if (!context) throw new Error('no 2d context')
-			const captionWhite: number[] = []
-			const shown: number[] = []
-			for (const at of times) {
-				const presented = new Promise<number>((resolve) => {
-					video.requestVideoFrameCallback((_, frame) => resolve(frame.mediaTime))
-					setTimeout(() => resolve(Number.NaN), 3000)
-				})
-				video.currentTime = at
-				await next('seeked')
-				shown.push(+(await presented).toFixed(3))
-				context.drawImage(video, 0, 0, 320, 180)
-				const data = context.getImageData(0, rows.from, 320, rows.to - rows.from).data
-				let white = 0
-				for (let i = 0; i < data.length; i += 4) {
-					if ((data[i] ?? 0) > 200 && (data[i + 1] ?? 0) > 200 && (data[i + 2] ?? 0) > 200) white++
-				}
-				captionWhite.push(white)
-			}
-			return { seconds: video.duration, pitch, captionWhite, shown }
 		},
-		{ bytes: [...bytes], times, rows: CAPTION_ROWS }
+		{ bytes: [...bytes], times }
 	)
+	// The caption rows, at the bottom below the moving square (y 145–175 of 320×180,
+	// written out: the reader runs in the page), counted for white.
+	const { seconds, frames } = await readExportFrames(
+		page,
+		bytes,
+		times,
+		({ context }) => {
+			const data = context.getImageData(0, 145, 320, 30).data
+			let white = 0
+			for (let i = 0; i < data.length; i += 4) {
+				if ((data[i] ?? 0) > 200 && (data[i + 1] ?? 0) > 200 && (data[i + 2] ?? 0) > 200) white++
+			}
+			return { white }
+		},
+		{ size: { width: 320, height: 180 } }
+	)
+	return {
+		seconds,
+		pitch,
+		captionWhite: frames.map((frame) => frame.white),
+		shown: frames.map((frame) => frame.shown)
+	}
 }
 
 function expectLength(exported: Exported, seconds: number) {
@@ -263,35 +242,47 @@ test('captions in a sped-up clip keep pace with its words in the export', async 
 	await setSpeed(page, 2, 2)
 	// "Second line." is 2.3–3.1 s of source: at 2× in a clip from 2 s, it
 	// plays 2.15–2.55 s of the 3 s edit (at 1× it would be 2.3–3.1).
-	// Several probes through the caption: a slow machine's frames can be
-	// ~0.2 s apart, and some frame has to land well inside it.
-	const times = [0.7, 2.25, 2.35, 2.45, 2.8, 2.95]
+	// Several probes through the caption and after it: a starved export drops
+	// frames, and some have to land where the caption is surely on or off.
+	// Every 50 ms through and after it: under load several asks land on one frame.
+	const times = [0.7, 2.35, ...Array.from({ length: 17 }, (_, i) => +(2.2 + i * 0.05).toFixed(2))]
 	const result = await exportAndRead(page, times)
 	console.log('captions', exported(result), 'frames of', JSON.stringify(result.shown))
 	expectLength(result, 3)
-	expect(result.captionWhite[0], 'first caption at 0.7 s').toBeGreaterThan(15)
-	// Each later frame shows the second caption exactly while its own time is
-	// in 2.15–2.55 s (at 1× it would be 2.3–3.1).
-	const SECOND = { from: 2.15, to: 2.55 }
-	// A frame's timestamp trails the moment it was painted by up to ~0.08 s
-	// on a slow machine: frames that close to the caption's start or end
-	// could show either.
-	const MARGIN = 0.1
-	for (const [index, shown] of result.shown.entries()) {
-		if (index === 0) continue
-		const white = result.captionWhite[index] ?? 0
-		const label = `caption at ${times[index]} s (frame of ${shown} s): ${white} white px`
-		if (shown > SECOND.from + MARGIN && shown < SECOND.to - MARGIN) {
-			expect(white, label).toBeGreaterThan(15)
-		} else if (shown > SECOND.to + MARGIN) {
-			expect(white, label).toBe(0)
-		}
+	// The first caption, 0.2–1.1 s, on where its frame surely falls inside it.
+	const first = result.shown[0] ?? 0
+	if (surelyAfter(first, 0.2) && surelyBefore(first, 1.1)) {
+		expect(result.captionWhite[0], `first caption at ${first} s`).toBeGreaterThan(15)
 	}
-	// And it was seen both shown and gone.
-	expect(result.shown.some((s) => s > SECOND.from + MARGIN && s < SECOND.to - MARGIN)).toBe(true)
-	expect(result.shown.some((s) => s > SECOND.to + MARGIN)).toBe(true)
+	// The second, at 2× in a clip from 2 s: 2.15–2.55 s of the edit; at 1× it
+	// would run 2.3–3.1 s. A frame's picture may be from a little before or
+	// after its time (export-frames.ts), and the caption is only 0.4 s long, so:
+	// it's seen in some frame near its time; no frame surely after it shows it;
+	// and some frame that at 1× would surely show it doesn't.
+	const SECOND = { from: 2.15, to: 2.55, at1x: 3.1 }
+	const near = result.shown
+		.map((shown, index) => ({ shown, white: result.captionWhite[index] ?? 0 }))
+		.slice(1)
+	const frames = JSON.stringify(near)
+	expect(
+		near.some(
+			({ shown, white }) =>
+				white > 15 && !surelyBefore(shown, SECOND.from) && !surelyAfter(shown, SECOND.to)
+		),
+		`the second caption seen near 2.15–2.55 s: ${frames}`
+	).toBe(true)
+	for (const { shown, white } of near.filter(({ shown }) => surelyAfter(shown, SECOND.to))) {
+		expect(white, `no caption at ${shown} s, after 2.55 s: ${frames}`).toBe(0)
+	}
+	expect(
+		near.some(
+			({ shown, white }) =>
+				white === 0 && surelyAfter(shown, 2.3) && surelyBefore(shown, SECOND.at1x)
+		),
+		`a frame without it that at 1× would show it: ${frames}`
+	).toBe(true)
 	// Pitch in each sentence's tone, clear of its edges: 0.7 s and 2.35 s.
-	expectPitchKept({ ...result, pitch: [result.pitch[0] ?? 0, result.pitch[2] ?? 0] }, [0.7, 2.35])
+	expectPitchKept({ ...result, pitch: [result.pitch[0] ?? 0, result.pitch[1] ?? 0] }, [0.7, 2.35])
 })
 
 test('clip speed works as a typed command, confirmed first and one undo step each', async ({

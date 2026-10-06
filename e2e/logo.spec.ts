@@ -1,6 +1,6 @@
-import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
 import { editCommand, mockActions, openEditorWithVideo, openTool } from './editor-helpers'
+import { exportVideo, readExportFrames } from './export-frames'
 
 // The logo placed and sized by hand. The video is 320×180; the logo a solid
 // green 2:1 JPG, so where it lands in the export is the green box's bounds.
@@ -52,47 +52,33 @@ async function dragInFrame(page: Page, from: [number, number], to: [number, numb
 
 /** Exports, and finds the green logo's bounds in the frame at 1 s, in pixels. */
 async function exportedLogo(page: Page) {
-	const downloading = page.waitForEvent('download')
-	await page.getByRole('button', { name: 'Export video' }).click()
-	const bytes = await readFile(await (await downloading).path())
-	return page.evaluate(
-		async (bytes) => {
-			const video = Object.assign(document.createElement('video'), {
-				src: URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'video/webm' })),
-				muted: true
-			})
-			await new Promise((resolve) => video.addEventListener('loadeddata', resolve, { once: true }))
-			video.currentTime = 1
-			await new Promise((resolve) => video.addEventListener('seeked', resolve, { once: true }))
-			const { videoWidth: width, videoHeight: height } = video
-			const canvas = Object.assign(document.createElement('canvas'), { width, height })
-			const context = canvas.getContext('2d')
-			if (!context) throw new Error('no 2d context')
-			context.drawImage(video, 0, 0)
-			const data = context.getImageData(0, 0, width, height).data
-			let left = width
-			let top = height
-			let right = -1
-			let bottom = -1
-			for (let y = 0; y < height; y++) {
-				for (let x = 0; x < width; x++) {
-					const i = (y * width + x) * 4
-					if ((data[i + 1] ?? 0) > 180 && (data[i] ?? 0) < 90 && (data[i + 2] ?? 0) < 90) {
-						left = Math.min(left, x)
-						right = Math.max(right, x)
-						top = Math.min(top, y)
-						bottom = Math.max(bottom, y)
-					}
+	const bytes = await exportVideo(page)
+	const {
+		videoWidth: width,
+		videoHeight: height,
+		frames
+	} = await readExportFrames(page, bytes, [1], ({ context, width, height }) => {
+		const data = context.getImageData(0, 0, width, height).data
+		let left = width
+		let top = height
+		let right = -1
+		let bottom = -1
+		for (let y = 0; y < height; y++) {
+			for (let x = 0; x < width; x++) {
+				const i = (y * width + x) * 4
+				if ((data[i + 1] ?? 0) > 180 && (data[i] ?? 0) < 90 && (data[i + 2] ?? 0) < 90) {
+					left = Math.min(left, x)
+					right = Math.max(right, x)
+					top = Math.min(top, y)
+					bottom = Math.max(bottom, y)
 				}
 			}
-			return {
-				width,
-				height,
-				logo: { x: left, y: top, width: right - left + 1, height: bottom - top + 1 }
-			}
-		},
-		[...bytes]
-	)
+		}
+		return { logo: { x: left, y: top, width: right - left + 1, height: bottom - top + 1 } }
+	})
+	const [frame] = frames
+	if (!frame) throw new Error('no frame read')
+	return { width, height, logo: frame.logo }
 }
 
 test('a JPG logo is dragged anywhere and resized by hand, in the preview and the export, one undo step each', async ({
