@@ -40,7 +40,6 @@ async function splitAt(page: Page, seconds: number) {
 async function setSpeed(page: Page, n: number, speed: number) {
 	await openTool(page, 'Clip sound and speed')
 	const input = clipRow(page, n).getByLabel('Speed (×)')
-	await openTool(page, 'Assistant')
 	await input.fill(String(speed))
 	await input.press('Enter')
 	await expect(

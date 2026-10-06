@@ -144,7 +144,7 @@ test('signed in, the footer offers a new project, not logging in again', async (
 	const signedIn = await page.getByRole('button', { name: 'Sign out' }).isVisible()
 	test.skip(!signedIn, 'accounts are off here (no Supabase): nobody is signed in')
 	const footer = page.getByRole('navigation', { name: 'Footer' })
-	await expect(footer.getByRole('link', { name: 'Log in / Sign up' })).toHaveCount(0)
+	await expect(footer.getByRole('link', { name: 'Sign in' })).toHaveCount(0)
 	await footer.getByRole('link', { name: 'New project' }).click()
 	await expect(page).toHaveURL(/\/home$/, { timeout: 30_000 })
 })
