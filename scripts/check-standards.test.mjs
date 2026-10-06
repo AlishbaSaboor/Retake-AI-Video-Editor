@@ -28,9 +28,6 @@ const SCRIPT = join(REPO_ROOT, 'scripts/check-standards.mjs')
 const FIXTURE_FILES = [
 	'AGENTS.md',
 	'CLAUDE.md',
-	'GEMINI.md',
-	'QWEN.md',
-	'.cursor/rules/project.mdc',
 	'README.md',
 	'docs/rules',
 	'.githooks/commit-msg',
@@ -51,9 +48,18 @@ const FIXTURE_FILES = [
 	'scripts/check-rls.mjs',
 	'tsconfig.json',
 	'eslint.config.mjs',
-	'.claude-logs/.gitkeep',
-	'.codex-logs/.gitkeep'
+	'.claude-logs/.gitkeep'
 ]
+
+// The optional pieces for other agents, which this repo doesn't carry (it
+// uses Claude Code only): written into the fixture as the template has them,
+// so their checks stay covered.
+const OTHER_AGENT_FILES = {
+	'GEMINI.md': '@AGENTS.md\n\n# Gemini CLI\n',
+	'QWEN.md': '@AGENTS.md\n\n# Qwen Code\n',
+	'.cursor/rules/project.mdc': '---\nalwaysApply: true\n---\n\n@AGENTS.md\n',
+	'.codex-logs/.gitkeep': ''
+}
 
 function git(root, ...args) {
 	return spawnSync('git', ['-C', root, ...args], { encoding: 'utf8' })
@@ -65,6 +71,15 @@ function createFixture() {
 		mkdirSync(dirname(join(root, path)), { recursive: true })
 		cpSync(join(REPO_ROOT, path), join(root, path), { recursive: true })
 	}
+	for (const [path, text] of Object.entries(OTHER_AGENT_FILES)) {
+		mkdirSync(dirname(join(root, path)), { recursive: true })
+		writeFileSync(join(root, path), text)
+	}
+	// Each session-log dir present is formatting-exempt, as in the template.
+	writeFileSync(
+		join(root, '.prettierignore'),
+		`${readFileSync(join(root, '.prettierignore'), 'utf8')}.codex-logs/\n`
+	)
 	// Shared, not copied: the tool checks need eslint and tsc resolvable from
 	// the fixture. A real directory of per-package links rather than one link
 	// to the whole tree, because git refuses to evaluate a path "beyond a

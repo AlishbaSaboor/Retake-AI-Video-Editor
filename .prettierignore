@@ -3,4 +3,3 @@
 # One directory per agent that writes a committed transcript: Claude Code and
 # Codex (see docs/rules/secrets.md).
 .claude-logs/
-.codex-logs/

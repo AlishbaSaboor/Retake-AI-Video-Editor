@@ -46,6 +46,10 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 
+# Python caches (from the skill-creator skill's scripts)
+__pycache__/
+*.pyc
+
 # playwright
 /test-results/
 /playwright-report/
