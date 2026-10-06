@@ -1,6 +1,11 @@
 import { test, expect, type Page } from '@playwright/test'
 import { editCommand, mockActions, openEditorWithVideo, seekTo, openTool } from './editor-helpers'
-import { exportVideo, readExportFrames } from './export-frames'
+import {
+	exportVideo,
+	FRAME_LAG_SECONDS,
+	FRAME_LEAD_SECONDS,
+	readExportFrames
+} from './export-frames'
 
 // The test video is 320×180: a dark background (#112233) and an orange
 // square, 60×60 at y 60–120, crossing at 80 px a second from x = 20. Where
@@ -125,12 +130,28 @@ const isBackground = ([r, g, b]: [number, number, number]) => r < 50 && g < 70 &
 const isBlack = ([r, g, b]: [number, number, number]) => r < 12 && g < 12 && b < 12
 
 /**
- * The square's centre down a flipped, quarter-turned frame, moved to where it
- * was at 1.5 s. There it rises 80 px a second, so an export frame shown early
- * (under load: 1.38 s for 1.5 s, measured at 4× CPU throttling) has it lower.
+ * How far the square's picture can be from its frame's time here, either
+ * way: the export's own lag and lead (export-frames.ts), and on top of them
+ * the test video's, which is recorded in real time too. Measured: a frame
+ * stamped ~1.16 s showing the square where it is at 1.5 s (CI, PR #7).
  */
-const orangeYAt1_5 = (reading: Reading) =>
-	(reading.orange?.y ?? 1) - ((1.5 - reading.shown) * 80) / reading.height
+const SQUARE_SLACK_SECONDS = 0.35
+
+/**
+ * Where the square's centre was at 1.5 s (as a fraction of the frame's
+ * height), from a frame whose picture may be from a little before or after
+ * its time: the range it can be, given that it rises 80 px a second in the
+ * flipped, quarter-turned frame.
+ */
+const orangeYAt1_5 = (reading: Reading) => {
+	const at = (picture: number) => (reading.orange?.y ?? 1) + ((picture - 1.5) * 80) / reading.height
+	const slack = Math.max(SQUARE_SLACK_SECONDS, FRAME_LAG_SECONDS, FRAME_LEAD_SECONDS)
+	return { min: at(reading.shown - slack), max: at(reading.shown + slack) }
+}
+
+/** Whether `value` is within `tolerance` of a range. */
+const near = (value: number, range: { min: number; max: number }, tolerance: number) =>
+	value > range.min - tolerance && value < range.max + tolerance
 
 /** Drags across the picture between two points given as fractions of the output frame. */
 async function dragOnFrame(page: Page, from: [number, number], to: [number, number]) {
@@ -196,15 +217,20 @@ test('flip, a quarter turn and a crop move the picture, its pinned box and nothi
 	expect([quarter.width, quarter.height]).toEqual([180, 320])
 	const [square, red, besideRed] = quarter.colors
 	expect(isOrange(square ?? [0, 0, 0]), `square, flipped and turned ${square}`).toBe(true)
-	// Measured 145–151 at 1× and 4× CPU throttling: under 10 px is half way to 170.
-	const squareY = orangeYAt1_5(quarter) * 320
-	expect(Math.abs(squareY - 150), `centred at y ${squareY}, not 170 as unflipped`).toBeLessThan(10)
+	// About 150 px down at 1.5 s, by the frame's own time. This only says
+	// it's there; the probe at its centre and the pinned box below are what
+	// prove the flip and the turn.
+	const squareY = orangeYAt1_5(quarter)
+	expect(
+		near(150 / 320, squareY, 4 / 320),
+		`centred at y 150, for ${Math.round(squareY.min * 320)}–${Math.round(squareY.max * 320)}`
+	).toBe(true)
 	expect(isRed(red ?? [0, 0, 0]), `the pinned box turned with the picture ${red}`).toBe(true)
 	expect(isBackground(besideRed ?? [0, 0, 0]), `beside the box ${besideRed}`).toBe(true)
 	// The preview shows the square in the same place in the frame.
 	expect(preview).not.toBeNull()
 	expect(Math.abs((preview?.x ?? 0) - (quarter.orange?.x ?? 1))).toBeLessThan(0.04)
-	expect(Math.abs((preview?.y ?? 0) - orangeYAt1_5(quarter))).toBeLessThan(0.04)
+	expect(near(preview?.y ?? 0, orangeYAt1_5(quarter), 0.04)).toBe(true)
 
 	// A 1:1 crop of the 180×320 frame: 180×180 from y 70. The square (y
 	// 120–180) is now at y 50–110.
@@ -231,7 +257,7 @@ test('flip, a quarter turn and a crop move the picture, its pinned box and nothi
 		true
 	)
 	expect(Math.abs((croppedPreview?.x ?? 0) - (square1.orange?.x ?? 1))).toBeLessThan(0.04)
-	expect(Math.abs((croppedPreview?.y ?? 0) - orangeYAt1_5(square1))).toBeLessThan(0.04)
+	expect(near(croppedPreview?.y ?? 0, orangeYAt1_5(square1), 0.04)).toBe(true)
 
 	// The title belongs to the frame: in the turned, cropped output its text
 	// runs across the middle, sized to that frame. (Added only now: its band
