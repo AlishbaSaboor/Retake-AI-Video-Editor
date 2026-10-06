@@ -970,7 +970,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		}
 		if (LOGO_TYPES.includes(file.type)) {
 			logoCornerRef.current = watermark?.corner ?? logoCornerRef.current
-			void addLogo(file)
+			// From the chat: it stays open, to say what the file became.
+			void addLogo(file, { openTool: false })
 			return 'logo'
 		}
 		if (file.type.startsWith('audio/')) {
@@ -1016,7 +1017,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		logoInputRef.current?.click()
 	}
 
-	async function addLogo(file: File) {
+	async function addLogo(file: File, { openTool = true }: { openTool?: boolean } = {}) {
 		const notAPng = () =>
 			toast({
 				variant: 'destructive',
@@ -1034,9 +1035,10 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 			size: watermark?.size,
 			at: watermark?.at
 		})
-		// On the video at once, picked, with its handles.
+		// On the video at once, picked, with its handles; and its tool open, unless
+		// it came from the chat, which shares the panel and says what it became.
 		pick({ kind: 'logo' })
-		setOpenTool('text')
+		if (openTool) setOpenTool('text')
 	}
 
 	function moveWatermark(corner: Corner) {
