@@ -1,6 +1,6 @@
-import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
 import { editCommand, mockActions, openEditorWithVideo, seekTo, openTool } from './editor-helpers'
+import { exportVideo, readExportFrames } from './export-frames'
 
 // The test video is 320×180: a dark background (#112233) and an orange
 // square, 60×60 at y 60–120, crossing at 80 px a second from x = 20. Where
@@ -32,83 +32,54 @@ type Reading = {
  * probe point, and the centre of the orange square as fractions of the frame.
  */
 async function exportFrames(page: Page, times: number[], probes: Probe[]): Promise<Reading[]> {
-	const downloading = page.waitForEvent('download')
-	await page.getByRole('button', { name: 'Export video' }).click()
-	const bytes = await readFile(await (await downloading).path())
-	// A previous export's toast may still be up: the newest is this one's.
-	await expect(page.getByText('Export finished', { exact: true }).last()).toBeVisible()
-	return page.evaluate(
-		async ({ bytes, times, probes }) => {
-			const video = Object.assign(document.createElement('video'), {
-				src: URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'video/webm' })),
-				muted: true
+	const bytes = await exportVideo(page)
+	const { frames } = await readExportFrames(
+		page,
+		bytes,
+		times,
+		({ context, width, height }, probes) => {
+			const data = context.getImageData(0, 0, width, height).data
+			const colors = probes.map(({ x, y }) => {
+				const i = (y * width + x) * 4
+				return [data[i] ?? 0, data[i + 1] ?? 0, data[i + 2] ?? 0] as [number, number, number]
 			})
-			const next = (type: string) =>
-				new Promise((resolve) => video.addEventListener(type, resolve, { once: true }))
-			await next('loadedmetadata')
-			if (!Number.isFinite(video.duration)) {
-				video.currentTime = 1e9
-				while (!Number.isFinite(video.duration)) await next('durationchange')
-			}
-			const { videoWidth: width, videoHeight: height } = video
-			const canvas = Object.assign(document.createElement('canvas'), { width, height })
-			const context = canvas.getContext('2d', { willReadFrequently: true })
-			if (!context) throw new Error('no 2d context')
-			const readings = []
-			for (const at of times) {
-				const presented = new Promise<number>((resolve) => {
-					video.requestVideoFrameCallback((_, frame) => resolve(frame.mediaTime))
-					setTimeout(() => resolve(at), 3000)
-				})
-				video.currentTime = at
-				await next('seeked')
-				const shown = await presented
-				context.drawImage(video, 0, 0, width, height)
-				const data = context.getImageData(0, 0, width, height).data
-				const colors = probes.map(({ x, y }) => {
+			let sx = 0
+			let sy = 0
+			let n = 0
+			for (let y = 0; y < height; y++) {
+				for (let x = 0; x < width; x++) {
 					const i = (y * width + x) * 4
-					return [data[i] ?? 0, data[i + 1] ?? 0, data[i + 2] ?? 0] as [number, number, number]
-				})
-				let sx = 0
-				let sy = 0
-				let n = 0
-				for (let y = 0; y < height; y++) {
-					for (let x = 0; x < width; x++) {
-						const i = (y * width + x) * 4
-						if (
-							(data[i] ?? 0) > 200 &&
-							(data[i + 1] ?? 0) > 70 &&
-							(data[i + 1] ?? 0) < 140 &&
-							(data[i + 2] ?? 0) < 90
-						) {
-							sx += x
-							sy += y
-							n++
-						}
+					if (
+						(data[i] ?? 0) > 200 &&
+						(data[i + 1] ?? 0) > 70 &&
+						(data[i + 1] ?? 0) < 140 &&
+						(data[i + 2] ?? 0) < 90
+					) {
+						sx += x
+						sy += y
+						n++
 					}
 				}
-				let middleWhite = 0
-				for (let y = Math.floor(height * 0.45); y < Math.ceil(height * 0.55); y++) {
-					for (let x = 0; x < width; x++) {
-						const i = (y * width + x) * 4
-						const white =
-							(data[i] ?? 0) > 200 && (data[i + 1] ?? 0) > 200 && (data[i + 2] ?? 0) > 200
-						if (white) middleWhite++
-					}
-				}
-				readings.push({
-					width,
-					height,
-					colors,
-					orange: n ? { x: sx / n / width, y: sy / n / height } : null,
-					shown,
-					middleWhite
-				})
 			}
-			return readings
+			let middleWhite = 0
+			for (let y = Math.floor(height * 0.45); y < Math.ceil(height * 0.55); y++) {
+				for (let x = 0; x < width; x++) {
+					const i = (y * width + x) * 4
+					const white = (data[i] ?? 0) > 200 && (data[i + 1] ?? 0) > 200 && (data[i + 2] ?? 0) > 200
+					if (white) middleWhite++
+				}
+			}
+			return {
+				width,
+				height,
+				colors,
+				orange: n ? { x: sx / n / width, y: sy / n / height } : null,
+				middleWhite
+			}
 		},
-		{ bytes: [...bytes], times, probes }
+		{ args: probes }
 	)
+	return frames
 }
 
 /** The orange square's centre in the preview, as fractions of the output frame on screen. */
@@ -377,53 +348,32 @@ test('pixelate hides what is under it in hard blocks, only in its time, unlike b
 	const start = Number(lane)
 
 	const readRow = async (times: number[]) => {
-		const downloading = page.waitForEvent('download')
-		await page.getByRole('button', { name: 'Export video' }).click()
-		const bytes = await readFile(await (await downloading).path())
-		// A previous export's toast may still be up: the newest is this one's.
-		await expect(page.getByText('Export finished', { exact: true }).last()).toBeVisible()
-		return page.evaluate(
-			async ({ bytes, times }) => {
-				const video = Object.assign(document.createElement('video'), {
-					src: URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'video/webm' })),
-					muted: true
-				})
-				const next = (type: string) =>
-					new Promise((resolve) => video.addEventListener(type, resolve, { once: true }))
-				await next('loadedmetadata')
-				if (!Number.isFinite(video.duration)) {
-					video.currentTime = 1e9
-					while (!Number.isFinite(video.duration)) await next('durationchange')
+		const bytes = await exportVideo(page)
+		const { frames } = await readExportFrames(
+			page,
+			bytes,
+			times,
+			({ context }) => {
+				const row = context.getImageData(0, 90, 320, 1).data
+				const light: number[] = []
+				for (let i = 0; i < row.length; i += 4)
+					light.push(((row[i] ?? 0) + (row[i + 1] ?? 0) + (row[i + 2] ?? 0)) / 3)
+				// A pixelate's mark: a run of one blended level, about a block
+				// wide, between the background (~34) and the square (~130),
+				// where the square's edge falls inside a block. A sharp edge
+				// has no such run; a blur's gradient changes every pixel.
+				const runs: Array<{ level: number; length: number }> = []
+				for (const level of light) {
+					const last = runs.at(-1)
+					if (last && Math.abs(level - last.level) < 3) last.length++
+					else runs.push({ level, length: 1 })
 				}
-				const canvas = Object.assign(document.createElement('canvas'), { width: 320, height: 180 })
-				const context = canvas.getContext('2d', { willReadFrequently: true })
-				if (!context) throw new Error('no 2d context')
-				const out = []
-				for (const at of times) {
-					video.currentTime = at
-					await next('seeked')
-					context.drawImage(video, 0, 0, 320, 180)
-					const row = context.getImageData(0, 90, 320, 1).data
-					const light: number[] = []
-					for (let i = 0; i < row.length; i += 4)
-						light.push(((row[i] ?? 0) + (row[i + 1] ?? 0) + (row[i + 2] ?? 0)) / 3)
-					// A pixelate's mark: a run of one blended level, about a block
-					// wide, between the background (~34) and the square (~130),
-					// where the square's edge falls inside a block. A sharp edge
-					// has no such run; a blur's gradient changes every pixel.
-					const runs: Array<{ level: number; length: number }> = []
-					for (const level of light) {
-						const last = runs.at(-1)
-						if (last && Math.abs(level - last.level) < 3) last.length++
-						else runs.push({ level, length: 1 })
-					}
-					const blended = runs.filter((r) => r.level > 45 && r.level < 115 && r.length >= 6).length
-					out.push({ at, blended })
-				}
-				return out
+				const blended = runs.filter((r) => r.level > 45 && r.level < 115 && r.length >= 6).length
+				return { blended }
 			},
-			{ bytes: [...bytes], times }
+			{ size: { width: 320, height: 180 } }
 		)
+		return frames
 	}
 	const [inside, before] = await readRow([start + 0.5, Math.max(0.1, start - 0.6)])
 	if (!inside || !before) throw new Error('no frames')

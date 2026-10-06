@@ -1,6 +1,6 @@
-import { readFile } from 'node:fs/promises'
 import { test, expect, type Locator, type Page } from '@playwright/test'
 import { editCommand, mockActions, openEditorWithVideo, seekTo, openTool } from './editor-helpers'
+import { exportVideo, readExportFrames, surelyAfter, surelyBefore } from './export-frames'
 
 // The test video is 320×180: a dark background (#112233) with an orange
 // square (60×60, y 60–120) crossing it at 80 px a second from x = 20. A box
@@ -69,86 +69,54 @@ async function dragEndTo(page: Page, name: string, seconds: number, editedSecond
 }
 
 /**
- * Reads 320×180 images in the page: frames of an exported file at `times`,
- * or one screenshot of the preview. For each, the pixel at the box's
- * centre, the largest brightness step between neighbouring pixels along the
- * blur row (its sharpest edge), and brightest minus darkest along it (what
- * still shows through a blur).
+ * Reads a 320×180 image drawn on `context`: the pixel at the box's centre,
+ * the largest brightness step between neighbouring pixels along the blur row
+ * (its sharpest edge), and brightest minus darkest along it (what still shows
+ * through a blur). Runs in the page, sent as source.
  */
-async function readImages(
-	page: Page,
-	source: { video: number[]; times: number[] } | { png: string },
-	boxCentre: [number, number]
-) {
-	return page.evaluate(
-		async ({ source, boxCentre, row }) => {
-			const canvas = Object.assign(document.createElement('canvas'), { width: 320, height: 180 })
-			const context = canvas.getContext('2d', { willReadFrequently: true })
-			if (!context) throw new Error('no 2d context')
-			const read = (at: number) => {
-				const [r = 0, g = 0, b = 0] = context.getImageData(boxCentre[0], boxCentre[1], 1, 1).data
-				const data = context.getImageData(0, row, 320, 1).data
-				const light: number[] = []
-				for (let i = 0; i < data.length; i += 4) {
-					light.push(((data[i] ?? 0) + (data[i + 1] ?? 0) + (data[i + 2] ?? 0)) / 3)
-				}
-				let sharpestStep = 0
-				for (let i = 1; i < light.length; i++) {
-					sharpestStep = Math.max(sharpestStep, Math.abs((light[i] ?? 0) - (light[i - 1] ?? 0)))
-				}
-				const contrast = Math.max(...light) - Math.min(...light)
-				return {
-					at,
-					boxPixel: [r, g, b] satisfies [number, number, number],
-					sharpestStep,
-					contrast
-				}
-			}
-			if ('png' in source) {
-				const blob = await (await fetch(`data:image/png;base64,${source.png}`)).blob()
-				context.drawImage(await createImageBitmap(blob), 0, 0, 320, 180)
-				return [read(0)]
-			}
-			const video = Object.assign(document.createElement('video'), {
-				src: URL.createObjectURL(new Blob([new Uint8Array(source.video)], { type: 'video/webm' })),
-				muted: true
-			})
-			const next = (type: string) =>
-				new Promise((resolve) => video.addEventListener(type, resolve, { once: true }))
-			await next('loadedmetadata')
-			// A recorded WebM has no duration header; seeking past the end finds it.
-			if (!Number.isFinite(video.duration)) {
-				video.currentTime = 1e9
-				while (!Number.isFinite(video.duration)) await next('durationchange')
-			}
-			const readings = []
-			for (const at of source.times) {
-				video.currentTime = at
-				await next('seeked')
-				context.drawImage(video, 0, 0, 320, 180)
-				readings.push(read(at))
-			}
-			return readings
-		},
-		{ source, boxCentre, row: BLUR_ROW }
-	)
+const readImage = (
+	{ context }: { context: CanvasRenderingContext2D },
+	{ boxCentre, row }: { boxCentre: [number, number]; row: number }
+) => {
+	const [r = 0, g = 0, b = 0] = context.getImageData(boxCentre[0], boxCentre[1], 1, 1).data
+	const data = context.getImageData(0, row, 320, 1).data
+	const light: number[] = []
+	for (let i = 0; i < data.length; i += 4) {
+		light.push(((data[i] ?? 0) + (data[i + 1] ?? 0) + (data[i + 2] ?? 0)) / 3)
+	}
+	let sharpestStep = 0
+	for (let i = 1; i < light.length; i++) {
+		sharpestStep = Math.max(sharpestStep, Math.abs((light[i] ?? 0) - (light[i - 1] ?? 0)))
+	}
+	const contrast = Math.max(...light) - Math.min(...light)
+	return { boxPixel: [r, g, b] satisfies [number, number, number], sharpestStep, contrast }
 }
 
 /** Exports the edit and reads frames of the file at `times`. */
 async function exportReadings(page: Page, times: number[], boxCentre: [number, number]) {
-	const downloading = page.waitForEvent('download')
-	await page.getByRole('button', { name: 'Export video' }).click()
-	const bytes = await readFile(await (await downloading).path())
-	await expect(page.getByText('Export finished', { exact: true })).toBeVisible()
-	return readImages(page, { video: [...bytes], times }, boxCentre)
+	const bytes = await exportVideo(page)
+	const { frames } = await readExportFrames(page, bytes, times, readImage, {
+		size: { width: 320, height: 180 },
+		args: { boxCentre, row: BLUR_ROW }
+	})
+	return frames
 }
 
 /** Reads the preview, as the screen shows it, the same way as an exported frame. */
 async function previewReading(page: Page, boxCentre: [number, number]) {
 	const png = (await layer(page).screenshot()).toString('base64')
-	const [reading] = await readImages(page, { png }, boxCentre)
-	if (!reading) throw new Error('no reading')
-	return reading
+	return page.evaluate(
+		async ({ png, readSource, args }) => {
+			const canvas = Object.assign(document.createElement('canvas'), { width: 320, height: 180 })
+			const context = canvas.getContext('2d', { willReadFrequently: true })
+			if (!context) throw new Error('no 2d context')
+			const blob = await (await fetch(`data:image/png;base64,${png}`)).blob()
+			context.drawImage(await createImageBitmap(blob), 0, 0, 320, 180)
+			const read = new Function(`return (${readSource})`)() as typeof readImage
+			return read({ context }, args)
+		},
+		{ png, readSource: readImage.toString(), args: { boxCentre, row: BLUR_ROW } }
+	)
 }
 
 const isRed = ([r, g, b]: [number, number, number]) => r > 200 && g < 70 && b < 70
@@ -262,23 +230,46 @@ test('boxes and blurs drawn on the preview show only in their time, in the previ
 
 	// The export: the box's pixels are red only in its time, and the blur
 	// softens the square's edges only in its own.
-	const times = [box.start - 0.3, (box.start + box.end) / 2, box.end + 0.2, blur.start + 0.4]
-	const [beforeBox, inBox, afterBox, inBlur] = await exportReadings(page, times, boxCentre)
-	if (!beforeBox || !inBox || !afterBox || !inBlur) throw new Error('missing frames')
-	expect(isBackground(beforeBox.boxPixel), `background before the box ${beforeBox.boxPixel}`).toBe(
-		true
+	// Each frame is judged by the time the export had for it (export-frames.ts),
+	// on each side of each edge it surely falls.
+	const times = [
+		box.start - 0.3,
+		(box.start + box.end) / 2,
+		box.end + 0.3,
+		box.end + 0.5,
+		blur.start + 0.4,
+		blur.start + 0.6
+	]
+	const frames = await exportReadings(page, times, boxCentre)
+	const shown = JSON.stringify(frames.map((frame) => frame.shown))
+	const beforeBox = frames.filter((frame) => surelyBefore(frame.shown, box.start))
+	const inBox = frames.filter(
+		(frame) => surelyAfter(frame.shown, box.start) && surelyBefore(frame.shown, box.end)
 	)
-	expect(isRed(inBox.boxPixel), `red during the box ${inBox.boxPixel}`).toBe(true)
-	expect(isBackground(afterBox.boxPixel), `background after the box ${afterBox.boxPixel}`).toBe(
-		true
+	const afterBox = frames.filter((frame) => surelyAfter(frame.shown, box.end))
+	const sharp = frames.filter((frame) => surelyBefore(frame.shown, blur.start))
+	const inBlur = frames.filter(
+		(frame) => surelyAfter(frame.shown, blur.start) && surelyBefore(frame.shown, blur.end)
 	)
-	expect(isBackground(inBlur.boxPixel), `no box during the blur ${inBlur.boxPixel}`).toBe(true)
-	for (const sharp of [beforeBox, inBox, afterBox]) {
-		expect(sharp.sharpestStep, `sharp edge at ${sharp.at.toFixed(2)} s`).toBeGreaterThan(50)
+	for (const [name, judged] of Object.entries({ beforeBox, inBox, afterBox, inBlur })) {
+		expect(judged.length, `a frame ${name}: ${shown}`).toBeGreaterThan(0)
+	}
+	for (const frame of [...beforeBox, ...afterBox]) {
+		expect(isBackground(frame.boxPixel), `background at ${frame.shown} s: ${frame.boxPixel}`).toBe(
+			true
+		)
+	}
+	for (const frame of inBox) {
+		expect(isRed(frame.boxPixel), `red at ${frame.shown} s: ${frame.boxPixel}`).toBe(true)
+	}
+	for (const frame of sharp) {
+		expect(frame.sharpestStep, `sharp edge at ${frame.shown} s`).toBeGreaterThan(50)
 	}
 	// Measured: 79–91 sharp, 10 under the blur.
-	expect(inBlur.sharpestStep, 'softened under the blur').toBeLessThan(30)
-	expect(inBlur.contrast, 'the square shows through the blur').toBeGreaterThan(25)
+	for (const frame of inBlur) {
+		expect(frame.sharpestStep, `softened under the blur at ${frame.shown} s`).toBeLessThan(30)
+		expect(frame.contrast, 'the square shows through the blur').toBeGreaterThan(25)
+	}
 })
 
 test('the eraser, the Delete key and a typed command add and remove items, one undo step each', async ({

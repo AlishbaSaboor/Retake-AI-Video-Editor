@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
 import type { EditCommand } from '../src/app/[locale]/editor/edit-command'
 import {
@@ -9,6 +8,7 @@ import {
 	w,
 	openTool
 } from './editor-helpers'
+import { exportVideo, readExportFrames, surelyAfter, surelyBefore } from './export-frames'
 
 // The test video is 320×180: a dark background with an orange square
 // crossing y 60–120. The title's band is drawn across the middle (y ~76–104)
@@ -43,6 +43,8 @@ async function chooseLogo(page: Page, trigger: () => Promise<void>, logo: Buffer
 
 type Frame = {
 	at: number
+	/** The time of the frame the export actually had (export-frames.ts). */
+	shown: number
 	white: number
 	captionWhite: number
 	topLeftGreen: boolean
@@ -55,28 +57,12 @@ type Frame = {
  * and whether each corner shows the green logo.
  */
 async function exportFrames(page: Page, times: number[]) {
-	const downloading = page.waitForEvent('download')
-	await page.getByRole('button', { name: 'Export video' }).click()
-	const bytes = await readFile(await (await downloading).path())
-	await expect(page.getByRole('button', { name: 'Export video' })).toBeVisible()
-	return page.evaluate(
-		async ({ bytes, times, band, captionRows, corners }) => {
-			const blob = new Blob([new Uint8Array(bytes)], { type: 'video/webm' })
-			const video = Object.assign(document.createElement('video'), {
-				src: URL.createObjectURL(blob),
-				muted: true
-			})
-			const next = (type: string) =>
-				new Promise((resolve) => video.addEventListener(type, resolve, { once: true }))
-			await next('loadedmetadata')
-			// A recorded WebM has no duration header; seeking past the end finds it.
-			if (!Number.isFinite(video.duration)) {
-				video.currentTime = 1e9
-				while (!Number.isFinite(video.duration)) await next('durationchange')
-			}
-			const canvas = Object.assign(document.createElement('canvas'), { width: 320, height: 180 })
-			const context = canvas.getContext('2d', { willReadFrequently: true })
-			if (!context) throw new Error('no 2d context')
+	const bytes = await exportVideo(page)
+	const { seconds, frames } = await readExportFrames(
+		page,
+		bytes,
+		times,
+		({ context }, { band, captionRows, corners }) => {
 			const isGreen = ([x, y]: readonly [number, number]) => {
 				const [r = 0, g = 0, b = 0] = context.getImageData(x, y, 1, 1).data
 				return g > 180 && r < 100 && b < 100
@@ -89,29 +75,19 @@ async function exportFrames(page: Page, times: number[]) {
 				}
 				return white
 			}
-			const frames: Frame[] = []
-			for (const at of times) {
-				video.currentTime = at
-				await next('seeked')
-				context.drawImage(video, 0, 0, 320, 180)
-				frames.push({
-					at,
-					white: whiteIn(band),
-					captionWhite: whiteIn(captionRows),
-					topLeftGreen: isGreen(corners['top-left']),
-					bottomRightGreen: isGreen(corners['bottom-right'])
-				})
+			return {
+				white: whiteIn(band),
+				captionWhite: whiteIn(captionRows),
+				topLeftGreen: isGreen(corners['top-left']),
+				bottomRightGreen: isGreen(corners['bottom-right'])
 			}
-			return { seconds: video.duration, frames }
 		},
 		{
-			bytes: [...bytes],
-			times,
-			band: BAND_ROWS,
-			captionRows: CAPTION_ROWS,
-			corners: CORNER_CENTRES
+			size: { width: 320, height: 180 },
+			args: { band: BAND_ROWS, captionRows: CAPTION_ROWS, corners: CORNER_CENTRES }
 		}
 	)
+	return { seconds, frames }
 }
 
 const player = (page: Page) => page.getByTestId('player')
@@ -177,12 +153,15 @@ test('a title and a watermark set by hand show in the preview and the export, at
 	// The export: the title in its first second only, the logo bottom-right throughout.
 	const first = await exportFrames(page, [0.5, 1.5])
 	expect(Math.abs(first.seconds - (duration - 1))).toBeLessThan(0.25)
-	const [titled, after] = first.frames
-	expect(titled?.white, 'title text at 0.5 s').toBeGreaterThan(15)
-	expect(after?.white, 'no title at 1.5 s').toBe(0)
+	// Judged by the time of the frame the export had, where that's surely on one side of 1 s.
 	for (const frame of first.frames) {
-		expect(frame.bottomRightGreen, `logo bottom-right at ${frame.at} s`).toBe(true)
-		expect(frame.topLeftGreen, `nothing top-left at ${frame.at} s`).toBe(false)
+		if (surelyBefore(frame.shown, 1))
+			expect(frame.white, `title text at ${frame.shown} s`).toBeGreaterThan(15)
+		if (surelyAfter(frame.shown, 1)) expect(frame.white, `no title at ${frame.shown} s`).toBe(0)
+	}
+	for (const frame of first.frames) {
+		expect(frame.bottomRightGreen, `logo bottom-right at ${frame.shown} s`).toBe(true)
+		expect(frame.topLeftGreen, `nothing top-left at ${frame.shown} s`).toBe(false)
 	}
 
 	// Move the logo top-left and remove the title: one step each.
@@ -206,9 +185,9 @@ test('a title and a watermark set by hand show in the preview and the export, at
 
 	const second = await exportFrames(page, [0.5, 1.5])
 	for (const frame of second.frames) {
-		expect(frame.white, `no title at ${frame.at} s`).toBe(0)
-		expect(frame.topLeftGreen, `logo top-left at ${frame.at} s`).toBe(true)
-		expect(frame.bottomRightGreen, `nothing bottom-right at ${frame.at} s`).toBe(false)
+		expect(frame.white, `no title at ${frame.shown} s`).toBe(0)
+		expect(frame.topLeftGreen, `logo top-left at ${frame.shown} s`).toBe(true)
+		expect(frame.bottomRightGreen, `nothing bottom-right at ${frame.shown} s`).toBe(false)
 	}
 
 	// Reset removes the graphics with everything else; one Undo brings them back.
@@ -285,8 +264,8 @@ test('typed commands add a title and a watermark after confirming, and the expor
 	expect(titled?.white, 'title text at 0.5 s').toBeGreaterThan(15)
 	expect(after?.white, 'no title at 2 s').toBe(0)
 	for (const frame of exported.frames) {
-		expect(frame.bottomRightGreen, `logo bottom-right at ${frame.at} s`).toBe(true)
-		expect(frame.topLeftGreen, `nothing top-left at ${frame.at} s`).toBe(false)
+		expect(frame.bottomRightGreen, `logo bottom-right at ${frame.shown} s`).toBe(true)
+		expect(frame.topLeftGreen, `nothing top-left at ${frame.shown} s`).toBe(false)
 	}
 })
 
@@ -318,7 +297,7 @@ test('captions follow the edited video in the preview and the export, and switch
 	const caption = (text: string) => titleOver(page, text)
 	const expectCaptions = (frames: Frame[], shown: boolean[]) => {
 		for (const [index, frame] of frames.entries()) {
-			const label = `caption at ${frame.at} s: ${frame.captionWhite} white px`
+			const label = `caption at ${frame.shown} s: ${frame.captionWhite} white px`
 			if (shown[index]) expect(frame.captionWhite, label).toBeGreaterThan(15)
 			else expect(frame.captionWhite, label).toBe(0)
 		}

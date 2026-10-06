@@ -1,7 +1,7 @@
-import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
 import { zoomedPoint, zoomViewAt } from '../src/app/[locale]/editor/motion'
 import { editCommand, mockActions, seekTo, openTool } from './editor-helpers'
+import { exportVideo, rangeOverLag, readExportFrames, surelyAfter } from './export-frames'
 
 // Motion graphics on real exports. The video: 320×180, grey (#606060), a red
 // 60×60 square in the middle, a 440 Hz tone, 6 s. The square's measured
@@ -76,92 +76,61 @@ type Frame = {
 
 /** Exports and reads, at each time, the square's width and where the white text is. */
 async function exportFrames(page: Page, times: number[]) {
-	const downloading = page.waitForEvent('download')
-	await page.getByRole('button', { name: 'Export video' }).click()
-	const bytes = await readFile(await (await downloading).path())
-	await expect(page.getByRole('button', { name: 'Export video' })).toBeVisible()
-	const result = await page.evaluate(
-		async ({ bytes, times }) => {
-			const video = Object.assign(document.createElement('video'), {
-				src: URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'video/webm' })),
-				muted: true
-			})
-			video.style.cssText = 'position:fixed;left:0;top:0;width:32px;height:18px;opacity:0.01'
-			document.body.append(video)
-			const next = (type: string) =>
-				new Promise((resolve) => video.addEventListener(type, resolve, { once: true }))
-			await next('loadedmetadata')
-			if (!Number.isFinite(video.duration)) {
-				video.currentTime = 1e9
-				while (!Number.isFinite(video.duration)) await next('durationchange')
-			}
-			const width = video.videoWidth
-			const height = video.videoHeight
-			const canvas = Object.assign(document.createElement('canvas'), { width, height })
-			const context = canvas.getContext('2d', { willReadFrequently: true })
-			if (!context) throw new Error('no 2d context')
-			const white = (x0: number, y0: number, w: number, h: number) => {
-				const d = context.getImageData(x0, y0, w, h).data
-				let pixels = 0
-				let sumX = 0
-				let left = w
-				let right = -1
-				for (let i = 0; i < d.length; i += 4) {
-					const x = (i / 4) % w
-					const r = d[i] ?? 0
-					const g = d[i + 1] ?? 0
-					const b = d[i + 2] ?? 0
-					if (r > 200 && g > 200 && b > 200) {
-						pixels++
-						sumX += x0 + x
-					}
-					// The grey picture is 96: anything clearly lighter is (faded) text.
-					if (r > 125 && g > 125 && b > 125) {
-						left = Math.min(left, x)
-						right = Math.max(right, x)
-					}
+	const bytes = await exportVideo(page)
+	const read = readExportFrames(page, bytes, times, ({ context, width, height }) => {
+		const white = (x0: number, y0: number, w: number, h: number) => {
+			const d = context.getImageData(x0, y0, w, h).data
+			let pixels = 0
+			let sumX = 0
+			let left = w
+			let right = -1
+			for (let i = 0; i < d.length; i += 4) {
+				const x = (i / 4) % w
+				const r = d[i] ?? 0
+				const g = d[i + 1] ?? 0
+				const b = d[i + 2] ?? 0
+				if (r > 200 && g > 200 && b > 200) {
+					pixels++
+					sumX += x0 + x
 				}
-				return {
-					pixels,
-					meanX: pixels ? Math.round(sumX / pixels) : -1,
-					span: right < 0 ? 0 : right - left + 1
+				// The grey picture is 96: anything clearly lighter is (faded) text.
+				if (r > 125 && g > 125 && b > 125) {
+					left = Math.min(left, x)
+					right = Math.max(right, x)
 				}
 			}
-			const frames: Frame[] = []
-			for (const at of times) {
-				const presented = new Promise<number>((resolve) => {
-					video.requestVideoFrameCallback((_, frame) => resolve(frame.mediaTime))
-					setTimeout(() => resolve(Number.NaN), 3000)
-				})
-				video.currentTime = at
-				await next('seeked')
-				const shown = await presented
-				context.drawImage(video, 0, 0)
-				const row = context.getImageData(0, Math.round(height / 2), width, 1).data
-				let first = -1
-				let last = -1
-				for (let x = 0; x < width; x++) {
-					const r = row[x * 4] ?? 0
-					const g = row[x * 4 + 1] ?? 0
-					if (r > 180 && g < 90) {
-						if (first < 0) first = x
-						last = x
-					}
-				}
-				frames.push({
-					at,
-					shown: +shown.toFixed(3),
-					squareWidth: first < 0 ? 0 : last - first + 1,
-					squareCentre: first < 0 ? -1 : (first + last) / 2,
-					title: white(0, Math.round(height * 0.4), width, Math.round(height * 0.2)),
-					lower: white(0, Math.round(height * 0.45), width, Math.round(height * 0.3)),
-					topLeft: white(0, 0, Math.round(width / 2), Math.round(height / 2))
-				})
+			return {
+				pixels,
+				meanX: pixels ? Math.round(sumX / pixels) : -1,
+				span: right < 0 ? 0 : right - left + 1
 			}
-			return { seconds: +video.duration.toFixed(2), width, height, frames }
-		},
-		{ bytes: [...bytes], times }
-	)
+		}
+		const row = context.getImageData(0, Math.round(height / 2), width, 1).data
+		let first = -1
+		let last = -1
+		for (let x = 0; x < width; x++) {
+			const r = row[x * 4] ?? 0
+			const g = row[x * 4 + 1] ?? 0
+			if (r > 180 && g < 90) {
+				if (first < 0) first = x
+				last = x
+			}
+		}
+		return {
+			squareWidth: first < 0 ? 0 : last - first + 1,
+			squareCentre: first < 0 ? -1 : (first + last) / 2,
+			title: white(0, Math.round(height * 0.4), width, Math.round(height * 0.2)),
+			lower: white(0, Math.round(height * 0.45), width, Math.round(height * 0.3)),
+			topLeft: white(0, 0, Math.round(width / 2), Math.round(height / 2))
+		}
+	})
+	const { seconds, videoWidth: width, videoHeight: height, frames } = await read
+	const result: { seconds: number; width: number; height: number; frames: Frame[] } = {
+		seconds,
+		width,
+		height,
+		frames
+	}
 	console.log('EXPORT', JSON.stringify(result))
 	await expect(page.getByText('Export finished')).toHaveCount(0, { timeout: 10_000 })
 	return result
@@ -215,12 +184,11 @@ test('a push-in magnifies the picture about its centre between its times, in the
 
 	const result = await exportFrames(page, [1, 3, 3.8, 5])
 	for (const frame of result.frames) {
-		const want = expectedZoom(frame.shown, 2, 4, 2)
+		const { min, max } = rangeOverLag(frame.shown, (t) => expectedZoom(t, 2, 4, 2))
 		const got = zoomOf(frame)
-		expect(
-			Math.abs(got - want),
-			`zoom at ${frame.at} s (frame of ${frame.shown}): ${got} for ${want}`
-		).toBeLessThan(0.12)
+		const message = `zoom at ${frame.at} s (frame of ${frame.shown}): ${got} for ${min.toFixed(2)}–${max.toFixed(2)}`
+		expect(got, message).toBeGreaterThan(min - 0.05)
+		expect(got, message).toBeLessThan(max + 0.05)
 		expect(Math.abs(frame.squareCentre - 160), `centred at ${frame.squareCentre}`).toBeLessThan(4)
 	}
 })
@@ -250,20 +218,14 @@ test('a zoom works on the cropped picture and on the edited timeline, past a spe
 	const result = await exportFrames(page, [1, 3.5, 4.3])
 	expect(result.width, 'the 1:1 crop').toBe(result.height)
 	expect(Math.abs(result.seconds - 4.5), `length ${result.seconds}`).toBeLessThan(0.25)
-	// Under load the export drops frames and a frame's picture can be older than
-	// its timestamp: measured up to 0.16 s at 8× CPU throttling, and at least
-	// 0.105 s on CI run 61 (a frame at 4.005 s still at 1.5, the zoom ending at
-	// 3.9 s). So a frame may show the zoom of any time up to 0.25 s before it,
+	// A frame may show the zoom of any time over its lag window (export-frames.ts),
 	// within 0.05 (a pixel of the square is 0.017).
 	for (const frame of result.frames) {
-		const zooms = Array.from({ length: 26 }, (_, i) =>
-			expectedZoom(frame.shown - i * 0.01, 3.1, 3.9, 1.5)
-		)
+		const { min, max } = rangeOverLag(frame.shown, (t) => expectedZoom(t, 3.1, 3.9, 1.5))
 		const got = zoomOf(frame)
-		const range = `${Math.min(...zooms).toFixed(2)}–${Math.max(...zooms).toFixed(2)}`
-		const message = `zoom at ${frame.at} s (frame of ${frame.shown}): ${got} for ${range}`
-		expect(got, message).toBeGreaterThan(Math.min(...zooms) - 0.05)
-		expect(got, message).toBeLessThan(Math.max(...zooms) + 0.05)
+		const message = `zoom at ${frame.at} s (frame of ${frame.shown}): ${got} for ${min.toFixed(2)}–${max.toFixed(2)}`
+		expect(got, message).toBeGreaterThan(min - 0.05)
+		expect(got, message).toBeLessThan(max + 0.05)
 		expect(
 			Math.abs(frame.squareCentre - result.width / 2),
 			`centred at ${frame.squareCentre}`
@@ -349,46 +311,97 @@ test('the title slides in and fades out; a lower third slides in at its time; te
 		.evaluate((element: HTMLElement) => element.style.transform)
 	expect(titleTransform).toMatch(/^translate\(-[1-9]/)
 
-	const result = await exportFrames(page, [0.5, 1.5, 2.8, 3.2, 3.85, 4.5, 5.8, 3.4, 3.5, 3.6, 3.7])
-	const [sliding, still, fading, gone, lowerIn, lowerStill, lowerGone, ...popFrames] = result.frames
-	// About half way through its 1 s slide: left of centre by the eased offset at that frame's time.
-	const titleOffset = slideOffset(sliding?.shown ?? 0, 0, 1, result.width)
-	expect(titleOffset, `the frame of ${sliding?.shown} s is mid-slide`).toBeGreaterThan(10)
-	expect(titleOffset).toBeLessThan(100)
+	// Several frames through each slide and around each end: a starved export
+	// drops frames and shows older pictures than its timestamps
+	// (export-frames.ts), so each check uses the time of the frame it got.
+	// Asked for every 50–100 ms: under load several asks land on one frame.
+	const every = (from: number, to: number, step: number) =>
+		Array.from(
+			{ length: Math.round((to - from) / step) + 1 },
+			(_, i) => +(from + i * step).toFixed(2)
+		)
+	const pops = every(3.5, 4.3, 0.1)
+	const slides = every(0.3, 0.9, 0.05)
+	const lowerSlides = every(3.6, 4.3, 0.05)
+	const result = await exportFrames(page, [
+		1.5,
+		2.8,
+		3.29,
+		4.5,
+		5.9,
+		...pops,
+		...slides,
+		...lowerSlides
+	])
+	const [still, fading, gone, lowerStill, lowerGone, ...rest] = result.frames
+	const popFrames = rest.slice(0, pops.length)
+	const slidingFrames = rest.slice(pops.length, pops.length + slides.length)
+	const lowerFrames = rest.slice(pops.length + slides.length)
+	// Sliding in over its first second: left of its place by the eased offset
+	// at some moment over the frame's lag window, within 8 px.
+	const titleChecked = slidingFrames.filter(
+		(frame) => surelyAfter(frame.shown, 0) && frame.shown < 0.9
+	)
 	expect(
-		Math.abs((sliding?.title.meanX ?? 999) - ((still?.title.meanX ?? 0) - titleOffset)),
-		`title sliding in from the left at ${sliding?.title.meanX}, ${Math.round(titleOffset)} px short`
-	).toBeLessThan(8)
+		titleChecked.length,
+		`a frame mid-slide: ${JSON.stringify(slidingFrames.map((f) => f.shown))}`
+	).toBeGreaterThan(0)
+	for (const frame of titleChecked) {
+		const { min, max } = rangeOverLag(frame.shown, (t) => slideOffset(t, 0, 1, result.width))
+		const short = (still?.title.meanX ?? 0) - frame.title.meanX
+		expect(
+			short,
+			`title at ${frame.shown} s ${short} px short of its place, for ${Math.round(min)}–${Math.round(max)}`
+		).toBeGreaterThan(min - 8)
+		expect(short).toBeLessThan(max + 8)
+	}
 	expect(
 		Math.abs((still?.title.meanX ?? 0) - 160),
 		`title centred at ${still?.title.meanX}`
 	).toBeLessThan(15)
 	expect(still?.title.pixels ?? 0, 'the title there').toBeGreaterThan(100)
-	expect(fading?.title.pixels ?? 999, 'fading: fewer full-white pixels').toBeLessThan(
-		(still?.title.pixels ?? 0) * 0.8
-	)
-	expect(gone?.title.pixels, 'title gone after 3 s').toBe(0)
-	expect(gone?.lower.pixels, 'no lower third before 3.5 s').toBe(0)
-	// Late in its 0.5 s slide: short of its place by the eased offset at that frame's time. The
-	// band starts 16 px in, so up to ~24 px short its text is still whole; further, part is off
-	// the left edge and its mean x only shows it well left of its place.
-	const lowerOffset = slideOffset(lowerIn?.shown ?? 0, 3.5, 0.5, result.width)
-	expect(lowerOffset, `the frame of ${lowerIn?.shown} s is mid-slide`).toBeGreaterThan(0)
-	const lowerShort = (lowerStill?.lower.meanX ?? 0) - (lowerIn?.lower.meanX ?? 999)
-	if (lowerOffset < 24) {
+	// Fading out over 2–3 s: well into it (from 2.3 s), fewer full-white pixels.
+	if (fading && surelyAfter(fading.shown, 2.3)) {
 		expect(
-			Math.abs(lowerShort - lowerOffset),
-			`lower third ${lowerShort} px short of its place, for ${Math.round(lowerOffset)}`
-		).toBeLessThan(5)
-	} else {
-		expect(lowerShort, `lower third ${lowerShort} px short, partly off screen`).toBeGreaterThan(15)
+			fading.title.pixels,
+			`fading at ${fading.shown} s: fewer full-white pixels`
+		).toBeLessThan((still?.title.pixels ?? 0) * 0.8)
 	}
+	// Gone after 3 s, and no lower third before 3.5 s: judged when even the
+	// oldest picture that frame could hold is past 3 s.
+	if (gone && surelyAfter(gone.shown, 3)) {
+		expect(gone.title.pixels, `title gone at ${gone.shown} s`).toBe(0)
+	}
+	expect(gone?.lower.pixels, 'no lower third before 3.5 s').toBe(0)
+	// The lower third, 3.5 s, slides in over 0.5 s. The band starts 16 px in, so
+	// up to ~24 px short its text is still whole; further, part is off the left
+	// edge and its mean x only shows it well left of its place.
+	let lowerChecked = 0
+	for (const frame of lowerFrames) {
+		const { min, max } = rangeOverLag(frame.shown, (t) => slideOffset(t, 3.5, 0.5, result.width))
+		const short = (lowerStill?.lower.meanX ?? 0) - frame.lower.meanX
+		const label = `lower third at ${frame.shown} s ${short} px short, for ${Math.round(min)}–${Math.round(max)}`
+		if (max < 24) {
+			expect(short, label).toBeGreaterThan(min - 5)
+			expect(short, label).toBeLessThan(max + 5)
+			lowerChecked++
+		} else if (min >= 24) {
+			expect(short, label).toBeGreaterThan(15)
+			lowerChecked++
+		}
+	}
+	expect(
+		lowerChecked,
+		`a lower-third frame to judge: ${JSON.stringify(lowerFrames.map((f) => f.shown))}`
+	).toBeGreaterThan(0)
 	expect(lowerStill?.lower.pixels ?? 0, 'the lower third there').toBeGreaterThan(80)
 	// At the lower left: its text left of the middle.
 	expect(lowerStill?.lower.meanX ?? 999, `lower third at ${lowerStill?.lower.meanX}`).toBeLessThan(
 		110
 	)
-	expect(lowerGone?.lower.pixels, 'gone after 5.5 s').toBe(0)
+	if (lowerGone && surelyAfter(lowerGone.shown, 5.5)) {
+		expect(lowerGone.lower.pixels, `gone at ${lowerGone.shown} s, after 5.5 s`).toBe(0)
+	}
 	// The text: not there before 3.3 s; early in its pop, on screen but faint and narrower than
 	// it ends up; near the end, whole. Several frames, so where the export's frames land doesn't
 	// matter.
@@ -571,14 +584,12 @@ test('a zoom aimed on the video goes to that area, closer for a smaller one, in 
 	// the sped-clip zoom test measured).
 	const result = await exportFrames(page, [1, 3, 3.8, 5])
 	for (const frameRead of result.frames) {
-		const xs = Array.from(
-			{ length: 26 },
-			(_, i) =>
-				zoomedPoint(zoomViewAt(zoom, frameRead.shown - i * 0.01), { x: 0.5, y: 0.5 }).x *
-				result.width
+		const { min, max } = rangeOverLag(
+			frameRead.shown,
+			(t) => zoomedPoint(zoomViewAt(zoom, t), { x: 0.5, y: 0.5 }).x * result.width
 		)
-		const message = `square at ${frameRead.squareCentre} for ${Math.min(...xs).toFixed(1)}–${Math.max(...xs).toFixed(1)} (frame of ${frameRead.shown})`
-		expect(frameRead.squareCentre, message).toBeGreaterThan(Math.min(...xs) - 4)
-		expect(frameRead.squareCentre, message).toBeLessThan(Math.max(...xs) + 4)
+		const message = `square at ${frameRead.squareCentre} for ${min.toFixed(1)}–${max.toFixed(1)} (frame of ${frameRead.shown})`
+		expect(frameRead.squareCentre, message).toBeGreaterThan(min - 4)
+		expect(frameRead.squareCentre, message).toBeLessThan(max + 4)
 	}
 })
