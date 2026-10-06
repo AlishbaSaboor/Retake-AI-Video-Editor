@@ -69,6 +69,7 @@ import {
 	Sparkle,
 	SpeakerHigh,
 	SpeakerLow,
+	Star,
 	Stop,
 	Sun,
 	TextT,
@@ -148,6 +149,7 @@ export const DarkModeIcon = (props: IconProps) => <Glyph source={Moon} {...props
 export const DownloadIcon = (props: IconProps) => <Glyph source={DownloadSimple} {...props} />
 export const EditIcon = (props: IconProps) => <Glyph source={PencilSimple} {...props} />
 export const FillerWordIcon = (props: IconProps) => <Glyph source={ChatCircleDots} {...props} />
+export const HighlightIcon = (props: IconProps) => <Glyph source={Star} {...props} />
 export const HomeIcon = (props: IconProps) => <Glyph source={House} {...props} />
 export const ImageIcon = (props: IconProps) => <Glyph source={Image} {...props} />
 export const InfoIcon = (props: IconProps) => <Glyph source={Info} {...props} />

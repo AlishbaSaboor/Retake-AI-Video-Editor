@@ -39,10 +39,10 @@ export function pickMimeType(isSupported: (mimeType: string) => boolean): string
 	return MIME_TYPES.find(isSupported) ?? null
 }
 
-/** "take.mov" exported as WebM becomes "take-edited.webm". */
-export function exportFileName(sourceName: string, mimeType: string): string {
+/** "take.mov" exported as WebM becomes "take-edited.webm"; with `label` "highlight-2", "take-highlight-2.webm". */
+export function exportFileName(sourceName: string, mimeType: string, label = 'edited'): string {
 	const base = sourceName.replace(/\.[^.]*$/, '') || 'video'
-	return `${base}-edited.${mimeType.startsWith('video/mp4') ? 'mp4' : 'webm'}`
+	return `${base}-${label}.${mimeType.startsWith('video/mp4') ? 'mp4' : 'webm'}`
 }
 
 /** How long the export plays for: the segments laid end to end, less any dissolves' overlap. */

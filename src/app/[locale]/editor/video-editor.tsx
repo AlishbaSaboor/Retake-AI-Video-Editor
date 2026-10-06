@@ -18,6 +18,7 @@ import {
 	ProjectsIcon,
 	SelectIcon,
 	SparkleIcon,
+	HighlightIcon,
 	SpeedIcon,
 	TextIcon,
 	TransitionIcon,
@@ -155,6 +156,7 @@ import {
 import { isKnownDuration, moveTrimEdge, type TrimEdge, type TrimRange } from './timeline-scale'
 import type { TranscriptSegment } from './transcript'
 import { TranscriptPanel } from './transcript-panel'
+import { HighlightsDialog, HighlightsPanel } from './highlights-dialog'
 import { UploadDropzone } from './upload-dropzone'
 import { useSequencePlayback, type SourceUrls } from './use-sequence-playback'
 import { useTakeAnalysis } from './use-take-analysis'
@@ -295,6 +297,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	// tool on the rail; what's picked on the video; the title while it's dragged.
 	const panelsShown = useSideOpen('panels')
 	const [openTool, setOpenTool] = useState('assistant')
+	// The highlights pop-up: open over the editor, which it never changes.
+	const [highlightsOpen, setHighlightsOpen] = useState(false)
 	const [picked, setPicked] = useState<Picked | null>(null)
 	const [titleDraft, setTitleDraft] = useState<TitleCard | null>(null)
 	const [clipSelection, setClipSelection] = useState<ClipSelection | null>(null)
@@ -1440,6 +1444,11 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		playheadSeconds: editedNow ?? 0
 	}
 
+	function openHighlights() {
+		playback.pause()
+		setHighlightsOpen(true)
+	}
+
 	// Each runs what its button does, so each edit is the same one undo step.
 	function applyCommand(plan: CommandPlan) {
 		switch (plan.kind) {
@@ -1500,6 +1509,9 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 				break
 			case 'export':
 				void exporter.start()
+				break
+			case 'find_highlights':
+				openHighlights()
 				break
 			case 'title':
 				changeTitle(plan.title)
@@ -1800,6 +1812,12 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 						/>
 					),
 					tool(
+						'highlights',
+						'assist',
+						<HighlightIcon size={18} />,
+						<HighlightsPanel onOpen={openHighlights} />
+					),
+					tool(
 						'cleanup',
 						'fix',
 						<CleanupIcon size={18} />,
@@ -2084,6 +2102,18 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	return (
 		<>
 			<LeaveGuard unsaved={unsaved} />
+			{highlightsOpen && video && (
+				<HighlightsDialog
+					source={{
+						url: video.url,
+						name: video.name,
+						durationSeconds,
+						picture: pictureSize
+					}}
+					transcript={analysis.transcript}
+					onClose={() => setHighlightsOpen(false)}
+				/>
+			)}
 			<GradeFilters
 				prefix={PREVIEW_GRADE}
 				matrices={gradeMatrices.flatMap((matrix) => (matrix ? [matrix] : []))}

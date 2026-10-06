@@ -34,6 +34,8 @@ type ExportSource = {
 	laneItems: AudioItem[]
 	/** Where each added video plays from, by id. */
 	addedUrls: Readonly<Record<string, string>>
+	/** What the file's name says it is, after the video's own name; "edited" unless given. */
+	fileLabel?: string
 }
 
 const PERCENT = 100
@@ -78,7 +80,8 @@ export function useVideoExport({
 	transform,
 	color,
 	laneItems,
-	addedUrls
+	addedUrls,
+	fileLabel
 }: ExportSource) {
 	const t = useTranslations('Editor.export')
 	const [percent, setPercent] = useState<number | null>(null)
@@ -110,7 +113,7 @@ export function useVideoExport({
 					signal: controller.signal
 				}
 			)
-			const fileName = exportFileName(videoName, mimeType)
+			const fileName = exportFileName(videoName, mimeType, fileLabel)
 			download(blob, fileName)
 			setPercent(null)
 			const off = await measuredMismatch(blob, totalSeconds(segments))
