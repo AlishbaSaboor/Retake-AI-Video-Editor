@@ -1931,6 +1931,111 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
 - **Cost:** one Deepgram transcript of `Cap.mp4` (~$0.008), then every
   screenshot run used the saved copy (`reuseTranscript`: 0 paid calls).
 
+## 3z. Editor rebuilt to the PDF design reference, stage 1 (2026-10-06)
+
+- **Asked:** rebuild the editor's structure and interactions to match the
+  owner's PDF (`Retake.pdf`, editor pages 8–12): our colours and fonts, not
+  its palette; no feature lost or changed; nothing in the PDF that needs a
+  new feature. Stage 1: the layout, the add-and-edit-on-video flow for
+  Title, Text, Logo and Annotations, the split fix, the Original view made
+  view-only, and the keyboard shortcuts help removed.
+- **Layout** (`editor-shell.tsx`): the editor is the whole window, its own
+  top bar instead of the site's: back to Home, the name and saved status,
+  undo / redo (always there, greyed out when there's nothing) and reset,
+  Before / After (Edited | Original), the theme, Hide panels, Export.
+  Hide panels folds both sides away; a "Show tools and chat" button brings
+  them back; remembered (`editor-layout-store`, now one `panels` flag).
+- **Tool rail** (`tool-rail.tsx`, replaces `tool-panels.tsx`): Project at
+  the top, then FIX (Clean up), ADD (Captions, Text & logo, Annotate, Audio,
+  Videos), ADJUST (Frame: crop/rotate/flip and zoom; Colour; Speed & fades:
+  each clip's speed, volume, fades; Transitions). A tool opens its panel
+  with a heading, one line of help and a search across every tool; clicked
+  again it folds away. Every panel stays mounted. In the Original view the
+  panels are a disabled fieldset with a note saying why.
+- **Right column** (`side-tabs.tsx`): Assistant (the chat) and Transcript
+  (sentence count on the tab). A start from "Edit by hand" opens on the
+  Transcript; "Edit with AI" on the Assistant.
+- **Over the video:** a small bar (Select, Draw, Crop). Nothing is a form
+  that seems to do nothing: Title, Text, Logo, Box, Blur and Pixelate each
+  go on the video at once, at the playhead, picked, with handles; listed in
+  "On this video"; on the Text lane; with "Drag it on the video to move it.
+  Drag a corner to resize." Picking one shows a floating bar: Replace (a
+  logo's file; a title's or text's words), Timing (from / to), Delete.
+  The picked item's words and size are in its panel; everything else
+  (timing fields, style, motion, the lower third, the logo's corner and
+  rotation, the drawing tools, colours, each item's timing lane) is under
+  "More options", unchanged.
+- **The title can be moved** (`title-box.tsx`): a new optional `at` (its
+  centre, fractions of the frame) on `TitleCard`; absent, it's centred as
+  before, so old projects and the title command are unchanged. Its band
+  follows it up or down; the export draws it at the same place. Resizing
+  is its existing text size. This is the one model change in stage 1: the
+  PDF asks for handles on the title, and the title had no position.
+- **Picking on the video:** with no tool out, the annotation layer picks
+  by click (`quiet`: items outlined only under the pointer, so the picture
+  looks as it exports); the title and the logo pick themselves. The logo
+  box gained `selected` / `onSelect`.
+- **Timeline** (`editor-timeline.tsx`, replaces `timeline.tsx` and the clip
+  strip): one timeline in the edited video's time: Split, Merge, Duplicate,
+  Delete, a zoom slider, a ruler to scrub; lanes for Video (the clips
+  themselves, as wide as they play: Split cuts the clip right where it is,
+  no second strip under a full-length one), Text (title, lower third,
+  annotations, logo, captions; click to pick) and Audio (the lane's items,
+  "Add music or audio"). Silence, filler and audio-problem flags sit on the
+  ruler where they play (left off where cut). The trim handles sit on the
+  trimmed video's edges; dragged past the end they untrim. The Original
+  view shows the untouched take, view only. The player has its own bar:
+  time, Play / Pause, preview speed (the browser's controls are gone).
+- **Original view:** the video plays, nothing edits: tools, timeline
+  buttons, the chat, re-record, undo and redo are off, and a line says
+  "Original — view only… Switch to Edited to make changes." with a button.
+- **Keyboard:** the shortcuts list and the single keys (Space, S, Delete,
+  [, ], /, ?) are gone; Ctrl/⌘+Z and Ctrl/⌘+Shift+Z / Ctrl+Y remain (not in
+  the Original view). A focused clip still takes Delete and Alt+arrows, as
+  its own control's keys.
+- **Tests:** `openTool` maps old panel names to their new homes (rail tool,
+  More options, or a right tab). `seekTo(page, s)` still means a moment of
+  the main video's own recording: the scrubber carries what plays
+  (`data-segments`) and the helper clicks where that moment plays in the
+  edit. Tests that typed into the chat open the Assistant tab first. Undo
+  "not there" became "disabled". Layout spec rewritten for the rail, Hide
+  panels and the keys.
+- **Skipped from the PDF (each needs a new feature):** Google sign-in and
+  sign-up, Forgot password; the assistant's step-by-step progress checklist
+  and Stop, and the "working on your request 64%" bar over the video; the
+  canvas zoom (− 100% +) on the video bar; the Before / After wipe slider
+  (we keep the Edited / Original switch); waveforms drawn in the clips;
+  the player's volume, fullscreen and CC buttons; proposed AI cuts marked
+  on the timeline before Apply. Pages other than the editor (site, log in,
+  Home, Projects) weren't asked for.
+
+**Stage 2: the remaining tools** (same day):
+
+- **Clean up** (`cleanup-bar.tsx`, now `CleanupPanel`): the preview is up
+  front, not behind a first click: how many long silences and filler words,
+  "Saves about N seconds", the length before and after (left off when both
+  round to the same), and one button, "Remove silences and filler words",
+  that does it; Undo puts them back. Filler words with no clear pause stay
+  flagged for a hand cut, as before.
+- **Transcript** (`transcript-panel.tsx`): the checks' flags in place:
+  filler words highlighted in their sentence (outlined when they need a
+  hand cut), a "2.4 s pause" chip after the sentence a long silence
+  follows, and "Background noise / Quiet speech / Distorted at 0:12" under
+  the sentence a problem is in; pauses and problems jump there. Chips at
+  the top count each kind (Filler words, Pauses, Bad audio) and show only
+  the sentences with it. Re-record stays on each sentence, with the
+  automatic splice and "Set the join by ear" unchanged.
+- **Captions:** on/off up front, the style under More options.
+- **Speed & fades:** a card per clip (name and Mute, volume, then fade in,
+  fade out and speed in one row) to fit the panel. **Transitions:** says
+  how to get a join when there's only one clip, instead of nothing.
+  Section headings that repeated the panel's own title are for screen
+  readers only (Colour, Audio, Transitions, Speed & fades).
+- **Flaky under full local load** (passed alone, one worker): the two
+  re-record specs (the fake mic sometimes delivered silence: "No speech was
+  heard"), the contact form on a cold compile, a projects reload export.
+  Recorded in 4c.
+
 ---
 
 ## 4. Unresolved issues
@@ -2390,6 +2495,23 @@ bytes, times, read, { size, args })` seeks each time, records the time of
   0.4 s caption, so no frame check can resolve it; 4× is the target (CI
   lands between the two). At 4× the export length still varied by ±0.27 s
   once; see 4f.
+
+**Editor redesign run, 2026-10-06 (full suite, local, 4 workers):** the
+re-record and re-record-by-ear specs failed under load when the fake mic
+delivered silence ("No speech was heard in that recording"); both pass
+alone and with one worker. The contact form's send timed out once on a
+cold compile, then passed. Not changed.
+
+**CI on PR #7 (stage 2):** `transform.spec.ts`'s flip test failed all three
+tries: the square read 11–14 px off 150 by its frame's time. Locally one
+run had a frame stamped ~1.16 s whose picture showed the square at its 1.5 s
+place, 0.34 s apart: the test video is recorded in real time too, so its
+frame times can drift from where the square was drawn, on top of the
+export's own lag and lead. The test now allows 0.35 s either way for the
+square's position (`SQUARE_SLACK_SECONDS`); the flip and turn are proven by
+the pixel probes (orange at the square's centre, the pinned red box), which
+don't depend on time. The clip-reorder and export-length tests also failed
+once each in that run and passed on retry.
 
 ### 4d. Low memory on this machine (observed 2026-10-02)
 

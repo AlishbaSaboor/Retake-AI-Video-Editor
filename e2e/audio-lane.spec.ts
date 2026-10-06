@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { editCommand, mockActions, seekTo, openTool } from './editor-helpers'
+import { editCommand, mockActions, playheadSeconds, seekTo, openTool } from './editor-helpers'
 import { exportVideo, readExportFrames, readToneLevels } from './export-frames'
 
 // The Audio lane on real exports. The video: 2 s of red with a 440 Hz tone,
@@ -285,6 +285,9 @@ test('the preview plays a lane item from where playback is', async ({ page }) =>
 	/** Plays from `seconds` for a moment, and returns the lane starts it made. */
 	const playFrom = async (seconds: number) => {
 		await seekTo(page, seconds)
+		// Played only once the playhead is there: on a slow machine the seek can
+		// still be landing, and playing from the old place starts the lane twice.
+		await expect.poll(() => playheadSeconds(page)).toBeCloseTo(seconds, 1)
 		await page.evaluate(() => {
 			document.dispatchEvent(new Event('lane-reset'))
 			document.documentElement.dataset.laneStarts = '[]'
@@ -324,6 +327,7 @@ test('audio lane commands are confirmed first and are one undo step each', async
 	await openRedBlue(page)
 	const ask = async (text: string, fields: Parameters<typeof editCommand>[0], shown: string) => {
 		await mockActions(page, { words: [], command: editCommand(fields) })
+		await openTool(page, 'Assistant')
 		await command.fill(text)
 		await page.getByRole('button', { name: 'Run' }).click()
 		await expect(reply).toContainText(shown)

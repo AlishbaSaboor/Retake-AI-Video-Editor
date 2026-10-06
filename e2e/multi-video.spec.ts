@@ -1,6 +1,12 @@
 import { test, expect, type Page } from '@playwright/test'
 import { editCommand, mockActions, openTool } from './editor-helpers'
-import { exportVideo, readExportFrames, readToneLevels } from './export-frames'
+import {
+	exportVideo,
+	readExportFrames,
+	readToneLevels,
+	surelyAfter,
+	surelyBefore
+} from './export-frames'
 
 // Several videos in one project, on real exports. The main video: 320×180,
 // red, with a 440 Hz tone, 4 s. The added one: square (240×240), green, with
@@ -161,7 +167,9 @@ test('an added video plays after the first, fitted into its frame, with its own 
 	await page.getByRole('button', { name: 'Pause', exact: true }).click()
 	await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible()
 	// The timeline shows the video the playhead is in.
-	await expect(page.getByText('green.webm', { exact: true }).first()).toBeVisible()
+	await expect(
+		page.getByRole('region', { name: 'Clips' }).getByText('green.webm').first()
+	).toBeVisible()
 })
 
 test('clips of an added video reorder, speed up, take a colour and dissolve like any other', async ({
@@ -200,15 +208,29 @@ test('clips of an added video reorder, speed up, take a colour and dissolve like
 		.getByRole('group', { name: 'Clip 1 to clip 2' })
 	await join.getByRole('button', { name: 'Dissolve' }).click()
 	// The green clip plays 1.5 s, so the dissolve is at most 0.75 s there.
-	const [grey, middle, red] = await exportAndProbe(page, [0.3, 1.1, 3.5], 1.5 + MAIN.seconds - 0.75)
+	// The dissolve runs 0.75–1.5 s of the edit; several frames through it, as
+	// under load the export's frames can be from a little before or after
+	// their time (export-frames.ts).
+	const probes = await exportAndProbe(page, [0.3, 1, 1.1, 1.2, 1.3, 3.5], 1.5 + MAIN.seconds - 0.75)
+	const [grey] = probes
+	const red = probes.at(-1)
 	const [r = 0, g = 0, b = 0] = grey?.centre ?? []
 	expect(Math.max(r, g, b) - Math.min(r, g, b), `green as grey: ${grey?.centre}`).toBeLessThan(25)
 	expect(g, 'a mid grey').toBeGreaterThan(80)
-	// Half way through: the red coming in over the grey.
-	const [mr = 0, mg = 0] = middle?.centre ?? []
-	expect(mr, `red coming in: ${middle?.centre}`).toBeGreaterThan(mg + 20)
-	expect(mg, `grey going out: ${middle?.centre}`).toBeGreaterThan(30)
-	expect((middle?.low ?? 0) + (middle?.added ?? 0), 'both tones in the overlap').toBeGreaterThan(
+	// Inside it, judged on frames surely within it: the red coming in over the grey.
+	const inside = probes.filter(
+		(probe) => surelyAfter(probe.shown, 0.8) && surelyBefore(probe.shown, 1.45)
+	)
+	const frames = JSON.stringify(probes.map((probe) => [probe.shown, probe.centre]))
+	expect(inside.length, `a frame inside the dissolve: ${frames}`).toBeGreaterThan(0)
+	for (const middle of inside) {
+		const [mr = 0, mg = 0] = middle.centre
+		expect(mr, `red coming in at ${middle.shown} s: ${frames}`).toBeGreaterThan(mg + 20)
+		expect(mg, `grey going out at ${middle.shown} s: ${frames}`).toBeGreaterThan(30)
+	}
+	// The sound doesn't drop like frames: both tones in the overlap, at 1.1 s.
+	const overlap = probes[2]
+	expect((overlap?.low ?? 0) + (overlap?.added ?? 0), 'both tones in the overlap').toBeGreaterThan(
 		0.6
 	)
 	expect(isRed(red?.centre ?? []), 'then red').toBe(true)
@@ -270,6 +292,7 @@ test('"add another video" is a command, confirmed first; undo and reset take the
 		timeout: 30_000
 	})
 	await mockActions(page, { words: [], command: editCommand({ action: 'add_video' }) })
+	await openTool(page, 'Assistant')
 	await command.fill('add another video')
 	await page.getByRole('button', { name: 'Run' }).click()
 	await expect(reply).toContainText("I'll add another video after the clips. Choose the file next.")
@@ -284,6 +307,7 @@ test('"add another video" is a command, confirmed first; undo and reset take the
 		words: [],
 		command: editCommand({ action: 'merge', fromClip: 1, toClip: 2 })
 	})
+	await openTool(page, 'Assistant')
 	await command.fill('merge clips 1 and 2')
 	await page.getByRole('button', { name: 'Run' }).click()
 	await expect(reply).toContainText(

@@ -22,7 +22,9 @@ test('a project starts on the home page: a command and a video open the editor, 
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
 		timeout: 30_000
 	})
-	await expect(page.getByText('home-take.webm').first()).toBeVisible()
+	await expect(
+		page.getByRole('region', { name: 'Clips' }).getByText('home-take.webm').first()
+	).toBeVisible()
 	// The command was asked against the video, and waits for Apply.
 	await expect(reply(page)).toContainText('Turn captions on')
 	await expect(reply(page).getByRole('button', { name: 'Apply' })).toBeVisible()
@@ -34,7 +36,7 @@ test('a project starts on the home page: a command and a video open the editor, 
 	await expect(reply(page)).toHaveCount(0)
 })
 
-test('editing by hand opens the editor with the chat put away and the tools in front', async ({
+test('editing by hand opens the editor on the tools and the transcript, the assistant a tab away', async ({
 	page
 }) => {
 	await page.goto('/home')
@@ -50,16 +52,22 @@ test('editing by hand opens the editor with the chat put away and the tools in f
 		timeout: 30_000
 	})
 	await expect(page.getByRole('region', { name: 'Chat' })).toBeHidden()
-	await expect(page.getByRole('searchbox', { name: 'Find a tool' })).toBeVisible()
-	// The chat is one click away.
-	await page.getByRole('button', { name: 'Show the chat' }).click()
+	await expect(page.getByRole('tab', { name: /^Transcript/ })).toHaveAttribute(
+		'aria-selected',
+		'true'
+	)
+	await expect(page.getByRole('tab', { name: 'Text & logo' })).toBeVisible()
+	// The assistant is one click away.
+	await page.getByRole('tab', { name: 'Assistant' }).click()
 	await expect(page.getByRole('region', { name: 'Chat' })).toBeVisible()
 })
 
 test('the editor opened directly starts empty', async ({ page }) => {
 	await page.goto('/editor')
 	await expect(page.getByText('Drop a video here, or click to choose one')).toBeVisible()
-	await expect(page.getByText('Your timeline appears here once a video loads.')).toBeVisible()
+	// No tools or timeline until there's a video to use them on.
+	await expect(page.getByRole('tab', { name: 'Text & logo' })).toHaveCount(0)
+	await expect(page.getByRole('slider', { name: 'Playhead position' })).toHaveCount(0)
 })
 
 test('saved projects are listed with a picture, a name and a date, and open in the editor', async ({
@@ -80,8 +88,12 @@ test('saved projects are listed with a picture, a name and a date, and open in t
 	await openTool(page, 'Project')
 	await expect(project.getByRole('status')).toContainText('Saved at')
 
+	// Back to Home, then its Projects link.
+	await page.getByRole('link', { name: 'Back to Home' }).click()
 	await page.getByRole('link', { name: 'Projects' }).first().click()
-	await expect(page.getByRole('heading', { level: 1, name: 'Saved projects' })).toBeVisible()
+	await expect(page.getByRole('heading', { level: 1, name: 'Saved projects' })).toBeVisible({
+		timeout: 30_000
+	})
 	const card = page
 		.getByRole('list', { name: 'Saved projects' })
 		.getByRole('article', { name: 'Listed project' })
@@ -113,6 +125,8 @@ test('saved projects are listed with a picture, a name and a date, and open in t
 	await expect(page.getByLabel('Project name')).toHaveValue('Renamed project')
 
 	// Deleted only once confirmed.
+	// Back to Home, then its Projects link.
+	await page.getByRole('link', { name: 'Back to Home' }).click()
 	await page.getByRole('link', { name: 'Projects' }).first().click()
 	const doomed = page.getByRole('article', { name: 'Renamed project' })
 	await doomed.getByRole('button', { name: 'Delete Renamed project' }).click()

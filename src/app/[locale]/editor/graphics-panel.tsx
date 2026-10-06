@@ -18,6 +18,7 @@ import type { Size } from './transform'
 import { DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
 import { TextStyleFields } from './text-style-fields'
 import { AnimationFields } from './motion-panels'
+import { MoreOptions } from './on-video-panels'
 import type { LowerThird } from './motion'
 
 /** A new title's stretch, before the user sets one: the first 3 seconds. */
@@ -37,10 +38,6 @@ type GraphicsPanelProps = {
 	/** The output frame's size, which the logo's size is a fraction of. */
 	frame: Size
 	onRemoveWatermark: () => void
-	captionsOn: boolean
-	onCaptionsChange: (on: boolean) => void
-	captionStyle: TextStyle
-	onCaptionStyleChange: (style: TextStyle) => void
 	lowerThird: LowerThird | null
 	onLowerThirdChange: (lowerThird: LowerThird | null) => void
 }
@@ -60,10 +57,6 @@ export function GraphicsPanel({
 	onLogoChange,
 	frame,
 	onRemoveWatermark,
-	captionsOn,
-	onCaptionsChange,
-	captionStyle,
-	onCaptionStyleChange,
 	lowerThird,
 	onLowerThirdChange
 }: GraphicsPanelProps) {
@@ -75,29 +68,7 @@ export function GraphicsPanel({
 	const isValid = draft.text.trim() !== '' && draft.startSeconds >= 0 && draft.durationSeconds > 0
 
 	return (
-		<section
-			aria-label={t('label')}
-			className="border-border bg-surface flex flex-col gap-4 rounded-lg border p-4"
-		>
-			<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
-			<div className="flex flex-wrap items-center gap-3">
-				<Button
-					type="button"
-					size="sm"
-					variant={captionsOn ? 'secondary' : 'outline'}
-					aria-pressed={captionsOn}
-					onClick={() => onCaptionsChange(!captionsOn)}
-				>
-					{t('captions')}
-				</Button>
-				<span className="text-text-muted text-xs">{t('captionsHint')}</span>
-			</div>
-			<TextStyleFields
-				key={`caption-${JSON.stringify(captionStyle)}`}
-				label={t('captionStyle')}
-				style={captionStyle}
-				onChange={onCaptionStyleChange}
-			/>
+		<section aria-label={t('label')} className="flex flex-col gap-4 p-3">
 			<form
 				className="flex flex-wrap items-end gap-3"
 				onSubmit={(event) => {
@@ -209,6 +180,55 @@ export function GraphicsPanel({
 				)}
 			</div>
 			{watermark && <p className="text-text-muted -mt-2 text-xs">{t('logoHint')}</p>}
+		</section>
+	)
+}
+
+/**
+ * Captions: on or off, and how they look. They follow the transcript, one
+ * sentence at a time, at the bottom of the frame.
+ */
+export function CaptionsPanel({
+	captionsOn,
+	onCaptionsChange,
+	captionStyle,
+	onCaptionStyleChange,
+	canEdit
+}: {
+	captionsOn: boolean
+	onCaptionsChange: (on: boolean) => void
+	captionStyle: TextStyle
+	onCaptionStyleChange: (style: TextStyle) => void
+	canEdit: boolean
+}) {
+	const t = useTranslations('Editor.graphics')
+	return (
+		<section aria-label={t('captionsLabel')} className="flex flex-col gap-4">
+			<div className="border-border bg-surface flex items-center gap-3 rounded-lg border p-3">
+				<div className="flex min-w-0 flex-1 flex-col">
+					<span className="text-text text-sm font-medium">{t('captions')}</span>
+					<span className="text-text-muted text-xs">{t('captionsHint')}</span>
+				</div>
+				<Button
+					type="button"
+					size="sm"
+					variant={captionsOn ? 'secondary' : 'outline'}
+					aria-label={t('captions')}
+					aria-pressed={captionsOn}
+					disabled={!canEdit}
+					onClick={() => onCaptionsChange(!captionsOn)}
+				>
+					{captionsOn ? t('captionsOn') : t('captionsOff')}
+				</Button>
+			</div>
+			<MoreOptions>
+				<TextStyleFields
+					key={`caption-${JSON.stringify(captionStyle)}`}
+					label={t('captionStyle')}
+					style={captionStyle}
+					onChange={onCaptionStyleChange}
+				/>
+			</MoreOptions>
 		</section>
 	)
 }

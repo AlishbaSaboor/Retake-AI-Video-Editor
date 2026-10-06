@@ -46,6 +46,7 @@ async function setFade(
 ) {
 	await openTool(page, 'Clip sound and speed')
 	const input = clipRow(page, n).getByLabel(field)
+	await openTool(page, 'Assistant')
 	await input.fill(String(seconds))
 	await input.press('Enter')
 }
@@ -197,6 +198,7 @@ test('mute, fade and louder work as typed commands, each confirmed first and one
 	await openTwoClips(page)
 	const run = async (text: string, fields: Parameters<typeof editCommand>[0], shown: string) => {
 		await mockActions(page, { words: [], command: editCommand(fields) })
+		await openTool(page, 'Assistant')
 		await command.fill(text)
 		await page.getByRole('button', { name: 'Run' }).click()
 		await expect(reply).toContainText(shown)

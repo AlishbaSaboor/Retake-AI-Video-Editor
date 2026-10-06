@@ -19,13 +19,9 @@
 		"play": "Play",
 		"pause": "Pause",
 		"cleanup": {
-			"button": "Clean up recording",
-			"hint": "Removes flagged silences and filler words in one step.",
+			"button": "Remove silences and filler words",
 			"nothing": "Nothing flagged that can be removed automatically.",
-			"estimate": "This will remove approximately {seconds, plural, one {# second} other {# seconds}}.",
-			"breakdown": "({silences, plural, one {# silence} other {# silences}}, {fillers, plural, one {# filler word} other {# filler words}})",
 			"fillersForReview": "{count, plural, one {# filler word runs} other {# filler words run}} straight into the next word with no clear pause, so {count, plural, one {it stays} other {they stay}} flagged (outlined) for you to cut by hand.",
-			"apply": "Apply clean-up",
 			"cancel": "Cancel",
 			"undo": "Undo last change",
 			"redo": "Redo",
@@ -33,7 +29,13 @@
 			"resetConfirm": "Reset to the original take? This removes every trim, cut, clip change, re-recorded sentence, graphic and annotation. Undo brings them all back.",
 			"resetApply": "Reset",
 			"resetShort": "Reset",
-			"reading": "Still reading the recording: silences and filler words show here once the transcript is in."
+			"reading": "Still reading the recording: silences and filler words show here once the transcript is in.",
+			"label": "Clean up",
+			"silences": "{count, plural, =0 {No long silences} one {# long silence} other {# long silences}}",
+			"fillers": "{count, plural, =0 {No filler words that can be cut cleanly} one {# filler word} other {# filler words}}",
+			"saves": "Saves about {seconds, plural, one {# second} other {# seconds}}.",
+			"length": "Your video goes from {from} to {to}.",
+			"undoHint": "One click removes them all; Undo puts them back."
 		},
 		"fillerCut": {
 			"label": "Cut editor for \"{word}\"",
@@ -59,7 +61,10 @@
 			"speed": "{speed}×",
 			"duplicate": "Duplicate",
 			"delete": "Delete",
-			"clipLabelOf": "Clip {number}: plays {duration}, from {source} of {video}"
+			"clipLabelOf": "Clip {number}: plays {duration}, from {source} of {video}",
+			"splitShort": "Split",
+			"mergeShort": "Merge",
+			"dragHint": "Drag clips to reorder"
 		},
 		"transcript": {
 			"title": "Transcript",
@@ -69,7 +74,21 @@
 			"too_long": "Transcripts work on clips up to 5 minutes for now. Silences are still flagged on the timeline.",
 			"empty": "No speech detected.",
 			"reRecord": "Re-record the sentence at {at}",
-			"replaced": "re-recorded"
+			"replaced": "re-recorded",
+			"flags": "What the checks found",
+			"chips": {
+				"fillers": "Filler words · {count}",
+				"pauses": "Pauses · {count}",
+				"audio": "Bad audio · {count}"
+			},
+			"filler": "Filler word: Clean up removes it",
+			"fillerReview": "Filler word with no clear pause around it: cut it by hand from its flag on the timeline",
+			"issues": {
+				"clipping": "Distorted at {at}",
+				"quiet": "Quiet speech at {at}",
+				"noise": "Background noise at {at}"
+			},
+			"pause": "{seconds} s pause at {at}"
 		},
 		"command": {
 			"label": "Edit command",
@@ -314,7 +333,18 @@
 				},
 				"note": "These flags only point things out: nothing has been changed, and the editor can't fix them yet."
 			},
-			"clipLabel": "{name}, {duration}"
+			"clipLabel": "{name}, {duration}",
+			"originalHint": "The original recording, view only.",
+			"originalTake": "Original recording · {duration}",
+			"zoom": "Zoom",
+			"addVideo": "Add video",
+			"lanes": {
+				"video": "Video",
+				"text": "Text",
+				"audio": "Audio",
+				"textEmpty": "Titles, text and marks show here",
+				"addAudio": "Add music or audio"
+			}
 		},
 		"compare": {
 			"label": "Compare with the original",
@@ -363,7 +393,11 @@
 			"updateLowerThird": "Update lower third",
 			"removeLowerThird": "Remove lower third",
 			"lowerThirdStyle": "Lower third style",
-			"logoRotation": "Logo rotation (°)"
+			"logoRotation": "Logo rotation (°)",
+			"titleBox": "Title: {text}",
+			"captionsLabel": "Captions",
+			"captionsOn": "On",
+			"captionsOff": "Off"
 		},
 		"annotations": {
 			"label": "Annotations",
@@ -514,7 +548,8 @@
 			"upTo": "Up to {seconds} s here.",
 			"shortened": "Plays {seconds} s here: the clips either side are short.",
 			"notPossible": "Not here: a re-recorded sentence or a very short clip is at this join.",
-			"hint": "A fade goes through black and keeps the video's length; a dissolve blends one clip into the next and shortens it by the dissolve's length. Moving or deleting a clip takes the transitions at its joins with it."
+			"hint": "A fade goes through black and keeps the video's length; a dissolve blends one clip into the next and shortens it by the dissolve's length. Moving or deleting a clip takes the transitions at its joins with it.",
+			"none": "Transitions go between clips. Split the video (or add another) to make a join, then pick a fade or dissolve for it here."
 		},
 		"textStyle": {
 			"font": "Font",
@@ -678,110 +713,162 @@
 		"tools": {
 			"label": "Editing tools",
 			"search": "Find a tool",
-			"searchPlaceholder": "Find a tool… (crop, captions, sound)",
+			"searchPlaceholder": "Search all tools, e.g. blur",
 			"clear": "Clear the search",
 			"found": "{count, plural, one {# tool} other {# tools}} found",
 			"none": "No tool matches “{query}”.",
-			"cleanup": "Clean up",
-			"names": {
-				"project": "Project",
-				"cleanup": "Clean up",
-				"transcript": "Transcript",
-				"sound": "Clip sound and speed",
-				"audio": "Audio",
-				"picture": "Picture",
-				"zoom": "Zoom",
-				"color": "Color",
-				"transitions": "Transitions",
-				"annotations": "Annotations",
-				"graphics": "Graphics",
-				"chat": "Ask in the chat"
+			"results": "Search results",
+			"tabsLabel": "Tools",
+			"howItWorks": "How this works",
+			"close": "Close the panel",
+			"groups": {
+				"fix": "Fix",
+				"add": "Add",
+				"adjust": "Adjust"
 			},
-			"keywords": {
-				"project": "save name open my projects autosave",
-				"cleanup": "remove silences filler words ums pauses tidy",
-				"transcript": "words text sentences re-record retake speech",
-				"sound": "volume mute fade in out speed slow fast loud quiet audio",
-				"audio": "music voice-over soundtrack track lane add audio file extract",
-				"picture": "crop rotate turn flip mirror size aspect frame",
-				"zoom": "push in pull out magnify close area",
-				"color": "brightness contrast saturation black white warm cool look grade",
-				"transitions": "fade dissolve black between clips join",
-				"annotations": "draw pencil box blur pixelate text eraser hide cover",
-				"graphics": "title captions subtitles logo watermark lower third name text style font",
-				"chat": "ai chat ask command type speak voice gemini"
-			},
-			"tabs": {
-				"ai": {
-					"label": "AI & Clean up",
-					"description": "Tidy the recording in one step. For anything else, ask in the chat."
+			"rail": {
+				"cleanup": {
+					"label": "Clean up",
+					"help": "Remove silences and filler words in one click.",
+					"keywords": "remove silences filler words ums uhs pauses tidy cut"
 				},
-				"picture": {
-					"label": "Picture",
-					"description": "Crop, turn or flip the picture, zoom in on part of it, and set its colours."
+				"captions": {
+					"label": "Captions",
+					"help": "Show what's said as captions, and choose how they look.",
+					"keywords": "subtitles words text bottom style"
 				},
-				"sound": {
-					"label": "Sound",
-					"description": "Each clip’s volume, fades and speed, and extra sound such as music."
+				"text": {
+					"label": "Text & logo",
+					"help": "Add a title, text or your logo.",
+					"keywords": "title text logo watermark lower third name font words"
 				},
-				"graphics": {
-					"label": "Graphics",
-					"description": "Titles, captions and your logo, plus boxes, text and drawings on the video."
+				"annotate": {
+					"label": "Annotate",
+					"help": "Box, blur or pixelate part of the picture, or draw on it.",
+					"keywords": "draw pencil box blur pixelate hide cover eraser mark"
+				},
+				"audio": {
+					"label": "Audio",
+					"help": "Add music or a voice-over, or take a clip's sound out to its own lane.",
+					"keywords": "music voice-over soundtrack track lane add audio file extract"
+				},
+				"videos": {
+					"label": "Videos",
+					"help": "Add more videos after this one, or replace it.",
+					"keywords": "add video clip another file replace"
+				},
+				"frame": {
+					"label": "Frame",
+					"help": "Crop, turn or flip the picture, and zoom in on part of it.",
+					"keywords": "crop rotate turn flip mirror size aspect zoom push in pull out magnify"
+				},
+				"colour": {
+					"label": "Colour",
+					"help": "Brightness, contrast and colour, for the whole video or one clip.",
+					"keywords": "color brightness contrast saturation black white warm cool look grade"
+				},
+				"speed": {
+					"label": "Speed & fades",
+					"help": "Each clip's speed, volume and fades.",
+					"keywords": "speed slow fast volume mute fade in out loud quiet sound"
 				},
 				"transitions": {
 					"label": "Transitions",
-					"description": "How each clip leads into the next: a cut, a fade or a dissolve."
-				},
-				"transcript": {
-					"label": "Transcript",
-					"description": "What’s said, sentence by sentence. Click one to jump to it, or re-record it."
+					"help": "How each clip leads into the next: a cut, a fade or a dissolve.",
+					"keywords": "fade dissolve black between clips join"
 				},
 				"project": {
 					"label": "Project",
-					"description": "Whether this edit is saved, and your other projects."
+					"help": "Whether this edit is saved, and your other projects.",
+					"keywords": "save name open my projects autosave"
 				}
-			},
-			"results": "Search results",
-			"inTab": "In {tab}",
-			"tabsLabel": "Tool tabs",
-			"howItWorks": "How this works",
-			"chat": {
-				"body": "Type or say what you want, and Retake does the clicking for you. For example:",
-				"items": {
-					"cut": "“Cut from 0:12 to 0:20” or “remove the ums”",
-					"look": "“Crop it square” or “make it black and white”",
-					"add": "“Add a title that says Welcome” or “turn captions on”"
-				},
-				"open": "Open the chat"
 			}
 		},
 		"layout": {
 			"toolbar": "Editor toolbar",
-			"showChat": "Show the chat",
-			"hideChat": "Hide the chat",
-			"showTools": "Show the tools",
-			"hideTools": "Hide the tools",
-			"chatWaits": "The chat opens once a video is in."
-		},
-		"shortcuts": {
-			"button": "Keyboard shortcuts",
-			"title": "Keyboard shortcuts",
-			"close": "Close",
-			"play": "Play or pause",
-			"split": "Split at the playhead",
-			"delete": "Delete the selected clip (or the one at the playhead)",
-			"undo": "Undo",
-			"redo": "Redo",
-			"chat": "Show or hide the chat",
-			"tools": "Show or hide the tools",
-			"find": "Find a tool",
-			"help": "Show this list"
+			"back": "Back to Home",
+			"hidePanels": "Hide panels",
+			"showPanels": "Show panels",
+			"showToolsAndChat": "Show tools and chat",
+			"chatWaits": "The assistant is ready once a video is in."
 		},
 		"leave": {
 			"title": "Leave without saving?",
 			"body": "Your latest changes aren’t saved yet. If you leave now, they’re lost.",
 			"stay": "Stay",
 			"leave": "Leave without saving"
+		},
+		"untitled": "Untitled project",
+		"item": {
+			"label": "{name} actions",
+			"replace": "Replace",
+			"timing": "Timing",
+			"delete": "Delete {name}",
+			"deselect": "Done",
+			"from": "From (s)",
+			"to": "To (s)",
+			"set": "Set"
+		},
+		"onVideo": {
+			"listLabel": "On this video",
+			"selected": "Selected",
+			"moreOptions": "More options",
+			"kinds": {
+				"title": "Title",
+				"lowerThird": "Lower third",
+				"text": "Text {number}",
+				"logo": "Logo"
+			},
+			"wholeVideo": "Whole video",
+			"add": {
+				"title": "Title",
+				"titleHelp": "Add a title",
+				"titleAgain": "Pick the title",
+				"text": "Text",
+				"textHelp": "Add text",
+				"logo": "Logo",
+				"logoHelp": "Add your logo",
+				"logoAgain": "Replace the logo",
+				"boxHelp": "Add a box",
+				"blurHelp": "Add a blur",
+				"pixelateHelp": "Add a pixelate"
+			},
+			"emptyText": "Nothing yet. Pick Title, Text or Logo above.",
+			"emptyMarks": "Nothing yet. Pick one above, or the pencil to draw.",
+			"moveHint": "Drag it on the video to move it. Drag a corner to resize.",
+			"drawHint": "Draw on the video with the pointer. Each line is one change.",
+			"titleWords": "Title words",
+			"textWords": "Text words",
+			"size": "Size",
+			"newTitle": "Your title",
+			"newText": "Your text"
+		},
+		"side": {
+			"label": "Assistant and transcript",
+			"assistant": "Assistant",
+			"transcript": "Transcript",
+			"sentences": "{count, plural, one {# sentence} other {# sentences}}"
+		},
+		"original": {
+			"title": "Original — view only.",
+			"body": "This is your recording as it came in. Switch to Edited to make changes.",
+			"switch": "Switch to Edited",
+			"toolsNote": "You're looking at the original. Nothing can be changed here: switch to Edited to edit.",
+			"chatNote": "You're looking at the original. Switch to Edited to ask for changes."
+		},
+		"videoTools": {
+			"label": "On the video",
+			"select": "Select",
+			"draw": "Draw",
+			"crop": "Crop"
+		},
+		"videos": {
+			"label": "Videos",
+			"add": "Add a video",
+			"main": "First",
+			"added": "Added",
+			"replace": "Replace the first video",
+			"help": "An added video plays after the others as a clip of its own: split, reorder and trim it like any clip."
 		}
 	},
 	"Site": {
@@ -1026,7 +1113,7 @@
 			},
 			"hand": {
 				"title": "Edit by hand",
-				"body": "Upload a video and open the editor with the chat hidden and the manual tools in front.",
+				"body": "Upload a video and open the editor on the timeline, the tools and the transcript. The assistant is a tab away.",
 				"inputLabel": "Video to edit by hand",
 				"items": {
 					"cut": "Trim, split and reorder",

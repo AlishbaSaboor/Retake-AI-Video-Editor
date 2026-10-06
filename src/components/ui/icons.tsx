@@ -19,6 +19,15 @@
 // import path if you stay on phosphor.
 import {
 	ArrowCounterClockwise,
+	ArrowLeft,
+	ClosedCaptioning,
+	Crop,
+	Cursor,
+	Drop,
+	Gauge,
+	MusicNotes,
+	PencilLine,
+	Timer,
 	ArrowRight,
 	ArrowsClockwise,
 	ArrowsInLineHorizontal,
@@ -130,6 +139,15 @@ function Glyph({ source: Source, size = DEFAULT_SIZE, className }: IconProps & {
 // provider's whole catalog here. Keep the list alphabetical.
 export const AiIcon = (props: IconProps) => <Glyph source={Lightning} {...props} />
 export const AlertIcon = (props: IconProps) => <Glyph source={Warning} {...props} />
+export const ArrowLeftIcon = (props: IconProps) => <Glyph source={ArrowLeft} {...props} />
+export const CaptionsIcon = (props: IconProps) => <Glyph source={ClosedCaptioning} {...props} />
+export const CropIcon = (props: IconProps) => <Glyph source={Crop} {...props} />
+export const SelectIcon = (props: IconProps) => <Glyph source={Cursor} {...props} />
+export const ColourIcon = (props: IconProps) => <Glyph source={Drop} {...props} />
+export const SpeedIcon = (props: IconProps) => <Glyph source={Gauge} {...props} />
+export const MusicIcon = (props: IconProps) => <Glyph source={MusicNotes} {...props} />
+export const DrawIcon = (props: IconProps) => <Glyph source={PencilLine} {...props} />
+export const TimingIcon = (props: IconProps) => <Glyph source={Timer} {...props} />
 export const ArrowRightIcon = (props: IconProps) => <Glyph source={ArrowRight} {...props} />
 export const ArticleIcon = (props: IconProps) => <Glyph source={Article} {...props} />
 export const AttachIcon = (props: IconProps) => <Glyph source={Paperclip} {...props} />

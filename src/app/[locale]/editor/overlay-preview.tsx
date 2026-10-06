@@ -15,6 +15,8 @@ import {
 	LOWER_THIRD_SUBTITLE_FRACTION,
 	TITLE_BAND_SCALE,
 	TITLE_FONT_FRACTION,
+	titleCentre,
+	TITLE_MAX_WIDTH_FRACTION,
 	watermarkRect,
 	type Overlays
 } from './overlays'
@@ -72,19 +74,36 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 	return (
 		<div className="pointer-events-none absolute inset-0" style={{ containerType: 'size' }}>
 			{title && titleMotion && (
-				<div
-					className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center font-bold"
-					style={{
-						height: `${TITLE_FONT_FRACTION * TITLE_BAND_SCALE * titleStyle.size * PERCENT}cqmin`,
-						fontSize: `${TITLE_FONT_FRACTION * titleStyle.size * PERCENT}cqmin`,
-						background: titleStyle.background ? bandColor(titleStyle.background) : 'none',
-						color: titleStyle.color,
-						fontFamily: fontFamily(titleStyle.font),
-						...motionStyle(titleMotion)
-					}}
-				>
-					{title.text}
-				</div>
+				<>
+					{titleStyle.background && (
+						<div
+							aria-hidden
+							className="absolute inset-x-0 -translate-y-1/2"
+							style={{
+								top: `${titleCentre(title).y * PERCENT}%`,
+								height: `${TITLE_FONT_FRACTION * TITLE_BAND_SCALE * titleStyle.size * PERCENT}cqmin`,
+								background: bandColor(titleStyle.background),
+								transformOrigin: `${titleCentre(title).x * PERCENT}% 50%`,
+								...motionStyle(titleMotion)
+							}}
+						/>
+					)}
+					<div
+						data-title-text
+						className="absolute -translate-x-1/2 -translate-y-1/2 font-bold whitespace-nowrap"
+						style={{
+							left: `${titleCentre(title).x * PERCENT}%`,
+							top: `${titleCentre(title).y * PERCENT}%`,
+							maxWidth: `${TITLE_MAX_WIDTH_FRACTION * PERCENT}%`,
+							fontSize: `${TITLE_FONT_FRACTION * titleStyle.size * PERCENT}cqmin`,
+							color: titleStyle.color,
+							fontFamily: fontFamily(titleStyle.font),
+							...motionStyle(titleMotion)
+						}}
+					>
+						{title.text}
+					</div>
+				</>
 			)}
 			{caption && (
 				<div

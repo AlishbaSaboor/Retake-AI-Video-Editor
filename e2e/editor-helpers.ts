@@ -180,13 +180,40 @@ export async function mockActions(
 }
 
 /** Clicks the timeline at a given time, as a user would to seek there. */
+/**
+ * Moves the playhead to `seconds` of the main video's own recording, by
+ * clicking the timeline where that moment plays in the edit (the timeline is
+ * in the edit's time; in the Original view, the take's). A moment cut or
+ * trimmed away lands at the next one that plays, as playback skips to it.
+ */
 export async function seekTo(page: Page, seconds: number): Promise<void> {
 	const scrubber = page.getByRole('slider', { name: 'Playhead position' })
 	await scrubber.scrollIntoViewIfNeeded()
 	const box = await scrubber.boundingBox()
-	const duration = await page.locator('video').evaluate((v: HTMLVideoElement) => v.duration)
 	if (!box) throw new Error('scrubber has no layout box')
-	await page.mouse.click(box.x + (seconds / duration) * box.width, box.y + box.height / 2)
+	const total = Number(await scrubber.getAttribute('aria-valuemax'))
+	const pieces: Array<[number, number, number, string]> = JSON.parse(
+		(await scrubber.getAttribute('data-segments')) ?? '[]'
+	)
+	await page.mouse.click(
+		box.x + (editedTimeOf(seconds, pieces) / total) * box.width,
+		box.y + box.height / 2
+	)
+}
+
+/** Where a moment of the main video plays in the edit, given what plays; itself with nothing to map. */
+function editedTimeOf(seconds: number, pieces: Array<[number, number, number, string]>) {
+	if (pieces.length === 0) return seconds
+	let at = 0
+	let next: number | null = null
+	for (const [start, end, rate, video] of pieces) {
+		const length = (end - start) / rate
+		if (video === '' && seconds >= start && seconds < end) return at + (seconds - start) / rate
+		// Just inside it, so the click lands in that piece and not at the end of the one before.
+		if (video === '' && start > seconds && next === null) next = at + 0.05
+		at += length
+	}
+	return next ?? at
 }
 
 export async function playheadSeconds(page: Page): Promise<number> {
@@ -227,28 +254,43 @@ export async function openThreeSentences(page: Page): Promise<number> {
 	return duration
 }
 
-// Which tab of the tools column holds each panel (by the panel's name).
-const TOOL_TABS: Record<string, string> = {
-	'Clean up': 'AI & Clean up',
-	Picture: 'Picture',
-	Zoom: 'Picture',
-	Color: 'Picture',
-	'Clip sound and speed': 'Sound',
-	Audio: 'Sound',
-	Graphics: 'Graphics',
-	Annotations: 'Graphics',
-	Transitions: 'Transitions',
-	Transcript: 'Transcript',
-	Project: 'Project'
+// Where each panel lives now: a tool on the rail (some under its More
+// options), or a tab of the right-hand column.
+const TOOL_TABS: Record<string, { tab: string; more?: boolean }> = {
+	'Clean up': { tab: 'Clean up' },
+	Captions: { tab: 'Captions', more: true },
+	Graphics: { tab: 'Text & logo', more: true },
+	'Text & logo': { tab: 'Text & logo' },
+	Annotations: { tab: 'Annotate', more: true },
+	Annotate: { tab: 'Annotate' },
+	Audio: { tab: 'Audio' },
+	Videos: { tab: 'Videos' },
+	Picture: { tab: 'Frame' },
+	Zoom: { tab: 'Frame' },
+	Color: { tab: 'Colour' },
+	'Clip sound and speed': { tab: 'Speed & fades' },
+	Transitions: { tab: 'Transitions' },
+	Project: { tab: 'Project' },
+	Transcript: { tab: 'Transcript' },
+	Assistant: { tab: 'Assistant' }
 }
 
-/** Opens the tools tab holding a panel, as a user would before using it. */
+/** Opens the tool holding a panel (and its More options), as a user would before using it. */
 export async function openTool(page: Page, panel: keyof typeof TOOL_TABS): Promise<void> {
-	const tab = page.getByRole('tab', { name: TOOL_TABS[panel], exact: true })
-	// The tabs come once a video is in; an empty editor (no tabs: it shows My
-	// projects itself) has none to open.
+	const where = TOOL_TABS[panel]
+	if (!where) throw new Error(`no tool holds ${panel}`)
+	// The Transcript tab's name goes on with its sentence count.
+	const tab = page.getByRole('tab', { name: new RegExp(`^${escapeRegExp(where.tab)}(\\s|$)`) })
+	// The tools come once a video is in; an empty editor (it shows My projects
+	// itself) has none to open.
 	const empty = page.getByText('Drop a video here, or click to choose one')
 	await expect(tab.or(empty).first()).toBeVisible({ timeout: 30_000 })
 	if (await empty.isVisible()) return
 	if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click()
+	if (!where.more) return
+	const more = page.locator(`[data-tool]:not([hidden]) details[data-more-options]`)
+	if ((await more.count()) > 0 && !(await more.first().evaluate((d: HTMLDetailsElement) => d.open)))
+		await more.first().locator(':scope > summary').click()
 }
+
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
