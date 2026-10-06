@@ -3,10 +3,17 @@ import { scheduleClipGain } from './clip-audio'
 import { clipMatrix, mountGradeFilters, type ColorGrade } from './color-grade'
 import { drawFrame, type Overlays } from './overlays'
 import { scheduleTakeGain, type ReplacementTake } from './re-record'
-import { editedLength, editedStarts, joinsOf, segmentSeconds, type Segment } from './sequence'
+import {
+	editedLength,
+	editedStarts,
+	joinsOf,
+	segmentSeconds,
+	type Segment,
+	type SourceRange
+} from './sequence'
 import { dissolveAt, fadeLevelAt, scheduleTransitionGain } from './transitions'
 import { fitRect } from './sources'
-import { evenPixels, outputSize, type PictureTransform } from './transform'
+import { evenPixels, outputSize, transformAt, type PictureTransform } from './transform'
 
 // Exporting re-records the edit in real time: an offscreen copy of the take
 // plays each kept segment in order while a MediaRecorder captures its frames
@@ -201,6 +208,7 @@ export async function recordEdit(
 	transform: PictureTransform,
 	color: ColorGrade,
 	laneItems: AudioItem[],
+	speech: readonly SourceRange[],
 	{ onProgress, signal }: { onProgress: (fraction: number) => void; signal: AbortSignal }
 ): Promise<{ blob: Blob; mimeType: string }> {
 	const mimeType = pickMimeType((type) => MediaRecorder.isTypeSupported(type))
@@ -272,7 +280,9 @@ export async function recordEdit(
 			if (!deck) return
 			const seconds = editedSeconds()
 			const dissolve = incoming ? dissolveAt(joins, seconds) : null
-			drawFrame(context, frameOf(deck), picture, transform, overlays, seconds, logo, blurScratch, {
+			// A crop that follows a face moves with the main video's own time.
+			const now = transformAt(transform, segments[showing]?.source ? null : deck.video.currentTime)
+			drawFrame(context, frameOf(deck), picture, now, overlays, seconds, logo, blurScratch, {
 				incoming: dissolve && incoming ? frameOf(incoming) : null,
 				incomingAlpha: dissolve?.progress ?? 0,
 				light: fadeLevelAt(joins, seconds),
@@ -348,7 +358,9 @@ export async function recordEdit(
 					laneItems,
 					segmentStart,
 					stretchFrom(segments, index).to,
-					audio.currentTime
+					audio.currentTime,
+					1,
+					speech
 				)
 			}
 			carried = false

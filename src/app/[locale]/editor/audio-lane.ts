@@ -40,6 +40,8 @@ export type AudioItem<Sound = AudioBuffer> = {
 	/** 0 to 2, like a clip's. */
 	volume: number
 	muted: boolean
+	/** Background music: turned down while someone speaks (duckingPoints). */
+	duck?: true
 }
 
 /** The shortest an item may be trimmed to: the same floor as a clip. */
@@ -171,10 +173,67 @@ export function stretchFrom(segments: Segment[], index: number): { from: number;
 	}
 }
 
+/** How far music goes down under speech (about −12 dB), and how long it takes to go down or come back. */
+export const DUCKED_LEVEL = 0.25
+export const DUCK_RAMP_SECONDS = 0.3
+/** Words closer than this are one stretch of speech: the music doesn't come up between them. */
+const SPEECH_GAP_SECONDS = 0.6
+
+/** The stretches of the edit where someone speaks, from its words in edited time. */
+export function speechSpans(words: readonly SourceRange[]): SourceRange[] {
+	const spans: SourceRange[] = []
+	for (const word of words) {
+		const last = spans.at(-1)
+		if (last && word.startSeconds - last.endSeconds < SPEECH_GAP_SECONDS) {
+			last.endSeconds = Math.max(last.endSeconds, word.endSeconds)
+		} else spans.push({ startSeconds: word.startSeconds, endSeconds: word.endSeconds })
+	}
+	return spans
+}
+
+/**
+ * A ducked item's level between `from` and `to` seconds of the edit, as
+ * points to ramp between in a straight line: `volume`, down to
+ * DUCKED_LEVEL of it over DUCK_RAMP_SECONDS before each stretch of speech,
+ * held there through it, and back up over the same time after.
+ */
+export function duckingPoints(
+	volume: number,
+	speech: readonly SourceRange[],
+	from: number,
+	to: number
+): Array<{ seconds: number; level: number }> {
+	const low = volume * DUCKED_LEVEL
+	const levelAt = (seconds: number) => {
+		let level = volume
+		for (const span of speech) {
+			const before = span.startSeconds - seconds
+			const after = seconds - span.endSeconds
+			const away = Math.max(before, after)
+			if (away <= 0) return low
+			if (away < DUCK_RAMP_SECONDS) {
+				level = Math.min(level, low + ((volume - low) * away) / DUCK_RAMP_SECONDS)
+			}
+		}
+		return level
+	}
+	const edges = speech
+		.flatMap((span) => [
+			span.startSeconds - DUCK_RAMP_SECONDS,
+			span.startSeconds,
+			span.endSeconds,
+			span.endSeconds + DUCK_RAMP_SECONDS
+		])
+		.filter((seconds) => seconds > from && seconds < to)
+		.sort((a, b) => a - b)
+	return [from, ...edges].map((seconds) => ({ seconds, level: levelAt(seconds) }))
+}
+
 /**
  * Starts every lane item's sound between `from` and `to` seconds of the
  * edit, `from` being audio time `at`, into `destination`, at `rate` (the
- * preview's speed; 1 in the export). Returns a stop for all of them.
+ * preview's speed; 1 in the export). `speech` (edited time) is what ducked
+ * music goes down under. Returns a stop for all of them.
  */
 export function playLane(
 	audio: BaseAudioContext,
@@ -183,7 +242,8 @@ export function playLane(
 	from: number,
 	to: number,
 	at: number,
-	rate = 1
+	rate = 1,
+	speech: readonly SourceRange[] = []
 ): () => void {
 	const sources: AudioBufferSourceNode[] = []
 	for (const item of items) {
@@ -191,6 +251,13 @@ export function playLane(
 		for (const part of playingBetween(item, from, to)) {
 			const level = audio.createGain()
 			level.gain.value = item.volume
+			if (item.duck) {
+				for (const [index, point] of duckingPoints(item.volume, speech, from, to).entries()) {
+					const when = at + (point.seconds - from) / rate
+					if (index === 0) level.gain.setValueAtTime(point.level, when)
+					else level.gain.linearRampToValueAtTime(point.level, when)
+				}
+			}
 			const source = audio.createBufferSource()
 			source.buffer = item.buffer
 			source.playbackRate.value = rate

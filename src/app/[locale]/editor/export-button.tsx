@@ -16,7 +16,7 @@ import {
 } from './export-video'
 import type { Overlays } from './overlays'
 import type { ReplacementTake } from './re-record'
-import type { Segment } from './sequence'
+import type { Segment, SourceRange } from './sequence'
 import type { AudioItem } from './audio-lane'
 import type { ColorGrade } from './color-grade'
 import type { PictureTransform } from './transform'
@@ -32,6 +32,8 @@ type ExportSource = {
 	color: ColorGrade
 	/** The Audio lane's sounds. */
 	laneItems: AudioItem[]
+	/** Where someone speaks, in edited time: ducked music goes down under it. */
+	speech?: SourceRange[]
 	/** Where each added video plays from, by id. */
 	addedUrls: Readonly<Record<string, string>>
 	/** What the file's name says it is, after the video's own name; "edited" unless given. */
@@ -39,6 +41,7 @@ type ExportSource = {
 }
 
 const PERCENT = 100
+const NO_SPEECH: SourceRange[] = []
 
 function download(blob: Blob, fileName: string) {
 	const href = URL.createObjectURL(blob)
@@ -80,6 +83,7 @@ export function useVideoExport({
 	transform,
 	color,
 	laneItems,
+	speech = NO_SPEECH,
 	addedUrls,
 	fileLabel
 }: ExportSource) {
@@ -108,6 +112,7 @@ export function useVideoExport({
 				transform,
 				color,
 				laneItems,
+				speech,
 				{
 					onProgress: (fraction) => setPercent(Math.floor(fraction * PERCENT)),
 					signal: controller.signal

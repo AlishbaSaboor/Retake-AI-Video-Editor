@@ -168,6 +168,18 @@ export function zoomViewAt(zoom: Zoom | null, seconds: number): ZoomView {
 	}
 }
 
+/**
+ * The view at `seconds` with several zooms (the one set by hand, then any
+ * Make it added): the first one under way there.
+ */
+export function zoomsViewAt(zooms: readonly (Zoom | null)[], seconds: number): ZoomView {
+	for (const zoom of zooms) {
+		const view = zoomViewAt(zoom, seconds)
+		if (view !== NO_ZOOM) return view
+	}
+	return NO_ZOOM
+}
+
 /** A point of the frame as shown under `view`, from where it is in the unzoomed frame; and back. */
 export function zoomedPoint(view: ZoomView, point: { x: number; y: number }) {
 	return {

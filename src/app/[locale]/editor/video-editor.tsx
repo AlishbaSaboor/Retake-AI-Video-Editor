@@ -35,7 +35,7 @@ import { ClipAudioPanel } from './clip-audio-panel'
 import { CleanupPanel } from './cleanup-bar'
 import type { ClipSelection } from './clip-selection'
 import { CompareToggle } from './compare-toggle'
-import { editedCaptions } from './captions'
+import { editedCaptions, editedWords } from './captions'
 import { CommandBar, type AttachedAs } from './command-bar'
 import { setSideOpen, useSideOpen } from './editor-layout-store'
 import { EditorShell } from './editor-shell'
@@ -64,6 +64,7 @@ import {
 	outputSize,
 	outputToPicture,
 	rotatedFrame,
+	transformAt,
 	withRotation,
 	type PictureTransform
 } from './transform'
@@ -105,7 +106,7 @@ import {
 	NO_ANIMATION,
 	NO_ZOOM,
 	unzoomedPoint,
-	zoomViewAt,
+	zoomsViewAt,
 	type Animation,
 	type LowerThird,
 	type Motion,
@@ -160,7 +161,7 @@ import { HighlightsDialog, HighlightsPanel } from './highlights-dialog'
 import { UploadDropzone } from './upload-dropzone'
 import { useSequencePlayback, type SourceUrls } from './use-sequence-playback'
 import { useTakeAnalysis } from './use-take-analysis'
-import { extractBlocker, extractedItem, type AudioItem } from './audio-lane'
+import { extractBlocker, extractedItem, speechSpans, type AudioItem } from './audio-lane'
 import { AudioLanePanel } from './audio-lane-panel'
 import { probeVideo, type AddedVideo } from './sources'
 import { decodeAudio } from './take-audio'
@@ -178,6 +179,7 @@ const PROJECTS_KEY = ['projects']
 const PREVIEW_GRADE = 'preview-grade'
 /** No lane sound: what playback gets outside the Edited view (one array, so it never looks changed). */
 const NO_LANE: AudioItem[] = []
+const NO_SPEECH: SourceRange[] = []
 /** A title added by its button shows this long, from the playhead. */
 const NEW_ITEM_SECONDS = 3
 /** Where new text and a new box, blur or pixelate go: the middle of the picture. */
@@ -261,6 +263,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	const [watermark, setWatermark] = useState<Watermark | null>(null)
 	// Captions come from the transcript; whether they show is the edit's.
 	const [captionsOn, setCaptionsOn] = useState(false)
+	const [captionWords, setCaptionWords] = useState(false)
 	// Boxes, blurs and text over the edited video (annotations.ts).
 	const [annotations, setAnnotations] = useState<Annotation[]>([])
 	// The whole video's color adjustments (a clip's own are on the clip), and the captions' look.
@@ -271,6 +274,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	/** The logo while it's being dragged on the preview; not an edit until it's let go. */
 	const [logoDraft, setLogoDraft] = useState<Watermark | null>(null)
 	const [zoom, setZoom] = useState<Zoom | null>(null)
+	// More zooms, from Make it; the Zoom panel sets the one above.
+	const [autoZooms, setAutoZooms] = useState<Zoom[]>([])
 	// The Audio lane (audio-lane.ts), and the take's own sound, decoded the
 	// first time a clip's sound is taken out into it.
 	const [audioItems, setAudioItems] = useState<AudioItem[]>([])
@@ -324,6 +329,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		title,
 		watermark,
 		captionsOn,
+		captionWords,
 		annotations,
 		transform,
 		color,
@@ -332,7 +338,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		addedVideos,
 		sourceTrims,
 		lowerThird,
-		zoom
+		zoom,
+		autoZooms
 	}
 	const trimDragRef = useRef<{ recorded: boolean } | null>(null)
 	// The filler cut editor: which filler is open and where its handles sit.
@@ -383,11 +390,17 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		captionStyle,
 		lowerThird,
 		zoom,
+		autoZooms,
 		captions:
 			captionsOn && analysis.transcript.status === 'ready'
-				? editedCaptions(analysis.transcript.transcript.words, editedSegments)
+				? editedCaptions(analysis.transcript.transcript.words, editedSegments, captionWords)
 				: []
 	}
+	// Where someone speaks in the edit: ducked music goes down under it.
+	const speech =
+		analysis.transcript.status === 'ready'
+			? speechSpans(editedWords(analysis.transcript.transcript.words, editedSegments))
+			: NO_SPEECH
 	const exporter = useVideoExport({
 		videoUrl: video?.url ?? '',
 		videoName: video?.name ?? '',
@@ -396,6 +409,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		transform,
 		color,
 		laneItems: audioItems,
+		speech,
 		addedUrls
 	})
 	const segments =
@@ -429,6 +443,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		sourceUrls,
 		segments,
 		segments === editedSegments ? audioItems : NO_LANE,
+		speech,
 		isPlaying,
 		previewRate,
 		followPlayhead,
@@ -478,15 +493,20 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	const pictureSize = picture ?? { width: 16, height: 9 }
 	// The Original view is the untouched take. Setting a crop or a rotation by
 	// hand shows the whole rotated frame, so the crop box has room to move.
+	// A crop that follows a face is where it is at the main video's playhead.
 	const shownTransform: PictureTransform = showOriginal
 		? IDENTITY_TRANSFORM
-		: {
-				...transform,
-				rotation: rotationDraft ?? transform.rotation,
-				crop: transformMode ? null : transform.crop
-			}
+		: transformAt(
+				{
+					...transform,
+					rotation: rotationDraft ?? transform.rotation,
+					crop: transformMode ? null : transform.crop
+				},
+				timelineSource ? null : currentTimeSeconds
+			)
 	// The zoom at the playhead, in the Edited view only.
-	const shownZoom = editedNow === null || zoomAreaMode ? NO_ZOOM : zoomViewAt(zoom, editedNow)
+	const shownZoom =
+		editedNow === null || zoomAreaMode ? NO_ZOOM : zoomsViewAt([zoom, ...autoZooms], editedNow)
 
 	const videoUrl = video?.url
 	// The added videos' URLs go with the editor.
@@ -521,6 +541,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		setTitle(null)
 		setWatermark(null)
 		setCaptionsOn(false)
+		setCaptionWords(false)
 		setAnnotations([])
 		setTransform(IDENTITY_TRANSFORM)
 		setColor(NEUTRAL_GRADE)
@@ -531,6 +552,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		setSourceTrims({})
 		setLowerThird(null)
 		setZoom(null)
+		setAutoZooms([])
 		releaseAddedUrls()
 		setTransformMode(null)
 		setZoomAreaMode(false)
@@ -572,6 +594,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		// Saved before these existed: none.
 		setLowerThird(saved.lowerThird ?? null)
 		setZoom(saved.zoom ?? null)
+		setCaptionWords(saved.captionWords ?? false)
+		setAutoZooms(saved.autoZooms ?? [])
 	}
 
 	/** Saves the project under `name` (a new one the first time): its media once, its edit each time. */
@@ -917,6 +941,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		setSourceTrims(step.restore.sourceTrims)
 		setLowerThird(step.restore.lowerThird)
 		setZoom(step.restore.zoom)
+		setCaptionWords(step.restore.captionWords)
+		setAutoZooms(step.restore.autoZooms)
 		applyTrim(step.restore.trim, step.restore.trim?.startSeconds ?? 0)
 	}
 
@@ -1012,6 +1038,11 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		if (on === captionsOn) return
 		recordEdit()
 		setCaptionsOn(on)
+	}
+
+	function changeCaptionWords(on: boolean) {
+		recordEdit()
+		setCaptionWords(on)
 	}
 
 	// The file picker opens straight from the click (Add logo, or Apply on a
@@ -1613,7 +1644,12 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		}
 		const start = takeStart()
 		if (!start) return
-		loadFile(start.file)
+		loadFile(start.file, start.transcript ?? null)
+		// Make it's plan: one step after the untouched video, so Undo goes back to it.
+		if (start.edit) {
+			setHistory(record(emptyHistory<EditSnapshot>(), ORIGINAL_EDIT))
+			applySnapshot(start.edit)
+		}
 		setStartCommand(start.command)
 		if (start.byHand) setOpenTool('transcript')
 	})
@@ -1842,6 +1878,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 						<CaptionsPanel
 							captionsOn={captionsOn}
 							onCaptionsChange={changeCaptions}
+							captionWords={captionWords}
+							onCaptionWordsChange={changeCaptionWords}
 							captionStyle={captionStyle}
 							onCaptionStyleChange={changeCaptionStyle}
 							canEdit={canEdit}
@@ -2418,7 +2456,11 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 												toFrame={toFrame}
 												onChange={(rect) =>
 													transform.crop &&
-													changeTransform({ ...transform, crop: { ...transform.crop, rect } })
+													// Set by hand: a crop that followed a face stays where it's put.
+													changeTransform({
+														...transform,
+														crop: { rect, aspect: transform.crop.aspect }
+													})
 												}
 											/>
 										)}
