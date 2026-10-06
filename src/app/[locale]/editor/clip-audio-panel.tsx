@@ -41,11 +41,8 @@ export function ClipAudioPanel({
 }: ClipAudioPanelProps) {
 	const t = useTranslations('Editor.clipAudio')
 	return (
-		<section
-			aria-label={t('label')}
-			className="border-border bg-surface flex flex-col gap-3 rounded-lg border p-4"
-		>
-			<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
+		<section aria-label={t('label')} className="flex flex-col gap-3">
+			<h2 className="sr-only">{t('label')}</h2>
 			{clips.map((clip, index) => (
 				<ClipAudioRow
 					// Follows the clip's sound and speed, so an undo resets what's typed.
@@ -121,10 +118,26 @@ function ClipAudioRow({
 	// Its sound plays from the Audio lane: volume, mute and fades are set there.
 	const canSetSound = canEdit && !soundInLane
 	return (
-		<div role="group" aria-label={name} className="flex flex-wrap items-end gap-3">
-			<span className="text-text w-14 shrink-0 pb-2 text-xs font-medium">{name}</span>
-			{soundInLane && <span className="text-text-muted pb-2 text-xs">{t('inLane')}</span>}
-			<div className="flex min-w-48 flex-1 flex-col gap-1">
+		<div
+			role="group"
+			aria-label={name}
+			className="border-border bg-surface flex flex-col gap-3 rounded-lg border p-3"
+		>
+			<div className="flex items-center gap-2">
+				<span className="text-text flex-1 text-sm font-semibold">{name}</span>
+				<Button
+					type="button"
+					size="sm"
+					variant={audio.muted ? 'secondary' : 'ghost'}
+					aria-pressed={audio.muted}
+					disabled={!canSetSound}
+					onClick={() => onChange({ ...audio, muted: !audio.muted })}
+				>
+					{t('mute')}
+				</Button>
+			</div>
+			{soundInLane && <span className="text-text-muted text-xs">{t('inLane')}</span>}
+			<div className="flex flex-col gap-1">
 				<Label htmlFor={`${id}-volume`}>{t('volume', { percent: volume })}</Label>
 				<input
 					id={`${id}-volume`}
@@ -138,78 +151,69 @@ function ClipAudioRow({
 					onPointerUp={commitVolume}
 					onKeyUp={commitVolume}
 					onBlur={commitVolume}
-					className="accent-accent h-9"
+					className="accent-accent h-6"
 				/>
 			</div>
-			<Button
-				type="button"
-				size="sm"
-				variant={audio.muted ? 'secondary' : 'ghost'}
-				aria-pressed={audio.muted}
-				disabled={!canSetSound}
-				onClick={() => onChange({ ...audio, muted: !audio.muted })}
-			>
-				{t('mute')}
-			</Button>
-			<form
-				className="flex items-end gap-3"
-				onSubmit={(event) => {
-					event.preventDefault()
-					commitFade('fadeInSeconds', fadeIn)
-					commitFade('fadeOutSeconds', fadeOut)
-				}}
-			>
-				<div className="flex w-24 flex-col gap-1">
-					<Label htmlFor={`${id}-in`}>{t('fadeIn')}</Label>
+			<div className="grid grid-cols-3 items-end gap-2">
+				<form
+					className="col-span-2 grid grid-cols-2 items-end gap-2"
+					onSubmit={(event) => {
+						event.preventDefault()
+						commitFade('fadeInSeconds', fadeIn)
+						commitFade('fadeOutSeconds', fadeOut)
+					}}
+				>
+					<div className="flex flex-col gap-1">
+						<Label htmlFor={`${id}-in`}>{t('fadeIn')}</Label>
+						<Input
+							id={`${id}-in`}
+							type="number"
+							min={0}
+							step={FADE_STEP_SECONDS}
+							value={fadeIn}
+							disabled={!canSetSound}
+							onChange={(event) => setFadeIn(event.target.value)}
+							onBlur={() => commitFade('fadeInSeconds', fadeIn)}
+						/>
+					</div>
+					<div className="flex flex-col gap-1">
+						<Label htmlFor={`${id}-out`}>{t('fadeOut')}</Label>
+						<Input
+							id={`${id}-out`}
+							type="number"
+							min={0}
+							step={FADE_STEP_SECONDS}
+							value={fadeOut}
+							disabled={!canSetSound}
+							onChange={(event) => setFadeOut(event.target.value)}
+							onBlur={() => commitFade('fadeOutSeconds', fadeOut)}
+						/>
+					</div>
+					{/* Enter in either field applies both. */}
+					<button type="submit" hidden />
+				</form>
+				<form
+					className="flex flex-col gap-1"
+					onSubmit={(event) => {
+						event.preventDefault()
+						commitSpeed()
+					}}
+				>
+					<Label htmlFor={`${id}-speed`}>{t('speed')}</Label>
 					<Input
-						id={`${id}-in`}
+						id={`${id}-speed`}
 						type="number"
-						min={0}
-						step={FADE_STEP_SECONDS}
-						value={fadeIn}
-						disabled={!canSetSound}
-						onChange={(event) => setFadeIn(event.target.value)}
-						onBlur={() => commitFade('fadeInSeconds', fadeIn)}
+						min={MIN_CLIP_SPEED}
+						max={MAX_CLIP_SPEED}
+						step={SPEED_STEP}
+						value={typedSpeed}
+						disabled={!canEdit || hasTake}
+						title={hasTake ? t('speedWithTake') : undefined}
+						onChange={(event) => setTypedSpeed(event.target.value)}
+						onBlur={commitSpeed}
 					/>
-				</div>
-				<div className="flex w-24 flex-col gap-1">
-					<Label htmlFor={`${id}-out`}>{t('fadeOut')}</Label>
-					<Input
-						id={`${id}-out`}
-						type="number"
-						min={0}
-						step={FADE_STEP_SECONDS}
-						value={fadeOut}
-						disabled={!canSetSound}
-						onChange={(event) => setFadeOut(event.target.value)}
-						onBlur={() => commitFade('fadeOutSeconds', fadeOut)}
-					/>
-				</div>
-				{/* Enter in either field applies both. */}
-				<button type="submit" hidden />
-			</form>
-			<form
-				className="flex flex-col gap-1"
-				onSubmit={(event) => {
-					event.preventDefault()
-					commitSpeed()
-				}}
-			>
-				<Label htmlFor={`${id}-speed`}>{t('speed')}</Label>
-				<Input
-					id={`${id}-speed`}
-					type="number"
-					min={MIN_CLIP_SPEED}
-					max={MAX_CLIP_SPEED}
-					step={SPEED_STEP}
-					value={typedSpeed}
-					disabled={!canEdit || hasTake}
-					title={hasTake ? t('speedWithTake') : undefined}
-					onChange={(event) => setTypedSpeed(event.target.value)}
-					onBlur={commitSpeed}
-					className="w-24"
-				/>
-			</form>
+				</form>
+			</div>
 		</div>
 	)
 }

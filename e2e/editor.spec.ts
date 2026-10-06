@@ -139,7 +139,7 @@ test('filler words in the transcript are flagged apart from silences and open th
 	await openTool(page, 'Transcript')
 	await expect(page.getByText('So, um, this is, like, the take.')).toBeVisible({ timeout: 30_000 })
 	await expect(page.getByText('2 filler words', { exact: true })).toBeVisible()
-	await expect(page.getByRole('button', { name: /^Filler word/ })).toHaveCount(2)
+	await expect(page.getByRole('button', { name: /^Filler word "/ })).toHaveCount(2)
 	await expect(page.getByRole('button', { name: /^Silence from/ })).toHaveCount(0)
 	const review = page.getByRole('button', { name: /needs a manual cut/ })
 	await expect(review).toHaveCount(2)
@@ -157,7 +157,9 @@ test('filler words in the transcript are flagged apart from silences and open th
 
 	// Nothing here is safe to remove automatically.
 	await openTool(page, 'Clean up')
-	await expect(page.getByRole('button', { name: 'Clean up recording' })).toBeDisabled()
+	await expect(
+		page.getByRole('button', { name: 'Remove silences and filler words' })
+	).toBeDisabled()
 })
 
 test('clean-up cuts a filler with clear gaps around it, keeps one without, and undo restores', async ({
@@ -195,10 +197,11 @@ test('clean-up cuts a filler with clear gaps around it, keeps one without, and u
 	).toBeVisible()
 
 	await openTool(page, 'Clean up')
-	await page.getByRole('button', { name: 'Clean up recording' }).click()
-	await expect(page.getByText('(0 silences, 1 filler word)')).toBeVisible()
+	// What it takes out is shown before the one click.
+	await expect(page.getByText('No long silences', { exact: true })).toBeVisible()
+	await expect(page.getByText('1 filler word', { exact: true })).toBeVisible()
 	await expect(page.getByText(/^1 filler word runs straight into the next word/)).toBeVisible()
-	await page.getByRole('button', { name: 'Apply clean-up' }).click()
+	await page.getByRole('button', { name: 'Remove silences and filler words' }).click()
 
 	// Inside the cut "um": playback can't land there, it continues past it...
 	await seekTo(page, 1.3)
@@ -240,9 +243,8 @@ test('clean-up removes flagged silences after an estimate, and undo restores the
 	}
 
 	await openTool(page, 'Clean up')
-	await page.getByRole('button', { name: 'Clean up recording' }).click()
-	await expect(page.getByText(/This will remove approximately [78] seconds\./)).toBeVisible()
-	await page.getByRole('button', { name: 'Apply clean-up' }).click()
+	await expect(page.getByText(/^Saves about [78] seconds\./)).toBeVisible()
+	await page.getByRole('button', { name: 'Remove silences and filler words' }).click()
 
 	// The middle of the clip (~5 s) is inside the cut: seeking there lands
 	// just after it, at ~8.7 s.
@@ -265,7 +267,7 @@ test('clean-up removes flagged silences after an estimate, and undo restores the
 	await seekToMiddle()
 	await expect.poll(() => playheadSeconds(page)).toBeLessThan(6.5)
 	await openTool(page, 'Clean up')
-	await expect(page.getByRole('button', { name: 'Clean up recording' })).toBeEnabled()
+	await expect(page.getByRole('button', { name: 'Remove silences and filler words' })).toBeEnabled()
 })
 
 test('the cut editor cuts a filler set by hand, previews it, and undo or cancel leave it intact', async ({

@@ -67,7 +67,7 @@ export function ColorPanel({ video, clips, canEdit, onChange }: ColorPanelProps)
 			aria-label={t('label')}
 			className="border-border bg-surface flex flex-col gap-3 rounded-lg border p-4"
 		>
-			<h2 className="text-text text-xs font-bold tracking-wider uppercase">{t('label')}</h2>
+			<h2 className="sr-only">{t('label')}</h2>
 			<div role="group" aria-label={t('scope')} className="flex flex-wrap gap-1">
 				{[null, ...clips.keys()].map((option) => (
 					<Button

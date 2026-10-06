@@ -19,13 +19,9 @@
 		"play": "Play",
 		"pause": "Pause",
 		"cleanup": {
-			"button": "Clean up recording",
-			"hint": "Removes flagged silences and filler words in one step.",
+			"button": "Remove silences and filler words",
 			"nothing": "Nothing flagged that can be removed automatically.",
-			"estimate": "This will remove approximately {seconds, plural, one {# second} other {# seconds}}.",
-			"breakdown": "({silences, plural, one {# silence} other {# silences}}, {fillers, plural, one {# filler word} other {# filler words}})",
 			"fillersForReview": "{count, plural, one {# filler word runs} other {# filler words run}} straight into the next word with no clear pause, so {count, plural, one {it stays} other {they stay}} flagged (outlined) for you to cut by hand.",
-			"apply": "Apply clean-up",
 			"cancel": "Cancel",
 			"undo": "Undo last change",
 			"redo": "Redo",
@@ -33,7 +29,13 @@
 			"resetConfirm": "Reset to the original take? This removes every trim, cut, clip change, re-recorded sentence, graphic and annotation. Undo brings them all back.",
 			"resetApply": "Reset",
 			"resetShort": "Reset",
-			"reading": "Still reading the recording: silences and filler words show here once the transcript is in."
+			"reading": "Still reading the recording: silences and filler words show here once the transcript is in.",
+			"label": "Clean up",
+			"silences": "{count, plural, =0 {No long silences} one {# long silence} other {# long silences}}",
+			"fillers": "{count, plural, =0 {No filler words that can be cut cleanly} one {# filler word} other {# filler words}}",
+			"saves": "Saves about {seconds, plural, one {# second} other {# seconds}}.",
+			"length": "Your video goes from {from} to {to}.",
+			"undoHint": "One click removes them all; Undo puts them back."
 		},
 		"fillerCut": {
 			"label": "Cut editor for \"{word}\"",
@@ -72,7 +74,21 @@
 			"too_long": "Transcripts work on clips up to 5 minutes for now. Silences are still flagged on the timeline.",
 			"empty": "No speech detected.",
 			"reRecord": "Re-record the sentence at {at}",
-			"replaced": "re-recorded"
+			"replaced": "re-recorded",
+			"flags": "What the checks found",
+			"chips": {
+				"fillers": "Filler words · {count}",
+				"pauses": "Pauses · {count}",
+				"audio": "Bad audio · {count}"
+			},
+			"filler": "Filler word: Clean up removes it",
+			"fillerReview": "Filler word with no clear pause around it: cut it by hand from its flag on the timeline",
+			"issues": {
+				"clipping": "Distorted at {at}",
+				"quiet": "Quiet speech at {at}",
+				"noise": "Background noise at {at}"
+			},
+			"pause": "{seconds} s pause at {at}"
 		},
 		"command": {
 			"label": "Edit command",
@@ -532,7 +548,8 @@
 			"upTo": "Up to {seconds} s here.",
 			"shortened": "Plays {seconds} s here: the clips either side are short.",
 			"notPossible": "Not here: a re-recorded sentence or a very short clip is at this join.",
-			"hint": "A fade goes through black and keeps the video's length; a dissolve blends one clip into the next and shortens it by the dissolve's length. Moving or deleting a clip takes the transitions at its joins with it."
+			"hint": "A fade goes through black and keeps the video's length; a dissolve blends one clip into the next and shortens it by the dissolve's length. Moving or deleting a clip takes the transitions at its joins with it.",
+			"none": "Transitions go between clips. Split the video (or add another) to make a join, then pick a fade or dissolve for it here."
 		},
 		"textStyle": {
 			"font": "Font",

@@ -258,7 +258,7 @@ export async function openThreeSentences(page: Page): Promise<number> {
 // options), or a tab of the right-hand column.
 const TOOL_TABS: Record<string, { tab: string; more?: boolean }> = {
 	'Clean up': { tab: 'Clean up' },
-	Captions: { tab: 'Captions' },
+	Captions: { tab: 'Captions', more: true },
 	Graphics: { tab: 'Text & logo', more: true },
 	'Text & logo': { tab: 'Text & logo' },
 	Annotations: { tab: 'Annotate', more: true },
