@@ -164,12 +164,13 @@ convention that imports this one and adds only what is specific to that tool
 (its command format, whether it writes a session transcript, whether it can
 run the workflows in `.claude/skills/`):
 
-- `CLAUDE.md` — Claude Code
-- `GEMINI.md` — Gemini CLI
-- `QWEN.md` — Qwen Code
-- `.cursor/rules/project.mdc` — Cursor
-- `AGENTS.md` (this file) — Codex, Amp, OpenCode, and anything else that
-  reads the shared convention directly
+- `CLAUDE.md` — Claude Code, the only agent this project uses
+- `AGENTS.md` (this file) — anything else that reads the shared convention
+  directly
+
+A tool that needs its own entry point (`GEMINI.md`, `QWEN.md`,
+`.cursor/rules/project.mdc`) gets one that imports this file, as
+`CLAUDE.md` does; `pnpm check:standards` checks any that exist.
 
 Rules go here, not in those files. If you find yourself writing an
 engineering rule into a per-tool file, it belongs in this one instead.
