@@ -2064,6 +2064,23 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
   the panel first if it's hidden; tests that read a tool's fields after a
   typed command open that tool first (it shares the panel with the chat).
 
+## 3zb. Site pages on their own; a fuller landing page (2026-10-06)
+
+- **Header:** the theme switch is back for signed-out visitors (Retake, How
+  it works, Features, Contact us, theme switch, Sign in); signed in: New
+  project, Projects, theme switch, Sign out.
+- **Own pages:** How it works (six steps in full, and what leaves your
+  computer), Features (four parts, each with its list of real features) and
+  Contact us (Email and Message) are each their own page; nothing in the
+  header or the hero scrolls the landing page any more.
+- **Landing page:** the hero; How it works and Features in short, each
+  linking to its page (`HowItWorksSummary`, `FeaturesSummary` in
+  `components/site/landing-sections.tsx`, beside the `…Full` versions the
+  pages use); a drawn demo of re-recording one sentence (`retake-demo.tsx`,
+  decorative); who it's for; a Start a project block; the FAQ. The contact
+  form is only on its page now.
+- **Tests run:** site and home.
+
 ---
 
 ## 4. Unresolved issues
