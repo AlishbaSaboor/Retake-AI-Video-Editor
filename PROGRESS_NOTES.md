@@ -2558,6 +2558,27 @@ the pixel probes (orange at the square's centre, the pinned red box), which
 don't depend on time. The clip-reorder and export-length tests also failed
 once each in that run and passed on retry.
 
+**CI red on `main` after PRs #8 and #9 (2026-10-06), fixed by running e2e
+one test at a time.** Every run on `main` and on PR #10 had several export
+and playback tests fail and pass on retry, and one fail all three tries,
+a different one each time: the audio fades (`48df773`), the saved
+project's export (`36c980d`), the lane preview starting 0.12–0.16 s late,
+and the multi-video dissolve (an export with no frame between 0.6 and 1 s).
+Each passed locally. The cause was load: the `e2e` job ran four tests at
+once on one 4-core runner beside the dev server compiling pages, and every
+editor test records and exports video in real time, so the timings drifted.
+
+The fix keeps every test and every tolerance as it was. CI's `e2e` job is
+now a matrix of four shards (`--shard=n/4`), each on its own runner with
+`--workers=1`, so no two tests share a CPU and the wall time stays about
+the same. Retries stay at two. Locally the config still runs four workers.
+
+The first run with the shards had no flaky failures at all, and one real
+one the noise had been hiding: a logo attached in the chat switched the
+shared tool panel to Text & logo, hiding the chat's "Using logo.jpg as the
+logo." (`logo.spec.ts`). A logo from the chat now leaves the chat open; it
+is still on the video, picked.
+
 ### 4d. Low memory on this machine (observed 2026-10-02)
 
 - The machine has 7.5 GB of RAM. With many apps open (Edge WebView2 apps,
