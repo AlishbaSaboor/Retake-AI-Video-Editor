@@ -7,6 +7,7 @@ import {
 	openThreeSentences,
 	playheadSeconds,
 	recordTestVideo,
+	openTool,
 	seekTo,
 	w
 } from './editor-helpers'
@@ -25,6 +26,7 @@ async function ask(
 	fields: Partial<EditCommand> & Pick<EditCommand, 'action'>
 ) {
 	await mockActions(page, { words: [], command: editCommand(fields) })
+	await openTool(page, 'Assistant')
 	await page.getByRole('textbox', { name: 'Edit command' }).fill(text)
 	await page.getByRole('button', { name: 'Run' }).click()
 	await expect(reply(page)).toBeVisible()
@@ -104,7 +106,7 @@ test('clean-up, undo, redo, reset, speed, export and re-record work as commands,
 	await expect.poll(umIsCut).toBe(true)
 	await apply(page, 'undo that', { action: 'undo' }, "I'll undo the last change.")
 	await expect.poll(umIsCut).toBe(false)
-	await expect(undoButton).toHaveCount(0)
+	await expect(undoButton).toBeDisabled()
 	await apply(page, 'redo', { action: 'redo' }, "I'll redo the change you undid.")
 	await expect.poll(umIsCut).toBe(true)
 	await refused(page, 'redo', { action: 'redo' }, "There's nothing to redo.")
@@ -256,5 +258,5 @@ test('split, move and merge work as commands, each one undo step; re-record open
 		await undoButton.click()
 		await expect(clips).toHaveCount(count)
 	}
-	await expect(undoButton).toHaveCount(0)
+	await expect(undoButton).toBeDisabled()
 })

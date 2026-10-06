@@ -178,6 +178,7 @@ test('a JPG logo is dragged anywhere and resized by hand, in the preview and the
 
 	// A logo command with no corner: bottom-right.
 	await mockActions(page, { words: [], command: editCommand({ action: 'watermark' }) })
+	await openTool(page, 'Assistant')
 	await page.getByRole('textbox', { name: 'Edit command' }).fill('put my logo on')
 	await page.getByRole('button', { name: 'Run' }).click()
 	const reply = page.getByRole('status').filter({ hasText: 'You asked' })

@@ -3,7 +3,8 @@
 // for the client-side navigation between the two pages and taken once; a
 // reload of the editor starts empty, as before.
 
-export type EditorStart = { file: File; command: string | null }
+/** `byHand`: started from "Edit by hand", so the editor opens on the transcript, not the assistant. */
+export type EditorStart = { file: File; command: string | null; byHand?: boolean }
 
 let pending: EditorStart | null = null
 

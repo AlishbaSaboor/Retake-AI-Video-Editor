@@ -1,11 +1,11 @@
 import { useSyncExternalStore } from 'react'
 
-// Whether the editor's side columns are open, remembered in this browser. An
+// Whether the editor's side panels are shown, remembered in this browser. An
 // external store, not state read in an initializer: the server (and the
 // first render, which must match it) has no storage, so both start open and
 // the remembered choice applies right after.
 
-export type Side = 'chat' | 'tools'
+export type Side = 'panels'
 
 const KEY = 'retake-editor-layout'
 const listeners = new Set<() => void>()
@@ -35,7 +35,7 @@ export function setSideOpen(side: Side, open: boolean) {
 }
 
 // What's shown when storage can't be written: the last choice this visit.
-const memory: Record<Side, boolean | null> = { chat: null, tools: null }
+const memory: Record<Side, boolean | null> = { panels: null }
 
 export function useSideOpen(side: Side): boolean {
 	return useSyncExternalStore(

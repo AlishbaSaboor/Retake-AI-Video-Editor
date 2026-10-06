@@ -35,6 +35,9 @@ type LogoBoxProps = {
 	/** The logo as it's being dragged, for the preview; null when the drag ends. */
 	onDraft: (watermark: Watermark | null) => void
 	onChange: (watermark: Watermark) => void
+	/** Whether it's the thing picked on the video. */
+	selected?: boolean
+	onSelect?: () => void
 }
 
 /**
@@ -44,7 +47,15 @@ type LogoBoxProps = {
  * [ and ]. Each drag or key press is one change. Render inside
  * PictureFrame's output frame, over OverlayPreview, which draws the logo.
  */
-export function LogoBox({ watermark, frame, toFrame, onDraft, onChange }: LogoBoxProps) {
+export function LogoBox({
+	watermark,
+	frame,
+	toFrame,
+	onDraft,
+	onChange,
+	selected = false,
+	onSelect
+}: LogoBoxProps) {
 	const t = useTranslations('Editor.graphics')
 	const [drag, setDrag] = useState<LogoDrag | null>(null)
 	// The drag as of the last pointer move: React may not have rendered it
@@ -81,7 +92,8 @@ export function LogoBox({ watermark, frame, toFrame, onDraft, onChange }: LogoBo
 			type="button"
 			data-testid="logo-box"
 			aria-label={t('logoBox')}
-			className="focus-visible:outline-accent pointer-events-auto absolute cursor-move touch-none rounded-sm outline-1 outline-white/70 outline-dashed focus-visible:outline-2 focus-visible:outline-solid"
+			aria-pressed={selected}
+			className="focus-visible:outline-accent aria-pressed:outline-accent pointer-events-auto absolute cursor-move touch-none rounded-sm outline-1 outline-white/70 outline-dashed focus-visible:outline-2 focus-visible:outline-solid aria-pressed:outline-2 aria-pressed:outline-solid"
 			style={{
 				left: `${box.x * PERCENT}%`,
 				top: `${box.y * PERCENT}%`,
@@ -92,6 +104,7 @@ export function LogoBox({ watermark, frame, toFrame, onDraft, onChange }: LogoBo
 			onPointerDown={(event) => {
 				// The logo's, not the annotation layer's underneath.
 				event.stopPropagation()
+				onSelect?.()
 				const target = event.target instanceof Element ? event.target : null
 				const type = target?.closest('[data-logo-resize]')
 					? 'resize'

@@ -52,6 +52,11 @@ type AnnotationLayerProps = {
 	/** The item picked with the select tool, shared with the panel so it can style it. */
 	selectedId: string | null
 	onSelect: (id: string | null) => void
+	/**
+	 * Picking by clicking with no tool out: items are outlined only under the
+	 * pointer, so the picture shows as it will export.
+	 */
+	quiet?: boolean
 	/** A pointer's screen position as a point on the picture (fractions), through any transform. */
 	toPicture: (clientX: number, clientY: number) => Point
 	/** -1 on an axis the picture is flipped on: text is drawn back the right way round. */
@@ -149,6 +154,7 @@ export function AnnotationLayer({
 	pictureFilter,
 	selectedId,
 	onSelect,
+	quiet = false,
 	toPicture,
 	flip,
 	tool,
@@ -299,7 +305,8 @@ export function AnnotationLayer({
 						data-annotation-kind={item.kind}
 						className={cn(
 							'absolute overflow-hidden',
-							tool && 'outline-1 outline-white/60 outline-dashed',
+							tool && !quiet && 'outline-1 outline-white/60 outline-dashed',
+							quiet && 'hover:outline-1 hover:outline-white/60 hover:outline-dashed',
 							selected && 'outline-accent outline-2 outline-solid',
 							tool === 'select' && 'cursor-move'
 						)}

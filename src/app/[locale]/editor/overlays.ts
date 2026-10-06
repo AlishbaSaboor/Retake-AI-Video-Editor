@@ -40,6 +40,13 @@ export type TitleCard = {
 	style?: TextStyle
 	/** How it comes in and goes out; absent: it just appears and disappears. */
 	animation?: Animation
+	/** Its centre, as fractions of the frame, once moved by hand; absent: the middle. */
+	at?: { x: number; y: number }
+}
+
+/** Where a title's centre is, as fractions of the frame. */
+export function titleCentre(title: TitleCard): { x: number; y: number } {
+	return title.at ?? { x: 0.5, y: 0.5 }
 }
 
 /**
@@ -86,7 +93,7 @@ export const TITLE_FONT_FRACTION = 0.08
 /** The dark band behind the title, as a multiple of the text height. */
 export const TITLE_BAND_SCALE = 2
 /** The widest the title's text may be, as a fraction of the picture's width. */
-const TITLE_MAX_WIDTH_FRACTION = 0.9
+export const TITLE_MAX_WIDTH_FRACTION = 0.9
 export const TITLE_BAND_COLOR = 'rgba(0, 0, 0, 0.6)'
 /** Caption text height (of the frame's shorter side), and the gap below the last line (of its height). */
 export const CAPTION_FONT_FRACTION = 0.06
@@ -534,17 +541,20 @@ function drawFrameOverlays(
 		const style = title.style ?? DEFAULT_TEXT_STYLE
 		const fontPixels = Math.round(shorter * TITLE_FONT_FRACTION * style.size)
 		const band = fontPixels * TITLE_BAND_SCALE
+		const centre = titleCentre(title)
+		const x = centre.x * width
+		const y = centre.y * height
 		context.save()
-		applyMotion(context, titleMotion, { x: width, y: height }, { x: width / 2, y: height / 2 })
+		applyMotion(context, titleMotion, { x: width, y: height }, { x, y })
 		if (style.background) {
 			context.fillStyle = bandColor(style.background)
-			context.fillRect(0, (height - band) / 2, width, band)
+			context.fillRect(0, y - band / 2, width, band)
 		}
 		context.font = canvasFont(style, fontPixels)
 		context.textAlign = 'center'
 		context.textBaseline = 'middle'
 		context.fillStyle = style.color
-		context.fillText(title.text, width / 2, height / 2, width * TITLE_MAX_WIDTH_FRACTION)
+		context.fillText(title.text, x, y, width * TITLE_MAX_WIDTH_FRACTION)
 		context.restore()
 	}
 	if (overlays.lowerThird) drawLowerThird(context, overlays.lowerThird, seconds)

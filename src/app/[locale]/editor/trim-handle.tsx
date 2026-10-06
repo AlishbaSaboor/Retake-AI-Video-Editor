@@ -23,6 +23,8 @@ type TrimHandleProps = {
 	steps?: { small: number; large: number }
 	/** Vertical placement within the track; defaults to the main timeline's. */
 	className?: string
+	/** Where it sits across the track, when that isn't `seconds` along `view`. */
+	left?: string
 }
 
 /** A draggable, keyboard-operable grip on one edge of the clip. */
@@ -36,7 +38,8 @@ export function TrimHandle({
 	onDraggingChange,
 	view = { startSeconds: 0, endSeconds: durationSeconds },
 	steps = TRIM_STEPS,
-	className = 'top-9 h-16'
+	className = 'top-9 h-16',
+	left
 }: TrimHandleProps) {
 	function handleKeyDown(event: React.KeyboardEvent) {
 		const step = event.shiftKey ? steps.large : steps.small
@@ -66,7 +69,8 @@ export function TrimHandle({
 				className
 			)}
 			style={{
-				left: timeToPercent(seconds - view.startSeconds, view.endSeconds - view.startSeconds)
+				left:
+					left ?? timeToPercent(seconds - view.startSeconds, view.endSeconds - view.startSeconds)
 			}}
 			onPointerDown={(event) => {
 				event.currentTarget.setPointerCapture(event.pointerId)
