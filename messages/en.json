@@ -909,6 +909,40 @@
 				"typeHere": "Type or speak a command",
 				"caption": "so here’s what we found",
 				"saved": "Saved"
+			},
+			"demo": {
+				"eyebrow": "Re-record one sentence",
+				"title": "Fix one line. Keep the rest.",
+				"body": "Said a sentence wrong? Pick it in the transcript and say it again. Retake puts the new take where the old one was, and the rest of the recording stays as it is.",
+				"before": "Here is the new dashboard.",
+				"flawed": "The launch is in March, no, sorry, April.",
+				"newTake": "New take",
+				"fixed": "The launch is in April.",
+				"after": "Next, the settings page."
+			},
+			"audience": {
+				"eyebrow": "Who it is for",
+				"title": "For recordings you already have",
+				"teach": {
+					"title": "Lessons and tutorials",
+					"body": "Cut the pauses, add captions and titles, and fix a line you said wrong."
+				},
+				"demo": {
+					"title": "Product demos",
+					"body": "Trim the start, zoom in on the screen, and blur anything private."
+				},
+				"talk": {
+					"title": "Talks and interviews",
+					"body": "Remove the ums, split into clips, and reorder the parts."
+				},
+				"team": {
+					"title": "Updates for your team",
+					"body": "Tidy a quick recording and export it."
+				}
+			},
+			"closing": {
+				"title": "Start with a recording you already have.",
+				"body": "Upload it, say what to change, and export the finished video."
 			}
 		},
 		"howItWorks": {
@@ -916,21 +950,52 @@
 			"eyebrow": "How it works",
 			"title": "From recording to finished video",
 			"steps": {
-				"add": {
-					"title": "Add your video",
-					"body": "Upload a recording. Retake writes a transcript and flags long pauses and filler words."
+				"start": {
+					"title": "Start a project",
+					"summary": "Upload a video from your computer.",
+					"body": "Go to New project and choose a video (MP4, WebM or MOV), or drop it on the page. You can type a first change with it, or open it straight on the timeline."
+				},
+				"read": {
+					"title": "Retake reads it",
+					"summary": "A transcript, and flags for pauses and filler words.",
+					"body": "Retake writes a transcript of what is said. It flags long pauses, filler words like “um”, and stretches of bad audio: distorted, too quiet, or a loud background."
 				},
 				"ask": {
 					"title": "Say what to change",
-					"body": "Type or speak an edit. Retake shows what it understood. Apply it, or cancel."
+					"summary": "Type or speak. Check it, then apply.",
+					"body": "In the Assistant, type or speak an edit, like “remove the long pauses” or “add a title that says Welcome”. Retake shows what it understood. Nothing changes until you apply it."
 				},
 				"hand": {
 					"title": "Adjust by hand",
-					"body": "Trim, split and reorder clips on the timeline. Add titles, text and transitions."
+					"summary": "The timeline and the tools.",
+					"body": "Split, trim and reorder clips on the timeline. Use the tools to add text, a logo, captions, transitions and more. Drag text and logos on the video to place them. Undo and redo cover every change."
+				},
+				"rerecord": {
+					"title": "Re-record a sentence",
+					"summary": "Say one line again; it is spliced in.",
+					"body": "Pick a sentence in the transcript and record it again with your microphone. Listen to it in place, then use it. Retake joins it at the pauses around it, or you set the joins by ear."
 				},
 				"export": {
-					"title": "Export",
-					"body": "Download the finished video. Save the project to keep working later."
+					"title": "Save and export",
+					"summary": "Keep the project, download the video.",
+					"body": "Give the project a name to save it; after that it saves as you work. Export downloads the finished video as a file."
+				}
+			},
+			"description": "From upload to export, this is what happens to your video.",
+			"more": "Read how it works",
+			"privacy": {
+				"title": "What leaves your computer",
+				"browser": {
+					"title": "Your video stays in your browser",
+					"body": "Editing, previews and export run on your computer. Saved projects are kept in this browser."
+				},
+				"speech": {
+					"title": "The audio is sent to Deepgram",
+					"body": "To write the transcript and to understand spoken commands, the audio is sent to Deepgram."
+				},
+				"commands": {
+					"title": "Commands are sent to Gemini",
+					"body": "A typed or spoken command is sent as text to Google Gemini to work out the edit. Your video is not."
 				}
 			}
 		},
@@ -941,21 +1006,52 @@
 			"items": {
 				"ai": {
 					"title": "Edit by asking",
-					"body": "Say what you want, like “remove the long pauses”. Check what Retake understood, then apply it. Undo works as usual."
+					"summary": "Say what you want. Check what Retake understood, then apply it.",
+					"points": {
+						"0": "Type or speak an edit in plain words.",
+						"1": "Retake shows what it understood. Nothing changes until you apply it.",
+						"2": "Ask for cuts, clean-up, titles, captions, zooms, colour, speed, transitions and more.",
+						"3": "Attach a logo, music or another video in the chat.",
+						"4": "Undo, redo and reset work as commands too."
+					}
 				},
 				"timeline": {
 					"title": "Edit on the timeline",
-					"body": "Split, trim, reorder, merge and speed up clips. Crop, zoom and colour the picture. Set volume and fades."
+					"summary": "Clips, picture and sound, by hand.",
+					"points": {
+						"0": "Split, merge, reorder, duplicate and delete clips. Trim the start and end.",
+						"1": "Remove long silences and filler words in one click.",
+						"2": "Speed a clip from 0.25× to 4×, with the pitch kept.",
+						"3": "Crop, rotate and flip the picture. Set brightness, contrast and colour for the whole video or one clip.",
+						"4": "Volume, mute and fades per clip, and a lane for music or a voice-over.",
+						"5": "Add more videos to the same project."
+					}
 				},
 				"graphics": {
 					"title": "Motion graphics",
-					"body": "Titles and text that slide, fade or pop in. Captions from the transcript, a lower third, your logo, and fades or dissolves between clips."
+					"summary": "Titles, text and transitions that move.",
+					"points": {
+						"0": "A title that slides, fades or pops in and out. Drag it on the video and resize it.",
+						"1": "Text on the video, with its own font, size, colour and background.",
+						"2": "Captions from the transcript, and a lower third with a name and subtitle.",
+						"3": "Your logo, placed and sized by hand.",
+						"4": "Push-in and pull-out zooms.",
+						"5": "Fades and dissolves between clips. Boxes, blurs, pixelation and drawings on the picture."
+					}
 				},
 				"rerecord": {
 					"title": "Re-record one sentence",
-					"body": "Pick a sentence in the transcript and say it again. Retake splices the new take in where the old one was."
+					"summary": "Say one line again and Retake splices it in.",
+					"points": {
+						"0": "Pick the sentence in the transcript and record it again.",
+						"1": "Listen to the new take in place before you use it.",
+						"2": "Retake joins it at the pauses around it. Where there is no clear pause, you set the joins by ear.",
+						"3": "The rest of the recording stays as it is, and Undo takes the new take out."
+					}
 				}
-			}
+			},
+			"description": "Four ways Retake helps you fix a recording.",
+			"more": "See all features"
 		},
 		"contact": {
 			"metaTitle": "Contact us",

@@ -20,8 +20,8 @@ const navLink =
 
 /**
  * The top bar on every page. Signed-out visitors see the site's pages and
- * Sign in; signed-in ones only the app's (a new project, saved projects),
- * the theme switch and Sign out. `wide`: full width.
+ * Sign in; signed-in ones only the app's (a new project, saved projects)
+ * and Sign out. The theme switch is in both. `wide`: full width.
  */
 export async function SiteHeader({ app = false, wide = false }: { app?: boolean; wide?: boolean }) {
 	const t = await getTranslations('Site.nav')
@@ -72,7 +72,7 @@ export async function SiteHeader({ app = false, wide = false }: { app?: boolean;
 					{links}
 				</nav>
 				<div className="ml-auto flex items-center gap-2">
-					{signedIn && <ThemeToggle />}
+					<ThemeToggle />
 					<div className="hidden md:block">{account}</div>
 					<MobileMenu
 						summary={

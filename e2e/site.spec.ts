@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test'
 // The public site, as a visitor who isn't signed in sees it.
 test.use({ storageState: { cookies: [], origins: [] } })
 
-test('the landing page holds how it works, features, contact and questions; the header only the pages and Sign in', async ({
+test('the landing page sums up how it works and features, each linking to its own page; the header has the pages, the theme switch and Sign in', async ({
 	page
 }) => {
 	await page.goto('/')
@@ -12,11 +12,15 @@ test('the landing page holds how it works, features, contact and questions; the 
 	).toBeVisible()
 	for (const heading of [
 		'From recording to finished video',
+		'Fix one line. Keep the rest.',
 		'What Retake does',
-		'Talk to us',
+		'For recordings you already have',
+		'Start with a recording you already have.',
 		'Frequently asked questions'
 	])
 		await expect(page.getByRole('heading', { level: 2, name: heading })).toBeVisible()
+	// The contact form is on its own page, not here.
+	await expect(page.getByLabel('Message')).toHaveCount(0)
 	// A question opens its answer below it, and closes it again.
 	const question = page.getByText('Is my video uploaded?')
 	const answer = page.getByText(/^No\. Editing, previews and export run in your browser/)
@@ -25,25 +29,40 @@ test('the landing page holds how it works, features, contact and questions; the 
 	await expect(answer).toBeVisible()
 	await question.click()
 	await expect(answer).toBeHidden()
+	// Each summary links on to its own page.
+	await page.getByRole('link', { name: 'Read how it works' }).click()
+	await expect(page).toHaveURL(/\/how-it-works$/, { timeout: 30_000 })
+	await expect(page.getByRole('heading', { level: 2, name: 'Re-record a sentence' })).toBeVisible()
+	await page.goto('/')
+	await page.getByRole('link', { name: 'See all features' }).click()
+	await expect(page).toHaveURL(/\/features$/, { timeout: 30_000 })
+	await expect(page.getByRole('heading', { level: 2, name: 'Motion graphics' })).toBeVisible()
+	await page.goto('/')
 
-	// The header: the pages and Sign in, nothing else.
+	// The header: the pages, the theme switch and Sign in, nothing else.
 	const header = page.getByRole('banner')
 	const nav = header.getByRole('navigation', { name: 'Main' }).first()
 	await expect(nav.getByRole('link')).toHaveText(['How it works', 'Features', 'Contact us'])
 	await expect(header.getByRole('link', { name: 'Sign in' }).first()).toBeVisible()
-	await expect(header.getByRole('switch', { name: 'Light mode' })).toHaveCount(0)
+	await expect(header.getByRole('switch', { name: 'Light mode' })).toBeVisible()
 	await expect(header.getByRole('link', { name: 'Projects' })).toHaveCount(0)
-	for (const [link, heading] of [
-		['How it works', 'From recording to finished video'],
-		['Features', 'What Retake does'],
-		['Contact us', 'Talk to us']
+	// Each opens its own page.
+	for (const [link, path, heading] of [
+		['How it works', /\/how-it-works$/, 'From recording to finished video'],
+		['Features', /\/features$/, 'What Retake does'],
+		['Contact us', /\/contact$/, 'Talk to us']
 	] as const) {
 		await nav.getByRole('link', { name: link }).click()
+		await expect(page).toHaveURL(path, { timeout: 30_000 })
 		// Each page compiles on its first visit to a cold dev server.
 		await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible({
 			timeout: 30_000
 		})
 	}
+	// The contact page: Email and Message only.
+	await expect(page.getByLabel('Email')).toBeVisible()
+	await expect(page.getByLabel('Message')).toBeVisible()
+	await expect(page.getByLabel('Name')).toHaveCount(0)
 })
 
 test.describe('signed in', () => {
