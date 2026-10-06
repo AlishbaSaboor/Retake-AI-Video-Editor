@@ -69,6 +69,7 @@ const ACTIONS = [
 	'speed',
 	'rerecord',
 	'export',
+	'find_highlights',
 	'title',
 	'watermark',
 	'captions_on',
@@ -237,6 +238,7 @@ export type CommandPlan =
 	| { kind: 'speed'; rate: number }
 	| { kind: 'rerecord'; sentence: TranscriptSegment }
 	| { kind: 'export' }
+	| { kind: 'find_highlights' }
 	| { kind: 'title'; title: TitleCard }
 	| { kind: 'watermark'; corner: Corner }
 	| { kind: 'captions'; on: boolean }
@@ -433,6 +435,9 @@ export function commandToPlan(command: EditCommand, context: CommandContext): Co
 		}
 		case 'export':
 			return context.editedSeconds > 0 ? plan({ kind: 'export' }) : refuse('nothing_to_export')
+		case 'find_highlights':
+			// The pop-up says why when there's no transcript to find them in.
+			return plan({ kind: 'find_highlights' })
 		case 'captions_on':
 		case 'captions_off':
 			return plan({ kind: 'captions', on: command.action === 'captions_on' })
