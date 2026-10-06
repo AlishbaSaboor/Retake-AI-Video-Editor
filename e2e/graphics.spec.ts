@@ -215,6 +215,7 @@ test('typed commands add a title and a watermark after confirming, and the expor
 	const command = page.getByRole('textbox', { name: 'Edit command' })
 	const run = async (canned: EditCommand, text: string) => {
 		await mockActions(page, { words: [], command: canned })
+		await openTool(page, 'Assistant')
 		await command.fill(text)
 		await page.getByRole('button', { name: 'Run' }).click()
 	}
@@ -290,9 +291,9 @@ test('captions follow the edited video in the preview and the export, and switch
 	])
 	await openTool(page, 'Transcript')
 	await expect(page.getByRole('button', { name: /Hello there\./ })).toBeVisible({ timeout: 30_000 })
-	await openTool(page, 'Graphics')
+	await openTool(page, 'Captions')
 	const toggle = page
-		.getByRole('region', { name: 'Graphics' })
+		.getByRole('region', { name: 'Captions' })
 		.getByRole('button', { name: 'Captions' })
 	const caption = (text: string) => titleOver(page, text)
 	const expectCaptions = (frames: Frame[], shown: boolean[]) => {
@@ -349,6 +350,7 @@ test('captions follow the edited video in the preview and the export, and switch
 
 	// "turn captions on", confirmed, turns them on.
 	await mockActions(page, { words: [], command: { ...NONE, action: 'captions_on' } })
+	await openTool(page, 'Assistant')
 	await page.getByRole('textbox', { name: 'Edit command' }).fill('turn captions on')
 	await page.getByRole('button', { name: 'Run' }).click()
 	const reply = page.getByRole('status').filter({ hasText: 'You asked' })

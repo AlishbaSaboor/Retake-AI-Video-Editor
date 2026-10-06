@@ -38,6 +38,8 @@ type TimelineFlagProps = {
 	/** Says what was found and where, e.g. "Silence from 0:03 to 0:09. Jump there". */
 	label: string
 	onJump: (seconds: number) => void
+	/** Vertical placement; defaults to above the main track. */
+	className?: string
 }
 
 /** A clickable flag above the track that jumps the playhead to what it marks. */
@@ -46,7 +48,8 @@ export function TimelineFlag({
 	atSeconds,
 	durationSeconds,
 	label,
-	onJump
+	onJump,
+	className = 'top-7'
 }: TimelineFlagProps) {
 	return (
 		<button
@@ -54,8 +57,9 @@ export function TimelineFlag({
 			aria-label={label}
 			title={label}
 			className={cn(
-				'focus-visible:outline-accent absolute top-7 z-10 flex size-4 -translate-x-1/2 items-center justify-center border border-black text-xs leading-none font-bold text-black shadow-lg transition-transform hover:scale-125 focus-visible:outline-2 motion-reduce:transition-none',
-				KIND_STYLES[kind]
+				'focus-visible:outline-accent absolute z-10 flex size-4 -translate-x-1/2 items-center justify-center border border-black text-xs leading-none font-bold text-black shadow-lg transition-transform hover:scale-125 focus-visible:outline-2 motion-reduce:transition-none',
+				KIND_STYLES[kind],
+				className
 			)}
 			style={{ left: timeToPercent(atSeconds, durationSeconds) }}
 			onClick={() => onJump(atSeconds)}

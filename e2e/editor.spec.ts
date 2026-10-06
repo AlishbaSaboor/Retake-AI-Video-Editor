@@ -21,8 +21,11 @@ test('a picked video plays in the editor and can be scrubbed on the timeline', a
 	// little either side of RECORDING_SECONDS under load.
 	const duration = await page.locator('video').evaluate((v: HTMLVideoElement) => v.duration)
 	expect(duration).toBeGreaterThan(RECORDING_SECONDS - 1)
-	await expect(scrubber).toHaveAttribute('aria-valuemax', String(Math.round(duration)))
-	await expect(page.getByText('test-take.webm').first()).toBeVisible()
+	// The timeline is as long as the edit: the whole take, to start with.
+	expect(Number(await scrubber.getAttribute('aria-valuemax'))).toBeCloseTo(duration, 1)
+	await expect(
+		page.getByRole('region', { name: 'Clips' }).getByText('test-take.webm').first()
+	).toBeVisible()
 	// The duration probe must hand the playhead back at the start.
 	await expect(scrubber).toHaveAttribute('aria-valuenow', '0')
 
@@ -38,7 +41,7 @@ test('a picked video plays in the editor and can be scrubbed on the timeline', a
 	// Keyboard: End jumps to the end, Home back to the start, arrows nudge.
 	await scrubber.focus()
 	await page.keyboard.press('End')
-	await expect(scrubber).toHaveAttribute('aria-valuenow', String(Math.round(duration)))
+	await expect(scrubber).toHaveAttribute('aria-valuenow', String(Number(duration.toFixed(2))))
 	await page.keyboard.press('Home')
 	await expect(scrubber).toHaveAttribute('aria-valuenow', '0')
 	await page.keyboard.press('ArrowRight')
@@ -71,10 +74,13 @@ test('dragging a trim handle trims the clip, previews the cut, and can be undone
 	await page.mouse.click(track.x + 5, track.y + 10)
 	await expect.poll(() => playheadSeconds(page)).toBeCloseTo(trimStart, 1)
 
-	// Non-destructive: dragging the handle back restores the whole clip.
-	await page.mouse.move(track.x + track.width / 3, handleY)
+	// Non-destructive: the trimmed part leaves the timeline, and the handle,
+	// now at its start, dragged back out past it restores the whole clip.
+	const trimmed = await startHandle.boundingBox()
+	if (!trimmed) throw new Error('trim handle has no layout box')
+	await page.mouse.move(trimmed.x + trimmed.width / 2, handleY)
 	await page.mouse.down()
-	await page.mouse.move(track.x - 20, handleY, { steps: 5 })
+	await page.mouse.move(trimmed.x - track.width / 2, handleY, { steps: 5 })
 	await page.mouse.up()
 	await expect(startHandle).toHaveAttribute('aria-valuenow', '0')
 })
@@ -255,7 +261,7 @@ test('clean-up removes flagged silences after an estimate, and undo restores the
 
 	// One-step undo brings the silence back: the middle is reachable again.
 	await page.getByRole('button', { name: 'Undo last change' }).click()
-	await expect(page.getByRole('button', { name: 'Undo last change' })).toHaveCount(0)
+	await expect(page.getByRole('button', { name: 'Undo last change' })).toBeDisabled()
 	await seekToMiddle()
 	await expect.poll(() => playheadSeconds(page)).toBeLessThan(6.5)
 	await openTool(page, 'Clean up')
@@ -317,7 +323,7 @@ test('the cut editor cuts a filler set by hand, previews it, and undo or cancel 
 	await expect(page.getByRole('region', { name: 'Cut editor for "uh"' })).toHaveCount(0)
 	await seekTo(page, 0.6)
 	await expect.poll(() => playheadSeconds(page)).toBeLessThan(0.75)
-	await expect(page.getByRole('button', { name: 'Undo last change' })).toHaveCount(0)
+	await expect(page.getByRole('button', { name: 'Undo last change' })).toBeDisabled()
 })
 
 test('an AI command shows what it understood and changes nothing until confirmed', async ({
@@ -339,6 +345,7 @@ test('an AI command shows what it understood and changes nothing until confirmed
 	const untrimmedEnd = await trimEnd.getAttribute('aria-valuenow')
 
 	const run = async () => {
+		await openTool(page, 'Assistant')
 		await input.fill('cut from 1 to 2 seconds')
 		await page.getByRole('button', { name: 'Run' }).click()
 		await expect(page.getByText('You asked: “cut from 1 to 2 seconds”')).toBeVisible()
@@ -379,6 +386,7 @@ test('a command it cannot do gets a plain answer listing what it can, and change
 	await expect(input).toBeVisible({ timeout: 30_000 })
 	const trimStart = page.getByRole('slider', { name: 'Trim start' })
 
+	await openTool(page, 'Assistant')
 	await input.fill('make the colours warmer')
 	await page.getByRole('button', { name: 'Run' }).click()
 	const reply = page.getByRole('status').filter({ hasText: 'You asked' })
@@ -399,6 +407,7 @@ test('a command it cannot do gets a plain answer listing what it can, and change
 	await mockActions(page, {
 		command: editCommand({ action: 'trim', startSeconds: 8, endSeconds: 9 })
 	})
+	await openTool(page, 'Assistant')
 	await input.fill('cut from 8 to 9 seconds')
 	await page.getByRole('button', { name: 'Run' }).click()
 	await expect(page.getByText("That range isn't in this clip.")).toBeVisible()
@@ -533,6 +542,7 @@ test('the original and edited takes can be compared without moving the playhead'
 		command: editCommand({ action: 'trim', startSeconds: 1, endSeconds: 2 })
 	})
 	await openEditorWithVideo(page)
+	await openTool(page, 'Assistant')
 	await page.getByLabel('Edit command').fill('keep 1 to 2 seconds')
 	await page.getByRole('button', { name: 'Run' }).click()
 	await page.getByRole('button', { name: 'Apply changes', exact: true }).click()

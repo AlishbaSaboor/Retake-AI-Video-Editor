@@ -33,7 +33,7 @@ type Way = 'ai' | 'hand'
 /**
  * Where a project starts: two ways in, side by side. With AI, the video
  * opens with the chat (and any command typed here, asked there and still
- * waiting for Apply); by hand, with the chat put away and the tools in front.
+ * waiting for Apply); by hand, straight to the tools and the timeline.
  */
 export function StartBox() {
 	const t = useTranslations('Site.home')
@@ -42,10 +42,13 @@ export function StartBox() {
 	const [opening, setOpening] = useState<{ way: Way; name: string } | null>(null)
 
 	function start(file: File, way: Way) {
-		// The editor remembers its columns; this choice sets them for this video.
-		setSideOpen('chat', way === 'ai')
-		if (way === 'hand') setSideOpen('tools', true)
-		handOffStart({ file, command: way === 'ai' ? command.trim() || null : null })
+		// The editor remembers whether its panels are hidden: both ways start with them shown.
+		setSideOpen('panels', true)
+		handOffStart({
+			file,
+			command: way === 'ai' ? command.trim() || null : null,
+			byHand: way === 'hand'
+		})
 		setOpening({ way, name: file.name })
 		router.push('/editor')
 	}

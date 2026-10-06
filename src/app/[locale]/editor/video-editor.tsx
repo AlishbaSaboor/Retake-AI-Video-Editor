@@ -1,44 +1,50 @@
 'use client'
 
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
-import { flushSync } from 'react-dom'
 import { useTranslations } from 'next-intl'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { captureClientError } from '@/lib/observability/capture-client-error'
 import { Button } from '@/components/ui/button'
 import {
-	ArticleIcon,
-	ImageIcon,
+	CaptionsIcon,
+	CleanupIcon,
+	ColourIcon,
+	CropIcon,
+	DrawIcon,
+	MusicIcon,
 	PauseIcon,
 	PlayIcon,
-	PlusIcon,
 	ProjectsIcon,
-	ReplaceIcon,
-	SoundIcon,
-	SparkleIcon,
+	SelectIcon,
+	SpeedIcon,
 	TextIcon,
-	TransitionIcon
+	TransitionIcon,
+	VideoIcon
 } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { toast } from '@/lib/toast'
 import { AnnotationLayer } from './annotation-layer'
 import { AnnotationPanel, useAnnotationTools } from './annotation-panel'
-import type { Annotation, NewAnnotation, Rect } from './annotations'
+import { newSpan, type Annotation, type NewAnnotation, type Rect } from './annotations'
 import { keptSeconds, mergeCuts, planCleanup, type Cut, type Edit } from './cleanup'
 import { DEFAULT_CLIP_AUDIO, type ClipAudio } from './clip-audio'
 import { ClipAudioPanel } from './clip-audio-panel'
 import { CleanupBar } from './cleanup-bar'
-import { ClipStrip, selectedRun, type ClipSelection } from './clip-strip'
+import type { ClipSelection } from './clip-selection'
 import { CompareToggle } from './compare-toggle'
 import { editedCaptions } from './captions'
 import { CommandBar, type AttachedAs } from './command-bar'
 import { setSideOpen, useSideOpen } from './editor-layout-store'
 import { EditorShell } from './editor-shell'
+import { EditorTimeline, type LaneItem } from './editor-timeline'
 import { JobProgress, type Job } from './editor-status'
 import { HistoryControls } from './history-controls'
+import { ItemToolbar, type Timing } from './item-toolbar'
 import { LeaveGuard } from './leave-guard'
-import { OPEN_SHORTCUTS_EVENT, ShortcutsHelp } from './shortcuts-help'
-import { ToolPanels, type Tool, type ToolTab } from './tool-panels'
+import { AnnotatePanel, TextLogoPanel, type MarkKind, type Picked } from './on-video-panels'
+import { SideTabs } from './side-tabs'
+import { TitleBox } from './title-box'
+import { ToolRail, type Tool } from './tool-rail'
 import { ProjectTitle } from './project-title'
 import { takeStart } from './editor-start'
 import type { CommandContext, CommandPlan, TextTarget } from './edit-command'
@@ -46,14 +52,13 @@ import { isOriginalEdit, ORIGINAL_EDIT, type EditSnapshot } from './edit-snapsho
 import { ExportButton, useVideoExport } from './export-button'
 import { totalSeconds } from './export-video'
 import { FillerCutEditor } from './filler-cut-editor'
-import { GraphicsPanel } from './graphics-panel'
+import { CaptionsPanel, GraphicsPanel } from './graphics-panel'
 import { cutEditorWindow, initialCutRange, moveCutEdge, type FillerPlan } from './filler-cuts'
 import { emptyHistory, record, redo, reset, undo, type Step } from './history'
 import { OverlayPreview } from './overlay-preview'
 import { PictureFrame, PLAYER_WIDTH } from './picture-frame'
 import {
 	IDENTITY_TRANSFORM,
-	isIdentity,
 	outputSize,
 	outputToPicture,
 	rotatedFrame,
@@ -64,6 +69,7 @@ import { CropBox, RotateHandle, TransformPanel, type TransformMode } from './tra
 import {
 	editedSecondsAt,
 	readLogo,
+	titleShownAt,
 	type Corner,
 	type Overlays,
 	type TitleCard,
@@ -82,7 +88,6 @@ import {
 	type SplicePlan
 } from './sentence-splice'
 import { SpeedToggle } from './speed-toggle'
-import { Timeline } from './timeline'
 import { TransitionPanel } from './transition-panel'
 import {
 	clipMatrix,
@@ -104,7 +109,7 @@ import {
 	type Motion,
 	type Zoom
 } from './motion'
-import { inCorner, LOGO_TYPES } from './logo'
+import { inCorner, LOGO_TYPES, resizedLogo } from './logo'
 import { LogoBox } from './logo-box'
 import { ZoomPanel } from './motion-panels'
 import { ZoomBox } from './zoom-box'
@@ -123,6 +128,7 @@ import { fadeLevelAt, type TransitionKind } from './transitions'
 import {
 	canSplitAt,
 	clampSpeed,
+	editedStarts,
 	clipHasTake,
 	clipIndexAt,
 	deleteClips,
@@ -156,6 +162,7 @@ import { AudioLanePanel } from './audio-lane-panel'
 import { probeVideo, type AddedVideo } from './sources'
 import { decodeAudio } from './take-audio'
 import { VideoFileInput } from './video-file-input'
+import { formatTimecode } from './timeline-scale'
 
 /** The main video; a reopened project brings its saved transcript. */
 type LoadedVideo = { file: File; url: string; name: string; transcript?: Transcript | null }
@@ -168,10 +175,14 @@ const PROJECTS_KEY = ['projects']
 const PREVIEW_GRADE = 'preview-grade'
 /** No lane sound: what playback gets outside the Edited view (one array, so it never looks changed). */
 const NO_LANE: AudioItem[] = []
+/** A title added by its button shows this long, from the playhead. */
+const NEW_ITEM_SECONDS = 3
+/** Where new text and a new box, blur or pixelate go: the middle of the picture. */
+const NEW_TEXT_RECT = { x: 0.3, y: 0.66, width: 0.4, height: 0.14 }
+const NEW_MARK_RECT = { x: 0.35, y: 0.3, width: 0.3, height: 0.4 }
+/** How far into a clip a seek to its start goes when that moment also ends another clip. */
+const BOUNDARY_NUDGE_SECONDS = 0.01
 /** An added video's timeline has no cuts, takes, silences, fillers or audio flags: the main one's. */
-const NO_RANGES: never[] = []
-const NO_FILLERS: never[] = []
-const NO_ISSUES: never[] = []
 
 const overlaps = (a: SourceRange, b: SourceRange) =>
 	a.startSeconds < b.endSeconds && a.endSeconds > b.startSeconds
@@ -279,9 +290,13 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	// dragged, the preview follows a draft that becomes one change on release.
 	const [transform, setTransform] = useState<PictureTransform>(IDENTITY_TRANSFORM)
 	const [transformMode, setTransformMode] = useState<TransformMode | null>(null)
-	// The side columns, shown or hidden; remembered in this browser.
-	const chatOpen = useSideOpen('chat')
-	const toolsOpen = useSideOpen('tools')
+	// The side panels, shown or hidden; remembered in this browser. The open
+	// tool on the rail; what's picked on the video; the title while it's dragged.
+	const panelsShown = useSideOpen('panels')
+	const [openTool, setOpenTool] = useState<string | null>(null)
+	const [picked, setPicked] = useState<Picked | null>(null)
+	const [titleDraft, setTitleDraft] = useState<TitleCard | null>(null)
+	const [sideTab, setSideTab] = useState<'assistant' | 'transcript'>('assistant')
 	const [clipSelection, setClipSelection] = useState<ClipSelection | null>(null)
 	// Aiming the zoom on the video: the whole frame shows, with the zoom's area on it.
 	const [zoomAreaMode, setZoomAreaMode] = useState(false)
@@ -466,14 +481,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 				rotation: rotationDraft ?? transform.rotation,
 				crop: transformMode ? null : transform.crop
 			}
-	// Turned or flipped, the player's own controls would turn too: they're
-	// hidden, and a Play button under the player stands in.
-	const pictureTransformed = !isIdentity(shownTransform)
 	// The zoom at the playhead, in the Edited view only.
 	const shownZoom = editedNow === null || zoomAreaMode ? NO_ZOOM : zoomViewAt(zoom, editedNow)
-	// The player's own controls only play the main video: with more than one,
-	// or turned or flipped, the editor's Play button stands in.
-	const ownControls = pictureTransformed || addedVideos.length > 0
 
 	const videoUrl = video?.url
 	// The added videos' URLs go with the editor.
@@ -937,59 +946,17 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		zoom
 	])
 
-	/** What a single key does now, if anything. */
-	function singleKeyAction(key: string, target: HTMLElement | null): (() => void) | null {
-		if (key === '?') return () => window.dispatchEvent(new Event(OPEN_SHORTCUTS_EVENT))
-		if (key === '[') return () => setSideOpen('chat', !chatOpen)
-		if (key === ']') return () => setSideOpen('tools', !toolsOpen)
-		if (key === '/') {
-			return () => {
-				// Shown first, so there's a field to focus.
-				flushSync(() => setSideOpen('tools', true))
-				document.querySelector<HTMLInputElement>('[data-tool-search]')?.focus()
-			}
-		}
-		if (!video || !hasDuration || showOriginal) return null
-		if (key === ' ') {
-			if (target?.closest('button, a, [role="switch"], [role="option"], video')) return null
-			return () => (isPlaying ? playback.pause() : playback.play())
-		}
-		if (key === 's' || key === 'S') {
-			if (!canSplitAt(sequence, currentTimeSeconds, replacements, currentClip)) return null
-			return () => splitAt(currentTimeSeconds)
-		}
-		if (key === 'Delete' || key === 'Backspace') {
-			const run = selectedRun(sequence, clipSelection) ?? { from: currentClip, to: currentClip }
-			// Never every clip: there has to be something left to edit.
-			if (run.to - run.from + 1 >= sequence.length) return null
-			return () => {
-				deleteClipRun(run.from, run.to)
-				setClipSelection(null)
-			}
-		}
-		return null
-	}
-
-	// Ctrl/⌘+Z undoes; Ctrl/⌘+Shift+Z or Ctrl+Y redoes; the single keys in
-	// SHORTCUTS (shortcuts-help.tsx) play, split, delete, show the side columns,
-	// find a tool and list them. Not while typing (there they're the field's
-	// own), nor a key a focused control already used (the clip strip's Delete,
-	// the logo's [ and ]), nor Space on a button, which presses it.
+	// Ctrl/⌘+Z undoes; Ctrl/⌘+Shift+Z or Ctrl+Y redoes: in the Edited view,
+	// and not while typing (there they're the field's own).
 	const handleShortcut = useEffectEvent((event: KeyboardEvent) => {
-		if (event.defaultPrevented || event.altKey) return
+		if (event.defaultPrevented || event.altKey || !(event.ctrlKey || event.metaKey)) return
 		const target = event.target instanceof HTMLElement ? event.target : null
 		if (target && (target.isContentEditable || target.closest('input, textarea, select, dialog')))
 			return
-		if (event.ctrlKey || event.metaKey) {
-			const key = event.key.toLowerCase()
-			const action =
-				key === 'z' ? (event.shiftKey ? redoEdit : undoEdit) : key === 'y' ? redoEdit : null
-			if (!action) return
-			event.preventDefault()
-			action()
-			return
-		}
-		const action = singleKeyAction(event.key, target)
+		if (showOriginal) return
+		const key = event.key.toLowerCase()
+		const action =
+			key === 'z' ? (event.shiftKey ? redoEdit : undoEdit) : key === 'y' ? redoEdit : null
 		if (!action) return
 		event.preventDefault()
 		action()
@@ -1067,6 +1034,9 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 			size: watermark?.size,
 			at: watermark?.at
 		})
+		// On the video at once, picked, with its handles.
+		pick({ kind: 'logo' })
+		setOpenTool('text')
 	}
 
 	function moveWatermark(corner: Corner) {
@@ -1327,9 +1297,12 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		setTransform(next)
 	}
 
-	function addAnnotation(item: NewAnnotation) {
+	/** Adds an item over the video: one change. Returns its id. */
+	function addAnnotation(item: NewAnnotation): string {
+		const id = crypto.randomUUID()
 		recordEdit()
-		setAnnotations([...annotations, { ...item, id: crypto.randomUUID() }])
+		setAnnotations([...annotations, { ...item, id }])
+		return id
 	}
 
 	function drawAnnotation(rect: Rect) {
@@ -1345,6 +1318,81 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	function removeAnnotation(id: string) {
 		recordEdit()
 		setAnnotations(annotations.filter((item) => item.id !== id))
+	}
+
+	/** Picks something on the video (or nothing): the annotation layer's pick follows. */
+	function pick(next: Picked | null) {
+		setPicked(next)
+		annotationTools.setSelectedId(next?.kind === 'annotation' ? next.id : null)
+		if (next?.kind === 'annotation' && annotationTools.tool !== 'select')
+			annotationTools.setTool(null)
+	}
+
+	/** Where something new goes on: the playhead, with room for it before the end. */
+	function newItemStart() {
+		return Math.max(0, Math.min(editedNow ?? 0, editedSeconds - 0.5))
+	}
+
+	/** A title on the video at once, picked; the one there is picked instead. */
+	function addTitleNow() {
+		setOpenTool('text')
+		if (title) return pick({ kind: 'title' })
+		const startSeconds = newItemStart()
+		changeTitle({
+			text: t('onVideo.newTitle'),
+			startSeconds,
+			durationSeconds: Math.min(NEW_ITEM_SECONDS, editedSeconds - startSeconds)
+		})
+		pick({ kind: 'title' })
+		seekEdited(startSeconds)
+	}
+
+	/** Text on the video at once, picked, in the middle of the picture. */
+	function addTextNow() {
+		const startSeconds = newItemStart()
+		const id = addAnnotation({
+			kind: 'text',
+			text: t('onVideo.newText'),
+			style: annotationTools.textStyle,
+			rect: NEW_TEXT_RECT,
+			...newSpan(startSeconds, editedSeconds)
+		})
+		setOpenTool('text')
+		pick({ kind: 'annotation', id })
+		seekEdited(startSeconds)
+	}
+
+	/** A box, blur or pixelate on the video at once, picked, in the middle of the picture. */
+	function addMark(kind: MarkKind) {
+		const startSeconds = newItemStart()
+		const shape = { rect: NEW_MARK_RECT, ...newSpan(startSeconds, editedSeconds) }
+		const id = addAnnotation(
+			kind === 'box' ? { kind, color: annotationTools.color, ...shape } : { kind, ...shape }
+		)
+		setOpenTool('annotate')
+		pick({ kind: 'annotation', id })
+		seekEdited(startSeconds)
+	}
+
+	/** Seeks to a time of the edited video: the source time in the segment playing then. */
+	function seekEdited(seconds: number) {
+		const starts = editedStarts(editedSegments)
+		const index = starts.findLastIndex((start) => start <= seconds)
+		const segment = editedSegments[index]
+		if (!segment) return
+		const into = (seconds - (starts[index] ?? 0)) * (segment.rate ?? 1)
+		// A clip's first moment can also be another's last (reordered, they meet
+		// the other way round): just inside, so it plays from this one.
+		const sharedStart =
+			into === 0 &&
+			editedSegments.some(
+				(other) =>
+					other !== segment &&
+					(other.source ?? '') === (segment.source ?? '') &&
+					other.endSeconds === segment.startSeconds
+			)
+		const at = segment.startSeconds + (sharedStart ? BOUNDARY_NUDGE_SECONDS : into)
+		playback.seek(Math.min(at, segment.endSeconds), segment.source)
 	}
 
 	// The transcript's sentence for "the sentence at 0:25": the one the
@@ -1553,6 +1601,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		if (!start) return
 		loadFile(start.file)
 		setStartCommand(start.command)
+		if (start.byHand) setSideTab('transcript')
 	})
 	// After mount, as the opening of a project or a picked file would be: from
 	// a callback, not inside the effect's own render pass.
@@ -1560,254 +1609,344 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		void Promise.resolve().then(begin)
 	}, [])
 
-	// The tools column, in the order a recording is usually fixed: what's said,
-	// how it sounds, then the picture, then what's laid over it.
-	// The tools column's tabs, in the order a recording is usually fixed.
-	const tabText = (id: string) => ({
-		label: t(`tools.tabs.${id}.label`),
-		description: t(`tools.tabs.${id}.description`)
-	})
-	const toolTabs: ToolTab[] = [
-		{ id: 'ai', icon: <SparkleIcon size={20} />, ...tabText('ai') },
-		{ id: 'picture', icon: <ImageIcon size={20} />, ...tabText('picture') },
-		{ id: 'sound', icon: <SoundIcon size={20} />, ...tabText('sound') },
-		{ id: 'graphics', icon: <TextIcon size={20} />, ...tabText('graphics') },
-		{ id: 'transitions', icon: <TransitionIcon size={20} />, ...tabText('transitions') },
-		{ id: 'transcript', icon: <ArticleIcon size={20} />, ...tabText('transcript') },
-		{ id: 'project', icon: <ProjectsIcon size={20} />, ...tabText('project') }
+	const canEdit = !showOriginal
+	// What's picked, only while it's still there (an undo can take it away).
+	const pickedNow: Picked | null =
+		picked?.kind === 'title' && title
+			? picked
+			: picked?.kind === 'logo' && watermark
+				? picked
+				: picked?.kind === 'lowerThird' && lowerThird
+					? picked
+					: picked?.kind === 'annotation' && annotations.some((item) => item.id === picked.id)
+						? picked
+						: null
+	const annotationName = (item: Annotation) =>
+		t('annotations.item', {
+			kind: t(`annotations.kinds.${item.kind}`),
+			number: annotations.indexOf(item) + 1
+		})
+	const pickedAnnotation =
+		pickedNow?.kind === 'annotation'
+			? annotations.find((item) => item.id === pickedNow.id)
+			: undefined
+	const pickedName =
+		pickedNow?.kind === 'annotation'
+			? pickedAnnotation
+				? annotationName(pickedAnnotation)
+				: ''
+			: pickedNow
+				? t(`onVideo.kinds.${pickedNow.kind}`)
+				: ''
+	const pickedTiming: Timing | null =
+		pickedNow?.kind === 'title' && title
+			? { startSeconds: title.startSeconds, endSeconds: title.startSeconds + title.durationSeconds }
+			: pickedNow?.kind === 'lowerThird' && lowerThird
+				? {
+						startSeconds: lowerThird.startSeconds,
+						endSeconds: lowerThird.startSeconds + lowerThird.durationSeconds
+					}
+				: pickedAnnotation
+					? { startSeconds: pickedAnnotation.startSeconds, endSeconds: pickedAnnotation.endSeconds }
+					: null
+
+	function retimePicked(timing: Timing) {
+		const durationSeconds = timing.endSeconds - timing.startSeconds
+		if (pickedNow?.kind === 'title' && title)
+			changeTitle({ ...title, startSeconds: timing.startSeconds, durationSeconds })
+		if (pickedNow?.kind === 'lowerThird' && lowerThird)
+			changeLowerThird({ ...lowerThird, startSeconds: timing.startSeconds, durationSeconds })
+		if (pickedAnnotation) changeAnnotation({ ...pickedAnnotation, ...timing })
+	}
+
+	function deletePicked() {
+		if (pickedNow?.kind === 'title') changeTitle(null)
+		if (pickedNow?.kind === 'lowerThird') changeLowerThird(null)
+		if (pickedNow?.kind === 'logo') {
+			recordEdit()
+			setWatermark(null)
+		}
+		if (pickedAnnotation) removeAnnotation(pickedAnnotation.id)
+		pick(null)
+	}
+
+	/** Replace: a logo's file, or a title's or text's words (their field, focused). */
+	const replacePicked =
+		pickedNow?.kind === 'logo'
+			? () => pickLogo(watermark?.corner ?? 'bottom-right')
+			: pickedNow?.kind === 'title' || pickedAnnotation?.kind === 'text'
+				? () => {
+						setOpenTool('text')
+						setSideOpen('panels', true)
+						requestAnimationFrame(() =>
+							document.querySelector<HTMLInputElement>('[data-picked-words]')?.focus()
+						)
+					}
+				: undefined
+
+	// The Text lane: everything over the video, in the edited video's time.
+	const textItems: LaneItem[] = [
+		...(title
+			? [
+					{
+						id: 'title',
+						label: title.text,
+						startSeconds: title.startSeconds,
+						endSeconds: title.startSeconds + title.durationSeconds,
+						selected: pickedNow?.kind === 'title'
+					}
+				]
+			: []),
+		...(lowerThird
+			? [
+					{
+						id: 'lowerThird',
+						label: lowerThird.name,
+						startSeconds: lowerThird.startSeconds,
+						endSeconds: lowerThird.startSeconds + lowerThird.durationSeconds,
+						selected: pickedNow?.kind === 'lowerThird'
+					}
+				]
+			: []),
+		...annotations.map((item) => ({
+			id: item.id,
+			label: item.kind === 'text' ? item.text : annotationName(item),
+			startSeconds: item.startSeconds,
+			endSeconds: item.endSeconds,
+			selected: pickedNow?.kind === 'annotation' && pickedNow.id === item.id
+		})),
+		...(watermark
+			? [
+					{
+						id: 'logo',
+						label: t('onVideo.kinds.logo'),
+						startSeconds: 0,
+						endSeconds: editedSeconds,
+						selected: pickedNow?.kind === 'logo'
+					}
+				]
+			: []),
+		...(captionsOn
+			? [
+					{
+						id: 'captions',
+						label: t('graphics.captions'),
+						startSeconds: 0,
+						endSeconds: editedSeconds
+					}
+				]
+			: [])
 	]
+
+	function selectText(id: string) {
+		setSideOpen('panels', true)
+		if (id === 'captions') return setOpenTool('captions')
+		if (id === 'title' || id === 'lowerThird' || id === 'logo') {
+			pick({ kind: id })
+			setOpenTool('text')
+		} else {
+			pick({ kind: 'annotation', id })
+			const item = annotations.find((each) => each.id === id)
+			setOpenTool(item?.kind === 'text' ? 'text' : 'annotate')
+		}
+		const at = textItems.find((item) => item.id === id)
+		if (at && id !== 'logo') seekEdited(at.startSeconds)
+	}
+
+	const tool = (
+		id: string,
+		group: Tool['group'],
+		icon: React.ReactNode,
+		panel: React.ReactNode
+	): Tool => ({
+		id,
+		group,
+		icon,
+		label: t(`tools.rail.${id}.label`),
+		help: t(`tools.rail.${id}.help`),
+		keywords: t(`tools.rail.${id}.keywords`),
+		panel
+	})
 	const tools: Tool[] =
 		video && hasDuration
 			? [
-					{
-						id: 'project',
-						tab: 'project',
-						title: t('tools.names.project'),
-						keywords: t('tools.keywords.project'),
-						panel: (
-							<ProjectPanel
-								name={project?.name ?? null}
-								status={saveStatus}
-								savedAt={savedAt}
-								projects={projects.data ?? []}
-								onOpen={(id) => void openSaved(id)}
-								onDelete={(id) => void removeProject(id)}
-							/>
-						)
-					},
-					{
-						id: 'cleanup',
-						tab: 'ai',
-						title: t('tools.names.cleanup'),
-						keywords: t('tools.keywords.cleanup'),
-						heading: true,
-						panel: (
-							<CleanupBar
-								removableSeconds={removableSeconds}
-								silenceCount={analysis.silences.length}
-								fillerCutCount={fillerCuts.length}
-								fillerReviewCount={analysis.fillerPlans.length - fillerCuts.length}
-								onApply={applyCleanup}
-								reading={
-									analysis.transcript.status === 'analyzing' ||
-									analysis.transcript.status === 'transcribing'
+					tool(
+						'cleanup',
+						'fix',
+						<CleanupIcon size={18} />,
+						<CleanupBar
+							removableSeconds={removableSeconds}
+							silenceCount={analysis.silences.length}
+							fillerCutCount={fillerCuts.length}
+							fillerReviewCount={analysis.fillerPlans.length - fillerCuts.length}
+							onApply={applyCleanup}
+							reading={
+								analysis.transcript.status === 'analyzing' ||
+								analysis.transcript.status === 'transcribing'
+							}
+						/>
+					),
+					tool(
+						'captions',
+						'add',
+						<CaptionsIcon size={18} />,
+						<CaptionsPanel
+							captionsOn={captionsOn}
+							onCaptionsChange={changeCaptions}
+							captionStyle={captionStyle}
+							onCaptionStyleChange={changeCaptionStyle}
+							canEdit={canEdit}
+						/>
+					),
+					tool(
+						'text',
+						'add',
+						<TextIcon size={18} />,
+						<>
+							<TextLogoPanel
+								title={title}
+								lowerThird={lowerThird}
+								watermark={watermark}
+								texts={annotations.flatMap((item, index) =>
+									item.kind === 'text' ? [{ item, number: index + 1 }] : []
+								)}
+								picked={pickedNow}
+								canEdit={canEdit}
+								onPick={(next) => {
+									pick(next)
+									const at =
+										next.kind === 'title'
+											? title?.startSeconds
+											: next.kind === 'lowerThird'
+												? lowerThird?.startSeconds
+												: next.kind === 'annotation'
+													? annotations.find((item) => item.id === next.id)?.startSeconds
+													: undefined
+									if (at !== undefined) seekEdited(at)
+								}}
+								onAddTitle={addTitleNow}
+								onAddText={addTextNow}
+								onAddLogo={() => pickLogo(watermark?.corner ?? 'bottom-right')}
+								onTitleChange={changeTitle}
+								onTextChange={changeAnnotation}
+								onLogoSize={(size) =>
+									watermark &&
+									changeWatermark(resizedLogo(watermark, outputSize(pictureSize, transform), size))
+								}
+								more={
+									<GraphicsPanel
+										key={title ? JSON.stringify(title) : 'no title'}
+										title={title}
+										watermark={watermark}
+										onTitleChange={changeTitle}
+										onPickLogo={pickLogo}
+										onCornerChange={moveWatermark}
+										onLogoChange={changeWatermark}
+										frame={outputSize(pictureSize, transform)}
+										onRemoveWatermark={() => {
+											recordEdit()
+											setWatermark(null)
+										}}
+										lowerThird={lowerThird}
+										onLowerThirdChange={changeLowerThird}
+									/>
 								}
 							/>
-						)
-					},
-					{
-						id: 'chat',
-						tab: 'ai',
-						title: t('tools.names.chat'),
-						keywords: t('tools.keywords.chat'),
-						heading: true,
-						panel: (
-							<div className="flex flex-col gap-3">
-								<p className="text-text-muted text-sm">{t('tools.chat.body')}</p>
-								<ul className="text-text flex flex-col gap-1.5 text-sm">
-									{(['cut', 'look', 'add'] as const).map((item) => (
-										<li key={item} className="flex gap-2">
-											<span aria-hidden className="bg-accent mt-2 size-1.5 shrink-0 rounded-full" />
-											{t(`tools.chat.items.${item}`)}
-										</li>
-									))}
-								</ul>
-								{!chatOpen && (
-									<Button
-										type="button"
-										size="sm"
-										variant="outline"
-										className="self-start"
-										onClick={() => setSideOpen('chat', true)}
-									>
-										<SparkleIcon />
-										{t('tools.chat.open')}
-									</Button>
-								)}
-							</div>
-						)
-					},
-					{
-						id: 'transcript',
-						tab: 'transcript',
-						title: t('tools.names.transcript'),
-						keywords: t('tools.keywords.transcript'),
-						panel: (
-							<TranscriptPanel
-								state={analysis.transcript}
-								onSeek={playback.seek}
-								onReRecord={analysis.loudness ? openReRecord : undefined}
-								replacedSpans={replacedSpans}
+							<input
+								ref={logoInputRef}
+								type="file"
+								accept={LOGO_TYPES.join(',')}
+								aria-label={t('graphics.logoInput')}
+								className="sr-only"
+								tabIndex={-1}
+								onChange={(event) => {
+									const file = event.currentTarget.files?.[0]
+									// Cleared so picking the same file again still counts.
+									event.currentTarget.value = ''
+									if (file) void addLogo(file)
+								}}
 							/>
-						)
-					},
-					{
-						id: 'sound',
-						tab: 'sound',
-						title: t('tools.names.sound'),
-						keywords: t('tools.keywords.sound'),
-						panel: (
-							<ClipAudioPanel
-								clips={sequence}
-								withTake={sequence.map((clip) => clipHasTake(clip, replacements))}
-								inLane={sequence.map((clip) => clip.soundInLane === true)}
-								canEdit={!showOriginal}
-								onChange={changeClipAudio}
-								onSpeedChange={(index, speed) => setClipsSpeed(speed, index)}
-							/>
-						)
-					},
-					{
-						id: 'audio',
-						tab: 'sound',
-						title: t('tools.names.audio'),
-						keywords: t('tools.keywords.audio'),
-						panel: (
-							<>
-								<AudioLanePanel
-									items={audioItems}
+						</>
+					),
+					tool(
+						'annotate',
+						'add',
+						<DrawIcon size={18} />,
+						<AnnotatePanel
+							marks={annotations.flatMap((item, index) =>
+								item.kind === 'text' ? [] : [{ item, number: index + 1 }]
+							)}
+							picked={pickedNow}
+							drawing={annotationTools.tool === 'pencil'}
+							canEdit={canEdit}
+							onPick={(next) => {
+								pick(next)
+								const item =
+									next.kind === 'annotation'
+										? annotations.find((each) => each.id === next.id)
+										: undefined
+								if (item) seekEdited(item.startSeconds)
+							}}
+							onAdd={addMark}
+							onDraw={(on) => {
+								pick(null)
+								annotationTools.setTool(on ? 'pencil' : null)
+							}}
+							more={
+								<AnnotationPanel
+									tools={annotationTools}
+									annotations={annotations}
 									editedSeconds={editedSeconds}
 									playheadSeconds={editedNow}
-									extractBlockers={extractBlockers}
-									canEdit={!showOriginal}
-									onAddFile={pickAudio}
-									onExtract={(index) => void extractClip(index)}
-									onChange={changeAudioItem}
-									onDelete={deleteAudioItem}
+									onChange={changeAnnotation}
+									onErase={removeAnnotation}
 								/>
-								<input
-									ref={audioInputRef}
-									type="file"
-									accept="audio/*"
-									aria-label={t('audioLane.fileInput')}
-									className="sr-only"
-									tabIndex={-1}
-									onChange={(event) => {
-										const file = event.currentTarget.files?.[0]
-										// Cleared so picking the same file again still counts.
-										event.currentTarget.value = ''
-										if (file) void addAudioFile(file)
-									}}
-								/>
-							</>
-						)
-					},
-					...(picture
-						? [
-								{
-									id: 'picture',
-									tab: 'picture',
-									title: t('tools.names.picture'),
-									keywords: t('tools.keywords.picture'),
-									panel: (
-										<TransformPanel
-											key={JSON.stringify(transform)}
-											transform={transform}
-											picture={picture}
-											mode={transformMode}
-											canEdit={!showOriginal}
-											onModeChange={changeTransformMode}
-											onChange={changeTransform}
-										/>
-									)
-								}
-							]
-						: []),
-					{
-						id: 'zoom',
-						tab: 'picture',
-						title: t('tools.names.zoom'),
-						keywords: t('tools.keywords.zoom'),
-						panel: (
-							<ZoomPanel
-								key={JSON.stringify(zoom)}
-								zoom={zoom}
+							}
+						/>
+					),
+					tool(
+						'audio',
+						'add',
+						<MusicIcon size={18} />,
+						<>
+							<AudioLanePanel
+								items={audioItems}
 								editedSeconds={editedSeconds}
 								playheadSeconds={editedNow}
-								canEdit={!showOriginal}
-								aiming={zoomAreaMode}
-								onAim={aimZoom}
-								onChange={changeZoom}
+								extractBlockers={extractBlockers}
+								canEdit={canEdit}
+								onAddFile={pickAudio}
+								onExtract={(index) => void extractClip(index)}
+								onChange={changeAudioItem}
+								onDelete={deleteAudioItem}
 							/>
-						)
-					},
-					{
-						id: 'color',
-						tab: 'picture',
-						title: t('tools.names.color'),
-						keywords: t('tools.keywords.color'),
-						panel: (
-							<ColorPanel
-								video={color}
-								clips={sequence.map((clip) => clip.color)}
-								canEdit={!showOriginal}
-								onChange={changeColor}
+							<input
+								ref={audioInputRef}
+								type="file"
+								accept="audio/*"
+								aria-label={t('audioLane.fileInput')}
+								className="sr-only"
+								tabIndex={-1}
+								onChange={(event) => {
+									const file = event.currentTarget.files?.[0]
+									// Cleared so picking the same file again still counts.
+									event.currentTarget.value = ''
+									if (file) void addAudioFile(file)
+								}}
 							/>
-						)
-					},
-					{
-						id: 'transitions',
-						tab: 'transitions',
-						title: t('tools.names.transitions'),
-						keywords: t('tools.keywords.transitions'),
-						panel: (
-							<TransitionPanel
-								joins={sequence.slice(1).map((_, i) => ({
-									transition: transitionInto(sequence, i + 1),
-									limit: joinLimit(sequence, i + 1, edit, replacements, sourceEdits) ?? 0
-								}))}
-								canEdit={!showOriginal}
-								onChange={changeTransition}
-							/>
-						)
-					},
-					{
-						id: 'graphics',
-						tab: 'graphics',
-						title: t('tools.names.graphics'),
-						keywords: t('tools.keywords.graphics'),
-						panel: (
-							<>
-								<GraphicsPanel
-									key={title ? JSON.stringify(title) : 'no title'}
-									title={title}
-									watermark={watermark}
-									onTitleChange={changeTitle}
-									onPickLogo={pickLogo}
-									onCornerChange={moveWatermark}
-									onLogoChange={changeWatermark}
-									frame={outputSize(pictureSize, transform)}
-									onRemoveWatermark={() => {
-										recordEdit()
-										setWatermark(null)
-									}}
-									captionsOn={captionsOn}
-									onCaptionsChange={changeCaptions}
-									captionStyle={captionStyle}
-									onCaptionStyleChange={changeCaptionStyle}
-									lowerThird={lowerThird}
-									onLowerThirdChange={changeLowerThird}
-								/>
+						</>
+					),
+					tool(
+						'videos',
+						'add',
+						<VideoIcon size={18} />,
+						<VideosPanel
+							main={video.name}
+							added={addedVideos.map((added) => added.name)}
+							canEdit={canEdit}
+							onAdd={pickVideo}
+							replace={<VideoFileInput onFile={(file) => loadFile(file)} />}
+							input={
 								<input
 									ref={videoInputRef}
 									type="file"
@@ -1822,43 +1961,94 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 										if (file) void addVideo(file)
 									}}
 								/>
-								<input
-									ref={logoInputRef}
-									type="file"
-									accept={LOGO_TYPES.join(',')}
-									aria-label={t('graphics.logoInput')}
-									className="sr-only"
-									tabIndex={-1}
-									onChange={(event) => {
-										const file = event.currentTarget.files?.[0]
-										// Cleared so picking the same file again still counts.
-										event.currentTarget.value = ''
-										if (file) void addLogo(file)
-									}}
+							}
+						/>
+					),
+					tool(
+						'frame',
+						'adjust',
+						<CropIcon size={18} />,
+						<>
+							{picture && (
+								<TransformPanel
+									key={JSON.stringify(transform)}
+									transform={transform}
+									picture={picture}
+									mode={transformMode}
+									canEdit={canEdit}
+									onModeChange={changeTransformMode}
+									onChange={changeTransform}
 								/>
-							</>
-						)
-					},
-					{
-						id: 'annotations',
-						tab: 'graphics',
-						title: t('tools.names.annotations'),
-						keywords: t('tools.keywords.annotations'),
-						panel: (
-							<AnnotationPanel
-								tools={annotationTools}
-								annotations={annotations}
+							)}
+							<ZoomPanel
+								key={JSON.stringify(zoom)}
+								zoom={zoom}
 								editedSeconds={editedSeconds}
 								playheadSeconds={editedNow}
-								onChange={changeAnnotation}
-								onErase={removeAnnotation}
+								canEdit={canEdit}
+								aiming={zoomAreaMode}
+								onAim={aimZoom}
+								onChange={changeZoom}
 							/>
-						)
-					}
+						</>
+					),
+					tool(
+						'colour',
+						'adjust',
+						<ColourIcon size={18} />,
+						<ColorPanel
+							video={color}
+							clips={sequence.map((clip) => clip.color)}
+							canEdit={canEdit}
+							onChange={changeColor}
+						/>
+					),
+					tool(
+						'speed',
+						'adjust',
+						<SpeedIcon size={18} />,
+						<ClipAudioPanel
+							clips={sequence}
+							withTake={sequence.map((clip) => clipHasTake(clip, replacements))}
+							inLane={sequence.map((clip) => clip.soundInLane === true)}
+							canEdit={canEdit}
+							onChange={changeClipAudio}
+							onSpeedChange={(index, speed) => setClipsSpeed(speed, index)}
+						/>
+					),
+					tool(
+						'transitions',
+						'adjust',
+						<TransitionIcon size={18} />,
+						<TransitionPanel
+							joins={sequence.slice(1).map((_, i) => ({
+								transition: transitionInto(sequence, i + 1),
+								limit: joinLimit(sequence, i + 1, edit, replacements, sourceEdits) ?? 0
+							}))}
+							canEdit={canEdit}
+							onChange={changeTransition}
+						/>
+					),
+					tool(
+						'project',
+						'project',
+						<ProjectsIcon size={18} />,
+						<ProjectPanel
+							name={project?.name ?? null}
+							status={saveStatus}
+							savedAt={savedAt}
+							projects={projects.data ?? []}
+							onOpen={(id) => void openSaved(id)}
+							onDelete={(id) => void removeProject(id)}
+						/>
+					)
 				]
 			: []
 
 	const unsaved = Boolean(video) && hasDuration && history !== savedHistory
+	const frameSize = outputSize(pictureSize, shownTransform)
+	const shownTitle = titleDraft ?? title
+	const onVideo = editedNow !== null && picture && !transformMode && !showOriginal
 
 	return (
 		<>
@@ -1868,24 +2058,9 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 				matrices={gradeMatrices.flatMap((matrix) => (matrix ? [matrix] : []))}
 			/>
 			<EditorShell
-				chatOpen={chatOpen}
-				toolsOpen={toolsOpen}
-				onChatOpen={(open) => setSideOpen('chat', open)}
-				onToolsOpen={(open) => setSideOpen('tools', open)}
-				chat={
-					video && hasDuration ? (
-						<CommandBar
-							context={commandContext}
-							hasWatermark={watermark !== null}
-							onApply={applyCommand}
-							onAttach={attachFile}
-							initialCommand={startCommand}
-						/>
-					) : (
-						<p className="text-text-muted p-4 text-sm">{t('layout.chatWaits')}</p>
-					)
-				}
-				toolbar={
+				panelsShown={panelsShown}
+				onPanelsShown={(shown) => setSideOpen('panels', shown)}
+				title={
 					video ? (
 						<>
 							<ProjectTitle
@@ -1896,56 +2071,81 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 								savedAt={savedAt}
 								onSave={(name) => void save(name)}
 							/>
-							{hasDuration && (
-								<CompareToggle showOriginal={showOriginal} onChange={setShowOriginal} />
-							)}
+							<JobProgress jobs={jobs} />
 						</>
-					) : null
+					) : (
+						<span className="text-text font-display truncate font-semibold">{t('untitled')}</span>
+					)
 				}
-				status={
-					<>
-						<JobProgress jobs={jobs} />
-						{hasDuration && (
+				centre={
+					video && hasDuration ? (
+						<>
 							<HistoryControls
-								canUndo={history.past.length > 0}
-								canRedo={history.future.length > 0}
-								canReset={!isOriginalEdit(snapshot, durationSeconds)}
+								canUndo={canEdit && history.past.length > 0}
+								canRedo={canEdit && history.future.length > 0}
+								canReset={canEdit && !isOriginalEdit(snapshot, durationSeconds)}
 								onUndo={undoEdit}
 								onRedo={redoEdit}
 								onReset={resetEdit}
 							/>
-						)}
-						<ShortcutsHelp />
-						{video && hasDuration && (
-							<Button
-								type="button"
-								variant="ghost"
-								size="icon"
-								aria-label={t('addVideo')}
-								title={t('addVideo')}
-								onClick={pickVideo}
-							>
-								<PlusIcon size={18} />
-							</Button>
-						)}
-						{video && (
-							<Button
-								asChild
-								variant="ghost"
-								size="icon"
-								className="has-[:focus-visible]:outline-accent cursor-pointer has-[:focus-visible]:outline-2"
-							>
-								<label title={t('replace')}>
-									<ReplaceIcon size={18} />
-									<span className="sr-only">{t('replace')}</span>
-									<VideoFileInput onFile={(file) => loadFile(file)} />
-								</label>
-							</Button>
-						)}
-						{video && hasDuration && <ExportButton exporter={exporter} />}
-					</>
+							<CompareToggle showOriginal={showOriginal} onChange={setShowOriginal} />
+						</>
+					) : null
 				}
-				tools={tools.length > 0 ? <ToolPanels tabs={toolTabs} tools={tools} /> : null}
+				actions={video && hasDuration ? <ExportButton exporter={exporter} /> : null}
+				rail={
+					tools.length > 0 ? (
+						<ToolRail
+							tools={tools}
+							open={openTool}
+							onOpen={setOpenTool}
+							disabledNote={showOriginal ? t('original.toolsNote') : null}
+						/>
+					) : null
+				}
+				side={
+					<SideTabs
+						tab={sideTab}
+						onTab={setSideTab}
+						transcriptCount={
+							analysis.transcript.status === 'ready'
+								? analysis.transcript.transcript.segments.length
+								: null
+						}
+						assistant={
+							video && hasDuration ? (
+								<fieldset disabled={showOriginal} className="flex min-h-0 flex-1 flex-col">
+									{showOriginal && (
+										<p className="text-text-muted border-border border-b p-3 text-sm">
+											{t('original.chatNote')}
+										</p>
+									)}
+									<CommandBar
+										context={commandContext}
+										hasWatermark={watermark !== null}
+										onApply={applyCommand}
+										onAttach={attachFile}
+										initialCommand={startCommand}
+									/>
+								</fieldset>
+							) : (
+								<p className="text-text-muted p-4 text-sm">{t('layout.chatWaits')}</p>
+							)
+						}
+						transcript={
+							video ? (
+								<TranscriptPanel
+									state={analysis.transcript}
+									onSeek={playback.seek}
+									onReRecord={analysis.loudness && canEdit ? openReRecord : undefined}
+									replacedSpans={replacedSpans}
+								/>
+							) : (
+								<p className="text-text-muted p-4 text-sm">{t('layout.chatWaits')}</p>
+							)
+						}
+					/>
+				}
 			>
 				{video ? (
 					<>
@@ -1956,181 +2156,284 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 								onCancel={() => setRelink(null)}
 							/>
 						)}
-						<PictureFrame
-							picture={pictureSize}
-							transform={shownTransform}
-							zoom={shownZoom}
-							frameRef={frameRef}
-							video={
-								<>
-									<video
-										key={video.url}
-										ref={videoRef}
-										src={video.url}
-										controls={!ownControls}
-										// One speed control: the preview speed below, not the player's own menu.
-										controlsList="noplaybackrate"
-										playsInline
-										className="absolute inset-0 block h-full w-full bg-black"
-										style={{ filter: pictureFilter }}
-										onLoadedMetadata={(event) => handleLoadedMetadata(event.currentTarget)}
-										onDurationChange={(event) => handleDurationChange(event.currentTarget)}
-										onTimeUpdate={(event) => handleTimeUpdate(event.currentTarget)}
-										onPlay={(event) => handlePlay(event.currentTarget)}
-										onPause={() => {
-											// Pausing on purpose to hold a frame under a longer take isn't stopping.
-											if (!playback.isHolding()) stopPlaying()
-										}}
-										onError={() => {
-											toast({
-												variant: 'destructive',
-												title: t('unplayable.title'),
-												description: t('unplayable.description', { name: video.name })
-											})
-											setVideo(null)
-										}}
-									/>
-									{/* The added videos' players, over the main one: each shown only while
-								    it plays (use-sequence-playback.ts), fitted into the frame. */}
-									{addedVideos.map((added) => (
-										<video
-											key={added.id}
-											ref={(element) => {
-												if (element) sourceElementsRef.current.set(added.id, element)
-												else sourceElementsRef.current.delete(added.id)
+						{hasDuration &&
+							(showOriginal ? (
+								<div
+									role="status"
+									className="border-border bg-surface mx-auto flex w-full max-w-3xl flex-wrap items-center gap-3 rounded-lg border px-4 py-2.5"
+								>
+									<p className="text-text flex-1 text-sm">
+										<strong className="font-semibold">{t('original.title')}</strong>{' '}
+										{t('original.body')}
+									</p>
+									<button
+										type="button"
+										onClick={() => setShowOriginal(false)}
+										className="bg-accent text-accent-contrast focus-visible:outline-accent rounded-md px-3 py-1.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
+									>
+										{t('original.switch')}
+									</button>
+								</div>
+							) : (
+								<div className="flex flex-wrap items-start justify-center gap-2">
+									<div
+										role="toolbar"
+										aria-label={t('videoTools.label')}
+										className="border-border bg-surface flex items-center gap-0.5 rounded-lg border p-1 shadow-md"
+									>
+										<VideoToolButton
+											label={t('videoTools.select')}
+											pressed={!annotationTools.tool && !transformMode}
+											onClick={() => {
+												annotationTools.setTool(null)
+												if (transformMode) changeTransformMode(null)
 											}}
-											src={added.url}
-											preload="auto"
-											playsInline
-											aria-hidden
-											tabIndex={-1}
-											data-testid="added-player"
-											data-source={added.id}
-											className="pointer-events-none absolute inset-0 block h-full w-full bg-black opacity-0"
-											style={{ filter: pictureFilter }}
+										>
+											<SelectIcon size={18} />
+										</VideoToolButton>
+										<VideoToolButton
+											label={t('videoTools.draw')}
+											pressed={annotationTools.tool === 'pencil'}
+											onClick={() => {
+												pick(null)
+												annotationTools.setTool(annotationTools.tool === 'pencil' ? null : 'pencil')
+												setOpenTool('annotate')
+												setSideOpen('panels', true)
+											}}
+										>
+											<DrawIcon size={18} />
+										</VideoToolButton>
+										<VideoToolButton
+											label={t('videoTools.crop')}
+											pressed={openTool === 'frame'}
+											onClick={() => {
+												setOpenTool('frame')
+												setSideOpen('panels', true)
+											}}
+										>
+											<CropIcon size={18} />
+										</VideoToolButton>
+									</div>
+									{onVideo && pickedNow && (
+										<ItemToolbar
+											key={`${pickedNow.kind}-${pickedNow.kind === 'annotation' ? pickedNow.id : ''}`}
+											name={pickedName}
+											timing={pickedTiming}
+											editedSeconds={editedSeconds}
+											onReplace={replacePicked}
+											onTiming={retimePicked}
+											onDelete={deletePicked}
+											onClose={() => pick(null)}
 										/>
-									))}
-									{/* The clip dissolving in, shown only through a dissolve: there only
-								    while the edit has one, so it loads ahead of it. */}
-									{hasDissolve && (
+									)}
+								</div>
+							))}
+						<div className="relative">
+							<PictureFrame
+								picture={pictureSize}
+								transform={shownTransform}
+								zoom={shownZoom}
+								frameRef={frameRef}
+								video={
+									<>
 										<video
-											key={`${video.url}-deck`}
-											ref={deckRef}
+											key={video.url}
+											ref={videoRef}
 											src={video.url}
-											preload="auto"
 											playsInline
-											aria-hidden
-											tabIndex={-1}
-											data-testid="dissolve-player"
-											data-url={video.url}
-											className="pointer-events-none absolute inset-0 block h-full w-full opacity-0"
-											style={{ filter: incomingFilter }}
-										/>
-									)}
-								</>
-							}
-							onPicture={
-								<>
-									{editedNow !== null && picture && (
-										<AnnotationLayer
-											annotations={annotations}
-											editedSeconds={editedNow}
-											picture={picture}
-											videoRef={playback.activeRef}
-											toPicture={toPicture}
-											flip={{ x: transform.flipH ? -1 : 1, y: transform.flipV ? -1 : 1 }}
-											tool={transformMode ? null : annotationTools.tool}
-											onPointerStart={() => playback.pause()}
-											onDraw={drawAnnotation}
-											onStroke={(points) => {
-												const item = annotationTools.stroked(
-													points,
-													pictureSize,
-													editedNow ?? 0,
-													editedSeconds
-												)
-												if (item) addAnnotation(item)
+											className="absolute inset-0 block h-full w-full bg-black"
+											style={{ filter: pictureFilter }}
+											onLoadedMetadata={(event) => handleLoadedMetadata(event.currentTarget)}
+											onDurationChange={(event) => handleDurationChange(event.currentTarget)}
+											onTimeUpdate={(event) => handleTimeUpdate(event.currentTarget)}
+											onPlay={(event) => handlePlay(event.currentTarget)}
+											onPause={() => {
+												// Pausing on purpose to hold a frame under a longer take isn't stopping.
+												if (!playback.isHolding()) stopPlaying()
 											}}
-											pictureFilter={pictureFilter}
-											selectedId={annotationTools.selectedId}
-											onSelect={annotationTools.setSelectedId}
-											onChange={changeAnnotation}
-											onErase={removeAnnotation}
+											onError={() => {
+												toast({
+													variant: 'destructive',
+													title: t('unplayable.title'),
+													description: t('unplayable.description', { name: video.name })
+												})
+												setVideo(null)
+											}}
 										/>
-									)}
-									{transformMode === 'rotate' && !showOriginal && picture && (
-										<RotateHandle
-											rotation={transform.rotation}
-											onDraft={setRotationDraft}
-											onCommit={(rotation) =>
-												changeTransform(withRotation(transform, rotation, picture))
-											}
-										/>
-									)}
-								</>
-							}
-							onFrame={
-								<>
-									{fadeLight < 1 && (
-										<div
-											data-testid="fade-black"
-											aria-hidden
-											className="pointer-events-none absolute inset-0 bg-black"
-											style={{ opacity: 1 - fadeLight }}
-										/>
-									)}
-									{editedNow !== null && picture && !transformMode && (
-										<OverlayPreview
-											overlays={logoDraft ? { ...overlays, watermark: logoDraft } : overlays}
-											editedSeconds={editedNow}
-											frame={outputSize(pictureSize, shownTransform)}
-										/>
-									)}
-									{editedNow !== null &&
-										picture &&
-										!transformMode &&
-										!showOriginal &&
-										watermark && (
+										{/* The added videos' players, over the main one: each shown only while
+									    it plays (use-sequence-playback.ts), fitted into the frame. */}
+										{addedVideos.map((added) => (
+											<video
+												key={added.id}
+												ref={(element) => {
+													if (element) sourceElementsRef.current.set(added.id, element)
+													else sourceElementsRef.current.delete(added.id)
+												}}
+												src={added.url}
+												preload="auto"
+												playsInline
+												aria-hidden
+												tabIndex={-1}
+												data-testid="added-player"
+												data-source={added.id}
+												className="pointer-events-none absolute inset-0 block h-full w-full bg-black opacity-0"
+												style={{ filter: pictureFilter }}
+											/>
+										))}
+										{/* The clip dissolving in, shown only through a dissolve: there only
+									    while the edit has one, so it loads ahead of it. */}
+										{hasDissolve && (
+											<video
+												key={`${video.url}-deck`}
+												ref={deckRef}
+												src={video.url}
+												preload="auto"
+												playsInline
+												aria-hidden
+												tabIndex={-1}
+												data-testid="dissolve-player"
+												data-url={video.url}
+												className="pointer-events-none absolute inset-0 block h-full w-full opacity-0"
+												style={{ filter: incomingFilter }}
+											/>
+										)}
+									</>
+								}
+								onPicture={
+									<>
+										{editedNow !== null && picture && (
+											<AnnotationLayer
+												annotations={annotations}
+												editedSeconds={editedNow}
+												picture={picture}
+												videoRef={playback.activeRef}
+												toPicture={toPicture}
+												flip={{ x: transform.flipH ? -1 : 1, y: transform.flipV ? -1 : 1 }}
+												// With no tool out, a click picks what's under it.
+												tool={transformMode ? null : (annotationTools.tool ?? 'select')}
+												onPointerStart={() => playback.pause()}
+												onDraw={drawAnnotation}
+												onStroke={(points) => {
+													const item = annotationTools.stroked(
+														points,
+														pictureSize,
+														editedNow ?? 0,
+														editedSeconds
+													)
+													if (item) addAnnotation(item)
+												}}
+												pictureFilter={pictureFilter}
+												selectedId={annotationTools.selectedId}
+												onSelect={(id) => pick(id ? { kind: 'annotation', id } : null)}
+												quiet={!transformMode && !annotationTools.tool}
+												onChange={changeAnnotation}
+												onErase={removeAnnotation}
+											/>
+										)}
+										{transformMode === 'rotate' && !showOriginal && picture && (
+											<RotateHandle
+												rotation={transform.rotation}
+												onDraft={setRotationDraft}
+												onCommit={(rotation) =>
+													changeTransform(withRotation(transform, rotation, picture))
+												}
+											/>
+										)}
+									</>
+								}
+								onFrame={
+									<>
+										{fadeLight < 1 && (
+											<div
+												data-testid="fade-black"
+												aria-hidden
+												className="pointer-events-none absolute inset-0 bg-black"
+												style={{ opacity: 1 - fadeLight }}
+											/>
+										)}
+										{editedNow !== null && picture && !transformMode && (
+											<OverlayPreview
+												overlays={{
+													...overlays,
+													title: shownTitle,
+													watermark: logoDraft ?? overlays.watermark
+												}}
+												editedSeconds={editedNow}
+												frame={frameSize}
+											/>
+										)}
+										{onVideo && shownTitle && titleShownAt(shownTitle, editedNow) && (
+											<TitleBox
+												title={shownTitle}
+												selected={pickedNow?.kind === 'title'}
+												frame={frameSize}
+												toFrame={toFrame}
+												onSelect={() => {
+													pick({ kind: 'title' })
+													setOpenTool('text')
+												}}
+												onDraft={setTitleDraft}
+												onChange={changeTitle}
+											/>
+										)}
+										{onVideo && watermark && (
 											<LogoBox
 												watermark={watermark}
-												frame={outputSize(pictureSize, shownTransform)}
+												frame={frameSize}
 												toFrame={toFrame}
+												selected={pickedNow?.kind === 'logo'}
+												onSelect={() => {
+													pick({ kind: 'logo' })
+													setOpenTool('text')
+												}}
 												onDraft={setLogoDraft}
 												onChange={changeWatermark}
 											/>
 										)}
-									{zoomAreaMode && !showOriginal && zoom && (
-										<ZoomBox zoom={zoom} toFrame={toFrame} onChange={changeZoom} />
-									)}
-									{transformMode === 'crop' && !showOriginal && transform.crop && picture && (
-										<CropBox
-											crop={transform.crop}
-											frame={rotatedFrame(picture, transform.rotation)}
-											toFrame={toFrame}
-											onChange={(rect) =>
-												transform.crop &&
-												changeTransform({ ...transform, crop: { ...transform.crop, rect } })
-											}
-										/>
-									)}
-								</>
-							}
-						/>
+										{zoomAreaMode && !showOriginal && zoom && (
+											<ZoomBox zoom={zoom} toFrame={toFrame} onChange={changeZoom} />
+										)}
+										{transformMode === 'crop' && !showOriginal && transform.crop && picture && (
+											<CropBox
+												crop={transform.crop}
+												frame={rotatedFrame(picture, transform.rotation)}
+												toFrame={toFrame}
+												onChange={(rect) =>
+													transform.crop &&
+													changeTransform({ ...transform, crop: { ...transform.crop, rect } })
+												}
+											/>
+										)}
+									</>
+								}
+							/>
+						</div>
 						{hasDuration && (
-							<div className={cn('mx-auto flex items-center justify-end gap-3', PLAYER_WIDTH)}>
-								{ownControls && (
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										className="mr-auto"
-										onClick={() => (isPlaying ? playback.pause() : playback.play())}
-									>
-										{isPlaying ? <PauseIcon /> : <PlayIcon />}
-										{isPlaying ? t('pause') : t('play')}
-									</Button>
+							<div
+								className={cn(
+									'mx-auto grid w-full grid-cols-[1fr_auto_1fr] items-center gap-3',
+									PLAYER_WIDTH
 								)}
-								<SpeedToggle rate={previewRate} onChange={setPreviewRate} />
+							>
+								<span className="text-text-muted font-mono text-sm">
+									<span className="text-text">
+										{formatTimecode(editedNow ?? currentTimeSeconds)}
+									</span>
+									{' / '}
+									{formatTimecode(showOriginal ? durationSeconds : editedSeconds)}
+								</span>
+								<button
+									type="button"
+									aria-label={isPlaying ? t('pause') : t('play')}
+									title={isPlaying ? t('pause') : t('play')}
+									onClick={() => (isPlaying ? playback.pause() : playback.play())}
+									className="bg-text text-bg focus-visible:outline-accent inline-flex size-11 items-center justify-center rounded-full shadow-md transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2"
+								>
+									{isPlaying ? <PauseIcon size={18} /> : <PlayIcon size={18} />}
+								</button>
+								<div className="flex justify-end">
+									<SpeedToggle rate={previewRate} onChange={setPreviewRate} />
+								</div>
 							</div>
 						)}
 					</>
@@ -2202,52 +2505,21 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 						)}
 					</ReRecordPanel>
 				)}
-				{timelineVideo ? (
-					// An added video: its own length and trim; the transcript, clean-up and
-					// audio checks are the main video's.
-					<Timeline
-						clipName={timelineVideo.name}
-						durationSeconds={timelineVideo.durationSeconds}
-						currentTimeSeconds={currentTimeSeconds}
-						trim={sourceEdits[timelineVideo.id]?.trim ?? range}
-						cuts={NO_RANGES}
-						replacedSpans={NO_RANGES}
-						silences={NO_RANGES}
-						fillerPlans={NO_FILLERS}
-						audioIssues={NO_ISSUES}
-						onSeek={(seconds) => playback.seek(seconds, timelineVideo.id)}
-						onTrimChange={(edge, seconds) => changeSourceTrim(timelineVideo, edge, seconds)}
-						onTrimDraggingChange={(dragging) => {
-							trimDragRef.current = dragging ? { recorded: false } : null
-						}}
-						onEditFiller={openCutEditor}
-					/>
-				) : (
-					<Timeline
-						clipName={video?.name ?? null}
-						durationSeconds={durationSeconds}
-						currentTimeSeconds={currentTimeSeconds}
-						trim={range}
-						cuts={cuts}
-						replacedSpans={replacedSpans}
-						silences={analysis.silences}
-						fillerPlans={analysis.fillerPlans}
-						audioIssues={analysis.audioIssues}
-						onSeek={(seconds) => playback.seek(seconds)}
-						onTrimChange={handleTrimChange}
-						onTrimDraggingChange={(dragging) => {
-							trimDragRef.current = dragging ? { recorded: false } : null
-						}}
-						onEditFiller={openCutEditor}
-					/>
-				)}
 				{video && hasDuration && (
-					<ClipStrip
+					<EditorTimeline
+						view={showOriginal ? 'original' : 'edited'}
+						takeSeconds={durationSeconds}
+						editedSeconds={editedSeconds}
+						editedSegments={editedSegments}
+						playheadSeconds={showOriginal ? currentTimeSeconds : editedNow}
+						onSeek={(seconds) => (showOriginal ? playback.seek(seconds) : seekEdited(seconds))}
+						onSeekSource={(seconds) => playback.seek(seconds)}
 						clips={sequence}
 						edit={edit}
 						replacements={replacements}
 						sourceEdits={sourceEdits}
 						sourceNames={Object.fromEntries(addedVideos.map((added) => [added.id, added.name]))}
+						mainName={video.name}
 						currentIndex={currentClip}
 						canSplit={canSplitAt(sequence, currentTimeSeconds, replacements, currentClip)}
 						onSplit={() => splitAt(currentTimeSeconds)}
@@ -2257,9 +2529,126 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 						onDuplicate={duplicateClipRun}
 						selection={clipSelection}
 						onSelectionChange={setClipSelection}
+						trim={
+							timelineVideo
+								? {
+										source: timelineVideo.id,
+										durationSeconds: timelineVideo.durationSeconds,
+										range: sourceEdits[timelineVideo.id]?.trim ?? range
+									}
+								: { durationSeconds, range }
+						}
+						onTrimChange={(edge, seconds) =>
+							timelineVideo
+								? changeSourceTrim(timelineVideo, edge, seconds)
+								: handleTrimChange(edge, seconds)
+						}
+						onTrimDraggingChange={(dragging) => {
+							trimDragRef.current = dragging ? { recorded: false } : null
+						}}
+						silences={analysis.silences}
+						fillerPlans={analysis.fillerPlans}
+						audioIssues={analysis.audioIssues}
+						replacedSpans={replacedSpans}
+						onEditFiller={openCutEditor}
+						textItems={textItems}
+						audioItems={audioItems.map((item) => ({
+							id: item.id,
+							label: item.name,
+							startSeconds: item.atSeconds,
+							endSeconds: item.atSeconds + item.seconds
+						}))}
+						onSelectText={selectText}
+						onSelectAudio={() => {
+							setOpenTool('audio')
+							setSideOpen('panels', true)
+						}}
+						onAddAudio={() => {
+							setOpenTool('audio')
+							setSideOpen('panels', true)
+							pickAudio(editedNow ?? 0)
+						}}
+						onAddVideo={pickVideo}
 					/>
 				)}
 			</EditorShell>
 		</>
+	)
+}
+
+/** A button on the bar over the video: an icon, its name said and shown on hover. */
+function VideoToolButton({
+	label,
+	pressed,
+	onClick,
+	children
+}: {
+	label: string
+	pressed: boolean
+	onClick: () => void
+	children: React.ReactNode
+}) {
+	return (
+		<button
+			type="button"
+			aria-label={label}
+			title={label}
+			aria-pressed={pressed}
+			onClick={onClick}
+			className="text-text-muted hover:bg-surface-hover hover:text-text aria-pressed:bg-surface-hover aria-pressed:text-text focus-visible:outline-accent inline-flex size-8 items-center justify-center rounded-md focus-visible:outline-2"
+		>
+			{children}
+		</button>
+	)
+}
+
+/** The project's videos: the main one, and any added after it; add another, or replace the main one. */
+function VideosPanel({
+	main,
+	added,
+	canEdit,
+	onAdd,
+	replace,
+	input
+}: {
+	main: string
+	added: string[]
+	canEdit: boolean
+	onAdd: () => void
+	/** The main video's file picker, inside the Replace label. */
+	replace: React.ReactNode
+	input: React.ReactNode
+}) {
+	const t = useTranslations('Editor.videos')
+	return (
+		<section aria-label={t('label')} className="flex flex-col gap-4">
+			<Button type="button" disabled={!canEdit} onClick={onAdd} className="self-start">
+				<VideoIcon />
+				{t('add')}
+			</Button>
+			{input}
+			<ul className="flex flex-col gap-1.5">
+				{[main, ...added].map((name, index) => (
+					<li
+						key={`${index}-${name}`}
+						className="border-border bg-surface flex items-center gap-3 rounded-lg border px-3 py-2.5"
+					>
+						<VideoIcon className="text-text-faint shrink-0" />
+						<span className="text-text min-w-0 flex-1 truncate text-sm">{name}</span>
+						<span className="text-text-faint text-xs">{index === 0 ? t('main') : t('added')}</span>
+					</li>
+				))}
+			</ul>
+			<label
+				className={cn(
+					'border-border text-text hover:bg-surface-hover has-[:focus-visible]:outline-accent inline-flex h-9 cursor-pointer items-center gap-2 self-start rounded-md border px-3 text-sm font-medium has-[:focus-visible]:outline-2',
+					!canEdit && 'pointer-events-none opacity-40'
+				)}
+			>
+				{t('replace')}
+				{replace}
+			</label>
+			<p className="text-text-muted text-xs">{t('help')}</p>
+		</section>
 	)
 }

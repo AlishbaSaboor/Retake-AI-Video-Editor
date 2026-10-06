@@ -324,6 +324,7 @@ test('audio lane commands are confirmed first and are one undo step each', async
 	await openRedBlue(page)
 	const ask = async (text: string, fields: Parameters<typeof editCommand>[0], shown: string) => {
 		await mockActions(page, { words: [], command: editCommand(fields) })
+		await openTool(page, 'Assistant')
 		await command.fill(text)
 		await page.getByRole('button', { name: 'Run' }).click()
 		await expect(reply).toContainText(shown)

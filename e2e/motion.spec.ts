@@ -435,6 +435,7 @@ test('motion as typed commands, confirmed first; undo; saved with the project', 
 	await graphics.getByRole('button', { name: 'Add title' }).click()
 	const run = async (text: string, fields: Parameters<typeof editCommand>[0], shown: string) => {
 		await mockActions(page, { words: [], command: editCommand(fields) })
+		await openTool(page, 'Assistant')
 		await command.fill(text)
 		await page.getByRole('button', { name: 'Run' }).click()
 		await expect(reply).toContainText(shown)

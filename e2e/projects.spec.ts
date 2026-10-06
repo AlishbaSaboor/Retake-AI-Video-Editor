@@ -160,8 +160,11 @@ async function makeEdits(page: Page, added: Buffer) {
 	const titleColor = graphics.getByRole('group', { name: 'Title style' }).getByLabel('Color')
 	await titleColor.fill('#ff0000')
 	await titleColor.blur()
-	await openTool(page, 'Graphics')
-	await graphics.getByRole('button', { name: 'Captions' }).click()
+	await openTool(page, 'Captions')
+	await page
+		.getByRole('region', { name: 'Captions' })
+		.getByRole('button', { name: 'Captions' })
+		.click()
 	// A box over the top-left corner, from the start.
 	await seekTo(page, 0.05)
 	await openTool(page, 'Annotations')
@@ -223,8 +226,8 @@ async function editorState(page: Page) {
 			.getByRole('group', { name: 'Clip 2' })
 			.getByLabel('Speed (×)')
 			.inputValue(),
-		captions: await (await openTool(page, 'Graphics'), page)
-			.getByRole('region', { name: 'Graphics' })
+		captions: await (await openTool(page, 'Captions'), page)
+			.getByRole('region', { name: 'Captions' })
 			.getByRole('button', { name: 'Captions' })
 			.getAttribute('aria-pressed')
 	}
@@ -359,7 +362,7 @@ test('a project with several kinds of edits, saved, survives a reload: same time
 	await expect(page.getByRole('button', { name: /Hello there\./ })).toBeVisible({ timeout: 30_000 })
 	expect(transcriptions.count, 'no transcription on reopening: the saved transcript').toBe(0)
 	// A reopened project starts with no history: nothing to undo.
-	await expect(page.getByRole('button', { name: 'Undo last change' })).toHaveCount(0)
+	await expect(page.getByRole('button', { name: 'Undo last change' })).toBeDisabled()
 
 	const after = await exportAndProbe(page, times)
 	expectSameExport(before, after)
@@ -469,6 +472,7 @@ test('save and open as typed commands, each confirmed first', async ({ page }) =
 	await openMain(page, main)
 	const ask = async (text: string, fields: Parameters<typeof editCommand>[0], shown: string) => {
 		await mockActions(page, { words: [], command: editCommand(fields) })
+		await openTool(page, 'Assistant')
 		await command.fill(text)
 		await page.getByRole('button', { name: 'Run' }).click()
 		await expect(reply).toContainText(shown)
