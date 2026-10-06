@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test'
 import type { EditCommand } from '../src/app/[locale]/editor/edit-command'
+import type { HighlightPick } from '../src/app/[locale]/editor/highlights'
 import { toTranscript } from '../src/app/[locale]/editor/transcript'
 
 // Shared by the editor's e2e specs: a recorded test video, canned AI
@@ -155,8 +156,9 @@ export const w = (punctuated_word: string, start: number, end: number): TimedWor
  */
 export async function mockActions(
 	page: Page,
-	canned: { words?: TimedWord[]; command?: EditCommand }
-): Promise<void> {
+	canned: { words?: TimedWord[]; command?: EditCommand; highlights?: HighlightPick[] }
+): Promise<{ highlightRequests: () => number }> {
+	let highlightRequests = 0
 	await page.route(
 		(url) => url.pathname.endsWith('/editor'),
 		async (route) => {
@@ -164,9 +166,19 @@ export async function mockActions(
 			if (!request.headers()['next-action']) return route.continue()
 			const body = request.postData() ?? ''
 			const isTranscript = body.includes('"audioBase64"')
-			const data = isTranscript ? toTranscript(canned.words ?? []) : canned.command
+			// The highlights request carries the transcript's sentences: sent
+			// with none, which fails validation, and answered with the picks.
+			const isHighlights = body.includes('"sentences"')
+			if (isHighlights) highlightRequests++
+			const data = isTranscript
+				? toTranscript(canned.words ?? [])
+				: isHighlights
+					? (canned.highlights ?? [])
+					: canned.command
 			const response = await route.fetch({
-				postData: body.replace(/"(audioBase64|command)":"[^"]*"/, '"$1":""')
+				postData: isHighlights
+					? JSON.stringify([{ sentences: [] }])
+					: body.replace(/"(audioBase64|command)":"[^"]*"/, '"$1":""')
 			})
 			await route.fulfill({
 				response,
@@ -177,6 +189,7 @@ export async function mockActions(
 			})
 		}
 	)
+	return { highlightRequests: () => highlightRequests }
 }
 
 /** Clicks the timeline at a given time, as a user would to seek there. */
@@ -272,6 +285,7 @@ const TOOL_TABS: Record<string, { tab: string; more?: boolean }> = {
 	Transitions: { tab: 'Transitions' },
 	Project: { tab: 'Project' },
 	Transcript: { tab: 'Transcript' },
+	'Find highlights': { tab: 'Find highlights' },
 	Assistant: { tab: 'Assistant' }
 }
 

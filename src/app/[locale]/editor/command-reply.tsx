@@ -32,6 +32,7 @@ const COMMAND_ABILITIES = [
 	'speed',
 	'reRecord',
 	'export',
+	'highlights',
 	'addTitle',
 	'addWatermark',
 	'captions',
@@ -96,6 +97,8 @@ export function CommandReply({
 			case 'reset':
 			case 'export':
 				return t(`confirm.${plan.kind}`)
+			case 'find_highlights':
+				return t('confirm.findHighlights')
 			case 'speed':
 				return t('confirm.speed', { rate: plan.rate })
 			case 'rerecord':
