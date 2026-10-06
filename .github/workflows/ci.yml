@@ -77,8 +77,17 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
+  # One test at a time, the suite split across four runners. The editor's
+  # tests record video and export it in real time; four at once on one
+  # runner (with the dev server compiling beside them) starved each other,
+  # and a different export or playback test failed each run (PROGRESS_NOTES
+  # 4c). Each shard has a runner to itself and runs its quarter serially.
   e2e:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     env:
       DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
       CRON_SECRET: placeholder-secret-for-e2e-only
@@ -91,11 +100,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+      - run: pnpm test:e2e --workers=1 --shard=${{ matrix.shard }}/4
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: playwright-report/
           retention-days: 14
 
