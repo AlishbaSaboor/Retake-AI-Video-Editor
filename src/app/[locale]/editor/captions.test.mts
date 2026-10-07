@@ -96,3 +96,24 @@ test('captionAt finds the caption on screen, and none between captions', () => {
 	assert.equal(captionAt(captions, 2.5), undefined)
 	assert.equal(captionAt(captions, 4), undefined)
 })
+
+test('word by word, each word shows alone, held to the next unless a pause comes first', () => {
+	const captions = editedCaptions(
+		[word('Hello', 0.2, 0.5), word('there.', 0.6, 1.0), word('Later', 2.5, 2.9)],
+		whole(10),
+		true
+	)
+	assert.deepEqual(captions, [
+		{ lines: ['Hello'], startSeconds: 0.2, endSeconds: 0.6 },
+		{ lines: ['there.'], startSeconds: 0.6, endSeconds: 1.0 },
+		{ lines: ['Later'], startSeconds: 2.5, endSeconds: 2.9 }
+	])
+	// A cut word never shows; later ones move up.
+	const cut = editedCaptions(
+		[word('Hello', 0.2, 0.5), word('there.', 0.6, 1.0)],
+		[{ startSeconds: 0.55, endSeconds: 10 }],
+		true
+	)
+	assert.equal(lines(cut).join(), 'there.')
+	assert.ok(Math.abs((cut[0]?.startSeconds ?? 0) - 0.05) < 1e-9)
+})

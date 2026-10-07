@@ -1,10 +1,10 @@
 'use server'
 
 import { z } from 'zod'
-import { AppError } from '@/lib/errors/app-error'
 import { deepgramWords, transcribeAudio } from '@/server/ai/deepgram'
 import { generateContent } from '@/server/ai/google'
 import { validatedAction } from '@/server/actions/validated-action'
+import { rethrowAsBusy } from '@/server/lib/ai-busy'
 import { EDIT_COMMAND_JSON_SCHEMA, editCommandSchema, type EditCommand } from './edit-command'
 import {
 	HIGHLIGHTS_JSON_SCHEMA,
@@ -48,17 +48,6 @@ const UNSUPPORTED: EditCommand = {
 	background: null,
 	font: null,
 	effect: null
-}
-
-// Gemini and Deepgram both answer 429 (rate-limited) or 503 (overloaded)
-// under load — the user's cue to retry, not a bug to report, so an AppError.
-const busyResponse = z.object({ status: z.union([z.literal(429), z.literal(503)]) })
-
-function rethrowAsBusy(error: unknown): never {
-	if (busyResponse.safeParse(error).success) {
-		throw new AppError('The AI is busy right now. Try again in a moment.', { status: 503 })
-	}
-	throw error
 }
 
 // Terse on purpose: every word is paid for on every command. Each line names
