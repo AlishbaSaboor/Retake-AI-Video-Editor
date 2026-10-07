@@ -3,9 +3,9 @@
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
-import { generateContent } from '@/server/ai/google'
+import { generateContent, MEDIA_RESOLUTION_MEDIUM } from '@/server/ai/google'
 import { validatedAction } from '@/server/actions/validated-action'
-import { rethrowAsBusy } from '@/server/lib/ai-busy'
+import { rethrowAiError } from '@/server/lib/ai-busy'
 import { numberedSentences } from '@/app/[locale]/editor/highlights'
 import {
 	CHECK_REPLY_JSON_SCHEMA,
@@ -17,6 +17,8 @@ import {
 	MAX_MAKE_SECONDS,
 	MAX_QUESTIONS,
 	MAX_REQUEST_LENGTH,
+	CHECK_TIMEOUT_MS,
+	PLAN_TIMEOUT_MS,
 	type CheckReply,
 	type MakeReply
 } from './make-plan'
@@ -146,7 +148,7 @@ export const checkMakePlan = validatedAction({
 	}),
 	handler: async ({ request, planText }): Promise<CheckReply | null> => {
 		const response = await generateContent(
-			{ feature: 'make_it_check', model: 'gemini-3.5-flash-lite' },
+			{ feature: 'make_it_check', model: 'gemini-3.5-flash-lite', timeoutMs: CHECK_TIMEOUT_MS },
 			{
 				contents: `Request: ${request}\n${planText}`,
 				config: {
@@ -156,7 +158,7 @@ export const checkMakePlan = validatedAction({
 					temperature: 0
 				}
 			}
-		).catch(rethrowAsBusy)
+		).catch(rethrowAiError('gemini', 'make_it_check'))
 		try {
 			const parsed = checkReplySchema.safeParse(JSON.parse(response.text ?? ''))
 			return parsed.success ? parsed.data : null
@@ -202,7 +204,7 @@ export const planMakeIt = validatedAction({
 	handler: async (input): Promise<{ reply: MakeReply | null; tracks: string[] }> => {
 		const tracks = await musicTracks()
 		const response = await generateContent(
-			{ feature: 'make_it', model: 'gemini-3.5-flash-lite' },
+			{ feature: 'make_it', model: 'gemini-3.5-flash-lite', timeoutMs: PLAN_TIMEOUT_MS },
 			{
 				contents: [
 					{
@@ -217,13 +219,17 @@ export const planMakeIt = validatedAction({
 					}
 				],
 				config: {
+					// The pictures at medium detail (~256 tokens each, not ~1000): a
+					// 5-minute video's 150 of them made a 159k-token request that took
+					// 80–100 s to plan; this is about a quarter of that.
+					mediaResolution: MEDIA_RESOLUTION_MEDIUM,
 					systemInstruction: MAKE_INSTRUCTION,
 					responseMimeType: 'application/json',
 					responseJsonSchema: MAKE_REPLY_JSON_SCHEMA,
 					temperature: 0
 				}
 			}
-		).catch(rethrowAsBusy)
+		).catch(rethrowAiError('gemini', 'make_it'))
 		try {
 			const parsed = makeReplySchema.safeParse(JSON.parse(response.text ?? ''))
 			if (!parsed.success) return { reply: null, tracks }

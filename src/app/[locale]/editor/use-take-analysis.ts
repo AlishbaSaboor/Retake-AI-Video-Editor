@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { ActionFailure, isPlainAiStatus } from '@/lib/ai-failure'
 import { transcribeTake } from './actions'
 import { detectAudioIssues, type AudioIssue } from './audio-quality'
 import { planFillerCut, type FillerPlan } from './filler-cuts'
@@ -30,7 +31,7 @@ type AudioAnalysis = {
 export type TranscriptState =
 	| { status: 'analyzing' | 'no_audio' | 'too_long' | 'transcribing' }
 	| { status: 'ready'; transcript: Transcript }
-	| { status: 'failed'; error: string }
+	| { status: 'failed'; error: string; plain: boolean }
 
 const NO_SILENCES: Silence[] = []
 const NO_AUDIO_ISSUES: AudioIssue[] = []
@@ -83,7 +84,7 @@ export function useTakeAnalysis(
 			if (saved) return saved
 			if (!audioBase64) throw new Error('No audio to transcribe')
 			const result = await transcribeTake({ audioBase64 })
-			if (!result.ok) throw new Error(result.error)
+			if (!result.ok) throw new ActionFailure(result.error, result.status)
 			return result.data
 		},
 		enabled: audioBase64 !== null || (saved !== null && audio.data !== undefined),
@@ -100,7 +101,14 @@ export function useTakeAnalysis(
 				: transcript.isPending
 					? { status: 'transcribing' }
 					: transcript.isError
-						? { status: 'failed', error: transcript.error.message }
+						? {
+								status: 'failed',
+								error: transcript.error.message,
+								// Its message is meant for people: a refused key, a usage limit, a busy AI.
+								plain:
+									transcript.error instanceof ActionFailure &&
+									isPlainAiStatus(transcript.error.status)
+							}
 						: { status: 'ready', transcript: transcript.data }
 
 	const loudness = audio.data?.loudness
