@@ -8,7 +8,8 @@ import {
 	joinsOf,
 	playbackPosition,
 	SEEK_TOLERANCE_SECONDS,
-	type Segment
+	type Segment,
+	type SourceRange
 } from './sequence'
 import { crossfadeGains, transitionGainAt } from './transitions'
 
@@ -188,6 +189,8 @@ export function useSequencePlayback(
 	segments: Segment<ReplacementTake>[],
 	/** The Audio lane's sounds, in the edited video's time: [] when `segments` aren't the edit's. */
 	laneItems: AudioItem[],
+	/** Where someone speaks, in edited time: ducked music goes down under it. */
+	speech: readonly SourceRange[],
 	isPlaying: boolean,
 	rate: number,
 	/** The playhead's source time, and which segment it's in: a time can end one segment and start another. */
@@ -406,7 +409,8 @@ export function useSequencePlayback(
 					editedAt(index, element.currentTime),
 					to,
 					audio.currentTime,
-					rate
+					rate,
+					speech
 				)
 			}
 		}
@@ -488,6 +492,7 @@ export function useSequencePlayback(
 		isPlaying,
 		segments,
 		laneItems,
+		speech,
 		rate,
 		videoRef,
 		deckRef,

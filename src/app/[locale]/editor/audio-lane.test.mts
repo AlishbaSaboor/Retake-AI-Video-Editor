@@ -1,10 +1,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+	DUCK_RAMP_SECONDS,
+	DUCKED_LEVEL,
+	duckingPoints,
 	extractBlocker,
 	extractedItem,
 	moveItem,
 	playingBetween,
+	speechSpans,
 	stretchFrom,
 	trimItem,
 	withVolume,
@@ -215,4 +219,42 @@ test('audio commands: add at a time or the playhead, extract a clip, delete a tr
 		ok: false,
 		reason: 'no_audio'
 	})
+})
+
+test('speech is the words joined across short gaps', () => {
+	assert.deepEqual(
+		speechSpans([
+			{ startSeconds: 1, endSeconds: 1.5 },
+			{ startSeconds: 1.8, endSeconds: 2 },
+			{ startSeconds: 4, endSeconds: 5 }
+		]),
+		[
+			{ startSeconds: 1, endSeconds: 2 },
+			{ startSeconds: 4, endSeconds: 5 }
+		]
+	)
+})
+
+test('ducked music goes down to a quarter under speech, ramping either side', () => {
+	const speech = [{ startSeconds: 2, endSeconds: 4 }]
+	const points = duckingPoints(0.4, speech, 0, 10)
+	const low = 0.4 * DUCKED_LEVEL
+	assert.deepEqual(
+		points.map((p) => [Number(p.seconds.toFixed(3)), Number(p.level.toFixed(3))]),
+		[
+			[0, 0.4],
+			[2 - DUCK_RAMP_SECONDS, 0.4],
+			[2, low],
+			[4, low],
+			[4 + DUCK_RAMP_SECONDS, 0.4]
+		]
+	)
+	// Starting inside the speech: down from the start; nothing outside the window.
+	assert.deepEqual(
+		duckingPoints(0.4, speech, 3, 3.5).map((p) => [p.seconds, p.level]),
+		[[3, low]]
+	)
+	// Starting half way into the ramp down: half way down.
+	const [first] = duckingPoints(0.4, speech, 2 - DUCK_RAMP_SECONDS / 2, 10)
+	assert.ok(Math.abs((first?.level ?? 0) - (0.4 + low) / 2) < 1e-9)
 })

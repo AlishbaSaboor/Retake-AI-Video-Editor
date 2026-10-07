@@ -399,7 +399,8 @@
 			"titleBox": "Title: {text}",
 			"captionsLabel": "Captions",
 			"captionsOn": "On",
-			"captionsOff": "Off"
+			"captionsOff": "Off",
+			"captionWords": "Word by word"
 		},
 		"annotations": {
 			"label": "Annotations",
@@ -1020,15 +1021,15 @@
 				"title": "What leaves your computer",
 				"browser": {
 					"title": "Your video stays in your browser",
-					"body": "Editing, previews and export run on your computer. Saved projects are kept in this browser."
+					"body": "Editing, previews and export run on your computer. Saved projects are kept in this browser. The video file itself is never uploaded."
 				},
 				"speech": {
 					"title": "The audio is sent to Deepgram",
 					"body": "To write the transcript and to understand spoken commands, the audio is sent to Deepgram."
 				},
 				"commands": {
-					"title": "Text is sent to Gemini",
-					"body": "A typed or spoken command is sent as text to Google Gemini to work out the edit. When you find highlights, the transcript's text is sent to Gemini to pick the moments. Your video is not."
+					"title": "Text, and pictures for Make it, are sent to Gemini",
+					"body": "A typed or spoken command is sent as text to Google Gemini to work out the edit. When you find highlights, the transcript's text is sent to Gemini to pick the moments. When you use Make it, the transcript and small pictures taken from the video every 2 seconds are sent to Gemini to plan the edit. The video file itself is not."
 				}
 			}
 		},
@@ -1151,6 +1152,11 @@
 				"inputLabel": "Choose a video file",
 				"optional": "Optional — you can also ask in the editor"
 			},
+			"make": {
+				"title": "Make it with AI",
+				"body": "Upload a video and say what it should become: “make this an Instagram reel”, “make it funny”, “make this an ad”. Retake plans the whole edit, and you apply it or not.",
+				"open": "Make it"
+			},
 			"hand": {
 				"title": "Edit by hand",
 				"body": "Upload a video and open the editor on the timeline, the tools and the transcript. The assistant is a tab away.",
@@ -1210,7 +1216,7 @@
 				},
 				"privacy": {
 					"question": "Is my video uploaded?",
-					"answer": "No. Editing, previews and export run in your browser. The audio is sent to Deepgram for a transcript. Commands, and the transcript when you find highlights, are sent as text to Google Gemini."
+					"answer": "No. Editing, previews and export run in your browser. The audio is sent to Deepgram for a transcript. Commands, and the transcript when you find highlights, are sent as text to Google Gemini. Make it also sends Gemini small pictures taken from the video every 2 seconds, with the transcript, to plan the edit; the video file itself is not uploaded."
 				},
 				"saved": {
 					"question": "Where are my projects saved?",
@@ -1221,6 +1227,92 @@
 					"answer": "A video file of your edit, with its cuts, graphics, captions and sound."
 				}
 			}
+		}
+	},
+	"Make": {
+		"metaTitle": "Make it with AI",
+		"title": "Make it with AI",
+		"description": "Upload a video and say what it should become. Retake plans the whole edit and shows it to you before anything changes.",
+		"videoLabel": "Video to make into something",
+		"dropHint": "Drop a video here",
+		"chooseVideo": "Choose a video",
+		"changeVideo": "Choose another video",
+		"requestLabel": "What should it become?",
+		"placeholder": "e.g. “make this an Instagram reel”",
+		"examples": {
+			"reel": "Make this an Instagram reel",
+			"funny": "Make it funny",
+			"professional": "Make it professional",
+			"ad": "Make this an ad"
+		},
+		"makeIt": "Make it",
+		"back": "Back",
+		"cancel": "Cancel",
+		"steps": {
+			"reading": "Reading the video…",
+			"transcript": "Writing the transcript…",
+			"pictures": "Looking at the pictures…",
+			"planning": "Planning the edit…",
+			"note": "The transcript and a small picture every 2 seconds are sent to Google Gemini to plan the edit. The video file itself is not uploaded."
+		},
+		"errors": {
+			"notVideo": "That file isn't a video Retake can play.",
+			"tooLong": "Make it works on videos up to {minutes} minutes long.",
+			"pictures": "The pictures couldn't be taken from this video.",
+			"noPlan": "Retake couldn't make a plan from that. Try saying it another way.",
+			"transcript": "Retake couldn't write the transcript of this video's sound. Go back and try again in a moment.",
+			"planning": "Retake couldn't plan the edit just now. Go back and try again in a moment."
+		},
+		"questions": {
+			"title": "A few questions first",
+			"submit": "Plan it"
+		},
+		"plan": {
+			"label": "The plan",
+			"making": {
+				"instagram_reel": "An Instagram Reel, about {length}",
+				"tiktok": "A TikTok, about {length}",
+				"youtube_shorts": "A YouTube Short, about {length}",
+				"reel": "A reel, about {length}",
+				"professional": "A professional edit, about {length}",
+				"funny": "A funny edit, about {length}",
+				"ad": "An ad, about {length}"
+			},
+			"duration": {
+				"seconds": "{count, plural, one {# second} other {# seconds}}",
+				"minutes": "{minutes} min {seconds} s"
+			},
+			"shortened": "Shortened from {from} to {to}",
+			"whole": "Keeps the whole video ({length})",
+			"keptSentences": "Kept {kept} of {total} sentences; dead time and repeats cut",
+			"fillers": "{count, plural, one {# filler word} other {# filler words}} cut",
+			"fitOk": "Under 60 seconds, as reels, TikToks and Shorts need",
+			"fitCut": "Cut further to stay under 60 seconds, keeping the key moments",
+			"captions": {
+				"words": "Captions, word by word",
+				"lines": "Captions, a line at a time",
+				"off": "No captions"
+			},
+			"zooms": "{count, plural, one {# zoom} other {# zooms}} on key lines",
+			"transitions": {
+				"none": "No transitions",
+				"fade": "{count, plural, one {# fade} other {# fades}} where parts were cut",
+				"dissolve": "{count, plural, one {# dissolve} other {# dissolves}} where parts were cut"
+			},
+			"music": "Music: {name}, quieter while someone speaks",
+			"noMusic": "No music",
+			"noMusicFolder": "No music: there are no tracks in public/music yet",
+			"vertical": {
+				"face": "Vertical 9:16, following the face",
+				"fit": "Vertical 9:16, the whole picture kept, with black bars above and below",
+				"already": "Already vertical"
+			},
+			"title": "Title at the start: “{text}”",
+			"titleDropped": "Left out a title that named someone or something not in the video",
+			"speechOnly": "Planned from what's said: the picture doesn't carry this video",
+			"cannotDo": "What Retake can't do here",
+			"apply": "Apply",
+			"cancel": "Cancel"
 		}
 	}
 }

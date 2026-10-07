@@ -4,6 +4,8 @@ import {
 	apply,
 	centredCrop,
 	evenPixels,
+	exportSize,
+	fittedCrop,
 	IDENTITY_TRANSFORM,
 	invert,
 	isIdentity,
@@ -14,6 +16,7 @@ import {
 	refitCrop,
 	resizeCrop,
 	rotatedFrame,
+	transformAt,
 	withRotation,
 	type PictureTransform
 } from './transform'
@@ -132,4 +135,54 @@ test('resizing a crop keeps a preset shape and stays inside the frame', () => {
 test('canvas sizes are whole even pixels', () => {
 	assert.deepEqual(evenPixels({ width: 101.25, height: 180 }), { width: 102, height: 180 })
 	assert.deepEqual(evenPixels({ width: 0.3, height: 357.1 }), { width: 2, height: 358 })
+})
+
+test("a following crop eases between its keys by the main video's time, held outside them", () => {
+	const follow = [
+		{ seconds: 2, x: 0.1 },
+		{ seconds: 4, x: 0.5 }
+	]
+	const crop = { aspect: '9:16' as const, rect: { x: 0.3, y: 0, width: 0.3, height: 1 }, follow }
+	const transform: PictureTransform = { ...IDENTITY_TRANSFORM, crop }
+	const xAt = (seconds: number | null) => transformAt(transform, seconds).crop?.rect.x
+	assert.equal(xAt(0), 0.1)
+	assert.ok(Math.abs((xAt(3) ?? 0) - 0.3) < 1e-9)
+	assert.equal(xAt(10), 0.5)
+	// Another video playing: the crop stays where it's set.
+	assert.equal(xAt(null), 0.3)
+	// Kept inside the frame whatever the keys say.
+	const wide = { ...transform, crop: { ...crop, follow: [{ seconds: 0, x: 0.9 }] } }
+	assert.equal(transformAt(wide, 1).crop?.rect.x, 0.7)
+	// Turning the picture drops it: the face was found in the frame before the turn.
+	assert.equal(refitCrop(crop, { width: 9, height: 16 })?.follow, undefined)
+})
+
+test('a fitted crop holds the whole frame and stays fitted when the picture turns', () => {
+	const wide = { width: 1920, height: 1080 }
+	const rect = fittedCrop(9 / 16, wide)
+	assert.equal(rect.width, 1)
+	assert.ok(rect.y < 0 && rect.height > 1)
+	assert.ok(Math.abs(rect.y + rect.height / 2 - 0.5) < 1e-9)
+	const refit = refitCrop({ aspect: '9:16', rect, fit: true }, { width: 1080, height: 1920 })
+	assert.deepEqual(refit, { aspect: '9:16', rect: { x: 0, y: 0, width: 1, height: 1 }, fit: true })
+})
+
+test('the export is never longer than the turned frame, so only a fitted crop is scaled down', () => {
+	const picture = { width: 1920, height: 1080 }
+	const vertical = (fit: boolean): PictureTransform => ({
+		...IDENTITY_TRANSFORM,
+		crop: fit
+			? { aspect: '9:16', rect: fittedCrop(9 / 16, picture), fit: true }
+			: { aspect: '9:16', rect: centredCrop(9 / 16, picture) }
+	})
+	assert.deepEqual(exportSize(picture, vertical(false)), { width: 608, height: 1080 })
+	assert.deepEqual(exportSize(picture, vertical(true)), { width: 1080, height: 1920 })
+	// A turn's frame is bigger than the picture, and kept whole: 320×180 at 15° is 356×256.
+	assert.deepEqual(
+		exportSize({ width: 320, height: 180 }, { ...IDENTITY_TRANSFORM, rotation: 15 }),
+		{
+			width: 356,
+			height: 256
+		}
+	)
 })

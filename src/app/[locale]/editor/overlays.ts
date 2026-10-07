@@ -12,7 +12,7 @@ import { editedStarts, type Segment } from './sequence'
 import {
 	animationAt,
 	LOWER_THIRD_ANIMATION,
-	zoomViewAt,
+	zoomsViewAt,
 	type Animation,
 	type LowerThird,
 	type MotionState,
@@ -75,6 +75,8 @@ export type Overlays = {
 	lowerThird: LowerThird | null
 	/** A push-in or pull-out on the whole picture (annotations with it; not the frame's text). */
 	zoom: Zoom | null
+	/** More zooms, from Make it: each plays where the one set by hand isn't under way. */
+	autoZooms?: Zoom[]
 }
 
 // The lower third's band, in the frame: its left edge and its bottom (above
@@ -415,7 +417,7 @@ export function drawFrame(
 	context.setTransform(1, 0, 0, 1, 0, 0)
 	context.fillStyle = '#000000'
 	context.fillRect(0, 0, width, height)
-	const view = zoomViewAt(overlays.zoom, seconds)
+	const view = zoomsViewAt([overlays.zoom, ...(overlays.autoZooms ?? [])], seconds)
 	const z = view.scale === 1 ? m : zoomedMatrix(m, view, { width, height })
 	context.setTransform(z.a, z.b, z.c, z.d, z.e, z.f)
 	const { incoming, incomingAlpha, light, filter = null, incomingFilter = null } = mix

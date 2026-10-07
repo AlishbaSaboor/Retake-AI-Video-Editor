@@ -77,7 +77,7 @@ export default async function proxy(request: NextRequest) {
 }
 
 // The pages behind a sign-in, and where signing in lands.
-const SIGNED_IN_PAGES = ['/home', '/projects', '/editor']
+const SIGNED_IN_PAGES = ['/home', '/make', '/projects', '/editor']
 const SIGN_IN_PAGE = '/login'
 const AFTER_SIGN_IN = '/home'
 

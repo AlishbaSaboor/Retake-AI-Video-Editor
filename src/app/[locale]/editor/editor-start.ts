@@ -1,10 +1,24 @@
+import type { EditSnapshot } from './edit-snapshot'
+import type { Transcript } from './transcript'
+
 // How a project started on the home page reaches the editor: the video
-// picked there, and the command typed (or spoken) with it. Held in memory
+// picked there, and the command typed (or spoken) with it; or from Make it,
+// the video with its transcript and the edit planned for it. Held in memory
 // for the client-side navigation between the two pages and taken once; a
 // reload of the editor starts empty, as before.
 
-/** `byHand`: started from "Edit by hand", so the editor opens on the transcript, not the assistant. */
-export type EditorStart = { file: File; command: string | null; byHand?: boolean }
+/**
+ * `byHand`: started from "Edit by hand", so the editor opens on the
+ * transcript, not the assistant. `edit`: Make it's plan, applied as one
+ * undo step over the untouched video; `transcript` saves a second one.
+ */
+export type EditorStart = {
+	file: File
+	command: string | null
+	byHand?: boolean
+	transcript?: Transcript | null
+	edit?: EditSnapshot
+}
 
 let pending: EditorStart | null = null
 

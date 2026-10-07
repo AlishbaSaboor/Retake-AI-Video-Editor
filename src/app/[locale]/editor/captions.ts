@@ -42,16 +42,37 @@ function editedWord(word: TranscriptWord, segments: Segment[], starts: number[])
 	})
 }
 
+/** The transcript's words that still play, in the edited video's time and play order. */
+export function editedWords(words: TranscriptWord[], segments: Segment[]): TranscriptWord[] {
+	const starts = editedStarts(segments)
+	return words
+		.flatMap((word) => editedWord(word, segments, starts))
+		.sort((a, b) => a.startSeconds - b.startSeconds)
+}
+
 /**
  * The captions for the edited video: the transcript's words that still
  * play, in play order, grouped into captions that end at a sentence, a
- * pause, or two full lines.
+ * pause, or two full lines. `wordByWord`: one word at a time instead, each
+ * held until the next starts unless a pause comes first.
  */
-export function editedCaptions(words: TranscriptWord[], segments: Segment[]): Caption[] {
-	const starts = editedStarts(segments)
-	const playing = words
-		.flatMap((word) => editedWord(word, segments, starts))
-		.sort((a, b) => a.startSeconds - b.startSeconds)
+export function editedCaptions(
+	words: TranscriptWord[],
+	segments: Segment[],
+	wordByWord = false
+): Caption[] {
+	const playing = editedWords(words, segments)
+	if (wordByWord) {
+		return playing.map((word, index) => {
+			const next = playing[index + 1]
+			const held = next && next.startSeconds - word.endSeconds <= MAX_GAP_SECONDS
+			return {
+				lines: [word.text],
+				startSeconds: word.startSeconds,
+				endSeconds: held ? next.startSeconds : word.endSeconds
+			}
+		})
+	}
 	const captions: Caption[] = []
 	let current: Caption | null = null
 	let line = ''

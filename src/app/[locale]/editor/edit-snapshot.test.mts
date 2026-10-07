@@ -71,3 +71,17 @@ test('a trim dragged back to the edges, or a split merged again, is the original
 		false
 	)
 })
+
+test('word-by-word captions and zooms from Make it are edits to reset', () => {
+	assert.equal(isOriginalEdit({ ...original, captionWords: true }, DURATION), false)
+	assert.equal(
+		isOriginalEdit(
+			{
+				...original,
+				autoZooms: [{ startSeconds: 1, endSeconds: 2, direction: 'in', amount: 1.2 }]
+			},
+			DURATION
+		),
+		false
+	)
+})

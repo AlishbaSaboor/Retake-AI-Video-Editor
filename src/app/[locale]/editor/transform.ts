@@ -16,8 +16,17 @@ import type { Rect } from './annotations'
 export const CROP_ASPECTS = ['free', '16:9', '9:16', '1:1', '4:5'] as const
 export type CropAspect = (typeof CROP_ASPECTS)[number]
 
-/** `rect` is fractions of the rotated frame; `aspect` is kept when the frame changes shape. */
-export type Crop = { rect: Rect; aspect: CropAspect }
+/** Where a following crop's left edge is (a fraction of the frame) at a second of the main video. */
+export type CropKey = { seconds: number; x: number }
+
+/**
+ * `rect` is fractions of the rotated frame; `aspect` is kept when the frame
+ * changes shape. `follow` (Make it's crop that follows a face) moves the
+ * crop across the frame over the main video's own time, from key to key.
+ * `fit`: the rect holds the whole frame, reaching past it where the shape
+ * needs (black bars there), so nothing of the picture is cut off.
+ */
+export type Crop = { rect: Rect; aspect: CropAspect; follow?: CropKey[]; fit?: true }
 
 export type PictureTransform = {
 	/** Degrees clockwise, in (-180, 180]. */
@@ -71,6 +80,21 @@ export function outputSize(picture: Size, transform: PictureTransform): Size {
 	const frame = rotatedFrame(picture, transform.rotation)
 	const crop = cropRect(transform)
 	return { width: crop.width * frame.width, height: crop.height * frame.height }
+}
+
+/**
+ * The export's canvas: the output itself, but never longer on either side
+ * than the turned picture's frame is on its longest. A crop is never larger
+ * than that frame, nor a turn's frame than itself; only a fitted crop (black
+ * bars around the whole picture) is: a 1920×1080 picture fitted to 9:16 is
+ * 1920×3413, recorded at 1080×1920.
+ */
+export function exportSize(picture: Size, transform: PictureTransform): Size {
+	const output = outputSize(picture, transform)
+	const frame = rotatedFrame(picture, transform.rotation)
+	const longest = Math.max(frame.width, frame.height)
+	const scale = Math.min(1, longest / Math.max(output.width, output.height))
+	return evenPixels({ width: output.width * scale, height: output.height * scale })
 }
 
 /** A canvas-sized version of a size: whole, even pixels (video encoders want even sizes), at least 2. */
@@ -175,14 +199,59 @@ export function centredCrop(ratio: number, frame: Size): Rect {
 }
 
 /**
+ * The smallest rectangle of `ratio` that holds all of `frame`, centred, as
+ * fractions of it: past its edges on one axis, which show black.
+ */
+export function fittedCrop(ratio: number, frame: Size): Rect {
+	const width = Math.max(frame.width, frame.height * ratio)
+	const height = width / ratio
+	const fw = width / frame.width
+	const fh = height / frame.height
+	return { x: (1 - fw) / 2, y: (1 - fh) / 2, width: fw, height: fh }
+}
+
+/**
  * A crop after the frame changed shape (the picture was turned): a preset
  * is fitted again, centred, so it stays that shape; a free crop keeps its
  * place as fractions of the frame.
  */
 export function refitCrop(crop: Crop | null, frame: Size): Crop | null {
 	if (!crop) return null
+	// A followed face was found in the frame before the turn: it no longer applies.
+	const still: Crop = { rect: crop.rect, aspect: crop.aspect }
 	const ratio = aspectRatio(crop.aspect)
-	return ratio === null ? crop : { ...crop, rect: centredCrop(ratio, frame) }
+	if (ratio === null) return still
+	if (crop.fit) return { ...still, rect: fittedCrop(ratio, frame), fit: true }
+	return { ...still, rect: centredCrop(ratio, frame) }
+}
+
+/** Eases in and out between keys: a camera pan, not a jump. */
+const smooth = (p: number) => p * p * (3 - 2 * p)
+
+/** A following crop's left edge at `seconds`: eased between the keys either side, held before the first and after the last. */
+export function followedX(follow: readonly CropKey[], seconds: number): number {
+	const next = follow.findIndex((key) => key.seconds > seconds)
+	const after = follow[next]
+	const before = follow[next - 1]
+	if (!after) return follow.at(-1)?.x ?? 0
+	if (!before) return after.x
+	const p = smooth((seconds - before.seconds) / (after.seconds - before.seconds))
+	return before.x + (after.x - before.x) * p
+}
+
+/**
+ * The transform as it is at `sourceSeconds` of the main video: a following
+ * crop moved to where it is then. Null (another video is playing) keeps
+ * the crop where it's set.
+ */
+export function transformAt(
+	transform: PictureTransform,
+	sourceSeconds: number | null
+): PictureTransform {
+	const crop = transform.crop
+	if (!crop?.follow?.length || sourceSeconds === null) return transform
+	const x = clamp(followedX(crop.follow, sourceSeconds), 0, 1 - crop.rect.width)
+	return { ...transform, crop: { ...crop, rect: { ...crop.rect, x } } }
 }
 
 /** Turns the picture to `rotation` degrees, refitting a preset crop to the new frame. */

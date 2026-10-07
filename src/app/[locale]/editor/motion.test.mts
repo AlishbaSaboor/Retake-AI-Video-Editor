@@ -17,6 +17,7 @@ import {
 	zoomArea,
 	zoomOnArea,
 	zoomViewAt,
+	zoomsViewAt,
 	type Animation
 } from './motion'
 import { zoomedMatrix } from './overlays'
@@ -269,4 +270,12 @@ test('a zoom set from an area on the frame fills the frame with it, within the l
 	assert.deepEqual(zoomOnArea(zoom, { x: 0.99, y: 0.5 }, 0.5).focus, { x: 0.75, y: 0.5 })
 	// Back in the middle: no focus kept.
 	assert.ok(!('focus' in zoomOnArea(set, { x: 0.5, y: 0.5 }, 0.5)))
+})
+
+test('with several zooms, the one under way shows; none, the whole frame', () => {
+	const first = { startSeconds: 0, endSeconds: 2, direction: 'in' as const, amount: 2 }
+	const second = { startSeconds: 5, endSeconds: 7, direction: 'in' as const, amount: 1.5 }
+	assert.deepEqual(zoomsViewAt([null, first, second], 1), zoomViewAt(first, 1))
+	assert.deepEqual(zoomsViewAt([null, first, second], 6), zoomViewAt(second, 6))
+	assert.deepEqual(zoomsViewAt([null, first, second], 3), zoomViewAt(null, 3))
 })
