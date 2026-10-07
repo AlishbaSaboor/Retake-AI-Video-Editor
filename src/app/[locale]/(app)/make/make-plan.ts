@@ -40,6 +40,16 @@ const MAX_NOTES = 5
 const MAX_NOTE_LENGTH = 200
 const MAX_TITLE_LENGTH = 60
 
+/**
+ * The pictures, as they go to the server: one string, separated by spaces
+ * (base64 has none), never an array of strings. Decoding a server action's
+ * arguments, React counts every character of the strings inside an array
+ * against a limit of 1,000,000 and rejects the request past it, before the
+ * action runs; a few dozen busy pictures pass that. One long string, like a
+ * transcript's audio, isn't counted that way.
+ */
+export const FRAME_SEPARATOR = ' '
+
 /** The times the pictures are taken at, for a video `durationSeconds` long. */
 export function frameTimes(durationSeconds: number): number[] {
 	const count = Math.min(MAX_FRAMES, Math.ceil(durationSeconds / FRAME_EVERY_SECONDS))

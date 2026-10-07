@@ -56,9 +56,11 @@ const reply = (fields: Partial<MakeReply> = {}): MakeReply => ({
 
 /**
  * Answers the transcript and plan requests with canned results, on the Make
- * it page and in the editor. Each request still reaches the real server
- * with its input emptied, which fails validation before any AI call, and
- * only the result inside the reply is swapped. Returns what was asked.
+ * it page and in the editor. Each request still reaches the real server,
+ * which decodes it as it would any other, with one field emptied so
+ * validation stops it before any AI call (the audio; the request's text,
+ * leaving the pictures whole); only the result inside the reply is
+ * swapped. Returns what was asked.
  */
 async function mockMakeActions(
 	page: Page,
@@ -83,7 +85,7 @@ async function mockMakeActions(
 			if (isPlan) seen.plans.push(body)
 			const response = await route.fetch({
 				postData: isPlan
-					? JSON.stringify([{ frames: [] }])
+					? body.replace(/"request":"(?:[^"\\]|\\.)*"/, '"request":""')
 					: body.replace(/"audioBase64":"[^"]*"/, '"audioBase64":""')
 			})
 			await route.fulfill({
@@ -130,7 +132,7 @@ test('a reel is planned, shown, applied as one undo step, and exported vertical 
 	const [sent] = seen.plans
 	expect(sent).toContain('make this an Instagram reel')
 	expect(sent).toContain('key point.')
-	expect(sent?.match(/"\/9j\//g)?.length).toBe(3)
+	expect(sent?.match(/\/9j\//g)?.length).toBe(3)
 	for (const line of [
 		'Reel / TikTok',
 		'A short talk, cut into a vertical reel.',
@@ -309,4 +311,112 @@ test('the music picked plays under the whole edit, turned down while someone spe
 	expect(hello?.music, `music under "Hello.": ${hello?.music}`).toBeLessThan(0.15)
 	expect(speech?.music, `music under speech: ${speech?.music}`).toBeLessThan(0.15)
 	expect(speech?.music, 'still playing under speech').toBeGreaterThan(0.03)
+})
+
+/**
+ * Records a video of coloured noise, square, with a tone throughout (busy
+ * pictures like a real recording's, each as large as a small JPEG of the
+ * picture gets), and picks it in the file input labelled `label`, as a
+ * user would. It stays in the page: tens of MB, too big to pass back and
+ * forth. Recorded in real time, so `seconds` long to make.
+ */
+async function pickNoiseVideo(page: Page, label: string, seconds: number): Promise<void> {
+	await page.evaluate(
+		async ({ label, seconds }) => {
+			const canvas = Object.assign(document.createElement('canvas'), { width: 320, height: 320 })
+			const context = canvas.getContext('2d')
+			if (!context) throw new Error('no 2d context')
+			const stream = canvas.captureStream(10)
+			const audio = new AudioContext()
+			await audio.resume()
+			const destination = audio.createMediaStreamDestination()
+			const oscillator = audio.createOscillator()
+			oscillator.connect(destination)
+			oscillator.start()
+			for (const track of destination.stream.getAudioTracks()) stream.addTrack(track)
+			const recorder = new MediaRecorder(stream, {
+				mimeType: 'video/webm;codecs=vp8,opus',
+				videoBitsPerSecond: 8_000_000
+			})
+			const chunks: Blob[] = []
+			recorder.ondataavailable = (event) => chunks.push(event.data)
+			const stopped = new Promise((resolve) => (recorder.onstop = resolve))
+			const image = context.createImageData(320, 320)
+			const draw = setInterval(() => {
+				for (let i = 0; i < image.data.length; i++) {
+					image.data[i] = i % 4 === 3 ? 255 : Math.random() * 256
+				}
+				context.putImageData(image, 0, 0)
+			}, 100)
+			recorder.start(100)
+			await new Promise((resolve) => setTimeout(resolve, seconds * 1000))
+			recorder.stop()
+			await stopped
+			clearInterval(draw)
+			const input = document.querySelector(`input[aria-label="${label}"]`)
+			if (!(input instanceof HTMLInputElement)) throw new Error(`no file input ${label}`)
+			const picked = new DataTransfer()
+			picked.items.add(new File(chunks, 'busy.webm', { type: 'video/webm' }))
+			input.files = picked.files
+			input.dispatchEvent(new Event('change', { bubbles: true }))
+		},
+		{ label, seconds }
+	)
+}
+
+/** The most text React lets the strings inside one array of a server action's arguments hold. */
+const REACT_ARRAY_LIMIT = 1_000_000
+
+test("a long, busy video's pictures reach the server whole, past React's limit for arrays", async ({
+	page
+}) => {
+	// A minute of noise to record, then its 35 pictures to take.
+	test.setTimeout(240_000)
+	const seen = await mockMakeActions(
+		page,
+		[w('Hello.', 0.5, 1), w('Bye.', 60, 61)],
+		[reply({ vertical: false, zoomSentences: [] })]
+	)
+	await page.goto('/make')
+	await pickNoiseVideo(page, 'Video to make into something', 70)
+	await expect(page.getByText('busy.webm')).toBeVisible()
+	await page.getByRole('textbox', { name: 'What should it become?' }).fill('make it a reel')
+	await page.getByRole('button', { name: 'Make it', exact: true }).click()
+
+	// Sent as an array of strings, these pictures were refused by the server
+	// before the action ran: in production, "Minified React error #441".
+	await expect(plan(page)).toBeVisible({ timeout: 120_000 })
+	const pictures = seen.plans[0]?.match(/\/9j\/[A-Za-z0-9+/=]*/g) ?? []
+	const characters = pictures.reduce((sum, picture) => sum + picture.length, 0)
+	expect(pictures.length).toBeGreaterThanOrEqual(34)
+	expect(characters, `the pictures held ${characters} characters`).toBeGreaterThan(
+		REACT_ARRAY_LIMIT
+	)
+})
+
+test('a request that fails on the server shows a plain message, never the error itself', async ({
+	page
+}) => {
+	await mockMakeActions(page, WORDS, [reply()])
+	// The plan request crashes on the server, as the pictures once did: the
+	// page gets an error in place of a reply.
+	await page.route(
+		(url) => url.pathname.endsWith('/make'),
+		async (route) => {
+			const request = route.request()
+			if (!request.headers()['next-action'] || !request.postData()?.includes('"frames"')) {
+				return route.fallback()
+			}
+			await route.fulfill({ status: 500, body: 'Internal Server Error' })
+		}
+	)
+	await startMaking(page, 'make this an Instagram reel')
+	await expect(
+		page.getByText("Retake couldn't plan the edit just now. Go back and try again in a moment.")
+	).toBeVisible({ timeout: 60_000 })
+	await expect(page.getByText(/React|Error|500/)).toHaveCount(0)
+	await page.getByRole('button', { name: 'Back' }).click()
+	await expect(page.getByRole('textbox', { name: 'What should it become?' })).toHaveValue(
+		'make this an Instagram reel'
+	)
 })

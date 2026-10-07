@@ -1259,8 +1259,9 @@
 			"notVideo": "That file isn't a video Retake can play.",
 			"tooLong": "Make it works on videos up to {minutes} minutes long.",
 			"pictures": "The pictures couldn't be taken from this video.",
-			"failed": "That didn't work: {error}",
-			"noPlan": "Retake couldn't make a plan from that. Try saying it another way."
+			"noPlan": "Retake couldn't make a plan from that. Try saying it another way.",
+			"transcript": "Retake couldn't write the transcript of this video's sound. Go back and try again in a moment.",
+			"planning": "Retake couldn't plan the edit just now. Go back and try again in a moment."
 		},
 		"questions": {
 			"title": "A few questions first",
