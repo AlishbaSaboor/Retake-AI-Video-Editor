@@ -1055,7 +1055,8 @@
 						"3": "Attach a logo, music or another video in the chat.",
 						"4": "Undo, redo and reset work as commands too.",
 						"5": "Find highlights picks 3 to 5 of the best moments from the transcript. Watch each one and download it as its own video, cropped to 9:16 if you like. It needs a transcript, so videos up to 5 minutes.",
-						"6": "Make it turns a video into a reel, TikTok, Short, ad or a funny or professional edit from one request: it picks the best complete moments (50 to 59 seconds for short videos, opening with the strongest line), cuts dead time, adds captions in a matching style, key lines quoted from the speech, transitions and music, and frames it vertically. A second check reviews the plan against your request before you see it."
+						"6": "Make it turns a video into a reel, TikTok, Short, ad or a funny or professional edit from one request: it picks the best complete moments (50 to 59 seconds for short videos, opening with the strongest line), cuts dead time, adds captions in a matching style, key lines quoted from the speech, transitions and music, and frames it vertically. A second check reviews the plan against your request before you see it.",
+						"7": "When the picture doesn't carry the video, like a still meeting or an unchanging screen, Make it designs a vertical reel or ad around the speech: a moving background in the request's colours, big title and key-line cards in the speaker's own words, centred captions that react to each word, a progress bar, and the original picture as a small card in the corner, or left out when it shows nothing."
 					}
 				},
 				"timeline": {
@@ -1319,7 +1320,9 @@
 			"vertical": {
 				"face": "Vertical 9:16, following the face",
 				"fit": "Vertical 9:16, the whole picture kept, with black bars above and below",
-				"already": "Already vertical"
+				"already": "Already vertical",
+				"designed": "Vertical 9:16, designed around the speech: a moving background, big text, and the picture as a small card in the corner",
+				"designedHidden": "Vertical 9:16, designed around the speech: a moving background and big text; the picture is left out, as it shows nothing to keep"
 			},
 			"title": "Title at the start: “{text}”",
 			"titleDropped": "Left out a title that named someone or something not in the video",

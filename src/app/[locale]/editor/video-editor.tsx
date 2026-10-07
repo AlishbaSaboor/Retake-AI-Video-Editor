@@ -35,7 +35,9 @@ import { ClipAudioPanel } from './clip-audio-panel'
 import { CleanupPanel } from './cleanup-bar'
 import type { ClipSelection } from './clip-selection'
 import { CompareToggle } from './compare-toggle'
-import { editedCaptions, editedWords, type CaptionMode } from './captions'
+import { captionAt, editedCaptions, editedWords, type CaptionMode } from './captions'
+import { cardRect, type Design } from './design'
+import { DesignCanvas } from './design-canvas'
 import { CommandBar, type AttachedAs } from './command-bar'
 import { setSideOpen, useSideOpen } from './editor-layout-store'
 import { EditorShell } from './editor-shell'
@@ -284,6 +286,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	const [autoZooms, setAutoZooms] = useState<Zoom[]>([])
 	// Key lines, from Make it: more titles, each in its own time.
 	const [autoTitles, setAutoTitles] = useState<TitleCard[]>([])
+	// A designed vertical frame around the speech (design.ts), from Make it.
+	const [design, setDesign] = useState<Design | null>(null)
 	// The Audio lane (audio-lane.ts), and the take's own sound, decoded the
 	// first time a clip's sound is taken out into it.
 	const [audioItems, setAudioItems] = useState<AudioItem[]>([])
@@ -348,7 +352,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		lowerThird,
 		zoom,
 		autoZooms,
-		autoTitles
+		autoTitles,
+		design
 	}
 	const trimDragRef = useRef<{ recorded: boolean } | null>(null)
 	// The filler cut editor: which filler is open and where its handles sit.
@@ -401,9 +406,17 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		zoom,
 		autoZooms,
 		autoTitles,
+		captionMode,
+		designed: design && { ...design, totalSeconds: editedSeconds },
+		// A designed frame's captions pop each word as it's said: they need its times.
 		captions:
 			captionsOn && analysis.transcript.status === 'ready'
-				? editedCaptions(analysis.transcript.transcript.words, editedSegments, captionMode)
+				? editedCaptions(
+						analysis.transcript.transcript.words,
+						editedSegments,
+						captionMode,
+						captionMode === 'highlight' || design !== null
+					)
 				: []
 	}
 	// Where someone speaks in the edit: ducked music goes down under it.
@@ -553,6 +566,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		setCaptionsOn(false)
 		setCaptionMode('lines')
 		setAutoTitles([])
+		setDesign(null)
 		setAnnotations([])
 		setTransform(IDENTITY_TRANSFORM)
 		setColor(NEUTRAL_GRADE)
@@ -608,6 +622,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		// Saved before caption modes: word by word was a yes or no.
 		setCaptionMode(saved.captionMode ?? (wordByWord(saved) ? 'words' : 'lines'))
 		setAutoTitles(saved.autoTitles ?? [])
+		setDesign(saved.design ?? null)
 		setAutoZooms(saved.autoZooms ?? [])
 	}
 
@@ -956,6 +971,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		setZoom(step.restore.zoom)
 		setCaptionMode(step.restore.captionMode)
 		setAutoTitles(step.restore.autoTitles)
+		setDesign(step.restore.design)
 		setAutoZooms(step.restore.autoZooms)
 		applyTrim(step.restore.trim, step.restore.trim?.startSeconds ?? 0)
 	}
@@ -2157,6 +2173,21 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 
 	const unsaved = Boolean(video) && hasDuration && history !== savedHistory
 	const frameSize = outputSize(pictureSize, shownTransform)
+	// A designed frame, in the Edited view: its background, and the picture in its card or hidden.
+	const designFrame =
+		design && !showOriginal
+			? {
+					background: (
+						<DesignCanvas
+							palette={design.palette}
+							totalSeconds={editedSeconds}
+							seconds={editedNow ?? 0}
+							speaking={editedNow !== null && captionAt(overlays.captions, editedNow) !== undefined}
+						/>
+					),
+					card: design.picture === 'corner' ? cardRect(frameSize, pictureSize) : null
+				}
+			: null
 	const shownTitle = titleDraft ?? title
 	const onVideo = editedNow !== null && picture && !transformMode && !showOriginal
 
@@ -2312,6 +2343,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 								picture={pictureSize}
 								transform={shownTransform}
 								zoom={shownZoom}
+								design={designFrame}
 								frameRef={frameRef}
 								video={
 									<>
@@ -2380,7 +2412,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 								}
 								onPicture={
 									<>
-										{editedNow !== null && picture && (
+										{/* A designed frame has no picture to pin things to: annotations don't show there. */}
+										{editedNow !== null && picture && !designFrame && (
 											<AnnotationLayer
 												annotations={annotations}
 												editedSeconds={editedNow}
