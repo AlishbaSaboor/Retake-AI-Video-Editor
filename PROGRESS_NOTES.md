@@ -271,8 +271,8 @@ separate `chore(logs)` commit.
 | Motion graphics: title/text entrances and exits (fade, slide, pop), a lower third, an animated zoom                                                                                                                      | `feat(editor): animated text, a lower third and zoom`                    | Unit tests for the easing, the half-time cap, the zoom matrix and the commands. e2e measures real exports: the zoom (square width, centred, with a crop and a sped clip), the title sliding and fading, the lower third at the lower left sliding in and gone outside its time, a text pop; typed commands, save/reopen, undo.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | The logo by hand: drag anywhere, resize by its corner, keys, a size field; PNG or JPG                                                                                                                                    | `feat(editor): place and resize the logo by hand, PNG or JPG`            | Unit tests for placing, moving, resizing and clamping. e2e drags and resizes a JPG logo, checks the export puts it at the same place and size, the keys, the size field, undo per step, corners and the default-corner command.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
-**Current totals** (2026-10-07, Make it part 1): 363 unit tests
-(`src/**/*.test.mts`) and 99 e2e tests (plus the sign-in setup).
+**Current totals** (2026-10-07, Make it part 1): 369 unit tests
+(`src/**/*.test.mts`) and 100 e2e tests (plus the sign-in setup).
 Everything passes locally. On the meter commit the full e2e suite passed
 18/18 in each of two runs.
 
@@ -2282,6 +2282,45 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
     (written for people) is shown as it is. A plan request that throws is
     reported with `captureClientError`. Tested: a plan request answered with
     a 500 shows the plain message and nothing of the error.
+- **Three fixes before merge (2026-10-07), the owner's:**
+  - **Short-form is under a minute, in code.** A reel, TikTok or Short
+    (Gemini's new `format`, or the request's own words: `isShortForm`) must
+    come out under 60 s; `planMake` holds it to 59 (the export can run a
+    few hundredths over). When the plan runs longer, sentences go in
+    `dropOrder`: those not among the reply's `keyMoments` first, the
+    longest first (fewest jumps), then key moments from the least
+    important, never the last one; if one sentence or a stretch with no
+    speech is still too long, only its first 59 s are kept
+    (`firstSeconds`). Filler cuts and dissolves only shorten it. Short-form
+    is always vertical. On `Cap.mp4` (1:48) with its cached transcript and
+    a canned reply: 58.6 s, 19 of 30 sentences.
+  - **Vertical never cuts the picture off.** A crop follows a face only when
+    Gemini's new `subject` is `one_person` and a face was found; a screen
+    recording, meeting, slides or anything else keeps the whole picture,
+    fitted inside 9:16 with black bars above and below: `Crop.fit` and
+    `fittedCrop` (a crop rect reaching past the frame, which the preview's
+    black frame and the export's black canvas already show as bars; turning
+    the picture refits it). The export's canvas is never longer than the
+    picture's longest side (`exportSize`), so 1920×1080 fitted is recorded
+    at 1080×1920, not 1920×3413; ordinary crops are unchanged. The cap is
+    the turned frame's longest side, not the picture's: measured against
+    the picture first, a 15° turn (356×256 for 320×180) was shrunk to
+    320×230, which CI's `transform.spec.ts:299` caught (fixed the same day).
+  - **The plan says what it's making.** Its heading is "An Instagram Reel,
+    about 45 seconds" (TikTok, YouTube Short, or the style: a professional
+    edit, a funny edit, an ad), from the final length; then Gemini's
+    summary, now asked to say how the footage was shortened; then
+    "Shortened from 1:48 to 0:59", "Kept 19 of 30 sentences…", filler words
+    cut, and "Under 60 seconds…" or "Cut further to stay under 60 seconds,
+    keeping the key moments".
+  - **Tests:** unit (the limit on a 140 s talk with key moments kept, one
+    100 s sentence cut to 59 s, no limit for a professional edit, short-form
+    detection, a screen recording fitted with bars and its 1080×1920
+    export size, a fitted crop refitted after a turn). e2e: the busy 70 s
+    video's reel comes out under 60 s in the plan and the editor; a screen
+    recording's export is 180×320 with black rows above and below, the
+    picture's own background at both side edges and the whole square in.
+    Privacy text unchanged: nothing new is sent.
 - **Not tried against real Gemini** (zero API cost rule): the prompt, the
   face positions it gives and the questions it asks are untested on the
   real model. A reply that doesn't fit the schema shows "Retake couldn't

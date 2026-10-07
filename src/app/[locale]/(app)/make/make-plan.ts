@@ -13,7 +13,7 @@ import {
 	type SourceRange
 } from '../../editor/sequence'
 import { DEFAULT_TEXT_STYLE, type TextStyle } from '../../editor/text-style'
-import { centredCrop, type CropKey, type Size } from '../../editor/transform'
+import { centredCrop, fittedCrop, type CropKey, type Size } from '../../editor/transform'
 import type { Transcript, TranscriptSegment } from '../../editor/transcript'
 import { transitionLimit, type TransitionKind } from '../../editor/transitions'
 
@@ -27,6 +27,25 @@ import { transitionLimit, type TransitionKind } from '../../editor/transitions'
 
 export const MAKE_STYLES = ['reel', 'professional', 'funny', 'ad'] as const
 export type MakeStyle = (typeof MAKE_STYLES)[number]
+/** Where the video is going, when the request names a place for short videos. */
+export const MAKE_FORMATS = ['instagram_reel', 'tiktok', 'youtube_shorts', 'other'] as const
+export type MakeFormat = (typeof MAKE_FORMATS)[number]
+/** What the picture shows: only one person as the clear subject gets a crop that follows a face. */
+export const MAKE_SUBJECTS = ['one_person', 'screen', 'meeting', 'slides', 'other'] as const
+
+/**
+ * Reels, TikToks and Shorts come out under a minute: enforced here, whatever
+ * the reply plans. A second under, so the export's few hundredths of a
+ * second either way never take it to 60.
+ */
+export const SHORT_FORM_MAX_SECONDS = 59
+/** The request names a short-video format itself: a check that doesn't rest on the model. */
+const SHORT_FORM_REQUEST = /\b(reels?|tik\s?toks?|shorts|stor(?:y|ies))\b/i
+
+/** Whether the edit must come out under a minute: the reply's format, or the request's own words. */
+export function isShortForm(format: MakeFormat, request: string): boolean {
+	return format !== 'other' || SHORT_FORM_REQUEST.test(request)
+}
 
 /** One picture every this many seconds, from the middle of each stretch. */
 export const FRAME_EVERY_SECONDS = 2
@@ -67,8 +86,11 @@ const note = z
 export const makeReplySchema = z.object({
 	questions: z.array(note).max(MAX_QUESTIONS),
 	style: z.enum(MAKE_STYLES),
+	format: z.enum(MAKE_FORMATS),
+	subject: z.enum(MAKE_SUBJECTS),
 	summary: note,
 	pictureMatters: z.boolean(),
+	keyMoments: z.array(z.number().int()),
 	removeSentences: z.array(z.number().int()),
 	removeSpans: z.array(z.object({ startSeconds: z.number(), endSeconds: z.number() })),
 	captions: z.enum(['words', 'lines', 'off']),
@@ -88,8 +110,11 @@ export const MAKE_REPLY_JSON_SCHEMA = {
 	properties: {
 		questions: { type: 'array', items: { type: 'string' } },
 		style: { type: 'string', enum: [...MAKE_STYLES] },
+		format: { type: 'string', enum: [...MAKE_FORMATS] },
+		subject: { type: 'string', enum: [...MAKE_SUBJECTS] },
 		summary: { type: 'string' },
 		pictureMatters: { type: 'boolean' },
+		keyMoments: { type: 'array', items: { type: 'integer' } },
 		removeSentences: { type: 'array', items: { type: 'integer' } },
 		removeSpans: {
 			type: 'array',
@@ -118,8 +143,11 @@ export const MAKE_REPLY_JSON_SCHEMA = {
 	required: [
 		'questions',
 		'style',
+		'format',
+		'subject',
 		'summary',
 		'pictureMatters',
+		'keyMoments',
 		'removeSentences',
 		'removeSpans',
 		'captions',
@@ -270,6 +298,41 @@ export function keptRanges(
 	return kept.length > 0 ? kept : [whole]
 }
 
+/** The first `seconds` of the kept ranges, in play order: the last one cut short. */
+function firstSeconds(kept: SourceRange[], seconds: number): SourceRange[] {
+	const out: SourceRange[] = []
+	let left = seconds
+	for (const range of kept) {
+		if (left < MIN_PIECE_SECONDS) break
+		const length = Math.min(range.endSeconds - range.startSeconds, left)
+		out.push({ startSeconds: range.startSeconds, endSeconds: range.startSeconds + length })
+		left -= length
+	}
+	return out
+}
+
+/**
+ * The kept sentences (indexes) in the order they go when the edit is too
+ * long: those that aren't key moments first, the longest first (fewest
+ * jumps for the time saved), then key moments from the least important.
+ */
+function dropOrder(
+	sentences: readonly TranscriptSegment[],
+	removed: ReadonlySet<number>,
+	keyMoments: readonly number[]
+): number[] {
+	const key = [...new Set(keyMoments.map((n) => n - 1))].filter(
+		(index) => index >= 0 && index < sentences.length && !removed.has(index)
+	)
+	const length = (index: number) =>
+		(sentences[index]?.endSeconds ?? 0) - (sentences[index]?.startSeconds ?? 0)
+	const others = sentences
+		.map((_, index) => index)
+		.filter((index) => !removed.has(index) && !key.includes(index))
+		.sort((a, b) => length(b) - length(a))
+	return [...others, ...key.reverse()]
+}
+
 /** Where a moment of the main video plays in the edit, if it does. */
 function editedTimeOf(seconds: number, segments: Segment[], starts: number[]): number | null {
 	const index = segments.findIndex(
@@ -353,7 +416,15 @@ export type MusicTrack<Sound> = { name: string; file: Blob; buffer: Sound; secon
 /** What the plan does, in words for the person deciding whether to apply it. */
 export type MakeSummary = {
 	style: MakeStyle
+	/** What it is making, as the plan's first words say: a format named, else the style. */
+	making: Exclude<MakeFormat, 'other'> | MakeStyle
 	summary: string
+	/** The most it may run (short-form), and whether sentences beyond the reply's were taken out to fit. */
+	limitSeconds: number | null
+	trimmedToFit: boolean
+	/** Sentences kept of all the transcript's. */
+	keptSentences: number
+	totalSentences: number
 	originalSeconds: number
 	editedSeconds: number
 	/** Parts taken out (dead air, dropped sentences, dead stretches) and filler words cut. */
@@ -366,7 +437,8 @@ export type MakeSummary = {
 	/** The track laid under it; null with none, `missing` when the folder has none to offer. */
 	music: string | null
 	musicMissing: boolean
-	vertical: 'face' | 'centre' | 'already' | null
+	/** Vertical: following one person's face, or the whole picture fitted with black bars. */
+	vertical: 'face' | 'fit' | 'already' | null
 	title: string | null
 	/** A title was asked for but named someone or something never said: left out. */
 	titleDropped: boolean
@@ -392,7 +464,10 @@ export type MakeInput<Sound> = {
  * The edit a Make it reply describes, as a snapshot for the editor, and a
  * summary of it. Everything the reply names is checked: sentences and
  * frames that don't exist are ignored, a title naming anyone never
- * mentioned is left out, a crop with no face found is centred.
+ * mentioned is left out. A short-form edit (a reel, TikTok or Short) is cut
+ * to under a minute here, whatever the reply planned. Vertical follows a
+ * face only when one person is the subject; anything else keeps the whole
+ * picture, with black bars.
  */
 export function planMake<Sound>(input: MakeInput<Sound>): {
 	edit: Omit<EditSnapshot, 'audioItems'> & { audioItems: AudioItem<Sound>[] }
@@ -405,58 +480,96 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	const whole = { startSeconds: 0, endSeconds: durationSeconds }
 	const pictureMatters = reply.pictureMatters || sentences.length === 0
 
-	const kept = keptRanges({ ...reply, pictureMatters }, sentences, durationSeconds)
-	const clips: Clip[] = kept.map((range, index) => ({ id: `make-${index + 1}`, ranges: [range] }))
-	const cuts = input.fillerCuts.filter((cut) => kept.some((range) => overlaps(range, cut)))
-
-	// A transition only where a real stretch was taken out between two clips.
-	let transitions = 0
-	if (reply.transition !== 'none') {
-		const kind = reply.transition
-		for (const [index, clip] of clips.entries()) {
-			const before = clips[index - 1]
-			const [range] = clip.ranges
-			const prior = before?.ranges.at(-1)
-			if (
-				!before ||
-				!prior ||
-				!range ||
-				range.startSeconds - prior.endSeconds < TRANSITION_GAP_SECONDS
-			)
-				continue
-			const limit = transitionLimit(
-				prior.endSeconds - prior.startSeconds,
-				range.endSeconds - range.startSeconds
-			)
-			const seconds = Math.min(TRANSITION_SECONDS[kind], limit)
-			if (seconds < TRANSITION_SECONDS[kind] / 2) continue
-			clip.transition = { kind, seconds, after: before.id }
-			transitions++
+	/** The cut with these sentences (numbered from 1) taken out, and at most `cap` seconds of source. */
+	const cutWith = (removeSentences: number[], cap: number | null = null) => {
+		const ranges = keptRanges(
+			{ ...reply, removeSentences, pictureMatters },
+			sentences,
+			durationSeconds
+		)
+		const kept = cap === null ? ranges : firstSeconds(ranges, cap)
+		const clips: Clip[] = kept.map((range, index) => ({ id: `make-${index + 1}`, ranges: [range] }))
+		const cuts = input.fillerCuts.filter((cut) => kept.some((range) => overlaps(range, cut)))
+		// A transition only where a real stretch was taken out between two clips.
+		let transitions = 0
+		if (reply.transition !== 'none') {
+			const kind = reply.transition
+			for (const [index, clip] of clips.entries()) {
+				const before = clips[index - 1]
+				const [range] = clip.ranges
+				const prior = before?.ranges.at(-1)
+				if (
+					!before ||
+					!prior ||
+					!range ||
+					range.startSeconds - prior.endSeconds < TRANSITION_GAP_SECONDS
+				)
+					continue
+				const limit = transitionLimit(
+					prior.endSeconds - prior.startSeconds,
+					range.endSeconds - range.startSeconds
+				)
+				const seconds = Math.min(TRANSITION_SECONDS[kind], limit)
+				if (seconds < TRANSITION_SECONDS[kind] / 2) continue
+				clip.transition = { kind, seconds, after: before.id }
+				transitions++
+			}
 		}
+		const segments = playableSegments(clips, { trim: whole, cuts })
+		return { kept, clips, cuts, transitions, segments, editedSeconds: editedLength(segments) }
 	}
 
-	const segments = playableSegments(clips, { trim: whole, cuts })
+	// Short-form: sentences go, in drop order, until it fits; then, if one
+	// sentence or a stretch with no speech still runs over, only its first
+	// part is kept. Filler cuts and dissolves only ever make it shorter.
+	const shortForm = isShortForm(reply.format, input.request)
+	const limitSeconds = shortForm ? SHORT_FORM_MAX_SECONDS : null
+	let removeSentences = reply.removeSentences
+	let cut = cutWith(removeSentences)
+	let trimmedToFit = false
+	if (limitSeconds !== null && cut.editedSeconds > limitSeconds) {
+		trimmedToFit = true
+		const removed = sentenceIndexes(removeSentences, sentences.length)
+		let left = sentences.length - removed.size
+		for (const index of dropOrder(sentences, removed, reply.keyMoments)) {
+			if (cut.editedSeconds <= limitSeconds || left <= 1) break
+			removeSentences = [...removeSentences, index + 1]
+			left--
+			cut = cutWith(removeSentences)
+		}
+		if (cut.editedSeconds > limitSeconds) cut = cutWith(removeSentences, limitSeconds)
+	}
+	const { kept, clips, cuts, transitions, segments, editedSeconds } = cut
 	const starts = editedStarts(segments)
-	const editedSeconds = editedLength(segments)
+	const keptSentences = sentences.filter((sentence) =>
+		kept.some((range) => overlaps(range, sentence))
+	).length
 
-	// The vertical crop: following the face where one is seen, else centred.
+	// Vertical (short-form always is): a crop following the face only when
+	// one person is the subject and a face was found; anything else keeps the
+	// whole picture, fitted inside with black bars, never cut off.
 	const ratio = 9 / 16
 	const alreadyVertical = picture.width / picture.height <= ratio + 0.01
+	const wantsVertical = reply.vertical || shortForm
 	let vertical: MakeSummary['vertical'] = null
 	let transform = ORIGINAL_EDIT.transform
-	if (reply.vertical && alreadyVertical) vertical = 'already'
-	else if (reply.vertical) {
+	if (wantsVertical && alreadyVertical) vertical = 'already'
+	else if (wantsVertical) {
 		const rect = centredCrop(ratio, picture)
-		const follow = faceFollow(reply.faces, times, rect.width)
+		const follow =
+			reply.subject === 'one_person' ? faceFollow(reply.faces, times, rect.width) : null
 		const first = follow?.[0]
-		vertical = follow && first ? 'face' : 'centre'
+		vertical = first ? 'face' : 'fit'
 		transform = {
 			...transform,
-			crop: {
-				aspect: '9:16',
-				rect: first ? { ...rect, x: first.x } : rect,
-				...(follow && first && follow.length > 1 && { follow })
-			}
+			crop:
+				follow && first
+					? {
+							aspect: '9:16',
+							rect: { ...rect, x: first.x },
+							...(follow.length > 1 && { follow })
+						}
+					: { aspect: '9:16', rect: fittedCrop(ratio, picture), fit: true }
 		}
 	}
 
@@ -540,7 +653,12 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 		edit,
 		summary: {
 			style: reply.style,
+			making: reply.format === 'other' ? reply.style : reply.format,
 			summary: reply.summary,
+			limitSeconds,
+			trimmedToFit,
+			keptSentences,
+			totalSentences: sentences.length,
 			originalSeconds: durationSeconds,
 			editedSeconds,
 			removedParts: without(whole, kept).length,
