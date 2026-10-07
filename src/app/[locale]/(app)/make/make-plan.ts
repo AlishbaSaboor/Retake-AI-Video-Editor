@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { availableSeconds, type AudioItem } from '../../editor/audio-lane'
 import type { Cut } from '../../editor/cleanup'
+import type { Design } from '../../editor/design'
 import { ORIGINAL_EDIT, type EditSnapshot } from '../../editor/edit-snapshot'
 import type { CaptionMode } from '../../editor/captions'
 import type { Animation, Zoom } from '../../editor/motion'
@@ -115,6 +116,7 @@ export const makeReplySchema = z.object({
 	keyLines: z.array(z.object({ sentence: z.number().int(), text: z.string() })),
 	vertical: z.boolean(),
 	faces: z.array(z.object({ frame: z.number().int(), x: z.number(), y: z.number() })),
+	card: z.enum(['corner', 'hidden']),
 	music: z.string().nullable(),
 	title: z.string().nullable(),
 	cannotDo: z.array(note).max(MAX_NOTES)
@@ -168,6 +170,7 @@ export const MAKE_REPLY_JSON_SCHEMA = {
 				required: ['frame', 'x', 'y']
 			}
 		},
+		card: { type: 'string', enum: ['corner', 'hidden'] },
 		music: { type: 'string', nullable: true },
 		title: { type: 'string', nullable: true },
 		cannotDo: { type: 'array', items: { type: 'string' } }
@@ -188,6 +191,7 @@ export const MAKE_REPLY_JSON_SCHEMA = {
 		'keyLines',
 		'vertical',
 		'faces',
+		'card',
 		'music',
 		'title',
 		'cannotDo'
@@ -254,6 +258,8 @@ const TEXT_MOTION: Record<MakeStyle, Animation> = {
 /** Where text sits: key lines (and a vertical edit's title) near the top, clear of the captions below. */
 const TOP_TEXT = { x: 0.5, y: 0.18 }
 const MIDDLE_TEXT = { x: 0.5, y: 0.4 }
+/** A designed frame's title, this much bigger than the style's. */
+const DESIGN_TITLE_SCALE = 1.25
 /** How long a key line stays: through its sentence, within these. */
 const MIN_KEY_LINE_SECONDS = 1.5
 const MAX_KEY_LINE_SECONDS = 4
@@ -549,7 +555,9 @@ export type MakeSummary = {
 	music: string | null
 	musicMissing: boolean
 	/** Vertical: following one person's face, or the whole picture fitted with black bars. */
-	vertical: 'face' | 'fit' | 'already' | null
+	vertical: 'face' | 'fit' | 'designed' | 'already' | null
+	/** A designed frame's picture: a small card in a corner, or hidden; null when not designed. */
+	card: Design['picture'] | null
 	title: string | null
 	/** A title was asked for but named someone or something never said: left out. */
 	titleDropped: boolean
@@ -713,11 +721,15 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 
 	// Vertical (short-form always is): a crop following the face only when
 	// one person is the subject and a face was found; anything else keeps the
-	// whole picture, fitted inside with black bars, never cut off.
+	// whole picture, never cut off: fitted inside with black bars, or, for a
+	// reel or an ad whose picture doesn't carry it (a static meeting, a still
+	// screen), a frame designed around the speech, the picture a small card.
 	const ratio = 9 / 16
 	const alreadyVertical = picture.width / picture.height <= ratio + 0.01
 	const wantsVertical = reply.vertical || shortForm
+	const designable = (shortForm || reply.style === 'ad') && !pictureMatters && words.length > 0
 	let vertical: MakeSummary['vertical'] = null
+	let design: Design | null = null
 	let transform = ORIGINAL_EDIT.transform
 	if (wantsVertical && alreadyVertical) vertical = 'already'
 	else if (wantsVertical) {
@@ -729,7 +741,10 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 		const clearly = reply.subject === 'one_person' && faceFrames >= times.length / 2
 		const follow = clearly ? faceFollow(reply.faces, times, rect.width) : null
 		const first = follow?.[0]
-		vertical = first ? 'face' : 'fit'
+		if (!first && designable) {
+			design = { palette: reply.style, picture: reply.card }
+			vertical = 'designed'
+		} else vertical = first ? 'face' : 'fit'
 		transform = {
 			...transform,
 			crop:
@@ -756,10 +771,11 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 					}
 				})
 			: []
-	// Zooms on the sentences named, where they still play, never overlapping.
-	for (const index of [...sentenceIndexes(reply.zoomSentences, sentences.length)].sort(
-		(a, b) => a - b
-	)) {
+	// Zooms on the sentences named, where they still play, never overlapping;
+	// none in a designed frame, whose picture isn't what's being said.
+	for (const index of [
+		...sentenceIndexes(design ? [] : reply.zoomSentences, sentences.length)
+	].sort((a, b) => a - b)) {
 		if (autoZooms.length >= MAX_ZOOMS) break
 		const sentence = sentences[index]
 		if (!sentence) continue
@@ -809,7 +825,13 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 					text: titleText,
 					startSeconds: 0,
 					durationSeconds: Math.min(TITLE_SECONDS, editedSeconds),
-					style: TEXT_STYLE[reply.style],
+					// Bigger in a designed frame: it's what the frame is about.
+					style: design
+						? {
+								...TEXT_STYLE[reply.style],
+								size: TEXT_STYLE[reply.style].size * DESIGN_TITLE_SCALE
+							}
+						: TEXT_STYLE[reply.style],
 					animation: TEXT_MOTION[reply.style],
 					// Above the captions; near the top of a vertical frame.
 					at: vertical === null ? MIDDLE_TEXT : TOP_TEXT
@@ -861,7 +883,8 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 		transform,
 		audioItems,
 		autoZooms,
-		autoTitles
+		autoTitles,
+		design
 	}
 	return {
 		edit,
@@ -888,6 +911,7 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 			music: audioItems.length > 0 ? (music?.name ?? null) : null,
 			musicMissing: !input.musicAvailable,
 			vertical,
+			card: design?.picture ?? null,
 			title: title?.text ?? null,
 			titleDropped,
 			pictureMatters,

@@ -2,6 +2,8 @@
 
 import type { RefObject } from 'react'
 import { cn } from '@/lib/cn'
+import type { Rect } from './annotations'
+import { CARD_RADIUS } from './design'
 import { NO_ZOOM, type ZoomView } from './motion'
 import { fitInside } from './overlays'
 import { outputSize, rotatedFrame, type PictureTransform, type Size } from './transform'
@@ -31,6 +33,11 @@ type PictureFrameProps = {
 	onFrame?: React.ReactNode
 	/** What the zoom shows now: how much the picture is magnified, and about where. */
 	zoom?: ZoomView
+	/**
+	 * A designed frame (design.ts): its background under everything, and the
+	 * picture in its card (fractions of the frame), or hidden when null.
+	 */
+	design?: { background: React.ReactNode; card: Rect | null } | null
 }
 
 /**
@@ -46,7 +53,8 @@ export function PictureFrame({
 	video,
 	onPicture,
 	onFrame,
-	zoom = NO_ZOOM
+	zoom = NO_ZOOM,
+	design = null
 }: PictureFrameProps) {
 	const output = outputSize(picture, transform)
 	const frame = rotatedFrame(picture, transform.rotation)
@@ -74,12 +82,13 @@ export function PictureFrame({
 					containerType: 'size'
 				}}
 			>
+				{design?.background}
 				{/* The zoom: the picture (and what's pinned to it) magnified, its centre moved to the middle. */}
 				<div
 					data-testid="zoom"
 					className="absolute inset-0"
 					style={
-						zoom.scale === 1
+						zoom.scale === 1 || design
 							? undefined
 							: {
 									transform: `scale(${zoom.scale}) translate(${(0.5 - zoom.centre.x) * PERCENT}%, ${(0.5 - zoom.centre.y) * PERCENT}%)`
@@ -89,14 +98,32 @@ export function PictureFrame({
 					<div
 						data-testid="picture"
 						className="absolute"
-						style={{
-							left: `${((centreX - picture.width / 2) / output.width) * PERCENT}%`,
-							top: `${((centreY - picture.height / 2) / output.height) * PERCENT}%`,
-							width: `${(picture.width / output.width) * PERCENT}%`,
-							height: `${(picture.height / output.height) * PERCENT}%`,
-							transform: `rotate(${transform.rotation}deg) ${flip}`,
-							containerType: 'size'
-						}}
+						style={
+							design
+								? {
+										// In its card (grown about its middle by a zoom), or hidden.
+										...(design.card
+											? {
+													left: `${design.card.x * PERCENT}%`,
+													top: `${design.card.y * PERCENT}%`,
+													width: `${design.card.width * PERCENT}%`,
+													height: `${design.card.height * PERCENT}%`
+												}
+											: { inset: 0, opacity: 0 }),
+										borderRadius: `${CARD_RADIUS * PERCENT}cqw`,
+										overflow: 'hidden',
+										transform: `scale(${zoom.scale})`,
+										containerType: 'size'
+									}
+								: {
+										left: `${((centreX - picture.width / 2) / output.width) * PERCENT}%`,
+										top: `${((centreY - picture.height / 2) / output.height) * PERCENT}%`,
+										width: `${(picture.width / output.width) * PERCENT}%`,
+										height: `${(picture.height / output.height) * PERCENT}%`,
+										transform: `rotate(${transform.rotation}deg) ${flip}`,
+										containerType: 'size'
+									}
+						}
 					>
 						{video}
 						{onPicture}
