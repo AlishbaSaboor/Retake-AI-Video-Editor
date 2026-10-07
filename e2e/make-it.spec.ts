@@ -39,8 +39,11 @@ const FACES = [
 const reply = (fields: Partial<MakeReply> = {}): MakeReply => ({
 	questions: [],
 	style: 'reel',
+	format: 'instagram_reel',
+	subject: 'one_person',
 	summary: 'A short talk, cut into a vertical reel.',
 	pictureMatters: false,
+	keyMoments: [],
 	removeSentences: [],
 	removeSpans: [],
 	captions: 'words',
@@ -133,10 +136,12 @@ test('a reel is planned, shown, applied as one undo step, and exported vertical 
 	expect(sent).toContain('make this an Instagram reel')
 	expect(sent).toContain('key point.')
 	expect(sent?.match(/\/9j\//g)?.length).toBe(3)
+	// It says first what it's making, and how long it came out.
+	await expect(plan(page).getByRole('heading')).toHaveText(/^An Instagram Reel, about \d seconds$/)
 	for (const line of [
-		'Reel / TikTok',
 		'A short talk, cut into a vertical reel.',
-		'Takes out 1 dead part and no filler words',
+		'Shortened from 0:0',
+		'Under 60 seconds, as reels, TikToks and Shorts need',
 		'Captions, word by word',
 		'1 zoom on key lines',
 		'No music: there are no tracks in public/music yet',
@@ -214,6 +219,7 @@ test('an unclear request asks first; the plan says what it left out; Cancel chan
 		reply({ questions: ['Where will you post it?', 'Should it be funny or serious?'] }),
 		reply({
 			style: 'professional',
+			format: 'other',
 			captions: 'lines',
 			vertical: false,
 			zoomSentences: [],
@@ -233,7 +239,9 @@ test('an unclear request asks first; the plan says what it left out; Cancel chan
 	await expect(plan(page)).toBeVisible({ timeout: 30_000 })
 	expect(seen.plans).toHaveLength(2)
 	expect(seen.plans[1]).toContain('LinkedIn')
-	await expect(plan(page)).toContainText('Professional')
+	await expect(plan(page).getByRole('heading')).toHaveText(
+		/^A professional edit, about \d seconds$/
+	)
 	await expect(plan(page)).toContainText('Captions, a line at a time')
 	// The title named someone never mentioned: left out, and said so.
 	await expect(plan(page)).toContainText(
@@ -367,16 +375,17 @@ async function pickNoiseVideo(page: Page, label: string, seconds: number): Promi
 /** The most text React lets the strings inside one array of a server action's arguments hold. */
 const REACT_ARRAY_LIMIT = 1_000_000
 
-test("a long, busy video's pictures reach the server whole, past React's limit for arrays", async ({
+test("a long, busy video's pictures reach the server whole, and its reel comes out under a minute", async ({
 	page
 }) => {
 	// A minute of noise to record, then its 35 pictures to take.
 	test.setTimeout(240_000)
-	const seen = await mockMakeActions(
-		page,
-		[w('Hello.', 0.5, 1), w('Bye.', 60, 61)],
-		[reply({ vertical: false, zoomSentences: [] })]
-	)
+	// Twenty 3 s sentences, half a second apart, over the 70 s: the reply
+	// cuts none, so the plan runs about 70 s until it's cut to fit.
+	const sentences = Array.from({ length: 20 }, (_, i) => w(`Step${i + 1}.`, i * 3.5, i * 3.5 + 3))
+	const seen = await mockMakeActions(page, sentences, [
+		reply({ zoomSentences: [], keyMoments: [12, 3], faces: [] })
+	])
 	await page.goto('/make')
 	await pickNoiseVideo(page, 'Video to make into something', 70)
 	await expect(page.getByText('busy.webm')).toBeVisible()
@@ -392,6 +401,87 @@ test("a long, busy video's pictures reach the server whole, past React's limit f
 	expect(characters, `the pictures held ${characters} characters`).toBeGreaterThan(
 		REACT_ARRAY_LIMIT
 	)
+
+	// Under 60 seconds, said so, and so in the editor.
+	await expect(plan(page).getByRole('heading')).toHaveText(/^An Instagram Reel, about 5\d seconds$/)
+	// The recording runs about 70 s (a little less when frames were dropped).
+	await expect(plan(page)).toContainText(/Shortened from 1:\d\d to 0:5\d/)
+	await expect(plan(page)).toContainText(
+		'Cut further to stay under 60 seconds, keeping the key moments'
+	)
+	await plan(page).getByRole('button', { name: 'Apply' }).click()
+	const scrubber = page.getByRole('slider', { name: 'Playhead position' })
+	await expect(scrubber).toBeVisible({ timeout: 60_000 })
+	await expect
+		.poll(async () => Number(await scrubber.getAttribute('aria-valuemax')), { timeout: 30_000 })
+		.toBeGreaterThan(50)
+	expect(Number(await scrubber.getAttribute('aria-valuemax'))).toBeLessThan(60)
+})
+
+test('a screen recording made vertical keeps all of its picture, with black bars above and below', async ({
+	page
+}) => {
+	const seen = await mockMakeActions(page, WORDS, [reply({ subject: 'screen', zoomSentences: [] })])
+	await startMaking(page, 'make this an Instagram reel')
+	await expect(plan(page)).toContainText(
+		'Vertical 9:16, the whole picture kept, with black bars above and below',
+		{ timeout: 60_000 }
+	)
+	expect(seen.plans).toHaveLength(1)
+	await plan(page).getByRole('button', { name: 'Apply' }).click()
+	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
+		timeout: 30_000
+	})
+
+	// 320 × 180 fitted into 9:16 is 320 wide and 569 high, recorded at 180 × 320:
+	// the picture in a band across the middle (y 110 to 210), black above and below.
+	const bytes = await exportVideo(page)
+	const { videoWidth, videoHeight, frames } = await readExportFrames(
+		page,
+		bytes,
+		[1],
+		({ context, width, height }) => {
+			const pixel = (x: number, y: number) => [...context.getImageData(x, y, 1, 1).data.slice(0, 3)]
+			const brightest = (y: number) => {
+				let most = 0
+				const row = context.getImageData(0, y, width, 1).data
+				// Red, green and blue; not alpha, which is always 255.
+				for (let i = 0; i < row.length; i++) if (i % 4 !== 3) most = Math.max(most, row[i] ?? 0)
+				return most
+			}
+			let left = width
+			let right = -1
+			for (let y = 0; y < height; y++) {
+				const row = context.getImageData(0, y, width, 1).data
+				for (let x = 0; x < width; x++) {
+					if ((row[x * 4] ?? 0) > 200 && (row[x * 4 + 2] ?? 0) < 90) {
+						left = Math.min(left, x)
+						right = Math.max(right, x)
+					}
+				}
+			}
+			return {
+				topBar: brightest(40),
+				bottomBar: brightest(280),
+				leftEdge: pixel(2, 160),
+				rightEdge: pixel(width - 3, 160),
+				squareLeft: left,
+				squareRight: right
+			}
+		}
+	)
+	expect([videoWidth, videoHeight]).toEqual([180, 320])
+	const [frame] = frames
+	// Black bars: nothing brighter than the encoder's noise above and below.
+	expect(frame?.topBar).toBeLessThan(30)
+	expect(frame?.bottomBar).toBeLessThan(30)
+	// The picture's own background (#112233) reaches both sides: nothing was cut off.
+	for (const edge of [frame?.leftEdge, frame?.rightEdge]) {
+		expect(edge?.[2], `blue at the edge: ${String(edge)}`).toBeGreaterThan(35)
+	}
+	// The whole orange square is in: about 60 × 0.5625 = 34 px wide, at its ~1 s place.
+	expect((frame?.squareRight ?? 0) - (frame?.squareLeft ?? 0)).toBeGreaterThan(28)
+	expect(frame?.squareLeft).toBeGreaterThan(40)
 })
 
 test('a request that fails on the server shows a plain message, never the error itself', async ({

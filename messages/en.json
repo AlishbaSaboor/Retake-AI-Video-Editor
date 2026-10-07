@@ -1269,16 +1269,25 @@
 		},
 		"plan": {
 			"label": "The plan",
-			"heading": "Here's the plan",
-			"styles": {
-				"reel": "Reel / TikTok",
-				"professional": "Professional",
-				"funny": "Funny",
-				"ad": "Ad"
+			"making": {
+				"instagram_reel": "An Instagram Reel, about {length}",
+				"tiktok": "A TikTok, about {length}",
+				"youtube_shorts": "A YouTube Short, about {length}",
+				"reel": "A reel, about {length}",
+				"professional": "A professional edit, about {length}",
+				"funny": "A funny edit, about {length}",
+				"ad": "An ad, about {length}"
 			},
-			"length": "Length: {from} → {to}",
-			"cuts": "Takes out {parts, plural, =0 {no dead parts} one {# dead part} other {# dead parts}} and {fillers, plural, =0 {no filler words} one {# filler word} other {# filler words}}",
-			"noCuts": "Keeps the whole video",
+			"duration": {
+				"seconds": "{count, plural, one {# second} other {# seconds}}",
+				"minutes": "{minutes} min {seconds} s"
+			},
+			"shortened": "Shortened from {from} to {to}",
+			"whole": "Keeps the whole video ({length})",
+			"keptSentences": "Kept {kept} of {total} sentences; dead time and repeats cut",
+			"fillers": "{count, plural, one {# filler word} other {# filler words}} cut",
+			"fitOk": "Under 60 seconds, as reels, TikToks and Shorts need",
+			"fitCut": "Cut further to stay under 60 seconds, keeping the key moments",
 			"captions": {
 				"words": "Captions, word by word",
 				"lines": "Captions, a line at a time",
@@ -1295,7 +1304,7 @@
 			"noMusicFolder": "No music: there are no tracks in public/music yet",
 			"vertical": {
 				"face": "Vertical 9:16, following the face",
-				"centre": "Vertical 9:16, centred (no single face to follow)",
+				"fit": "Vertical 9:16, the whole picture kept, with black bars above and below",
 				"already": "Already vertical"
 			},
 			"title": "Title at the start: “{text}”",

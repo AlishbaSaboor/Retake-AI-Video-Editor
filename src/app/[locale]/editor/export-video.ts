@@ -13,7 +13,7 @@ import {
 } from './sequence'
 import { dissolveAt, fadeLevelAt, scheduleTransitionGain } from './transitions'
 import { fitRect } from './sources'
-import { evenPixels, outputSize, transformAt, type PictureTransform } from './transform'
+import { exportSize, transformAt, type PictureTransform } from './transform'
 
 // Exporting re-records the edit in real time: an offscreen copy of the take
 // plays each kept segment in order while a MediaRecorder captures its frames
@@ -261,10 +261,7 @@ export async function recordEdit(
 			into.drawImage(video, rect.x, rect.y, rect.width, rect.height)
 			return fitted
 		}
-		const canvas = Object.assign(
-			document.createElement('canvas'),
-			evenPixels(outputSize(picture, transform))
-		)
+		const canvas = Object.assign(document.createElement('canvas'), exportSize(picture, transform))
 		const context = canvas.getContext('2d')
 		if (!context) throw new Error('no 2d canvas context')
 		const blurScratch = document.createElement('canvas')

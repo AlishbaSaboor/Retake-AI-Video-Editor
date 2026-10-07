@@ -23,8 +23,10 @@ export type CropKey = { seconds: number; x: number }
  * `rect` is fractions of the rotated frame; `aspect` is kept when the frame
  * changes shape. `follow` (Make it's crop that follows a face) moves the
  * crop across the frame over the main video's own time, from key to key.
+ * `fit`: the rect holds the whole frame, reaching past it where the shape
+ * needs (black bars there), so nothing of the picture is cut off.
  */
-export type Crop = { rect: Rect; aspect: CropAspect; follow?: CropKey[] }
+export type Crop = { rect: Rect; aspect: CropAspect; follow?: CropKey[]; fit?: true }
 
 export type PictureTransform = {
 	/** Degrees clockwise, in (-180, 180]. */
@@ -78,6 +80,21 @@ export function outputSize(picture: Size, transform: PictureTransform): Size {
 	const frame = rotatedFrame(picture, transform.rotation)
 	const crop = cropRect(transform)
 	return { width: crop.width * frame.width, height: crop.height * frame.height }
+}
+
+/**
+ * The export's canvas: the output itself, but never longer on either side
+ * than the turned picture's frame is on its longest. A crop is never larger
+ * than that frame, nor a turn's frame than itself; only a fitted crop (black
+ * bars around the whole picture) is: a 1920×1080 picture fitted to 9:16 is
+ * 1920×3413, recorded at 1080×1920.
+ */
+export function exportSize(picture: Size, transform: PictureTransform): Size {
+	const output = outputSize(picture, transform)
+	const frame = rotatedFrame(picture, transform.rotation)
+	const longest = Math.max(frame.width, frame.height)
+	const scale = Math.min(1, longest / Math.max(output.width, output.height))
+	return evenPixels({ width: output.width * scale, height: output.height * scale })
 }
 
 /** A canvas-sized version of a size: whole, even pixels (video encoders want even sizes), at least 2. */
@@ -182,6 +199,18 @@ export function centredCrop(ratio: number, frame: Size): Rect {
 }
 
 /**
+ * The smallest rectangle of `ratio` that holds all of `frame`, centred, as
+ * fractions of it: past its edges on one axis, which show black.
+ */
+export function fittedCrop(ratio: number, frame: Size): Rect {
+	const width = Math.max(frame.width, frame.height * ratio)
+	const height = width / ratio
+	const fw = width / frame.width
+	const fh = height / frame.height
+	return { x: (1 - fw) / 2, y: (1 - fh) / 2, width: fw, height: fh }
+}
+
+/**
  * A crop after the frame changed shape (the picture was turned): a preset
  * is fitted again, centred, so it stays that shape; a free crop keeps its
  * place as fractions of the frame.
@@ -191,7 +220,9 @@ export function refitCrop(crop: Crop | null, frame: Size): Crop | null {
 	// A followed face was found in the frame before the turn: it no longer applies.
 	const still: Crop = { rect: crop.rect, aspect: crop.aspect }
 	const ratio = aspectRatio(crop.aspect)
-	return ratio === null ? still : { ...still, rect: centredCrop(ratio, frame) }
+	if (ratio === null) return still
+	if (crop.fit) return { ...still, rect: fittedCrop(ratio, frame), fit: true }
+	return { ...still, rect: centredCrop(ratio, frame) }
 }
 
 /** Eases in and out between keys: a camera pan, not a jump. */

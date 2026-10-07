@@ -30,6 +30,7 @@ import {
 } from './make-plan'
 
 const EXAMPLES = ['reel', 'funny', 'professional', 'ad'] as const
+const SECONDS_PER_MINUTE = 60
 /** The status a busy AI comes back with (rethrowAsBusy): its message is meant for the user. */
 const BUSY_STATUS = 503
 
@@ -430,14 +431,28 @@ function PlanView({
 	onCancel: () => void
 }) {
 	const t = useTranslations('Make.plan')
+	// Rounded once, so the headline and the times below agree.
+	const seconds = Math.round(summary.editedSeconds)
+	const length =
+		seconds < SECONDS_PER_MINUTE
+			? t('duration.seconds', { count: seconds })
+			: t('duration.minutes', {
+					minutes: Math.floor(seconds / SECONDS_PER_MINUTE),
+					seconds: seconds % SECONDS_PER_MINUTE
+				})
+	const shortened = summary.removedParts > 0 || summary.fillerCuts > 0
 	const lines = [
-		t('length', {
-			from: formatTimecode(summary.originalSeconds),
-			to: formatTimecode(summary.editedSeconds)
-		}),
-		summary.removedParts > 0 || summary.fillerCuts > 0
-			? t('cuts', { parts: summary.removedParts, fillers: summary.fillerCuts })
-			: t('noCuts'),
+		shortened
+			? t('shortened', {
+					from: formatTimecode(summary.originalSeconds),
+					to: formatTimecode(seconds)
+				})
+			: t('whole', { length: formatTimecode(seconds) }),
+		...(summary.keptSentences < summary.totalSentences
+			? [t('keptSentences', { kept: summary.keptSentences, total: summary.totalSentences })]
+			: []),
+		...(summary.fillerCuts > 0 ? [t('fillers', { count: summary.fillerCuts })] : []),
+		...(summary.limitSeconds === null ? [] : [t(summary.trimmedToFit ? 'fitCut' : 'fitOk')]),
 		t(`captions.${summary.captions}`),
 		...(summary.zooms > 0 ? [t('zooms', { count: summary.zooms })] : []),
 		...(summary.transitions > 0
@@ -460,10 +475,9 @@ function PlanView({
 			className="border-border bg-surface flex flex-col gap-4 rounded-lg border p-6 shadow-xl"
 		>
 			<div className="flex flex-col gap-1">
-				<p className="text-accent text-xs font-semibold tracking-wide uppercase">
-					{t(`styles.${summary.style}`)}
-				</p>
-				<h2 className="font-display text-text text-xl font-semibold">{t('heading')}</h2>
+				<h2 className="font-display text-text text-xl font-semibold">
+					{t(`making.${summary.making}`, { length })}
+				</h2>
 				<p className="text-text-muted text-sm">{summary.summary}</p>
 			</div>
 			<ul className="text-text flex list-disc flex-col gap-1 pl-5 text-sm">

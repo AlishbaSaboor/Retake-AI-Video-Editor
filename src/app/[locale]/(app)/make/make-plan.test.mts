@@ -1,14 +1,17 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { toTranscript } from '../../editor/transcript'
+import { exportSize } from '../../editor/transform'
 import {
 	faceFollow,
 	frameTimes,
 	inventedNames,
+	isShortForm,
 	keptRanges,
 	MAX_FRAMES,
 	makeReplySchema,
 	planMake,
+	SHORT_FORM_MAX_SECONDS,
 	type MakeReply
 } from './make-plan'
 
@@ -36,8 +39,11 @@ const ranges = (list: Array<{ startSeconds: number; endSeconds: number }>) =>
 const REPLY: MakeReply = {
 	questions: [],
 	style: 'reel',
+	format: 'instagram_reel',
+	subject: 'one_person',
 	summary: 'A short talk; tightened into a reel.',
 	pictureMatters: false,
+	keyMoments: [4],
 	removeSentences: [3],
 	removeSpans: [],
 	captions: 'words',
@@ -194,7 +200,12 @@ test('a reply is planned into one edit: clips, transitions, word captions, zooms
 		{ ...summary, editedSeconds: 0 },
 		{
 			style: 'reel',
+			making: 'instagram_reel',
 			summary: 'A short talk; tightened into a reel.',
+			limitSeconds: SHORT_FORM_MAX_SECONDS,
+			trimmedToFit: false,
+			keptSentences: 4,
+			totalSentences: 5,
 			originalSeconds: DURATION,
 			editedSeconds: 0,
 			removedParts: 4,
@@ -214,7 +225,7 @@ test('a reply is planned into one edit: clips, transitions, word captions, zooms
 	)
 })
 
-test('with no speech, no faces and no music: no captions, a centred crop, and it says so', () => {
+test('with no speech, no faces and no music: no captions, the whole picture fitted, and it says so', () => {
 	const { edit, summary } = planMake({
 		reply: { ...REPLY, faces: [], title: 'This is good', removeSentences: [] },
 		request: 'make it a reel',
@@ -232,9 +243,9 @@ test('with no speech, no faces and no music: no captions, a centred crop, and it
 	assert.equal(edit.captionsOn, false)
 	assert.equal(summary.captions, 'off')
 	assert.equal(summary.pictureMatters, true)
-	assert.equal(summary.vertical, 'centre')
+	assert.equal(summary.vertical, 'fit')
 	assert.equal(edit.transform.crop?.follow, undefined)
-	near(edit.transform.crop?.rect.x ?? 0, (1 - 0.31640625) / 2)
+	assert.equal(edit.transform.crop?.fit, true)
 	assert.equal(summary.music, null)
 	assert.equal(summary.musicMissing, true)
 	assert.deepEqual(edit.audioItems, [])
@@ -266,4 +277,121 @@ test("a reply that isn't the shape asked for fails to parse", () => {
 		makeReplySchema.safeParse({ ...REPLY, questions: ['a', 'b', 'c', 'd'] }).success,
 		false
 	)
+})
+
+/** A talk of `count` sentences, each 3 s with half a second between: about 3.5 s a sentence. */
+function longTalk(count: number) {
+	return toTranscript(
+		Array.from({ length: count }, (_, i) => ({
+			word: `Step${i + 1}.`,
+			start: i * 3.5,
+			end: i * 3.5 + 3
+		}))
+	)
+}
+
+test('a reel, TikTok or Short comes out under a minute, keeping the key moments', () => {
+	// 40 sentences: 140 s, and the reply cut only one of them.
+	const talk = longTalk(40)
+	const keyMoments = [30, 2, 17, 9, 25]
+	const { edit, summary } = planMake({
+		reply: { ...REPLY, removeSentences: [40], keyMoments, transition: 'none', zoomSentences: [] },
+		request: 'make this an Instagram reel',
+		durationSeconds: 140,
+		picture: { width: 1920, height: 1080 },
+		transcript: talk,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false
+	})
+	assert.ok(summary.editedSeconds <= SHORT_FORM_MAX_SECONDS, `${summary.editedSeconds} s`)
+	// Not much under it either: only what had to go went.
+	assert.ok(summary.editedSeconds > SHORT_FORM_MAX_SECONDS - 4, `${summary.editedSeconds} s`)
+	assert.equal(summary.trimmedToFit, true)
+	assert.equal(summary.limitSeconds, SHORT_FORM_MAX_SECONDS)
+	assert.ok(summary.keptSentences < 40)
+	// Every key moment is still in it, whole.
+	const kept = edit.clips?.flatMap((clip) => clip.ranges) ?? []
+	for (const number of keyMoments) {
+		const sentence = talk.segments[number - 1]
+		assert.ok(
+			sentence &&
+				kept.some(
+					(range) =>
+						range.startSeconds <= sentence.startSeconds && range.endSeconds >= sentence.endSeconds
+				),
+			`key moment ${number} kept`
+		)
+	}
+	// The sentence the reply cut stays cut.
+	const last = talk.segments[39]
+	assert.ok(last && !kept.some((range) => range.endSeconds > last.startSeconds))
+})
+
+test('one long stretch over a minute keeps only its first 59 seconds; other edits have no limit', () => {
+	const speech = toTranscript([{ word: 'Long.', start: 0, end: 100 }])
+	const reel = planMake({
+		reply: { ...REPLY, keyMoments: [], zoomSentences: [] },
+		request: 'make it a TikTok',
+		durationSeconds: 100,
+		picture: { width: 1920, height: 1080 },
+		transcript: speech,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false
+	})
+	assert.ok(reel.summary.editedSeconds <= SHORT_FORM_MAX_SECONDS)
+	assert.ok(reel.summary.editedSeconds > SHORT_FORM_MAX_SECONDS - 1)
+	const professional = planMake({
+		reply: { ...REPLY, format: 'other', style: 'professional', keyMoments: [], vertical: false },
+		request: 'make it professional',
+		durationSeconds: 100,
+		picture: { width: 1920, height: 1080 },
+		transcript: speech,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false
+	})
+	assert.equal(professional.summary.limitSeconds, null)
+	assert.ok(professional.summary.editedSeconds > 99)
+	assert.equal(professional.summary.making, 'professional')
+	assert.equal(professional.edit.transform.crop, null)
+})
+
+test('short-form is known from the format or the request itself', () => {
+	assert.equal(isShortForm('tiktok', 'make it fun'), true)
+	assert.equal(isShortForm('other', 'make this an Instagram Reel'), true)
+	assert.equal(isShortForm('other', 'turn it into YouTube Shorts'), true)
+	assert.equal(isShortForm('other', 'make it a TikTok'), true)
+	assert.equal(isShortForm('other', 'make it professional'), false)
+	assert.equal(isShortForm('other', 'keep it short'), false)
+})
+
+test('a screen recording made vertical keeps the whole picture, with black bars, faces or not', () => {
+	const picture = { width: 1920, height: 1080 }
+	const { edit, summary } = planMake({
+		reply: { ...REPLY, subject: 'screen', pictureMatters: false },
+		request: 'make this an Instagram reel',
+		durationSeconds: DURATION,
+		picture,
+		transcript,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false
+	})
+	assert.equal(summary.vertical, 'fit')
+	const crop = edit.transform.crop
+	assert.ok(crop)
+	assert.equal(crop.fit, true)
+	assert.equal(crop.follow, undefined)
+	// All of the width; the height reaches past the picture equally above and below.
+	assert.equal(crop.rect.x, 0)
+	assert.equal(crop.rect.width, 1)
+	near(crop.rect.height, 1920 / (9 / 16) / 1080)
+	near(crop.rect.y, (1 - crop.rect.height) / 2)
+	// Recorded at 1080 × 1920: never bigger than the picture's longest side.
+	assert.deepEqual(exportSize(picture, edit.transform), {
+		width: 1080,
+		height: 1920
+	})
 })
