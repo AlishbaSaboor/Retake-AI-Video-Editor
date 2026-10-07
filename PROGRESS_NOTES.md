@@ -272,7 +272,7 @@ separate `chore(logs)` commit.
 | The logo by hand: drag anywhere, resize by its corner, keys, a size field; PNG or JPG                                                                                                                                    | `feat(editor): place and resize the logo by hand, PNG or JPG`            | Unit tests for placing, moving, resizing and clamping. e2e drags and resizes a JPG logo, checks the export puts it at the same place and size, the keys, the size field, undo per step, corners and the default-corner command.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 **Current totals** (2026-10-07, Make it part 1): 363 unit tests
-(`src/**/*.test.mts`) and 97 e2e tests (plus the sign-in setup).
+(`src/**/*.test.mts`) and 99 e2e tests (plus the sign-in setup).
 Everything passes locally. On the meter commit the full e2e suite passed
 18/18 in each of two runs.
 
@@ -2247,6 +2247,41 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
   music 0.07–0.10 under speech (0.0875 due) and 0.349 in a pause (0.35 due).
   (Reading frames by seeking a 100 s recorder WebM returned the first frame
   every time; playing it and grabbing frames on the way worked.)
+- **Fixed before merge (2026-10-07): "Minified React error #441".** The
+  owner's 6 October recording (production build) failed after the
+  transcript with that message. In the server log (production, reproduced
+  with the real upload): "Maximum array nesting exceeded. Large nested
+  arrays can be dangerous." Decoding a server action's arguments, React
+  counts every character of the strings inside an array against a limit of
+  1,000,000 and rejects the request before the action runs (a 500, which
+  production shows as #441). The pictures went as an array of base64
+  strings: `Cap.mp4`'s dark, flat screens came to 393 KB, the 6 October
+  recording's busier ones to 1.19 MB. Now they go as one string separated by
+  spaces (`FRAME_SEPARATOR`), split and checked on the server, as the
+  transcript's audio already did. That recording now gets a plan (1.19 MB,
+  200).
+  - **Why the tests missed it:** the e2e mock replaced the whole plan request
+    with `[{frames: []}]` before it reached the server, so React never
+    decoded real pictures there; the test videos are 6 s synthetic clips (3
+    tiny pictures), and the real-footage check used the same mock on a
+    recording far under the limit. The mock now sends the real request,
+    pictures whole, with only the request's text emptied (validation stops
+    it before any AI call). A new test records 70 s of square noise in the
+    page, picks it in the real file input (a `DataTransfer`, as the file is
+    too big to pass back and forth), and checks the 35 pictures (over
+    1,000,000 characters) reach the server and come back as a plan. Run
+    against the old build it fails with exactly the owner's message; it adds
+    about two minutes to one CI shard.
+  - **Reproduced at no cost:** the production server ran with a preloaded
+    fetch stub (scratchpad `fake-ai.mjs`, `NODE_OPTIONS=--import`) answering
+    Deepgram and Gemini with fake replies, so the whole real path ran with no
+    paid call.
+  - **Errors on the page are plain words now:** a failed transcript, pictures
+    or plan shows "Retake couldn't write the transcript… / plan the edit just
+    now. Go back and try again in a moment."; only a busy AI's own message
+    (written for people) is shown as it is. A plan request that throws is
+    reported with `captureClientError`. Tested: a plan request answered with
+    a 500 shows the plain message and nothing of the error.
 - **Not tried against real Gemini** (zero API cost rule): the prompt, the
   face positions it gives and the questions it asks are untested on the
   real model. A reply that doesn't fit the schema shows "Retake couldn't

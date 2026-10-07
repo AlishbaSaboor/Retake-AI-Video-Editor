@@ -19,6 +19,7 @@ import { captureClientError } from '@/lib/observability/capture-client-error'
 import { planMakeIt } from './actions'
 import { captureFrames } from './frames'
 import {
+	FRAME_SEPARATOR,
 	frameTimes,
 	MAX_MAKE_SECONDS,
 	MAX_REQUEST_LENGTH,
@@ -29,6 +30,8 @@ import {
 } from './make-plan'
 
 const EXAMPLES = ['reel', 'funny', 'professional', 'ad'] as const
+/** The status a busy AI comes back with (rethrowAsBusy): its message is meant for the user. */
+const BUSY_STATUS = 503
 
 /** The picked video, read: where it plays from, how long it is, its picture's size. */
 type Video = { file: File; url: string; durationSeconds: number; picture: Size }
@@ -47,6 +50,23 @@ async function loadTrack(name: string): Promise<MusicTrack<AudioBuffer> | null> 
 		captureClientError(error, { feature: 'make_it_music' })
 		return null
 	}
+}
+
+/**
+ * Asks the server for a plan. A failure comes back as what to tell the
+ * user: the server's own words when the AI is busy (they're written for
+ * people), `unclear` for anything else, which is reported, never shown.
+ */
+async function requestPlan(input: Parameters<typeof planMakeIt>[0], unclear: string) {
+	let result: Awaited<ReturnType<typeof planMakeIt>>
+	try {
+		result = await planMakeIt(input)
+	} catch (error) {
+		captureClientError(error, { feature: 'make_it' })
+		throw new Error(unclear)
+	}
+	if (!result.ok) throw new Error(result.status === BUSY_STATUS ? result.error : unclear)
+	return result.data
 }
 
 /**
@@ -95,19 +115,20 @@ export function MakeIt() {
 		queryKey: ['make-plan', video?.url, ask],
 		queryFn: async () => {
 			if (!video || !ask || !frames.data) throw new Error('nothing to plan')
-			const result = await planMakeIt({
-				request: ask.request,
-				answers: ask.answers,
-				durationSeconds: video.durationSeconds,
-				sentences: (transcript?.segments ?? []).map(({ startSeconds, endSeconds, text }) => ({
-					startSeconds,
-					endSeconds,
-					text
-				})),
-				frames: frames.data
-			})
-			if (!result.ok) throw new Error(result.error)
-			const { reply, tracks } = result.data
+			const { reply, tracks } = await requestPlan(
+				{
+					request: ask.request,
+					answers: ask.answers,
+					durationSeconds: video.durationSeconds,
+					sentences: (transcript?.segments ?? []).map(({ startSeconds, endSeconds, text }) => ({
+						startSeconds,
+						endSeconds,
+						text
+					})),
+					frames: frames.data.join(FRAME_SEPARATOR)
+				},
+				t('errors.planning')
+			)
 			if (!reply) return { kind: 'none' } as const
 			if (reply.questions.length > 0) {
 				return { kind: 'questions', questions: reply.questions } as const
@@ -173,9 +194,10 @@ export function MakeIt() {
 		router.push('/editor')
 	}
 
+	// Plain words for each step that can fail; never an error's own text.
 	const failed =
 		transcriptState.status === 'failed'
-			? transcriptState.error
+			? t('errors.transcript')
 			: frames.isError
 				? t('errors.pictures')
 				: plan.isError
@@ -193,7 +215,7 @@ export function MakeIt() {
 		return (
 			<Card>
 				<p role="alert" className="text-text text-sm">
-					{t('errors.failed', { error: failed })}
+					{failed}
 				</p>
 				<Button
 					type="button"

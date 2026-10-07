@@ -8,6 +8,7 @@ import { validatedAction } from '@/server/actions/validated-action'
 import { rethrowAsBusy } from '@/server/lib/ai-busy'
 import { numberedSentences } from '@/app/[locale]/editor/highlights'
 import {
+	FRAME_SEPARATOR,
 	MAKE_REPLY_JSON_SCHEMA,
 	makeReplySchema,
 	MAX_FRAMES,
@@ -123,7 +124,11 @@ export const planMakeIt = validatedAction({
 				})
 			)
 			.max(MAX_SENTENCES),
-		frames: z.array(z.string().min(1).max(MAX_FRAME_BASE64_LENGTH)).min(1).max(MAX_FRAMES)
+		frames: z
+			.string()
+			.max(MAX_FRAMES * (MAX_FRAME_BASE64_LENGTH + 1))
+			.transform((joined) => joined.split(FRAME_SEPARATOR))
+			.pipe(z.array(z.string().min(1).max(MAX_FRAME_BASE64_LENGTH)).min(1).max(MAX_FRAMES))
 	}),
 	handler: async (input): Promise<{ reply: MakeReply | null; tracks: string[] }> => {
 		const tracks = await musicTracks()
