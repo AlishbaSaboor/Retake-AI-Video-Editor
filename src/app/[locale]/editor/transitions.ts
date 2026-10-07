@@ -11,8 +11,23 @@
 // transitions at its joins without any bookkeeping. Its length is in the
 // edited video's seconds, whatever the clips' speeds.
 
-export const TRANSITION_KINDS = ['fade', 'dissolve'] as const
+export const TRANSITION_KINDS = ['fade', 'dissolve', 'slide'] as const
 export type TransitionKind = (typeof TRANSITION_KINDS)[number]
+
+/**
+ * Whether the clips overlap through it, the one after starting while the
+ * one before still plays: a dissolve (blending in) and a slide (coming in
+ * from the right, over it). A fade goes through black and keeps the length.
+ */
+export function overlapsClips(kind: TransitionKind): boolean {
+	return kind !== 'fade'
+}
+
+/** How far a slide's incoming clip still has to come, as a fraction of the frame's width: easing to rest. */
+export function slideOffset(progress: number): number {
+	const p = Math.min(1, Math.max(0, progress))
+	return (1 - p) ** 3
+}
 
 /** The join into a clip from the clip `after` names. */
 export type Transition = { kind: TransitionKind; seconds: number; after: string }
@@ -53,13 +68,13 @@ export function fadeLevelAt(joins: Join[], seconds: number): number {
 	return level
 }
 
-/** The dissolve under way at edited time `seconds`, and how far through it is (0 to 1). */
+/** The dissolve or slide under way at edited time `seconds`, and how far through it is (0 to 1). */
 export function dissolveAt(
 	joins: Join[],
 	seconds: number
 ): { join: Join; progress: number } | null {
 	const join = joins.find(
-		(j) => j.kind === 'dissolve' && seconds >= j.at && seconds < j.at + j.seconds
+		(j) => overlapsClips(j.kind) && seconds >= j.at && seconds < j.at + j.seconds
 	)
 	return join ? { join, progress: (seconds - join.at) / join.seconds } : null
 }
@@ -86,7 +101,9 @@ export function clampTransitionSeconds(seconds: number): number {
 export function transitionGainAt(joins: Join[], index: number, seconds: number): number {
 	let gain = fadeLevelAt(joins, seconds)
 	for (const join of joins) {
-		if (join.kind !== 'dissolve' || seconds < join.at || seconds >= join.at + join.seconds) continue
+		if (!overlapsClips(join.kind) || seconds < join.at || seconds >= join.at + join.seconds) {
+			continue
+		}
 		const gains = crossfadeGains((seconds - join.at) / join.seconds)
 		if (join.index === index) gain *= gains.in
 		else if (join.index === index + 1) gain *= gains.out

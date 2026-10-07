@@ -11,7 +11,10 @@ import {
 	type Segment,
 	type SourceRange
 } from './sequence'
-import { crossfadeGains, transitionGainAt } from './transitions'
+import { crossfadeGains, overlapsClips, slideOffset, transitionGainAt } from './transitions'
+
+/** CSS percentages. */
+const PERCENT = 100
 
 // Pressing play this close to the end counts as "at the end" and restarts
 // from the beginning, rather than playing a frame and stopping.
@@ -51,6 +54,7 @@ function hideDeck(deck: HTMLVideoElement | null) {
 	if (!deck) return
 	deck.pause()
 	deck.style.opacity = '0'
+	deck.style.transform = ''
 	deck.volume = 0
 }
 
@@ -333,7 +337,7 @@ export function useSequencePlayback(
 				return
 			}
 			const next = segments[index + 1]
-			if (next?.transition?.kind !== 'dissolve' || element.paused) {
+			if (!next?.transition || !overlapsClips(next.transition.kind) || element.paused) {
 				if (dissolve) {
 					dissolveRef.current = null
 					hideDeck(deck)
@@ -367,7 +371,10 @@ export function useSequencePlayback(
 				state.started = true
 			}
 			const progress = into / next.transition.seconds
-			deck.style.opacity = String(Math.min(1, progress))
+			// A slide comes in whole, from the right; a dissolve blends in.
+			const slide = next.transition.kind === 'slide'
+			deck.style.opacity = slide ? '1' : String(Math.min(1, progress))
+			deck.style.transform = slide ? `translateX(${slideOffset(progress) * PERCENT}%)` : ''
 			deck.volume = Math.min(1, crossfadeGains(progress).in)
 		}
 
@@ -391,7 +398,7 @@ export function useSequencePlayback(
 				current.to === to &&
 				current.rate === rate
 			const carriesOn =
-				same && index > current.index && segments[index]?.transition?.kind === 'dissolve'
+				same && index > current.index && overlapsClips(segments[index]?.transition?.kind ?? 'fade')
 			if (same && (current.index === index || carriesOn)) return
 			stopLane(laneRef)
 			const audio = audioRef.current ?? new AudioContext()

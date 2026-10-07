@@ -7,10 +7,11 @@ import {
 	type Annotation,
 	type ObscureKind
 } from './annotations'
-import { captionAt, type Caption } from './captions'
+import { captionAt, highlightColor, spokenWordAt, type Caption } from './captions'
 import { editedStarts, type Segment } from './sequence'
 import {
 	animationAt,
+	revealedWords,
 	LOWER_THIRD_ANIMATION,
 	zoomsViewAt,
 	type Animation,
@@ -77,6 +78,8 @@ export type Overlays = {
 	zoom: Zoom | null
 	/** More zooms, from Make it: each plays where the one set by hand isn't under way. */
 	autoZooms?: Zoom[]
+	/** Key lines, from Make it: more titles, each in its own time. */
+	autoTitles?: TitleCard[]
 }
 
 // The lower third's band, in the frame: its left edge and its bottom (above
@@ -309,9 +312,50 @@ function drawAnnotations(
 		context.textAlign = 'center'
 		context.textBaseline = 'middle'
 		context.fillStyle = style.color
-		context.fillText(item.text, 0, 0)
+		drawText(context, item.text, 0, 0, null, motion.reveal)
 		context.restore()
 	}
+}
+
+/**
+ * Text centred on (x, y), in the context's font, at most `maxWidth` wide
+ * (squeezed to fit, as fillText's own limit does). With `reveal` (a
+ * word-by-word entrance under way), each word as far in as it has got.
+ */
+function drawText(
+	context: CanvasRenderingContext2D,
+	text: string,
+	x: number,
+	y: number,
+	maxWidth: number | null,
+	reveal: number | undefined
+) {
+	if (reveal === undefined) {
+		if (maxWidth === null) context.fillText(text, x, y)
+		else context.fillText(text, x, y, maxWidth)
+		return
+	}
+	const words = revealedWords(text, reveal)
+	const space = context.measureText(' ').width
+	const widths = words.map(({ word }) => context.measureText(word).width)
+	const total = widths.reduce((sum, w) => sum + w, 0) + space * Math.max(0, words.length - 1)
+	const squeeze = maxWidth === null ? 1 : Math.min(1, maxWidth / total)
+	// The height of the text, for how far a word rises: about its font's size.
+	const height = context.measureText('M').width * 1.2
+	context.save()
+	context.translate(x, y)
+	context.scale(squeeze, 1)
+	context.textAlign = 'left'
+	const alpha = context.globalAlpha
+	let left = -total / 2
+	for (const [index, { word, opacity, rise }] of words.entries()) {
+		if (opacity > 0) {
+			context.globalAlpha = alpha * opacity
+			context.fillText(word, left, rise * height)
+		}
+		left += (widths[index] ?? 0) + space
+	}
+	context.restore()
 }
 
 /**
@@ -381,6 +425,8 @@ function drawStroke(
 export type FrameMix = {
 	incoming: CanvasImageSource | null
 	incomingAlpha: number
+	/** A slide: how far the incoming clip still has to come, as a fraction of the frame's width. */
+	incomingShift?: number
 	light: number
 	filter?: string | null
 	incomingFilter?: string | null
@@ -420,7 +466,14 @@ export function drawFrame(
 	const view = zoomsViewAt([overlays.zoom, ...(overlays.autoZooms ?? [])], seconds)
 	const z = view.scale === 1 ? m : zoomedMatrix(m, view, { width, height })
 	context.setTransform(z.a, z.b, z.c, z.d, z.e, z.f)
-	const { incoming, incomingAlpha, light, filter = null, incomingFilter = null } = mix
+	const {
+		incoming,
+		incomingAlpha,
+		incomingShift = 0,
+		light,
+		filter = null,
+		incomingFilter = null
+	} = mix
 	// The grade only where there is one: an ungraded frame costs nothing extra.
 	if (filter) context.filter = filter
 	context.drawImage(source, 0, 0, picture.width, picture.height)
@@ -428,7 +481,9 @@ export function drawFrame(
 	if (incoming && incomingAlpha > 0) {
 		context.globalAlpha = Math.min(1, incomingAlpha)
 		if (incomingFilter) context.filter = incomingFilter
+		context.setTransform(z.a, z.b, z.c, z.d, z.e + incomingShift * width, z.f)
 		context.drawImage(incoming, 0, 0, picture.width, picture.height)
+		context.setTransform(z.a, z.b, z.c, z.d, z.e, z.f)
 		context.filter = 'none'
 		context.globalAlpha = 1
 	}
@@ -519,26 +574,60 @@ function drawFrameOverlays(
 		context.textAlign = 'center'
 		context.textBaseline = 'middle'
 		const bottom = height * (1 - CAPTION_BOTTOM_FRACTION)
+		const spoken = spokenWordAt(caption, seconds)
+		const highlight = highlightColor(captionStyle.color)
+		// Words counted across the lines, for which one is being said.
+		let wordIndex = 0
 		for (const [index, line] of caption.lines.entries()) {
 			const middle = bottom - (caption.lines.length - index - 0.5) * lineHeight
-			const lineWidth = context.measureText(line).width + padding * 2
+			const textWidth = context.measureText(line).width
+			const lineWidth = textWidth + padding * 2
 			if (captionStyle.background) {
 				context.fillStyle = bandColor(captionStyle.background)
 				context.fillRect((width - lineWidth) / 2, middle - lineHeight / 2, lineWidth, lineHeight)
 			}
 			context.fillStyle = captionStyle.color
-			context.fillText(line, width / 2, middle)
+			if (spoken === null) {
+				context.fillText(line, width / 2, middle)
+				continue
+			}
+			// Word by word from the line's left edge, the one being said in its colour.
+			context.textAlign = 'left'
+			let left = (width - textWidth) / 2
+			for (const word of line.split(' ')) {
+				context.fillStyle = wordIndex === spoken ? highlight : captionStyle.color
+				context.fillText(word, left, middle)
+				left += context.measureText(`${word} `).width
+				wordIndex++
+			}
+			context.textAlign = 'center'
 		}
 	}
-	const titleMotion =
-		title &&
-		animationAt(
-			title.animation,
-			title.startSeconds,
-			title.startSeconds + title.durationSeconds,
-			seconds
-		)
-	if (title && titleMotion) {
+	for (const card of [title, ...(overlays.autoTitles ?? [])]) {
+		if (card) drawTitle(context, card, seconds)
+	}
+	if (overlays.lowerThird) drawLowerThird(context, overlays.lowerThird, seconds)
+	if (watermark && logo) {
+		const rect = watermarkRect(watermark, width, height)
+		context.save()
+		context.translate(rect.x + rect.width / 2, rect.y + rect.height / 2)
+		context.rotate(((watermark.rotation ?? 0) * Math.PI) / 180)
+		context.drawImage(logo, -rect.width / 2, -rect.height / 2, rect.width, rect.height)
+		context.restore()
+	}
+}
+
+/** A title card (the title, or a key line), while it's on screen, with its band and motion. */
+function drawTitle(context: CanvasRenderingContext2D, title: TitleCard, seconds: number) {
+	const { width, height } = context.canvas
+	const shorter = Math.min(width, height)
+	const titleMotion = animationAt(
+		title.animation,
+		title.startSeconds,
+		title.startSeconds + title.durationSeconds,
+		seconds
+	)
+	if (titleMotion) {
 		const style = title.style ?? DEFAULT_TEXT_STYLE
 		const fontPixels = Math.round(shorter * TITLE_FONT_FRACTION * style.size)
 		const band = fontPixels * TITLE_BAND_SCALE
@@ -555,16 +644,7 @@ function drawFrameOverlays(
 		context.textAlign = 'center'
 		context.textBaseline = 'middle'
 		context.fillStyle = style.color
-		context.fillText(title.text, x, y, width * TITLE_MAX_WIDTH_FRACTION)
-		context.restore()
-	}
-	if (overlays.lowerThird) drawLowerThird(context, overlays.lowerThird, seconds)
-	if (watermark && logo) {
-		const rect = watermarkRect(watermark, width, height)
-		context.save()
-		context.translate(rect.x + rect.width / 2, rect.y + rect.height / 2)
-		context.rotate(((watermark.rotation ?? 0) * Math.PI) / 180)
-		context.drawImage(logo, -rect.width / 2, -rect.height / 2, rect.width, rect.height)
+		drawText(context, title.text, x, y, width * TITLE_MAX_WIDTH_FRACTION, titleMotion.reveal)
 		context.restore()
 	}
 }
