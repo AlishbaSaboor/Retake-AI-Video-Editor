@@ -20,7 +20,7 @@ import {
 } from './annotations'
 import { angleTo, normalDegrees, unturned } from './logo'
 import { animationAt } from './motion'
-import { motionStyle } from './overlay-preview'
+import { motionStyle, RevealText } from './overlay-preview'
 import { bandColor, DEFAULT_TEXT_STYLE, fontFamily } from './text-style'
 import { fitRect } from './sources'
 import type { Size } from './transform'
@@ -344,7 +344,7 @@ export function AnnotationLayer({
 									fontFamily: fontFamily(style.font)
 								}}
 							>
-								{item.text}
+								<RevealText text={item.text} reveal={motion?.reveal} />
 							</span>
 						)}
 						{item.kind === 'pencil' && (

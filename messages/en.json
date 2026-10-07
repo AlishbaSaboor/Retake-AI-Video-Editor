@@ -400,7 +400,12 @@
 			"captionsLabel": "Captions",
 			"captionsOn": "On",
 			"captionsOff": "Off",
-			"captionWords": "Word by word"
+			"captionMode": "Caption style",
+			"captionModes": {
+				"lines": "A line or two at a time",
+				"words": "One word at a time",
+				"highlight": "Highlight the word being said"
+			}
 		},
 		"annotations": {
 			"label": "Annotations",
@@ -571,7 +576,8 @@
 			"kinds": {
 				"cut": "None",
 				"fade": "Fade",
-				"dissolve": "Dissolve"
+				"dissolve": "Dissolve",
+				"slide": "Slide"
 			},
 			"seconds": "Length (s)",
 			"upTo": "Up to {seconds} s here.",
@@ -688,7 +694,8 @@
 				"none": "None",
 				"fade": "Fade",
 				"slide": "Slide",
-				"pop": "Pop"
+				"pop": "Pop",
+				"words": "Word by word"
 			},
 			"sides": {
 				"left": "Left",
@@ -1047,7 +1054,8 @@
 						"2": "Ask for cuts, clean-up, titles, captions, zooms, colour, speed, transitions and more.",
 						"3": "Attach a logo, music or another video in the chat.",
 						"4": "Undo, redo and reset work as commands too.",
-						"5": "Find highlights picks 3 to 5 of the best moments from the transcript. Watch each one and download it as its own video, cropped to 9:16 if you like. It needs a transcript, so videos up to 5 minutes."
+						"5": "Find highlights picks 3 to 5 of the best moments from the transcript. Watch each one and download it as its own video, cropped to 9:16 if you like. It needs a transcript, so videos up to 5 minutes.",
+						"6": "Make it turns a video into a reel, TikTok, Short, ad or a funny or professional edit from one request: it picks the best complete moments (50 to 59 seconds for short videos, opening with the strongest line), cuts dead time, adds captions in a matching style, key lines quoted from the speech, transitions and music, and frames it vertically. A second check reviews the plan against your request before you see it."
 					}
 				},
 				"timeline": {
@@ -1066,12 +1074,12 @@
 					"title": "Motion graphics",
 					"summary": "Titles, text and transitions that move.",
 					"points": {
-						"0": "A title that slides, fades or pops in and out. Drag it on the video and resize it.",
+						"0": "A title that slides, fades, pops or comes in word by word. Drag it on the video and resize it.",
 						"1": "Text on the video, with its own font, size, colour and background.",
-						"2": "Captions from the transcript, and a lower third with a name and subtitle.",
+						"2": "Captions from the transcript, a line at a time, a word at a time or with the word being said highlighted, and a lower third with a name and subtitle.",
 						"3": "Your logo, placed and sized by hand.",
 						"4": "Push-in and pull-out zooms.",
-						"5": "Fades and dissolves between clips. Boxes, blurs, pixelation and drawings on the picture."
+						"5": "Fades, dissolves and slides between clips. Boxes, blurs, pixelation and drawings on the picture."
 					}
 				},
 				"rerecord": {
@@ -1288,16 +1296,22 @@
 			"fillers": "{count, plural, one {# filler word} other {# filler words}} cut",
 			"fitOk": "Under 60 seconds, as reels, TikToks and Shorts need",
 			"fitCut": "Cut further to stay under 60 seconds, keeping the key moments",
+			"opensWith": "Opens with its strongest line: “{line}”",
 			"captions": {
-				"words": "Captions, word by word",
-				"lines": "Captions, a line at a time",
+				"classic": "Captions, a line or two at a time",
+				"bold_words": "Captions, one big word at a time",
+				"highlight": "Captions with the word being said highlighted",
+				"large": "Large captions at the bottom",
 				"off": "No captions"
 			},
+			"keyLines": "{count, plural, one {# key line} other {# key lines}} on screen, in the speaker’s words",
 			"zooms": "{count, plural, one {# zoom} other {# zooms}} on key lines",
 			"transitions": {
 				"none": "No transitions",
 				"fade": "{count, plural, one {# fade} other {# fades}} where parts were cut",
-				"dissolve": "{count, plural, one {# dissolve} other {# dissolves}} where parts were cut"
+				"dissolve": "{count, plural, one {# dissolve} other {# dissolves}} where parts were cut",
+				"slide": "{count, plural, one {# slide} other {# slides}} where parts were cut",
+				"zoom_cut": "{count, plural, one {# zoom cut} other {# zoom cuts}} where parts were cut"
 			},
 			"music": "Music: {name}, quieter while someone speaks",
 			"noMusic": "No music",
@@ -1312,7 +1326,12 @@
 			"speechOnly": "Planned from what's said: the picture doesn't carry this video",
 			"cannotDo": "What Retake can't do here",
 			"apply": "Apply",
-			"cancel": "Cancel"
+			"cancel": "Cancel",
+			"check": {
+				"ok": "Checked against your request: nothing to fix.",
+				"fixed": "Checked against your request, and fixed:",
+				"failed": "The second check couldn’t run, so this is the plan as first made."
+			}
 		}
 	}
 }

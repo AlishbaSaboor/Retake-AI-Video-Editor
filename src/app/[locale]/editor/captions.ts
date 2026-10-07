@@ -8,8 +8,27 @@ import { SENTENCE_END, type TranscriptWord } from './transcript'
 // take: the take itself is never transcribed, so they're the words that
 // were replaced, not timed to the new speech.
 
-/** One caption: at most two short lines, on screen from start to end of the edited video. */
-export type Caption = { lines: string[]; startSeconds: number; endSeconds: number }
+/**
+ * One caption: at most two short lines, on screen from start to end of the
+ * edited video. `spoken`: when each of its words (across its lines, in
+ * order) is said, for highlighting the word being spoken.
+ */
+export type Caption = {
+	lines: string[]
+	startSeconds: number
+	endSeconds: number
+	spoken?: number[]
+}
+
+/** How captions show: a line or two at a time, one word at a time, or lines with the word being spoken picked out. */
+export const CAPTION_MODES = ['lines', 'words', 'highlight'] as const
+export type CaptionMode = (typeof CAPTION_MODES)[number]
+
+/** The word being spoken, picked out in highlighted captions: yellow, or white when the text already is. */
+const HIGHLIGHT_COLOR = '#ffd400'
+export function highlightColor(textColor: string): string {
+	return textColor.toLowerCase() === HIGHLIGHT_COLOR ? '#ffffff' : HIGHLIGHT_COLOR
+}
 
 /** Short enough to read at a glance; a longer stretch goes on a second line, then a new caption. */
 const MAX_LINE_CHARS = 24
@@ -53,16 +72,17 @@ export function editedWords(words: TranscriptWord[], segments: Segment[]): Trans
 /**
  * The captions for the edited video: the transcript's words that still
  * play, in play order, grouped into captions that end at a sentence, a
- * pause, or two full lines. `wordByWord`: one word at a time instead, each
- * held until the next starts unless a pause comes first.
+ * pause, or two full lines. `words`: one word at a time instead, each
+ * held until the next starts unless a pause comes first. `highlight`: the
+ * lines, with when each word is said.
  */
 export function editedCaptions(
 	words: TranscriptWord[],
 	segments: Segment[],
-	wordByWord = false
+	mode: CaptionMode = 'lines'
 ): Caption[] {
 	const playing = editedWords(words, segments)
-	if (wordByWord) {
+	if (mode === 'words') {
 		return playing.map((word, index) => {
 			const next = playing[index + 1]
 			const held = next && next.startSeconds - word.endSeconds <= MAX_GAP_SECONDS
@@ -93,13 +113,26 @@ export function editedCaptions(
 				line = ''
 			}
 		}
-		current ??= { lines: [], startSeconds: word.startSeconds, endSeconds: word.endSeconds }
+		current ??= {
+			lines: [],
+			startSeconds: word.startSeconds,
+			endSeconds: word.endSeconds,
+			...(mode === 'highlight' && { spoken: [] })
+		}
+		current.spoken?.push(word.startSeconds)
 		line = line ? `${line} ${word.text}` : word.text
 		current.endSeconds = word.endSeconds
 		endsSentence = SENTENCE_END.test(word.text)
 	}
 	close()
 	return captions
+}
+
+/** Which of a caption's words (counted across its lines) is being said at `seconds`; null when none is picked out. */
+export function spokenWordAt(caption: Caption, seconds: number): number | null {
+	if (!caption.spoken) return null
+	const index = caption.spoken.findLastIndex((start) => start <= seconds)
+	return index === -1 ? null : index
 }
 
 /** The caption on screen at `seconds` of the edited video, if any. */

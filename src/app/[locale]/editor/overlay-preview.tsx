@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { captionAt } from './captions'
+import { captionAt, highlightColor, spokenWordAt } from './captions'
 import {
 	CAPTION_BOTTOM_FRACTION,
 	CAPTION_FONT_FRACTION,
@@ -20,7 +20,8 @@ import {
 	watermarkRect,
 	type Overlays
 } from './overlays'
-import { animationAt, LOWER_THIRD_ANIMATION, type MotionState } from './motion'
+import { animationAt, LOWER_THIRD_ANIMATION, revealedWords, type MotionState } from './motion'
+import type { TitleCard } from './overlays'
 import { bandColor, DEFAULT_TEXT_STYLE, fontFamily } from './text-style'
 
 /** An element where its motion has it: faded, moved across the frame, scaled about its centre. */
@@ -32,6 +33,64 @@ export function motionStyle(motion: MotionState) {
 }
 
 const PERCENT = 100
+
+/** Text as the export draws it: whole, or word by word while a word-by-word entrance is under way. */
+export function RevealText({ text, reveal }: { text: string; reveal: number | undefined }) {
+	if (reveal === undefined) return text
+	return revealedWords(text, reveal).map(({ word, opacity, rise }, index) => (
+		<span key={index}>
+			{index > 0 && ' '}
+			<span className="inline-block" style={{ opacity, transform: `translateY(${rise}em)` }}>
+				{word}
+			</span>
+		</span>
+	))
+}
+
+/** A title card (the title, or a key line) while it's on screen: its band and its text. */
+function TitlePreview({ title, editedSeconds }: { title: TitleCard; editedSeconds: number }) {
+	const style = title.style ?? DEFAULT_TEXT_STYLE
+	const motion = animationAt(
+		title.animation,
+		title.startSeconds,
+		title.startSeconds + title.durationSeconds,
+		editedSeconds
+	)
+	if (!motion) return null
+	const centre = titleCentre(title)
+	return (
+		<>
+			{style.background && (
+				<div
+					aria-hidden
+					className="absolute inset-x-0 -translate-y-1/2"
+					style={{
+						top: `${centre.y * PERCENT}%`,
+						height: `${TITLE_FONT_FRACTION * TITLE_BAND_SCALE * style.size * PERCENT}cqmin`,
+						background: bandColor(style.background),
+						transformOrigin: `${centre.x * PERCENT}% 50%`,
+						...motionStyle(motion)
+					}}
+				/>
+			)}
+			<div
+				data-title-text
+				className="absolute -translate-x-1/2 -translate-y-1/2 font-bold whitespace-nowrap"
+				style={{
+					left: `${centre.x * PERCENT}%`,
+					top: `${centre.y * PERCENT}%`,
+					maxWidth: `${TITLE_MAX_WIDTH_FRACTION * PERCENT}%`,
+					fontSize: `${TITLE_FONT_FRACTION * style.size * PERCENT}cqmin`,
+					color: style.color,
+					fontFamily: fontFamily(style.font),
+					...motionStyle(motion)
+				}}
+			>
+				<RevealText text={title.text} reveal={motion.reveal} />
+			</div>
+		</>
+	)
+}
 
 type OverlayPreviewProps = {
 	overlays: Overlays
@@ -52,15 +111,11 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 	const t = useTranslations('Editor.graphics')
 	const { title, watermark, captions, captionStyle } = overlays
 	const caption = captionAt(captions, editedSeconds)
-	const titleStyle = title?.style ?? DEFAULT_TEXT_STYLE
-	const titleMotion =
-		title &&
-		animationAt(
-			title.animation,
-			title.startSeconds,
-			title.startSeconds + title.durationSeconds,
-			editedSeconds
-		)
+	const spoken = caption ? spokenWordAt(caption, editedSeconds) : null
+	// Each line's first word, counted across the lines, for which one is being said.
+	const firstWords = caption?.lines.map((_, index) =>
+		caption.lines.slice(0, index).reduce((sum, line) => sum + line.split(' ').length, 0)
+	)
 	const lower = overlays.lowerThird
 	const lowerMotion =
 		lower &&
@@ -73,37 +128,9 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 	const logo = watermark && watermarkRect(watermark, frame.width, frame.height)
 	return (
 		<div className="pointer-events-none absolute inset-0" style={{ containerType: 'size' }}>
-			{title && titleMotion && (
-				<>
-					{titleStyle.background && (
-						<div
-							aria-hidden
-							className="absolute inset-x-0 -translate-y-1/2"
-							style={{
-								top: `${titleCentre(title).y * PERCENT}%`,
-								height: `${TITLE_FONT_FRACTION * TITLE_BAND_SCALE * titleStyle.size * PERCENT}cqmin`,
-								background: bandColor(titleStyle.background),
-								transformOrigin: `${titleCentre(title).x * PERCENT}% 50%`,
-								...motionStyle(titleMotion)
-							}}
-						/>
-					)}
-					<div
-						data-title-text
-						className="absolute -translate-x-1/2 -translate-y-1/2 font-bold whitespace-nowrap"
-						style={{
-							left: `${titleCentre(title).x * PERCENT}%`,
-							top: `${titleCentre(title).y * PERCENT}%`,
-							maxWidth: `${TITLE_MAX_WIDTH_FRACTION * PERCENT}%`,
-							fontSize: `${TITLE_FONT_FRACTION * titleStyle.size * PERCENT}cqmin`,
-							color: titleStyle.color,
-							fontFamily: fontFamily(titleStyle.font),
-							...motionStyle(titleMotion)
-						}}
-					>
-						{title.text}
-					</div>
-				</>
+			{[title, ...(overlays.autoTitles ?? [])].map(
+				(card, index) =>
+					card && <TitlePreview key={index} title={card} editedSeconds={editedSeconds} />
 			)}
 			{caption && (
 				<div
@@ -116,15 +143,29 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 						fontFamily: fontFamily(captionStyle.font)
 					}}
 				>
-					{caption.lines.map((line, index) => (
+					{caption.lines.map((line, lineIndex) => (
 						<span
-							key={index}
+							key={lineIndex}
 							style={{
 								background: captionStyle.background ? bandColor(captionStyle.background) : 'none',
 								padding: `0 ${CAPTION_PADDING_SCALE}em`
 							}}
 						>
-							{line}
+							{spoken === null
+								? line
+								: line.split(' ').map((word, index) => (
+										<span
+											key={index}
+											style={
+												(firstWords?.[lineIndex] ?? 0) + index === spoken
+													? { color: highlightColor(captionStyle.color) }
+													: undefined
+											}
+										>
+											{index > 0 && ' '}
+											{word}
+										</span>
+									))}
 						</span>
 					))}
 				</div>

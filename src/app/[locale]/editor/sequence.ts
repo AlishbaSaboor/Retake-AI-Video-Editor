@@ -3,6 +3,7 @@ import { DEFAULT_CLIP_AUDIO, isDefaultAudio, type ClipAudio, type SegmentAudio }
 import { isNeutral, type ColorGrade } from './color-grade'
 import {
 	MIN_TRANSITION_SECONDS,
+	overlapsClips,
 	transitionLimit,
 	type Join,
 	type SegmentTransition,
@@ -515,7 +516,9 @@ export function segmentSeconds(segment: Segment): number {
 
 /** How much of a segment's start plays over the end of the one before it: a dissolve. */
 export function overlapSeconds(segment: Segment): number {
-	return segment.transition?.kind === 'dissolve' ? segment.transition.seconds : 0
+	return segment.transition && overlapsClips(segment.transition.kind)
+		? segment.transition.seconds
+		: 0
 }
 
 /** Where each segment starts in the edited video: those before laid end to end, less the dissolves. */

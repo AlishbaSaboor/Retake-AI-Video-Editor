@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { captionAt, editedCaptions } from './captions'
+import { captionAt, editedCaptions, highlightColor, spokenWordAt } from './captions'
 
 const word = (text: string, startSeconds: number, endSeconds: number) => ({
 	text,
@@ -101,7 +101,7 @@ test('word by word, each word shows alone, held to the next unless a pause comes
 	const captions = editedCaptions(
 		[word('Hello', 0.2, 0.5), word('there.', 0.6, 1.0), word('Later', 2.5, 2.9)],
 		whole(10),
-		true
+		'words'
 	)
 	assert.deepEqual(captions, [
 		{ lines: ['Hello'], startSeconds: 0.2, endSeconds: 0.6 },
@@ -112,8 +112,26 @@ test('word by word, each word shows alone, held to the next unless a pause comes
 	const cut = editedCaptions(
 		[word('Hello', 0.2, 0.5), word('there.', 0.6, 1.0)],
 		[{ startSeconds: 0.55, endSeconds: 10 }],
-		true
+		'words'
 	)
 	assert.equal(lines(cut).join(), 'there.')
 	assert.ok(Math.abs((cut[0]?.startSeconds ?? 0) - 0.05) < 1e-9)
+})
+
+test('highlighted captions keep their lines and say which word is being said', () => {
+	const [caption] = editedCaptions(
+		[word('Hello', 0.2, 0.5), word('there', 0.6, 0.9), word('friend.', 1.0, 1.4)],
+		whole(10),
+		'highlight'
+	)
+	assert.ok(caption)
+	assert.deepEqual(caption.lines, ['Hello there friend.'])
+	assert.equal(spokenWordAt(caption, 0.3), 0)
+	assert.equal(spokenWordAt(caption, 0.95), 1)
+	assert.equal(spokenWordAt(caption, 1.2), 2)
+	// Other modes pick no word out.
+	const [plain] = editedCaptions([word('Hello', 0.2, 0.5)], whole(10))
+	assert.equal(plain && spokenWordAt(plain, 0.3), null)
+	assert.equal(highlightColor('#ffffff'), '#ffd400')
+	assert.equal(highlightColor('#FFD400'), '#ffffff')
 })

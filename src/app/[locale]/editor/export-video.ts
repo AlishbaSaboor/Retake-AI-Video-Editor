@@ -11,7 +11,13 @@ import {
 	type Segment,
 	type SourceRange
 } from './sequence'
-import { dissolveAt, fadeLevelAt, scheduleTransitionGain } from './transitions'
+import {
+	dissolveAt,
+	fadeLevelAt,
+	overlapsClips,
+	scheduleTransitionGain,
+	slideOffset
+} from './transitions'
 import { fitRect } from './sources'
 import { exportSize, transformAt, type PictureTransform } from './transform'
 
@@ -241,7 +247,11 @@ export async function recordEdit(
 		for (const [index, segment] of segments.entries()) {
 			const player = await deckFor(urlOf(segment))
 			const before = segments[index - 1]
-			if (segment.transition?.kind === 'dissolve' && urlOf(before) === urlOf(segment)) {
+			if (
+				segment.transition &&
+				overlapsClips(segment.transition.kind) &&
+				urlOf(before) === urlOf(segment)
+			) {
 				await deckFor(urlOf(segment), player)
 			}
 		}
@@ -281,7 +291,9 @@ export async function recordEdit(
 			const now = transformAt(transform, segments[showing]?.source ? null : deck.video.currentTime)
 			drawFrame(context, frameOf(deck), picture, now, overlays, seconds, logo, blurScratch, {
 				incoming: dissolve && incoming ? frameOf(incoming) : null,
-				incomingAlpha: dissolve?.progress ?? 0,
+				// A slide comes in whole, from the right; a dissolve blends in.
+				incomingAlpha: dissolve?.join.kind === 'slide' ? 1 : (dissolve?.progress ?? 0),
+				incomingShift: dissolve?.join.kind === 'slide' ? slideOffset(dissolve.progress) : 0,
 				light: fadeLevelAt(joins, seconds),
 				filter: filters[showing] ?? null,
 				incomingFilter: filters[showing + 1] ?? null
@@ -364,7 +376,9 @@ export async function recordEdit(
 			// A dissolve into the next segment: the other deck waits at its start.
 			const next = segments[index + 1]
 			const dissolving =
-				next?.transition?.kind === 'dissolve' ? await deckFor(urlOf(next), playing) : null
+				next?.transition && overlapsClips(next.transition.kind)
+					? await deckFor(urlOf(next), playing)
+					: null
 			let ready: Promise<void> | null = null
 			if (dissolving && next) {
 				dissolving.video.currentTime = next.startSeconds

@@ -7,7 +7,7 @@ import type { TextStyle } from './text-style'
 // them, never when they show. The preview and the export both draw them
 // from the same functions here, at the same edited time.
 
-export const MOTIONS = ['none', 'fade', 'slide', 'pop'] as const
+export const MOTIONS = ['none', 'fade', 'slide', 'pop', 'words'] as const
 export type MotionKind = (typeof MOTIONS)[number]
 export const SIDES = ['left', 'right', 'top', 'bottom'] as const
 export type Side = (typeof SIDES)[number]
@@ -23,8 +23,18 @@ export const MIN_MOTION_SECONDS = 0.1
 export const MAX_MOTION_SECONDS = 3
 export const DEFAULT_MOTION_SECONDS = 0.5
 
-/** Where an element is drawn now: its opacity, its offset (fractions of what it moves across), its scale. */
-export type MotionState = { opacity: number; dx: number; dy: number; scale: number }
+/**
+ * Where an element is drawn now: its opacity, its offset (fractions of what
+ * it moves across), its scale; and for text coming in word by word, how far
+ * through its words it is (0 to 1; absent: all of them).
+ */
+export type MotionState = {
+	opacity: number
+	dx: number
+	dy: number
+	scale: number
+	reveal?: number
+}
 export const AT_REST: MotionState = { opacity: 1, dx: 0, dy: 0, scale: 1 }
 
 /** Slows to a stop: what comes in arrives gently. */
@@ -41,6 +51,8 @@ function motionAt(motion: Motion, p: number): MotionState {
 	const t = clamp01(p)
 	if (motion.kind === 'none' || t >= 1) return AT_REST
 	if (motion.kind === 'fade') return { ...AT_REST, opacity: easeOut(t) }
+	// Word by word: each word comes in on its own; going out, they all fade.
+	if (motion.kind === 'words') return { ...AT_REST, reveal: t }
 	if (motion.kind === 'pop') {
 		return { opacity: clamp01(t * 2), dx: 0, dy: 0, scale: 0.5 + 0.5 * easeOutBack(t) }
 	}
@@ -73,6 +85,26 @@ export function animationAt(
 	const leaving = animation.out.kind !== 'none' && left < Math.min(animation.out.seconds, half)
 	if (leaving) return motionAt(animation.out, left / Math.min(animation.out.seconds, half))
 	return AT_REST
+}
+
+/** How far each word rises as it comes in, as a fraction of the text's height. */
+export const WORD_RISE = 0.4
+
+/**
+ * Each word of `text` as shown `reveal` of the way through a word-by-word
+ * entrance: its opacity (0 not yet, 1 in) and how far it still has to rise
+ * (fractions of the text's height). One word at a time, the next starting
+ * as the last arrives.
+ */
+export function revealedWords(
+	text: string,
+	reveal: number | undefined
+): Array<{ word: string; opacity: number; rise: number }> {
+	const words = text.split(/\s+/).filter(Boolean)
+	return words.map((word, index) => {
+		const p = reveal === undefined ? 1 : clamp01(reveal * words.length - index)
+		return { word, opacity: p, rise: (1 - easeOut(p)) * WORD_RISE }
+	})
 }
 
 export function clampMotionSeconds(seconds: number): number {
