@@ -82,7 +82,11 @@ const joinRow = (page: Page, from: number) =>
 		.getByRole('region', { name: 'Transitions' })
 		.getByRole('group', { name: `Clip ${from} to clip ${from + 1}` })
 
-async function setTransition(page: Page, kind: 'Fade' | 'Dissolve' | 'None', seconds?: number) {
+async function setTransition(
+	page: Page,
+	kind: 'Fade' | 'Dissolve' | 'Slide' | 'None',
+	seconds?: number
+) {
 	await openTool(page, 'Transitions')
 	await joinRow(page, 1).getByRole('button', { name: kind }).click()
 	await openTool(page, 'Transitions')
@@ -259,6 +263,49 @@ test('a dissolve blends the clips, picture and sound, and shortens the edit by i
 	expect(handedOver.length, 'played on past the join').toBeGreaterThanOrEqual(2)
 	expect(handedOver.at(-1)?.opacity, 'second player hidden after').toBe(0)
 	expect(handedOver.at(-1)?.deckPlaying, 'second player stopped after').toBe(false)
+})
+
+test('a slide brings the next clip in whole from the right, over the last, and overlaps like a dissolve', async ({
+	page
+}) => {
+	test.setTimeout(150_000)
+	await openRedBlue(page)
+	await setTransition(page, 'Slide', 1)
+	const bytes = await exportVideo(page)
+	// The colour at a strip on the left and one on the right of the middle row.
+	const { seconds, frames } = await readExportFrames(
+		page,
+		bytes,
+		[0.5, 1.3, 2.5],
+		({ context }) => {
+			const strip = (x: number) => {
+				const data = context.getImageData(x, 80, 20, 20).data
+				let red = 0
+				let blue = 0
+				for (let i = 0; i < data.length; i += 4) {
+					red += data[i] ?? 0
+					blue += data[i + 2] ?? 0
+				}
+				return { red: Math.round(red / 400), blue: Math.round(blue / 400) }
+			}
+			return { left: strip(20), right: strip(280) }
+		},
+		{ size: { width: 320, height: 180 } }
+	)
+	expectLength(seconds, 3)
+	const [before, sliding, after] = frames
+	expect(before?.left.red, 'red before').toBeGreaterThan(200)
+	expect(before?.right.red, 'red before').toBeGreaterThan(200)
+	// A third of the way (1.3 s, whatever frame shows it): the blue clip has
+	// come part way in from the right, whole, not blended; the red still shows
+	// on the left.
+	const at = `at ${sliding?.shown} s`
+	expect(sliding?.left.red, `red on the left ${at}`).toBeGreaterThan(200)
+	expect(sliding?.left.blue, `no blue on the left ${at}`).toBeLessThan(60)
+	expect(sliding?.right.blue, `blue on the right ${at}`).toBeGreaterThan(200)
+	expect(sliding?.right.red, `no red on the right ${at}`).toBeLessThan(60)
+	expect(after?.left.blue, 'blue after').toBeGreaterThan(200)
+	expect(after?.right.blue, 'blue after').toBeGreaterThan(200)
 })
 
 test('delete and duplicate clips: what plays changes, a duplicate keeps its settings, undo and reset', async ({

@@ -2,7 +2,8 @@ import { z } from 'zod'
 import { availableSeconds, type AudioItem } from '../../editor/audio-lane'
 import type { Cut } from '../../editor/cleanup'
 import { ORIGINAL_EDIT, type EditSnapshot } from '../../editor/edit-snapshot'
-import type { Zoom } from '../../editor/motion'
+import type { CaptionMode } from '../../editor/captions'
+import type { Animation, Zoom } from '../../editor/motion'
 import type { TitleCard } from '../../editor/overlays'
 import {
 	editedLength,
@@ -39,6 +40,8 @@ export const MAKE_SUBJECTS = ['one_person', 'screen', 'meeting', 'slides', 'othe
  * second either way never take it to 60.
  */
 export const SHORT_FORM_MAX_SECONDS = 59
+/** A short-form edit fills at least this much when the video has enough worth keeping. */
+export const SHORT_FORM_TARGET_SECONDS = 50
 /** The request names a short-video format itself: a check that doesn't rest on the model. */
 const SHORT_FORM_REQUEST = /\b(reels?|tik\s?toks?|shorts|stor(?:y|ies))\b/i
 
@@ -55,6 +58,9 @@ export const MAX_FRAMES = MAX_MAKE_SECONDS / FRAME_EVERY_SECONDS
 export const MAX_QUESTIONS = 3
 export const MAX_REQUEST_LENGTH = 300
 const MAX_ZOOMS = 6
+/** Key lines on screen: a few, short, so they stay readable. */
+const MAX_KEY_LINES = 4
+const MAX_KEY_LINE_WORDS = 8
 const MAX_NOTES = 5
 const MAX_NOTE_LENGTH = 200
 const MAX_TITLE_LENGTH = 60
@@ -82,6 +88,16 @@ const note = z
 	.transform((text) => text.trim().slice(0, MAX_NOTE_LENGTH))
 	.pipe(z.string().min(1))
 
+/**
+ * How captions look, as the reply picks them: a line or two in a band, one
+ * big word at a time, lines with the word being said picked out, or large
+ * lines; or none.
+ */
+export const CAPTION_LOOKS = ['classic', 'bold_words', 'highlight', 'large', 'off'] as const
+export type CaptionLook = (typeof CAPTION_LOOKS)[number]
+/** How cuts are joined: a fade, a dissolve, a slide (overlapping), a zoom cut (a quick punch-in), or plain. */
+export const MAKE_TRANSITIONS = ['none', 'fade', 'dissolve', 'slide', 'zoom_cut'] as const
+
 /** What Gemini answers. Questions, when there are any, are asked before anything is planned. */
 export const makeReplySchema = z.object({
 	questions: z.array(note).max(MAX_QUESTIONS),
@@ -90,12 +106,13 @@ export const makeReplySchema = z.object({
 	subject: z.enum(MAKE_SUBJECTS),
 	summary: note,
 	pictureMatters: z.boolean(),
-	keyMoments: z.array(z.number().int()),
+	moments: z.array(z.object({ first: z.number().int(), last: z.number().int() })),
 	removeSentences: z.array(z.number().int()),
 	removeSpans: z.array(z.object({ startSeconds: z.number(), endSeconds: z.number() })),
-	captions: z.enum(['words', 'lines', 'off']),
+	captions: z.enum(CAPTION_LOOKS),
 	zoomSentences: z.array(z.number().int()),
-	transition: z.enum(['none', 'fade', 'dissolve']),
+	transition: z.enum(MAKE_TRANSITIONS),
+	keyLines: z.array(z.object({ sentence: z.number().int(), text: z.string() })),
 	vertical: z.boolean(),
 	faces: z.array(z.object({ frame: z.number().int(), x: z.number(), y: z.number() })),
 	music: z.string().nullable(),
@@ -114,7 +131,14 @@ export const MAKE_REPLY_JSON_SCHEMA = {
 		subject: { type: 'string', enum: [...MAKE_SUBJECTS] },
 		summary: { type: 'string' },
 		pictureMatters: { type: 'boolean' },
-		keyMoments: { type: 'array', items: { type: 'integer' } },
+		moments: {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: { first: { type: 'integer' }, last: { type: 'integer' } },
+				required: ['first', 'last']
+			}
+		},
 		removeSentences: { type: 'array', items: { type: 'integer' } },
 		removeSpans: {
 			type: 'array',
@@ -124,9 +148,17 @@ export const MAKE_REPLY_JSON_SCHEMA = {
 				required: ['startSeconds', 'endSeconds']
 			}
 		},
-		captions: { type: 'string', enum: ['words', 'lines', 'off'] },
+		captions: { type: 'string', enum: [...CAPTION_LOOKS] },
 		zoomSentences: { type: 'array', items: { type: 'integer' } },
-		transition: { type: 'string', enum: ['none', 'fade', 'dissolve'] },
+		transition: { type: 'string', enum: [...MAKE_TRANSITIONS] },
+		keyLines: {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: { sentence: { type: 'integer' }, text: { type: 'string' } },
+				required: ['sentence', 'text']
+			}
+		},
 		vertical: { type: 'boolean' },
 		faces: {
 			type: 'array',
@@ -147,12 +179,13 @@ export const MAKE_REPLY_JSON_SCHEMA = {
 		'subject',
 		'summary',
 		'pictureMatters',
-		'keyMoments',
+		'moments',
 		'removeSentences',
 		'removeSpans',
 		'captions',
 		'zoomSentences',
 		'transition',
+		'keyLines',
 		'vertical',
 		'faces',
 		'music',
@@ -172,7 +205,12 @@ const LONG_PAUSE_SECONDS = 0.8
 const MIN_PIECE_SECONDS = 0.3
 /** At least this much removed between two clips makes a jump worth a transition. */
 const TRANSITION_GAP_SECONDS = 1.5
-const TRANSITION_SECONDS: Record<TransitionKind, number> = { fade: 0.5, dissolve: 0.4 }
+const TRANSITION_SECONDS: Record<TransitionKind, number> = { fade: 0.5, dissolve: 0.4, slide: 0.4 }
+/** Transitions used sparingly: at the few joins where the most was taken out. */
+const MAX_TRANSITIONS = 3
+/** A zoom cut: the clip after the join starts this much closer and settles over the time below. */
+const ZOOM_CUT_AMOUNT = 1.15
+const ZOOM_CUT_SECONDS = 0.4
 /** A zoom on a sentence shorter than this would be a jolt, not a push-in. */
 const MIN_ZOOM_SECONDS = 1
 const ZOOM_AMOUNT: Record<MakeStyle, number> = {
@@ -187,11 +225,45 @@ const FOLLOW_SLACK = 0.2
 const MUSIC_VOLUME = 0.35
 const TITLE_SECONDS = 3
 
-const CAPTION_STYLE: Record<MakeStyle, TextStyle> = {
-	reel: { ...DEFAULT_TEXT_STYLE, size: 1.5 },
-	professional: DEFAULT_TEXT_STYLE,
-	funny: { ...DEFAULT_TEXT_STYLE, size: 1.5, color: '#ffff00' },
-	ad: { ...DEFAULT_TEXT_STYLE, size: 1.5 }
+/** The title's and key lines' look, by style: bold and quick, calm, playful, punchy. */
+const TEXT_STYLE: Record<MakeStyle, TextStyle> = {
+	reel: { ...DEFAULT_TEXT_STYLE, size: 1.3 },
+	professional: { ...DEFAULT_TEXT_STYLE, font: 'serif' },
+	funny: { ...DEFAULT_TEXT_STYLE, size: 1.3, color: '#ffff00' },
+	ad: { ...DEFAULT_TEXT_STYLE, size: 1.4 }
+}
+/** How the title and key lines come in and go out, by style. */
+const TEXT_MOTION: Record<MakeStyle, Animation> = {
+	reel: {
+		in: { kind: 'words', side: 'left', seconds: 0.6 },
+		out: { kind: 'fade', side: 'left', seconds: 0.25 }
+	},
+	professional: {
+		in: { kind: 'fade', side: 'left', seconds: 0.7 },
+		out: { kind: 'fade', side: 'left', seconds: 0.5 }
+	},
+	funny: {
+		in: { kind: 'pop', side: 'left', seconds: 0.45 },
+		out: { kind: 'pop', side: 'left', seconds: 0.3 }
+	},
+	ad: {
+		in: { kind: 'slide', side: 'left', seconds: 0.35 },
+		out: { kind: 'fade', side: 'left', seconds: 0.25 }
+	}
+}
+/** Where text sits: key lines (and a vertical edit's title) near the top, clear of the captions below. */
+const TOP_TEXT = { x: 0.5, y: 0.18 }
+const MIDDLE_TEXT = { x: 0.5, y: 0.4 }
+/** How long a key line stays: through its sentence, within these. */
+const MIN_KEY_LINE_SECONDS = 1.5
+const MAX_KEY_LINE_SECONDS = 4
+
+/** Each caption look as the editor shows it: a mode, and a size on the request's colours. */
+const CAPTION_LOOK: Record<Exclude<CaptionLook, 'off'>, { mode: CaptionMode; size: number }> = {
+	classic: { mode: 'lines', size: 1.1 },
+	bold_words: { mode: 'words', size: 1.8 },
+	highlight: { mode: 'highlight', size: 1.3 },
+	large: { mode: 'lines', size: 1.7 }
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
@@ -298,6 +370,20 @@ export function keptRanges(
 	return kept.length > 0 ? kept : [whole]
 }
 
+/** A range split where it meets `part`: what's before it, the part, what's after (slivers dropped). */
+function around(range: SourceRange, part: SourceRange): SourceRange[] {
+	if (!overlaps(range, part)) return [range]
+	const start = Math.max(range.startSeconds, part.startSeconds)
+	const end = Math.min(range.endSeconds, part.endSeconds)
+	return [
+		{ startSeconds: range.startSeconds, endSeconds: start },
+		{ startSeconds: start, endSeconds: end },
+		{ startSeconds: end, endSeconds: range.endSeconds }
+	].filter(
+		(piece, index) => index === 1 || piece.endSeconds - piece.startSeconds >= MIN_PIECE_SECONDS
+	)
+}
+
 /** The first `seconds` of the kept ranges, in play order: the last one cut short. */
 function firstSeconds(kept: SourceRange[], seconds: number): SourceRange[] {
 	const out: SourceRange[] = []
@@ -312,25 +398,47 @@ function firstSeconds(kept: SourceRange[], seconds: number): SourceRange[] {
 }
 
 /**
- * The kept sentences (indexes) in the order they go when the edit is too
- * long: those that aren't key moments first, the longest first (fewest
- * jumps for the time saved), then key moments from the least important.
+ * The sentences (indexes) a short-form edit is made of: whole moments, best
+ * first, each taken only if it still fits under `fits`, then single
+ * sentences in order, until `enough` says it's long enough. Dead sentences
+ * never; a moment that overlaps one taken before, never.
  */
-function dropOrder(
-	sentences: readonly TranscriptSegment[],
-	removed: ReadonlySet<number>,
-	keyMoments: readonly number[]
-): number[] {
-	const key = [...new Set(keyMoments.map((n) => n - 1))].filter(
-		(index) => index >= 0 && index < sentences.length && !removed.has(index)
-	)
-	const length = (index: number) =>
-		(sentences[index]?.endSeconds ?? 0) - (sentences[index]?.startSeconds ?? 0)
-	const others = sentences
-		.map((_, index) => index)
-		.filter((index) => !removed.has(index) && !key.includes(index))
-		.sort((a, b) => length(b) - length(a))
-	return [...others, ...key.reverse()]
+export function chooseSentences(
+	moments: MakeReply['moments'],
+	count: number,
+	dead: ReadonlySet<number>,
+	fits: (chosen: ReadonlySet<number>) => { fits: boolean; enough: boolean }
+): Set<number> {
+	const runs = moments
+		.map(({ first, last }) => ({ from: Math.min(first, last) - 1, to: Math.max(first, last) - 1 }))
+		.filter(({ from, to }) => from >= 0 && to < count)
+		.map(({ from, to }) =>
+			Array.from({ length: to - from + 1 }, (_, i) => from + i).filter((i) => !dead.has(i))
+		)
+	const singles = Array.from({ length: count }, (_, i) => [i]).filter(([i]) => !dead.has(i ?? -1))
+	let chosen = new Set<number>()
+	for (const run of [...runs, ...singles]) {
+		if (run.length === 0 || run.some((i) => chosen.has(i))) continue
+		const trial = new Set([...chosen, ...run])
+		const result = fits(trial)
+		if (!result.fits) continue
+		chosen = trial
+		if (result.enough) break
+	}
+	return chosen
+}
+
+/**
+ * The words of a key line, if it quotes its sentence: every word of it is
+ * in the sentence (case and punctuation aside), and it's short. Null
+ * otherwise: Make it shows no words that weren't said.
+ */
+export function quotedLine(text: string, sentence: string): string | null {
+	const words = (value: string) => value.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? []
+	const said = new Set(words(sentence))
+	const line = words(text)
+	if (line.length === 0 || line.length > MAX_KEY_LINE_WORDS) return null
+	return line.every((word) => said.has(word)) ? text.trim() : null
 }
 
 /** Where a moment of the main video plays in the edit, if it does. */
@@ -430,7 +538,10 @@ export type MakeSummary = {
 	/** Parts taken out (dead air, dropped sentences, dead stretches) and filler words cut. */
 	removedParts: number
 	fillerCuts: number
-	captions: MakeReply['captions']
+	captions: CaptionLook
+	/** Key lines shown, quoted from the transcript; and whether it opens with its strongest moment. */
+	keyLines: number
+	opensWith: string | null
 	zooms: number
 	transition: MakeReply['transition']
 	transitions: number
@@ -480,66 +591,121 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	const whole = { startSeconds: 0, endSeconds: durationSeconds }
 	const pictureMatters = reply.pictureMatters || sentences.length === 0
 
-	/** The cut with these sentences (numbered from 1) taken out, and at most `cap` seconds of source. */
-	const cutWith = (removeSentences: number[], cap: number | null = null) => {
+	/**
+	 * The cut with these sentences (numbered from 1) taken out, at most `cap`
+	 * seconds of source, and the piece holding sentence `opener` (an index)
+	 * moved to the start.
+	 */
+	const cutWith = (
+		removeSentences: number[],
+		cap: number | null = null,
+		opener: { from: number; to: number } | null = null
+	) => {
 		const ranges = keptRanges(
 			{ ...reply, removeSentences, pictureMatters },
 			sentences,
 			durationSeconds
 		)
-		const kept = cap === null ? ranges : firstSeconds(ranges, cap)
+		const timeOrder = cap === null ? ranges : firstSeconds(ranges, cap)
+		// The opening moment, cut out of the piece it's in (at the pauses
+		// around it) and moved to the start.
+		const from = opener ? sentences[opener.from] : undefined
+		const to = opener ? sentences[opener.to] : undefined
+		const moment =
+			opener && from && to
+				? {
+						startSeconds: padded(from, opener.from, sentences, durationSeconds).startSeconds,
+						endSeconds: padded(to, opener.to, sentences, durationSeconds).endSeconds
+					}
+				: null
+		const pieces = moment ? timeOrder.flatMap((range) => around(range, moment)) : timeOrder
+		const opening = moment
+			? pieces.find(
+					(range) =>
+						range.startSeconds >= moment.startSeconds && range.endSeconds <= moment.endSeconds
+				)
+			: undefined
+		const kept = opening ? [opening, ...pieces.filter((range) => range !== opening)] : pieces
 		const clips: Clip[] = kept.map((range, index) => ({ id: `make-${index + 1}`, ranges: [range] }))
 		const cuts = input.fillerCuts.filter((cut) => kept.some((range) => overlaps(range, cut)))
-		// A transition only where a real stretch was taken out between two clips.
-		let transitions = 0
-		if (reply.transition !== 'none') {
-			const kind = reply.transition
-			for (const [index, clip] of clips.entries()) {
-				const before = clips[index - 1]
+		// Joins where a real stretch was taken out (or the order jumps), the
+		// most taken out first: only the first few get a transition.
+		const joins = clips
+			.flatMap((clip, index) => {
+				const prior = clips[index - 1]?.ranges.at(-1)
 				const [range] = clip.ranges
+				if (!prior || !range) return []
+				const gap = range.startSeconds - prior.endSeconds
+				const jump = gap < 0 ? Number.POSITIVE_INFINITY : gap
+				return jump >= TRANSITION_GAP_SECONDS ? [{ index, jump }] : []
+			})
+			.sort((a, b) => b.jump - a.jump)
+			.slice(0, MAX_TRANSITIONS)
+			.map(({ index }) => index)
+		const kind = reply.transition
+		if (kind === 'fade' || kind === 'dissolve' || kind === 'slide') {
+			for (const index of joins) {
+				const clip = clips[index]
+				const before = clips[index - 1]
+				const range = clip?.ranges[0]
 				const prior = before?.ranges.at(-1)
-				if (
-					!before ||
-					!prior ||
-					!range ||
-					range.startSeconds - prior.endSeconds < TRANSITION_GAP_SECONDS
-				)
-					continue
+				if (!clip || !before || !range || !prior) continue
 				const limit = transitionLimit(
 					prior.endSeconds - prior.startSeconds,
 					range.endSeconds - range.startSeconds
 				)
 				const seconds = Math.min(TRANSITION_SECONDS[kind], limit)
-				if (seconds < TRANSITION_SECONDS[kind] / 2) continue
-				clip.transition = { kind, seconds, after: before.id }
-				transitions++
+				if (seconds >= TRANSITION_SECONDS[kind] / 2) {
+					clip.transition = { kind, seconds, after: before.id }
+				}
 			}
 		}
 		const segments = playableSegments(clips, { trim: whole, cuts })
-		return { kept, clips, cuts, transitions, segments, editedSeconds: editedLength(segments) }
+		const transitions =
+			kind === 'zoom_cut' ? joins.length : clips.filter((clip) => clip.transition).length
+		return {
+			kept,
+			clips,
+			cuts,
+			joins,
+			transitions,
+			segments,
+			editedSeconds: editedLength(segments)
+		}
 	}
 
-	// Short-form: sentences go, in drop order, until it fits; then, if one
-	// sentence or a stretch with no speech still runs over, only its first
-	// part is kept. Filler cuts and dissolves only ever make it shorter.
+	// Short-form opens with its strongest moment, and, when it runs over a
+	// minute, is made of whole moments (best first, then single sentences)
+	// chosen to fill 50 to 59 seconds. Whatever still runs over (one long
+	// sentence, a stretch with no speech) keeps only its first part. Filler
+	// cuts and overlapping transitions only ever make it shorter.
 	const shortForm = isShortForm(reply.format, input.request)
 	const limitSeconds = shortForm ? SHORT_FORM_MAX_SECONDS : null
+	const dead = sentenceIndexes(reply.removeSentences, sentences.length)
+	const strongest = reply.moments[0]
+	const opener =
+		shortForm && strongest
+			? {
+					from: Math.min(strongest.first, strongest.last) - 1,
+					to: Math.min(Math.max(strongest.first, strongest.last), sentences.length) - 1
+				}
+			: null
 	let removeSentences = reply.removeSentences
-	let cut = cutWith(removeSentences)
+	let cut = cutWith(removeSentences, null, opener)
 	let trimmedToFit = false
 	if (limitSeconds !== null && cut.editedSeconds > limitSeconds) {
 		trimmedToFit = true
-		const removed = sentenceIndexes(removeSentences, sentences.length)
-		let left = sentences.length - removed.size
-		for (const index of dropOrder(sentences, removed, reply.keyMoments)) {
-			if (cut.editedSeconds <= limitSeconds || left <= 1) break
-			removeSentences = [...removeSentences, index + 1]
-			left--
-			cut = cutWith(removeSentences)
-		}
-		if (cut.editedSeconds > limitSeconds) cut = cutWith(removeSentences, limitSeconds)
+		const keepOnly = (chosen: ReadonlySet<number>) =>
+			sentences.flatMap((_, index) => (chosen.has(index) ? [] : [index + 1]))
+		const chosen = chooseSentences(reply.moments, sentences.length, dead, (trial) => {
+			const length = cutWith(keepOnly(trial), null, opener).editedSeconds
+			return { fits: length <= limitSeconds, enough: length >= SHORT_FORM_TARGET_SECONDS }
+		})
+		if (chosen.size > 0) removeSentences = keepOnly(chosen)
+		cut = cutWith(removeSentences, null, opener)
+		if (cut.editedSeconds > limitSeconds) cut = cutWith(removeSentences, limitSeconds, opener)
 	}
-	const { kept, clips, cuts, transitions, segments, editedSeconds } = cut
+	const { kept, clips, cuts, joins, transitions, segments, editedSeconds } = cut
 	const starts = editedStarts(segments)
 	const keptSentences = sentences.filter((sentence) =>
 		kept.some((range) => overlaps(range, sentence))
@@ -556,8 +722,12 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	if (wantsVertical && alreadyVertical) vertical = 'already'
 	else if (wantsVertical) {
 		const rect = centredCrop(ratio, picture)
-		const follow =
-			reply.subject === 'one_person' ? faceFollow(reply.faces, times, rect.width) : null
+		// One person clearly the subject: said so, and a face in at least half the pictures.
+		const faceFrames = new Set(
+			reply.faces.map((face) => face.frame).filter((frame) => frame >= 1 && frame <= times.length)
+		).size
+		const clearly = reply.subject === 'one_person' && faceFrames >= times.length / 2
+		const follow = clearly ? faceFollow(reply.faces, times, rect.width) : null
 		const first = follow?.[0]
 		vertical = first ? 'face' : 'fit'
 		transform = {
@@ -573,18 +743,30 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 		}
 	}
 
+	// Zoom cuts at the chosen joins: the clip after starts a little closer and settles.
+	const autoZooms: Zoom[] =
+		reply.transition === 'zoom_cut'
+			? joins.map((index) => {
+					const at = starts[index] ?? 0
+					return {
+						startSeconds: at,
+						endSeconds: Math.min(at + ZOOM_CUT_SECONDS, editedSeconds),
+						direction: 'out',
+						amount: ZOOM_CUT_AMOUNT
+					}
+				})
+			: []
 	// Zooms on the sentences named, where they still play, never overlapping.
-	const autoZooms: Zoom[] = []
 	for (const index of [...sentenceIndexes(reply.zoomSentences, sentences.length)].sort(
 		(a, b) => a - b
 	)) {
-		if (autoZooms.length === MAX_ZOOMS) break
+		if (autoZooms.length >= MAX_ZOOMS) break
 		const sentence = sentences[index]
 		if (!sentence) continue
 		const start = editedTimeOf(sentence.startSeconds, segments, starts)
 		const end = editedTimeOf(sentence.endSeconds - 0.01, segments, starts)
 		if (start === null || end === null || end - start < MIN_ZOOM_SECONDS) continue
-		if (autoZooms.some((zoom) => start < zoom.endSeconds)) continue
+		if (autoZooms.some((zoom) => start < zoom.endSeconds && end > zoom.startSeconds)) continue
 		const faceY =
 			vertical === 'face' ? faceHeightAt(reply.faces, times, sentence.startSeconds) : null
 		autoZooms.push({
@@ -627,27 +809,59 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 					text: titleText,
 					startSeconds: 0,
 					durationSeconds: Math.min(TITLE_SECONDS, editedSeconds),
-					style: CAPTION_STYLE[reply.style],
-					animation: {
-						in: { kind: 'pop', side: 'left', seconds: 0.4 },
-						out: { kind: 'fade', side: 'left', seconds: 0.4 }
-					}
+					style: TEXT_STYLE[reply.style],
+					animation: TEXT_MOTION[reply.style],
+					// Above the captions; near the top of a vertical frame.
+					at: vertical === null ? MIDDLE_TEXT : TOP_TEXT
 				}
 			: null
 
+	// Key lines: words quoted from their sentence, over it where it plays,
+	// after the title and never two at once.
+	const autoTitles: TitleCard[] = []
+	for (const line of reply.keyLines) {
+		if (autoTitles.length === MAX_KEY_LINES) break
+		const sentence = sentences[line.sentence - 1]
+		const text = sentence ? quotedLine(line.text, sentence.text) : null
+		const start = sentence ? editedTimeOf(sentence.startSeconds, segments, starts) : null
+		if (!sentence || !text || start === null) continue
+		const end = editedTimeOf(sentence.endSeconds - 0.01, segments, starts) ?? start
+		const length = Math.min(MAX_KEY_LINE_SECONDS, Math.max(MIN_KEY_LINE_SECONDS, end - start))
+		const until = Math.min(start + length, editedSeconds)
+		const titleEnd = title ? title.startSeconds + title.durationSeconds : 0
+		const clash = autoTitles.some(
+			(other) => start < other.startSeconds + other.durationSeconds && until > other.startSeconds
+		)
+		if (start < titleEnd || clash || until - start < MIN_KEY_LINE_SECONDS / 2) continue
+		autoTitles.push({
+			text,
+			startSeconds: start,
+			durationSeconds: until - start,
+			style: TEXT_STYLE[reply.style],
+			animation: TEXT_MOTION[reply.style],
+			at: TOP_TEXT
+		})
+	}
+	autoTitles.sort((a, b) => a.startSeconds - b.startSeconds)
+
 	const captions = words.length > 0 ? reply.captions : 'off'
+	const look = captions === 'off' ? null : CAPTION_LOOK[captions]
+	const opening = opener === null ? null : (sentences[opener.from]?.text ?? null)
 	const edit = {
 		...ORIGINAL_EDIT,
 		replacements: [],
 		clips,
 		cuts,
 		title,
-		captionsOn: captions !== 'off',
-		captionWords: captions === 'words',
-		captionStyle: captions === 'off' ? DEFAULT_TEXT_STYLE : CAPTION_STYLE[reply.style],
+		captionsOn: look !== null,
+		captionMode: look?.mode ?? 'lines',
+		captionStyle: look
+			? { ...DEFAULT_TEXT_STYLE, color: TEXT_STYLE[reply.style].color, size: look.size }
+			: DEFAULT_TEXT_STYLE,
 		transform,
 		audioItems,
-		autoZooms
+		autoZooms,
+		autoTitles
 	}
 	return {
 		edit,
@@ -664,7 +878,11 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 			removedParts: without(whole, kept).length,
 			fillerCuts: cuts.length,
 			captions,
-			zooms: autoZooms.length,
+			keyLines: autoTitles.length,
+			// Said when it moved: the strongest line opens, before what came first in the video.
+			opensWith:
+				(kept[0]?.startSeconds ?? 0) > (kept[1]?.startSeconds ?? Infinity) ? opening : null,
+			zooms: autoZooms.length - (reply.transition === 'zoom_cut' ? joins.length : 0),
 			transition: reply.transition,
 			transitions,
 			music: audioItems.length > 0 ? (music?.name ?? null) : null,
@@ -675,5 +893,80 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 			pictureMatters,
 			cannotDo: reply.cannotDo
 		}
+	}
+}
+
+/**
+ * The second check's answer: what's wrong with the plan against the request
+ * (empty when nothing is), and the plan's text, captions and transitions as
+ * they should be, with any sentences to take out. Applied only when it
+ * found a problem; the code's own rules (length, quotes, names) still hold.
+ */
+export const checkReplySchema = z.object({
+	problems: z.array(note).max(MAX_NOTES),
+	title: z.string().nullable(),
+	keyLines: z.array(z.object({ sentence: z.number().int(), text: z.string() })),
+	captions: z.enum(CAPTION_LOOKS),
+	transition: z.enum(MAKE_TRANSITIONS),
+	dropSentences: z.array(z.number().int())
+})
+export type CheckReply = z.infer<typeof checkReplySchema>
+
+export const CHECK_REPLY_JSON_SCHEMA = {
+	type: 'object',
+	properties: {
+		problems: { type: 'array', items: { type: 'string' } },
+		title: { type: 'string', nullable: true },
+		keyLines: MAKE_REPLY_JSON_SCHEMA.properties.keyLines,
+		captions: { type: 'string', enum: [...CAPTION_LOOKS] },
+		transition: { type: 'string', enum: [...MAKE_TRANSITIONS] },
+		dropSentences: { type: 'array', items: { type: 'integer' } }
+	},
+	required: ['problems', 'title', 'keyLines', 'captions', 'transition', 'dropSentences']
+} as const
+
+/**
+ * A plan as the second check reads it: what was asked, what it makes, how
+ * long, the sentences in the order they play (numbered as in the
+ * transcript, marked when one is cut short), and its words on screen.
+ */
+export function describePlan(
+	reply: MakeReply,
+	summary: MakeSummary,
+	clips: readonly Clip[],
+	sentences: readonly TranscriptSegment[]
+): string {
+	const played = clips.flatMap((clip) =>
+		clip.ranges.flatMap((range) =>
+			sentences.flatMap((sentence, index) => {
+				if (!overlaps(range, sentence)) return []
+				const whole =
+					range.startSeconds <= sentence.startSeconds + 0.01 &&
+					range.endSeconds >= sentence.endSeconds - 0.01
+				return [`[${index + 1}${whole ? '' : ', cut short'}] ${sentence.text}`]
+			})
+		)
+	)
+	return [
+		`Making: ${summary.making} (style ${reply.style}), ${summary.editedSeconds.toFixed(1)} s long` +
+			(summary.limitSeconds === null ? '.' : `, must be under 60 s.`),
+		'Plays, in order:',
+		...(played.length > 0 ? played : ['(no speech)']),
+		`Title: ${summary.title === null ? 'none' : `"${summary.title}"`}`,
+		`Key lines: ${reply.keyLines.map((line) => `[${line.sentence}] "${line.text}"`).join(', ') || 'none'}`,
+		`Captions: ${summary.captions}. Transitions: ${reply.transition}.`
+	].join('\n')
+}
+
+/** The reply with the check's fixes, when it found anything to fix; as it was otherwise. */
+export function applyCheck(reply: MakeReply, check: CheckReply): MakeReply {
+	if (check.problems.length === 0) return reply
+	return {
+		...reply,
+		title: check.title,
+		keyLines: check.keyLines,
+		captions: check.captions,
+		transition: check.transition,
+		removeSentences: [...reply.removeSentences, ...check.dropSentences]
 	}
 }

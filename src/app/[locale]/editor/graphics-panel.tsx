@@ -12,6 +12,7 @@ import {
 	type TitleCard,
 	type Watermark
 } from './overlays'
+import { CAPTION_MODES, type CaptionMode } from './captions'
 import { DegreesField } from './degrees-field'
 import { MAX_LOGO_SIZE, MIN_LOGO_SIZE, resizedLogo, rotatedLogo } from './logo'
 import type { Size } from './transform'
@@ -191,21 +192,22 @@ export function GraphicsPanel({
 export function CaptionsPanel({
 	captionsOn,
 	onCaptionsChange,
-	captionWords,
-	onCaptionWordsChange,
+	captionMode,
+	onCaptionModeChange,
 	captionStyle,
 	onCaptionStyleChange,
 	canEdit
 }: {
 	captionsOn: boolean
 	onCaptionsChange: (on: boolean) => void
-	captionWords: boolean
-	onCaptionWordsChange: (on: boolean) => void
+	captionMode: CaptionMode
+	onCaptionModeChange: (mode: CaptionMode) => void
 	captionStyle: TextStyle
 	onCaptionStyleChange: (style: TextStyle) => void
 	canEdit: boolean
 }) {
 	const t = useTranslations('Editor.graphics')
+	const modeId = useId()
 	return (
 		<section aria-label={t('captionsLabel')} className="flex flex-col gap-4">
 			<div className="border-border bg-surface flex items-center gap-3 rounded-lg border p-3">
@@ -225,16 +227,25 @@ export function CaptionsPanel({
 					{captionsOn ? t('captionsOn') : t('captionsOff')}
 				</Button>
 			</div>
-			<label className="text-text-muted flex items-center gap-2 text-xs">
-				<input
-					type="checkbox"
-					checked={captionWords}
+			<div className="flex flex-col gap-1.5">
+				<Label htmlFor={modeId}>{t('captionMode')}</Label>
+				<select
+					id={modeId}
+					value={captionMode}
 					disabled={!canEdit}
-					onChange={(event) => onCaptionWordsChange(event.target.checked)}
-					className="accent-accent"
-				/>
-				{t('captionWords')}
-			</label>
+					onChange={(event) => {
+						const mode = CAPTION_MODES.find((m) => m === event.target.value)
+						if (mode) onCaptionModeChange(mode)
+					}}
+					className="border-border bg-surface text-text h-9 rounded-md border px-2 text-sm"
+				>
+					{CAPTION_MODES.map((mode) => (
+						<option key={mode} value={mode}>
+							{t(`captionModes.${mode}`)}
+						</option>
+					))}
+				</select>
+			</div>
 			<MoreOptions>
 				<TextStyleFields
 					key={`caption-${JSON.stringify(captionStyle)}`}

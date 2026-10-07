@@ -72,8 +72,16 @@ test('a trim dragged back to the edges, or a split merged again, is the original
 	)
 })
 
-test('word-by-word captions and zooms from Make it are edits to reset', () => {
-	assert.equal(isOriginalEdit({ ...original, captionWords: true }, DURATION), false)
+test('caption modes, and zooms and key lines from Make it, are edits to reset', () => {
+	assert.equal(isOriginalEdit({ ...original, captionMode: 'words' }, DURATION), false)
+	assert.equal(isOriginalEdit({ ...original, captionMode: 'highlight' }, DURATION), false)
+	assert.equal(
+		isOriginalEdit(
+			{ ...original, autoTitles: [{ text: 'A key line', startSeconds: 1, durationSeconds: 2 }] },
+			DURATION
+		),
+		false
+	)
 	assert.equal(
 		isOriginalEdit(
 			{

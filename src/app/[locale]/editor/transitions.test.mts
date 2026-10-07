@@ -29,7 +29,9 @@ import {
 	crossfadeGains,
 	dissolveAt,
 	fadeLevelAt,
+	overlapsClips,
 	scheduleTransitionGain,
+	slideOffset,
 	transitionGainAt
 } from './transitions'
 
@@ -337,4 +339,18 @@ test('delete and duplicate name one clip; the only clip is not deleted', () => {
 		ok: false,
 		reason: 'only_clip'
 	})
+})
+
+test('a slide overlaps the clips like a dissolve, its clip coming in from the right and easing to rest', () => {
+	assert.equal(overlapsClips('slide'), true)
+	assert.equal(overlapsClips('dissolve'), true)
+	assert.equal(overlapsClips('fade'), false)
+	assert.equal(slideOffset(0), 1)
+	assert.equal(slideOffset(1), 0)
+	assert.ok(slideOffset(0.5) < 0.5)
+	const joins = [{ kind: 'slide' as const, seconds: 1, index: 1, at: 2 }]
+	assert.equal(dissolveAt(joins, 2.5)?.progress, 0.5)
+	assert.equal(dissolveAt(joins, 3.5), null)
+	// Its sound crossfades as a dissolve's does.
+	assert.ok(Math.abs(transitionGainAt(joins, 1, 2.5) - Math.SQRT1_2) < 1e-9)
 })

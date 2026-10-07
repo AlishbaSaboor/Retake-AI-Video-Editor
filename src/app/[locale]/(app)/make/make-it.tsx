@@ -16,7 +16,7 @@ import { VoiceCommandButton } from '@/app/[locale]/editor/voice-command-button'
 import { useRouter } from '@/i18n/routing'
 import { cn } from '@/lib/cn'
 import { captureClientError } from '@/lib/observability/capture-client-error'
-import { planMakeIt } from './actions'
+import { checkMakePlan, planMakeIt } from './actions'
 import { captureFrames } from './frames'
 import {
 	FRAME_SEPARATOR,
@@ -24,13 +24,25 @@ import {
 	MAX_MAKE_SECONDS,
 	MAX_REQUEST_LENGTH,
 	planMake,
+	applyCheck,
+	describePlan,
+	type CheckReply,
 	type MakeAnswer,
+	type MakeReply,
 	type MakeSummary,
 	type MusicTrack
 } from './make-plan'
 
 const EXAMPLES = ['reel', 'funny', 'professional', 'ad'] as const
 const SECONDS_PER_MINUTE = 60
+/** How much of the opening line the plan quotes. */
+const OPENER_WORDS = 10
+
+/** The first `count` words of `text`, with an ellipsis when there were more. */
+function firstWords(text: string, count: number): string {
+	const words = text.split(/\s+/)
+	return words.length > count ? `${words.slice(0, count).join(' ')}…` : text
+}
 /** The status a busy AI comes back with (rethrowAsBusy): its message is meant for the user. */
 const BUSY_STATUS = 503
 
@@ -68,6 +80,20 @@ async function requestPlan(input: Parameters<typeof planMakeIt>[0], unclear: str
 	}
 	if (!result.ok) throw new Error(result.status === BUSY_STATUS ? result.error : unclear)
 	return result.data
+}
+
+/**
+ * The second check of a plan against its request. Its failure never stops
+ * the plan: it's reported, and the plan shows as first made, saying so.
+ */
+async function checkPlan(request: string, planText: string): Promise<CheckReply | null> {
+	try {
+		const result = await checkMakePlan({ request, planText })
+		return result.ok ? result.data : null
+	} catch (error) {
+		captureClientError(error, { feature: 'make_it_check' })
+		return null
+	}
 }
 
 /**
@@ -135,10 +161,9 @@ export function MakeIt() {
 				return { kind: 'questions', questions: reply.questions } as const
 			}
 			const music = reply.music ? await loadTrack(reply.music) : null
-			return {
-				kind: 'plan',
-				...planMake({
-					reply,
+			const plan = (planned: MakeReply) =>
+				planMake({
+					reply: planned,
 					request: ask.request,
 					durationSeconds: video.durationSeconds,
 					picture: video.picture,
@@ -147,7 +172,15 @@ export function MakeIt() {
 					music,
 					musicAvailable: tracks.length > 0
 				})
-			} as const
+			// The plan as made, then checked against the request and made again
+			// with the check's fixes, if it found anything to fix.
+			const first = plan(reply)
+			const check = await checkPlan(
+				ask.request,
+				describePlan(reply, first.summary, first.edit.clips ?? [], transcript?.segments ?? [])
+			)
+			const made = check && check.problems.length > 0 ? plan(applyCheck(reply, check)) : first
+			return { kind: 'plan', ...made, problems: check?.problems ?? null } as const
 		},
 		enabled: video !== null && ask !== null && frames.data !== undefined && transcriptReady,
 		staleTime: Infinity,
@@ -243,7 +276,14 @@ export function MakeIt() {
 		)
 	}
 	if (ask && plan.data?.kind === 'plan') {
-		return <PlanView summary={plan.data.summary} onApply={apply} onCancel={() => setAsk(null)} />
+		return (
+			<PlanView
+				summary={plan.data.summary}
+				problems={plan.data.problems}
+				onApply={apply}
+				onCancel={() => setAsk(null)}
+			/>
+		)
 	}
 	if (ask && plan.data?.kind === 'none') {
 		return (
@@ -423,10 +463,13 @@ function Questions({
 /** The plan in plain words, with Apply and Cancel. */
 function PlanView({
 	summary,
+	problems,
 	onApply,
 	onCancel
 }: {
 	summary: MakeSummary
+	/** What the second check fixed: none, or null when it couldn't run. */
+	problems: string[] | null
 	onApply: () => void
 	onCancel: () => void
 }) {
@@ -453,7 +496,11 @@ function PlanView({
 			: []),
 		...(summary.fillerCuts > 0 ? [t('fillers', { count: summary.fillerCuts })] : []),
 		...(summary.limitSeconds === null ? [] : [t(summary.trimmedToFit ? 'fitCut' : 'fitOk')]),
+		...(summary.opensWith
+			? [t('opensWith', { line: firstWords(summary.opensWith, OPENER_WORDS) })]
+			: []),
 		t(`captions.${summary.captions}`),
+		...(summary.keyLines > 0 ? [t('keyLines', { count: summary.keyLines })] : []),
 		...(summary.zooms > 0 ? [t('zooms', { count: summary.zooms })] : []),
 		...(summary.transitions > 0
 			? [t(`transitions.${summary.transition}`, { count: summary.transitions })]
@@ -485,6 +532,22 @@ function PlanView({
 					<li key={line}>{line}</li>
 				))}
 			</ul>
+			<div className="border-border bg-surface-inset flex flex-col gap-1 rounded-lg border p-3">
+				<p className="text-text text-sm font-medium">
+					{problems === null
+						? t('check.failed')
+						: problems.length === 0
+							? t('check.ok')
+							: t('check.fixed')}
+				</p>
+				{problems && problems.length > 0 && (
+					<ul className="text-text-muted list-disc pl-5 text-sm">
+						{problems.map((line) => (
+							<li key={line}>{line}</li>
+						))}
+					</ul>
+				)}
+			</div>
 			{summary.cannotDo.length > 0 && (
 				<div className="border-border bg-surface-inset flex flex-col gap-1 rounded-lg border p-3">
 					<p className="text-text text-sm font-medium">{t('cannotDo')}</p>
