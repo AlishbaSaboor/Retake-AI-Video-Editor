@@ -16,6 +16,7 @@ import {
 	zoomedPoint,
 	zoomArea,
 	zoomOnArea,
+	revealedWords,
 	zoomViewAt,
 	zoomsViewAt,
 	type Animation
@@ -278,4 +279,29 @@ test('with several zooms, the one under way shows; none, the whole frame', () =>
 	assert.deepEqual(zoomsViewAt([null, first, second], 1), zoomViewAt(first, 1))
 	assert.deepEqual(zoomsViewAt([null, first, second], 6), zoomViewAt(second, 6))
 	assert.deepEqual(zoomsViewAt([null, first, second], 3), zoomViewAt(null, 3))
+})
+
+test('word by word, each word comes in on its own, rising into place; all of it at rest', () => {
+	const motion = animationAt(
+		{ in: { kind: 'words', side: 'left', seconds: 1 }, out: NO_ANIMATION.out },
+		0,
+		4,
+		0.5
+	)
+	assert.equal(motion?.reveal, 0.5)
+	// Half way through four words: two in, the third just starting.
+	const words = revealedWords('One two three four', 0.5)
+	assert.deepEqual(
+		words.map((w) => [w.word, w.opacity]),
+		[
+			['One', 1],
+			['two', 1],
+			['three', 0],
+			['four', 0]
+		]
+	)
+	assert.equal(words[0]?.rise, 0)
+	assert.ok((revealedWords('One two', 0.25)[0]?.rise ?? 0) > 0)
+	assert.ok(revealedWords('One two', undefined).every((w) => w.opacity === 1 && w.rise === 0))
+	assert.equal(animationAt(undefined, 0, 4, 2)?.reveal, undefined)
 })

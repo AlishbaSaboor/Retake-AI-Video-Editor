@@ -11,7 +11,12 @@ import {
 	MAX_FRAMES,
 	makeReplySchema,
 	planMake,
+	quotedLine,
+	applyCheck,
+	chooseSentences,
+	describePlan,
 	SHORT_FORM_MAX_SECONDS,
+	SHORT_FORM_TARGET_SECONDS,
 	type MakeReply
 } from './make-plan'
 
@@ -43,17 +48,21 @@ const REPLY: MakeReply = {
 	subject: 'one_person',
 	summary: 'A short talk; tightened into a reel.',
 	pictureMatters: false,
-	keyMoments: [4],
+	moments: [
+		{ first: 1, last: 2 },
+		{ first: 4, last: 4 }
+	],
 	removeSentences: [3],
 	removeSpans: [],
-	captions: 'words',
+	captions: 'bold_words',
 	zoomSentences: [4, 99, 1],
 	transition: 'dissolve',
+	keyLines: [{ sentence: 4, text: 'Key point' }],
 	vertical: true,
-	// A face in the middle at 1 s, then right of centre from 9 s; frame 99 doesn't exist.
+	// A face in the middle until 7 s, then right of centre from 9 s; frame 99 doesn't exist.
 	faces: [
-		{ frame: 1, x: 500, y: 300 },
-		{ frame: 5, x: 800, y: 400 },
+		...[1, 2, 3, 4].map((frame) => ({ frame, x: 500, y: 300 })),
+		...[5, 6, 7, 8, 9, 10].map((frame) => ({ frame, x: 800, y: 400 })),
 		{ frame: 99, x: 100, y: 100 }
 	],
 	music: 'upbeat.mp3',
@@ -171,8 +180,8 @@ test('a reply is planned into one edit: clips, transitions, word captions, zooms
 		]
 	)
 	assert.equal(edit.captionsOn, true)
-	assert.equal(edit.captionWords, true)
-	assert.equal(edit.captionStyle.size, 1.5)
+	assert.equal(edit.captionMode, 'words')
+	assert.equal(edit.captionStyle.size, 1.8)
 	// 2.3 s (less the filler) + 2.5 + 1.5, each dissolve overlapping 0.4 s.
 	near(summary.editedSeconds, 5.5)
 	// Sentence 4 (9–11 s of the take) plays from 2.15 s; too-short sentence 1 and 99 are skipped.
@@ -196,6 +205,12 @@ test('a reply is planned into one edit: clips, transitions, word captions, zooms
 	)
 	// "Sarah" was never said nor asked for: no title.
 	assert.equal(edit.title, null)
+	// The key line quotes sentence 4, over it, near the top, coming in word by word.
+	assert.equal(edit.autoTitles.length, 1)
+	assert.equal(edit.autoTitles[0]?.text, 'Key point')
+	near(edit.autoTitles[0]?.startSeconds ?? 0, 2.15)
+	assert.deepEqual(edit.autoTitles[0]?.at, { x: 0.5, y: 0.18 })
+	assert.equal(edit.autoTitles[0]?.animation?.in.kind, 'words')
 	assert.deepEqual(
 		{ ...summary, editedSeconds: 0 },
 		{
@@ -210,7 +225,9 @@ test('a reply is planned into one edit: clips, transitions, word captions, zooms
 			editedSeconds: 0,
 			removedParts: 4,
 			fillerCuts: 1,
-			captions: 'words',
+			captions: 'bold_words',
+			keyLines: 1,
+			opensWith: null,
 			zooms: 1,
 			transition: 'dissolve',
 			transitions: 2,
@@ -290,12 +307,24 @@ function longTalk(count: number) {
 	)
 }
 
-test('a reel, TikTok or Short comes out under a minute, keeping the key moments', () => {
+test('a reel fills 50 to 59 seconds with whole moments, opening with the strongest', () => {
 	// 40 sentences: 140 s, and the reply cut only one of them.
 	const talk = longTalk(40)
-	const keyMoments = [30, 2, 17, 9, 25]
+	const moments = [
+		{ first: 30, last: 31 },
+		{ first: 2, last: 4 },
+		{ first: 17, last: 19 },
+		{ first: 9, last: 9 }
+	]
 	const { edit, summary } = planMake({
-		reply: { ...REPLY, removeSentences: [40], keyMoments, transition: 'none', zoomSentences: [] },
+		reply: {
+			...REPLY,
+			removeSentences: [40],
+			moments,
+			transition: 'none',
+			zoomSentences: [],
+			keyLines: []
+		},
 		request: 'make this an Instagram reel',
 		durationSeconds: 140,
 		picture: { width: 1920, height: 1080 },
@@ -305,14 +334,15 @@ test('a reel, TikTok or Short comes out under a minute, keeping the key moments'
 		musicAvailable: false
 	})
 	assert.ok(summary.editedSeconds <= SHORT_FORM_MAX_SECONDS, `${summary.editedSeconds} s`)
-	// Not much under it either: only what had to go went.
-	assert.ok(summary.editedSeconds > SHORT_FORM_MAX_SECONDS - 4, `${summary.editedSeconds} s`)
+	assert.ok(summary.editedSeconds >= SHORT_FORM_TARGET_SECONDS, `${summary.editedSeconds} s`)
 	assert.equal(summary.trimmedToFit, true)
 	assert.equal(summary.limitSeconds, SHORT_FORM_MAX_SECONDS)
 	assert.ok(summary.keptSentences < 40)
-	// Every key moment is still in it, whole.
+	// Every moment is in it, every sentence of it whole.
 	const kept = edit.clips?.flatMap((clip) => clip.ranges) ?? []
-	for (const number of keyMoments) {
+	for (const number of moments.flatMap(({ first, last }) =>
+		Array.from({ length: last - first + 1 }, (_, i) => first + i)
+	)) {
 		const sentence = talk.segments[number - 1]
 		assert.ok(
 			sentence &&
@@ -320,9 +350,17 @@ test('a reel, TikTok or Short comes out under a minute, keeping the key moments'
 					(range) =>
 						range.startSeconds <= sentence.startSeconds && range.endSeconds >= sentence.endSeconds
 				),
-			`key moment ${number} kept`
+			`sentence ${number} kept`
 		)
 	}
+	// The strongest moment (sentences 30 and 31) opens, ahead of the rest in order.
+	const opening = talk.segments[29]
+	assert.ok(opening && kept[0] && kept[0].startSeconds <= opening.startSeconds)
+	assert.ok(kept[0] && kept[0].endSeconds >= (talk.segments[30]?.endSeconds ?? 0))
+	assert.equal(summary.opensWith, 'Step30.')
+	assert.ok(
+		kept.slice(1).every((range, i) => i === 0 || range.startSeconds > (kept[i]?.startSeconds ?? 0))
+	)
 	// The sentence the reply cut stays cut.
 	const last = talk.segments[39]
 	assert.ok(last && !kept.some((range) => range.endSeconds > last.startSeconds))
@@ -331,7 +369,7 @@ test('a reel, TikTok or Short comes out under a minute, keeping the key moments'
 test('one long stretch over a minute keeps only its first 59 seconds; other edits have no limit', () => {
 	const speech = toTranscript([{ word: 'Long.', start: 0, end: 100 }])
 	const reel = planMake({
-		reply: { ...REPLY, keyMoments: [], zoomSentences: [] },
+		reply: { ...REPLY, moments: [], zoomSentences: [], keyLines: [] },
 		request: 'make it a TikTok',
 		durationSeconds: 100,
 		picture: { width: 1920, height: 1080 },
@@ -343,7 +381,14 @@ test('one long stretch over a minute keeps only its first 59 seconds; other edit
 	assert.ok(reel.summary.editedSeconds <= SHORT_FORM_MAX_SECONDS)
 	assert.ok(reel.summary.editedSeconds > SHORT_FORM_MAX_SECONDS - 1)
 	const professional = planMake({
-		reply: { ...REPLY, format: 'other', style: 'professional', keyMoments: [], vertical: false },
+		reply: {
+			...REPLY,
+			format: 'other',
+			style: 'professional',
+			moments: [],
+			keyLines: [],
+			vertical: false
+		},
 		request: 'make it professional',
 		durationSeconds: 100,
 		picture: { width: 1920, height: 1080 },
@@ -394,4 +439,182 @@ test('a screen recording made vertical keeps the whole picture, with black bars,
 		width: 1080,
 		height: 1920
 	})
+})
+
+test('moments are taken whole or not at all, never dead sentences, and stop once long enough', () => {
+	// 10 sentences of 5 s: 3–5 fits, 4–6 then overlaps it, 9 is dead.
+	const lengthOf = (chosen: ReadonlySet<number>) => chosen.size * 5
+	const chosen = chooseSentences(
+		[
+			{ first: 3, last: 5 },
+			{ first: 4, last: 6 },
+			{ first: 8, last: 10 },
+			{ first: 1, last: 1 }
+		],
+		10,
+		new Set([8]),
+		(trial) => ({ fits: lengthOf(trial) <= 30, enough: lengthOf(trial) >= 25 })
+	)
+	// 3–5 (15 s), then 8 and 10 (9 is dead: 25 s), enough.
+	assert.deepEqual(
+		[...chosen].sort((a, b) => a - b),
+		[2, 3, 4, 7, 9]
+	)
+})
+
+test('a key line must quote its sentence, briefly', () => {
+	assert.equal(quotedLine('Key point', 'Key point here.'), 'Key point')
+	assert.equal(quotedLine('key POINT!', 'Key point here.'), 'key POINT!')
+	assert.equal(quotedLine('Key idea', 'Key point here.'), null)
+	assert.equal(
+		quotedLine(
+			'one two three four five six seven eight nine',
+			'one two three four five six seven eight nine'
+		),
+		null
+	)
+	assert.equal(quotedLine('', 'Key point here.'), null)
+})
+
+test('transitions go only at the few joins where the most was cut: slide overlaps, a zoom cut punches in', () => {
+	// Five sentences, each a piece: gaps of 3, 5, 2 and 6 s between them.
+	const talk = toTranscript([
+		{ word: 'One.', start: 0, end: 2 },
+		{ word: 'Two.', start: 5, end: 7 },
+		{ word: 'Three.', start: 12, end: 14 },
+		{ word: 'Four.', start: 16, end: 18 },
+		{ word: 'Five.', start: 24, end: 26 }
+	])
+	const plan = (transition: MakeReply['transition']) =>
+		planMake({
+			reply: {
+				...REPLY,
+				transition,
+				removeSentences: [],
+				moments: [],
+				zoomSentences: [],
+				keyLines: [],
+				vertical: false,
+				format: 'other',
+				style: 'professional'
+			},
+			request: 'make it professional',
+			durationSeconds: 26,
+			picture: { width: 1920, height: 1080 },
+			transcript: talk,
+			fillerCuts: [],
+			music: null,
+			musicAvailable: false
+		})
+	const slide = plan('slide')
+	// Three of the four joins: not the 2 s one.
+	assert.deepEqual(
+		slide.edit.clips?.map((clip) => clip.transition?.kind ?? null),
+		[null, 'slide', 'slide', null, 'slide']
+	)
+	assert.equal(slide.summary.transitions, 3)
+	const plain = plan('none')
+	near(slide.summary.editedSeconds, plain.summary.editedSeconds - 3 * 0.4)
+	const zoomCut = plan('zoom_cut')
+	assert.ok(zoomCut.edit.clips?.every((clip) => !clip.transition))
+	assert.equal(zoomCut.summary.transitions, 3)
+	assert.equal(zoomCut.summary.zooms, 0)
+	const punches = zoomCut.edit.autoZooms
+	assert.equal(punches.length, 3)
+	for (const zoom of punches) {
+		assert.equal(zoom.direction, 'out')
+		assert.equal(zoom.amount, 1.15)
+		near(zoom.endSeconds - zoom.startSeconds, 0.4)
+	}
+	near(zoomCut.summary.editedSeconds, plain.summary.editedSeconds)
+})
+
+test('the crop follows a face only when one person is clearly the subject: in half the pictures', () => {
+	const plan = (faces: MakeReply['faces']) =>
+		planMake({
+			reply: { ...REPLY, faces },
+			request: 'make this an Instagram reel',
+			durationSeconds: DURATION,
+			picture: { width: 1920, height: 1080 },
+			transcript,
+			fillerCuts: [],
+			music: null,
+			musicAvailable: false
+		}).summary.vertical
+	assert.equal(
+		plan([
+			{ frame: 1, x: 500, y: 300 },
+			{ frame: 2, x: 500, y: 300 }
+		]),
+		'fit'
+	)
+	assert.equal(plan([1, 2, 3, 4, 5].map((frame) => ({ frame, x: 500, y: 300 }))), 'face')
+})
+
+test('the second check reads the plan in play order, and its fixes apply only when it found a problem', () => {
+	const { edit, summary } = planMake({
+		reply: REPLY,
+		request: 'make this an Instagram reel',
+		durationSeconds: DURATION,
+		picture: { width: 1920, height: 1080 },
+		transcript,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false
+	})
+	const text = describePlan(REPLY, summary, edit.clips ?? [], sentences)
+	assert.match(text, /^Making: instagram_reel \(style reel\), \d+\.\d s long, must be under 60 s\./)
+	assert.match(text, /\[1\] Hello\.\n\[2\] This is good\.\n\[4\] Key point here\.\n\[5\] Bye\./)
+	assert.match(text, /Key lines: \[4\] "Key point"/)
+	const fixes = {
+		problems: [],
+		title: 'Fixed title',
+		keyLines: [],
+		captions: 'highlight' as const,
+		transition: 'slide' as const,
+		dropSentences: [5]
+	}
+	assert.equal(applyCheck(REPLY, fixes), REPLY)
+	const fixed = applyCheck(REPLY, {
+		...fixes,
+		problems: ['The title names someone never mentioned.']
+	})
+	assert.equal(fixed.title, 'Fixed title')
+	assert.deepEqual(fixed.keyLines, [])
+	assert.equal(fixed.captions, 'highlight')
+	assert.equal(fixed.transition, 'slide')
+	assert.deepEqual(fixed.removeSentences, [3, 5])
+})
+
+test('the strongest moment opens even from the middle of one long stretch, cut out at its pauses', () => {
+	// Twenty 3 s sentences, half a second apart: one continuous piece.
+	const talk = longTalk(20)
+	const { edit, summary } = planMake({
+		reply: {
+			...REPLY,
+			removeSentences: [],
+			moments: [{ first: 12, last: 14 }],
+			transition: 'none',
+			zoomSentences: [],
+			keyLines: []
+		},
+		request: 'make this an Instagram reel',
+		durationSeconds: 70,
+		picture: { width: 1920, height: 1080 },
+		transcript: talk,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false
+	})
+	const kept = edit.clips?.flatMap((clip) => clip.ranges) ?? []
+	const first = talk.segments[11]
+	const last = talk.segments[13]
+	// The first piece is sentences 12 to 14, from the pause before to the pause after.
+	assert.ok(first && last && kept[0])
+	assert.ok(
+		kept[0].startSeconds <= first.startSeconds && kept[0].startSeconds > first.startSeconds - 0.5
+	)
+	assert.ok(kept[0].endSeconds >= last.endSeconds && kept[0].endSeconds < last.endSeconds + 0.5)
+	assert.equal(summary.opensWith, 'Step12.')
+	assert.ok(summary.editedSeconds >= SHORT_FORM_TARGET_SECONDS && summary.editedSeconds <= 59)
 })

@@ -8,6 +8,8 @@ import { validatedAction } from '@/server/actions/validated-action'
 import { rethrowAsBusy } from '@/server/lib/ai-busy'
 import { numberedSentences } from '@/app/[locale]/editor/highlights'
 import {
+	CHECK_REPLY_JSON_SCHEMA,
+	checkReplySchema,
 	FRAME_SEPARATOR,
 	MAKE_REPLY_JSON_SCHEMA,
 	makeReplySchema,
@@ -15,6 +17,7 @@ import {
 	MAX_MAKE_SECONDS,
 	MAX_QUESTIONS,
 	MAX_REQUEST_LENGTH,
+	type CheckReply,
 	type MakeReply
 } from './make-plan'
 
@@ -40,11 +43,12 @@ async function musicTracks(): Promise<string[]> {
 // one has a whole edit to describe: what the editor can do, the styles, and
 // the rules that keep it honest.
 const MAKE_INSTRUCTION = [
-	'You plan a whole video edit from one request. The editor can only: cut parts out,',
-	'show captions of the speech (word by word, or a line or two at a time), push in with a zoom',
-	'during a sentence, fade or dissolve where parts were cut, lay background music from a list',
-	'under it (quieter under speech), make it vertical 9:16 (following the face of one person, or',
-	'the whole picture with black bars), and show one short title at the start.',
+	'You plan a whole video edit from one request. The editor can only: cut parts out and reorder',
+	'them, show captions of the speech, push in with a zoom during a sentence, join cuts with a',
+	'fade, dissolve, slide or zoom cut, lay background music from a list under it (quieter under',
+	'speech), make it vertical 9:16 (following the face of one person, or the whole picture with',
+	'black bars), show one short title at the start and a few key lines quoted from the speech,',
+	'animated in the style asked for.',
 	'You get the request, the transcript (numbered sentences with their times in seconds) and',
 	'small pictures of the video, one every 2 seconds, numbered.',
 	'Styles: reel (Instagram reel, TikTok or Shorts: vertical, word-by-word captions, tight cuts,',
@@ -55,9 +59,10 @@ const MAKE_INSTRUCTION = [
 	`tell what is wanted at all ("make it better"): then 1 to ${MAX_QUESTIONS} short questions,`,
 	'and still fill in everything else. When answers are given, ask nothing.',
 	'format: instagram_reel, tiktok or youtube_shorts when the request names one (a reel is',
-	'instagram_reel), else other. Reels, TikToks and Shorts must run under 60 seconds: keep only',
-	'the key moments (for a walkthrough, the line that shows each step), cut dead time and repeats.',
-	'keyMoments: sentence numbers of the moments that matter most, best first.',
+	'instagram_reel), else other. Reels, TikToks and Shorts run 50 to 59 seconds when the video',
+	'has enough: complete thoughts only, never half a point; for a walkthrough, each step.',
+	'moments: complete thoughts as first and last sentence numbers, best first; the first is the',
+	'strongest line, which a reel opens with. Cover everything worth keeping.',
 	'summary: one or two plain sentences on how the footage was shortened: what was kept and what',
 	'was cut. Not what the video is in general.',
 	'subject: one_person when one person on camera is clearly the subject; screen (a screen',
@@ -70,8 +75,14 @@ const MAKE_INSTRUCTION = [
 	'Keep everything worth hearing.',
 	'removeSpans: only when pictureMatters: stretches in seconds where nothing is said or worth',
 	'seeing.',
-	'captions: words, lines or off. zoomSentences: the few sentences worth a push-in.',
-	'transition: none, fade or dissolve, where parts were cut.',
+	'captions: classic (a line or two in a band), bold_words (one big word at a time),',
+	'highlight (lines with the word being said picked out), large (big lines), or off. Reels and',
+	'TikToks suit bold_words or highlight, professional classic, funny bold_words, ads large.',
+	'zoomSentences: the few sentences worth a push-in.',
+	'transition: none, fade, dissolve, slide or zoom_cut, used only where parts were cut:',
+	'professional dissolve or fade, reel and funny zoom_cut or slide, ad slide or zoom_cut.',
+	'keyLines: up to 4 short lines (at most 8 words) to show on screen, each quoting words said in',
+	'its sentence, given by number: the points worth reading. Empty when none fit.',
 	'vertical: true for reels, TikTok, Shorts, stories and ads for phones.',
 	'faces: only when subject is one_person: for each picture showing them, its number as frame,',
 	'and x and y of the face centre on a 0 to 1000 grid. Otherwise empty.',
@@ -103,6 +114,57 @@ function describe(input: {
 		'Pictures:'
 	].join('\n')
 }
+
+// The second look: text only (no pictures), so it costs a fraction of the
+// plan. It reads the plan as made and fixes what doesn't fit the request.
+const CHECK_INSTRUCTION = [
+	'You check a planned video edit against the request it was made for, and fix it.',
+	'Problems to look for: the wrong length (reels, TikToks and Shorts must be under 60 seconds and',
+	'should use 50 or more when there is enough), a style or caption look that does not fit the',
+	'request, a title or key line with words that were not said or asked for (names, handles,',
+	'brands, facts), a key line that does not quote its sentence, a sentence cut short, a point',
+	'left half made, an opening that is not the strongest line.',
+	'problems: each one found, in a few plain words; empty when the plan is right.',
+	'title, keyLines, captions, transition: as they should be (the same when right). keyLines',
+	'quote their sentence, given by number. dropSentences: numbers of sentences that should not',
+	'be in it (half a thought, off the point); the editor refills the time itself.',
+	"Write in the request's language."
+].join(' ')
+
+/** The longest plan description the check reads: a few hundred sentences' worth. */
+const MAX_PLAN_LENGTH = 40_000
+
+/**
+ * Checks a plan against its request with a second, cheap Gemini call (text
+ * only), returning what was wrong and the fixes; null when the reply
+ * doesn't fit the shape, which the page treats as no check made.
+ */
+export const checkMakePlan = validatedAction({
+	input: z.object({
+		request: z.string().trim().min(1).max(MAX_REQUEST_LENGTH),
+		planText: z.string().min(1).max(MAX_PLAN_LENGTH)
+	}),
+	handler: async ({ request, planText }): Promise<CheckReply | null> => {
+		const response = await generateContent(
+			{ feature: 'make_it_check', model: 'gemini-3.5-flash-lite' },
+			{
+				contents: `Request: ${request}\n${planText}`,
+				config: {
+					systemInstruction: CHECK_INSTRUCTION,
+					responseMimeType: 'application/json',
+					responseJsonSchema: CHECK_REPLY_JSON_SCHEMA,
+					temperature: 0
+				}
+			}
+		).catch(rethrowAsBusy)
+		try {
+			const parsed = checkReplySchema.safeParse(JSON.parse(response.text ?? ''))
+			return parsed.success ? parsed.data : null
+		} catch {
+			return null
+		}
+	}
+})
 
 /**
  * Plans a whole edit from a request, with Gemini reading the transcript and

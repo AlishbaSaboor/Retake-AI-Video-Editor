@@ -7,6 +7,14 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-07.
+> - **Make it, part 2: quality** (section 3zf): kinetic text (a title and key
+>   lines quoted from the speech, coming in word by word, popping, sliding or
+>   fading by style), caption looks (a word at a time, the spoken word
+>   highlighted, large), slide and zoom-cut transitions used sparingly, short
+>   videos filled to 50–59 s with whole thoughts and opening with the
+>   strongest, and a second, cheap Gemini check of each plan against the
+>   request (both calls in `ai_usage`). Part 3 (create from scratch,
+>   follow-up requests) not started.
 > - **Make it, part 1** (section 3ze): a Make it page and Home card. Upload a
 >   video, say "make this a reel / funny / professional / an ad"; Gemini reads
 >   the transcript and a small picture every 2 s, asks 1–3 questions only when
@@ -271,8 +279,8 @@ separate `chore(logs)` commit.
 | Motion graphics: title/text entrances and exits (fade, slide, pop), a lower third, an animated zoom                                                                                                                      | `feat(editor): animated text, a lower third and zoom`                    | Unit tests for the easing, the half-time cap, the zoom matrix and the commands. e2e measures real exports: the zoom (square width, centred, with a crop and a sped clip), the title sliding and fading, the lower third at the lower left sliding in and gone outside its time, a text pop; typed commands, save/reopen, undo.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | The logo by hand: drag anywhere, resize by its corner, keys, a size field; PNG or JPG                                                                                                                                    | `feat(editor): place and resize the logo by hand, PNG or JPG`            | Unit tests for placing, moving, resizing and clamping. e2e drags and resizes a JPG logo, checks the export puts it at the same place and size, the keys, the size field, undo per step, corners and the default-corner command.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
-**Current totals** (2026-10-07, Make it part 1): 369 unit tests
-(`src/**/*.test.mts`) and 100 e2e tests (plus the sign-in setup).
+**Current totals** (2026-10-07, Make it part 2): 378 unit tests
+(`src/**/*.test.mts`) and 103 e2e tests (plus the sign-in setup).
 Everything passes locally. On the meter commit the full e2e suite passed
 18/18 in each of two runs.
 
@@ -2327,6 +2335,86 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
   make a plan from that". Expected cost: ~260 tokens a picture, so a
   5-minute video is ~40k input tokens a plan, well under a cent on
   Flash-Lite.
+
+## 3zf. Make it, part 2: quality (2026-10-07)
+
+- **Asked:** the edit Make it builds should look polished: kinetic text in
+  the request's style, better captions, a couple more transitions used
+  sparingly, better moments for short videos (50–59 s, complete thoughts,
+  opening with the strongest line), a second cheap Gemini check of the plan
+  against the request, and a face followed only when one person clearly is
+  the subject. **Not in part 2:** create from scratch, follow-up requests.
+- **Kinetic text, in the editor for everyone:** a new motion, **word by
+  word** (`MOTIONS`, `MotionState.reveal`, `revealedWords`): each word fades
+  and rises in, one after another, then the text is at rest. Title and
+  on-video text, in the preview (`RevealText`, word spans) and the export
+  (`drawText`, word by word with each one's opacity and rise); in the
+  Animation fields and as a typed command ("animate the title in word by
+  word"). The export draws every title card through one `drawTitle`, so
+  Make it's **key lines** (`autoTitles` in the snapshot: more titles, each
+  in its own time) look and move exactly like the title. Key lines show on
+  the Text lane (a click goes there; undo/reset change them).
+- **Make it's text, by style** (`TEXT_STYLE`, `TEXT_MOTION`): reel bold and
+  quick (word by word in 0.6 s), professional calm (serif, a slow fade),
+  funny playful (yellow, pops), ad punchy (slides in). The title sits above
+  the captions (0.4 of the frame), near the top of a vertical one (0.18);
+  key lines near the top, after the title, never two at once, each only
+  words quoted from its sentence (`quotedLine`, at most 8 words; anything
+  else is dropped, as invented names are).
+- **Captions:** `captionMode` (replacing part 1's `captionWords`; old
+  projects map over) is lines, one word at a time, or **highlight** (the
+  lines, with the word being said in yellow, white on yellow text:
+  `Caption.spoken`, `spokenWordAt`, `highlightColor`), in the preview and
+  the export; a "Caption style" select in Captions. Gemini picks a look
+  (`CAPTION_LOOKS`: classic, bold_words, highlight, large, off), which maps
+  to a mode and a size. Captions stay at the bottom.
+- **Transitions:** a **slide** (`TRANSITION_KINDS`): the next clip comes in
+  whole from the right over the last one, overlapping like a dissolve
+  (`overlapsClips` replaces every "is it a dissolve" check: the two-player
+  preview, the export's decks, the length, the crossfaded sound); drawn
+  with `slideOffset` (preview: the second player's `translateX`; export:
+  `FrameMix.incomingShift`). Also in the Transitions panel. A **zoom cut**
+  is no new kind: a 0.4 s pull-out from 1.15× at the join (`autoZooms`).
+  Make it puts a transition only at the three joins where the most was cut
+  (or where the order jumps), whatever the reply asks.
+- **Moments:** the reply now names `moments` (complete thoughts, first and
+  last sentence, best first) instead of key sentences. A short-form edit
+  over a minute is built from them (`chooseSentences`): whole moments in
+  order of strength, then single sentences, each only if it still fits
+  under 59 s, until it reaches 50 s. Dead sentences never; a moment never
+  half. It **opens with the strongest moment**, cut out of the stretch it's
+  in at its pauses (`around`) and moved first; the plan says "Opens with
+  its strongest line: …".
+- **The second check** (`checkMakePlan`, `feature: 'make_it_check'`,
+  Flash-Lite, text only, so a fraction of the plan's cost): after the plan
+  is made, `describePlan` gives it what's made, how long, the sentences in
+  play order (marked when cut short), the title, key lines, captions and
+  transitions; it answers problems and corrected text, captions,
+  transitions and sentences to drop. With a problem, `applyCheck` patches
+  the reply and the plan is made again (the code's rules still hold: length,
+  quotes, names). The plan says "Checked against your request: nothing to
+  fix", or lists what was fixed, or, when the check can't run, "this is the
+  plan as first made" (never a failure). Both calls write `ai_usage` rows.
+- **Vertical:** a crop follows a face only when the subject is one person
+  **and** a face is in at least half the pictures; anything else (a meeting
+  grid, a screen) keeps the whole picture with black bars (part 1's fit).
+- **Features page:** Make it under "Edit by asking"; word-by-word titles,
+  caption styles and slides under motion graphics.
+- **Tests:** unit (word reveal; highlighted captions; slide overlap,
+  offset and sound; caption modes and key lines as edits to reset; the
+  50–59 s fill, whole moments, the opener cut out of one long stretch;
+  quoted key lines; sparing transitions, slide and zoom cut; the face rule;
+  `describePlan` and `applyCheck`). e2e: a slide on a real export (red on
+  the left, whole blue on the right a third of the way through, not
+  blended; a mutation ignoring the slide fails it); the second check fixing
+  a plan (title and highlight captions), the title's words not yet in at
+  0, plain at rest, and in the export: barely in at 0.1 s, whole by 2.5 s,
+  with the spoken word yellow; a failed check leaving the plan as made; the
+  70 s video's reel opening with its strongest moment, 50–59 s. Run
+  locally: the Make it, graphics, motion, site and the two transition
+  specs; the full suite on CI only (low memory here).
+- **Not tried against real Gemini** (zero API cost rule): the new prompt
+  fields and the check's prompt.
 
 ---
 

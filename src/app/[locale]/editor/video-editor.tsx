@@ -35,7 +35,7 @@ import { ClipAudioPanel } from './clip-audio-panel'
 import { CleanupPanel } from './cleanup-bar'
 import type { ClipSelection } from './clip-selection'
 import { CompareToggle } from './compare-toggle'
-import { editedCaptions, editedWords } from './captions'
+import { editedCaptions, editedWords, type CaptionMode } from './captions'
 import { CommandBar, type AttachedAs } from './command-bar'
 import { setSideOpen, useSideOpen } from './editor-layout-store'
 import { EditorShell } from './editor-shell'
@@ -127,7 +127,7 @@ import {
 	type MediaRef
 } from './projects'
 import type { Transcript } from './transcript'
-import { fadeLevelAt, type TransitionKind } from './transitions'
+import { fadeLevelAt, overlapsClips, type TransitionKind } from './transitions'
 import {
 	canSplitAt,
 	clampSpeed,
@@ -167,6 +167,12 @@ import { probeVideo, type AddedVideo } from './sources'
 import { decodeAudio } from './take-audio'
 import { VideoFileInput } from './video-file-input'
 import { formatTimecode } from './timeline-scale'
+
+/** The Text lane's ids for Make it's key lines, numbered after it. */
+const KEY_LINE_ID = 'key-line-'
+
+/** A project saved before caption modes kept "word by word" as a yes or no. */
+const wordByWord = (saved: object) => 'captionWords' in saved && saved.captionWords === true
 
 /** The main video; a reopened project brings its saved transcript. */
 type LoadedVideo = { file: File; url: string; name: string; transcript?: Transcript | null }
@@ -263,7 +269,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	const [watermark, setWatermark] = useState<Watermark | null>(null)
 	// Captions come from the transcript; whether they show is the edit's.
 	const [captionsOn, setCaptionsOn] = useState(false)
-	const [captionWords, setCaptionWords] = useState(false)
+	const [captionMode, setCaptionMode] = useState<CaptionMode>('lines')
 	// Boxes, blurs and text over the edited video (annotations.ts).
 	const [annotations, setAnnotations] = useState<Annotation[]>([])
 	// The whole video's color adjustments (a clip's own are on the clip), and the captions' look.
@@ -276,6 +282,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	const [zoom, setZoom] = useState<Zoom | null>(null)
 	// More zooms, from Make it; the Zoom panel sets the one above.
 	const [autoZooms, setAutoZooms] = useState<Zoom[]>([])
+	// Key lines, from Make it: more titles, each in its own time.
+	const [autoTitles, setAutoTitles] = useState<TitleCard[]>([])
 	// The Audio lane (audio-lane.ts), and the take's own sound, decoded the
 	// first time a clip's sound is taken out into it.
 	const [audioItems, setAudioItems] = useState<AudioItem[]>([])
@@ -329,7 +337,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		title,
 		watermark,
 		captionsOn,
-		captionWords,
+		captionMode,
 		annotations,
 		transform,
 		color,
@@ -339,7 +347,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		sourceTrims,
 		lowerThird,
 		zoom,
-		autoZooms
+		autoZooms,
+		autoTitles
 	}
 	const trimDragRef = useRef<{ recorded: boolean } | null>(null)
 	// The filler cut editor: which filler is open and where its handles sit.
@@ -391,9 +400,10 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		lowerThird,
 		zoom,
 		autoZooms,
+		autoTitles,
 		captions:
 			captionsOn && analysis.transcript.status === 'ready'
-				? editedCaptions(analysis.transcript.transcript.words, editedSegments, captionWords)
+				? editedCaptions(analysis.transcript.transcript.words, editedSegments, captionMode)
 				: []
 	}
 	// Where someone speaks in the edit: ducked music goes down under it.
@@ -486,7 +496,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		isInSegment(currentTimeSeconds, playingSegment)
 			? (editedClips[segmentIndex] ?? clipIndexAt(sequence, currentTimeSeconds, timelineSource))
 			: clipIndexAt(sequence, currentTimeSeconds, timelineSource)
-	const hasDissolve = editedSegments.some((s) => s.transition?.kind === 'dissolve')
+	const hasDissolve = editedSegments.some((s) => s.transition && overlapsClips(s.transition.kind))
 	// Through a fade, the picture goes to black (the captions and title stay).
 	const fadeLight = editedNow === null ? 1 : fadeLevelAt(joinsOf(editedSegments), editedNow)
 	// The preview's picture size, a 16:9 stand-in until the video's metadata is in.
@@ -541,7 +551,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		setTitle(null)
 		setWatermark(null)
 		setCaptionsOn(false)
-		setCaptionWords(false)
+		setCaptionMode('lines')
+		setAutoTitles([])
 		setAnnotations([])
 		setTransform(IDENTITY_TRANSFORM)
 		setColor(NEUTRAL_GRADE)
@@ -594,7 +605,9 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		// Saved before these existed: none.
 		setLowerThird(saved.lowerThird ?? null)
 		setZoom(saved.zoom ?? null)
-		setCaptionWords(saved.captionWords ?? false)
+		// Saved before caption modes: word by word was a yes or no.
+		setCaptionMode(saved.captionMode ?? (wordByWord(saved) ? 'words' : 'lines'))
+		setAutoTitles(saved.autoTitles ?? [])
 		setAutoZooms(saved.autoZooms ?? [])
 	}
 
@@ -941,7 +954,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		setSourceTrims(step.restore.sourceTrims)
 		setLowerThird(step.restore.lowerThird)
 		setZoom(step.restore.zoom)
-		setCaptionWords(step.restore.captionWords)
+		setCaptionMode(step.restore.captionMode)
+		setAutoTitles(step.restore.autoTitles)
 		setAutoZooms(step.restore.autoZooms)
 		applyTrim(step.restore.trim, step.restore.trim?.startSeconds ?? 0)
 	}
@@ -1040,9 +1054,9 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		setCaptionsOn(on)
 	}
 
-	function changeCaptionWords(on: boolean) {
+	function changeCaptionMode(mode: CaptionMode) {
 		recordEdit()
-		setCaptionWords(on)
+		setCaptionMode(mode)
 	}
 
 	// The file picker opens straight from the click (Add logo, or Apply on a
@@ -1747,6 +1761,13 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 					}
 				]
 			: []),
+		// Make it's key lines: shown, and a click goes to them; changed by undo or reset only.
+		...autoTitles.map((line, index) => ({
+			id: `${KEY_LINE_ID}${index}`,
+			label: line.text,
+			startSeconds: line.startSeconds,
+			endSeconds: line.startSeconds + line.durationSeconds
+		})),
 		...(lowerThird
 			? [
 					{
@@ -1789,6 +1810,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	]
 
 	function selectText(id: string) {
+		const keyLine = id.startsWith(KEY_LINE_ID) ? textItems.find((item) => item.id === id) : null
+		if (keyLine) return seekEdited(keyLine.startSeconds)
 		setSideOpen('panels', true)
 		if (id === 'captions') return setOpenTool('captions')
 		if (id === 'title' || id === 'lowerThird' || id === 'logo') {
@@ -1878,8 +1901,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 						<CaptionsPanel
 							captionsOn={captionsOn}
 							onCaptionsChange={changeCaptions}
-							captionWords={captionWords}
-							onCaptionWordsChange={changeCaptionWords}
+							captionMode={captionMode}
+							onCaptionModeChange={changeCaptionMode}
 							captionStyle={captionStyle}
 							onCaptionStyleChange={changeCaptionStyle}
 							canEdit={canEdit}

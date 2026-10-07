@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
-import type { MakeReply } from '../src/app/[locale]/(app)/make/make-plan'
+import type { CheckReply, MakeReply } from '../src/app/[locale]/(app)/make/make-plan'
 import { toTranscript } from '../src/app/[locale]/editor/transcript'
-import { openTool, recordTestVideo, w, type TimedWord } from './editor-helpers'
+import { openTool, recordTestVideo, seekTo, w, type TimedWord } from './editor-helpers'
 import { exportVideo, readExportFrames, readToneLevels } from './export-frames'
 
 // Make it: a video and a request in, a whole edit planned, shown, and
@@ -43,12 +43,13 @@ const reply = (fields: Partial<MakeReply> = {}): MakeReply => ({
 	subject: 'one_person',
 	summary: 'A short talk, cut into a vertical reel.',
 	pictureMatters: false,
-	keyMoments: [],
+	moments: [],
 	removeSentences: [],
 	removeSpans: [],
-	captions: 'words',
+	captions: 'bold_words',
 	zoomSentences: [2],
 	transition: 'none',
+	keyLines: [],
 	vertical: true,
 	faces: FACES,
 	music: null,
@@ -57,10 +58,20 @@ const reply = (fields: Partial<MakeReply> = {}): MakeReply => ({
 	...fields
 })
 
+/** The second check's answer: nothing to fix, unless a test says otherwise. */
+const NOTHING_TO_FIX: CheckReply = {
+	problems: [],
+	title: null,
+	keyLines: [],
+	captions: 'classic',
+	transition: 'none',
+	dropSentences: []
+}
+
 /**
- * Answers the transcript and plan requests with canned results, on the Make
- * it page and in the editor. Each request still reaches the real server,
- * which decodes it as it would any other, with one field emptied so
+ * Answers the transcript, plan and check requests with canned results, on
+ * the Make it page and in the editor. Each request still reaches the real
+ * server, which decodes it as it would any other, with one field emptied so
  * validation stops it before any AI call (the audio; the request's text,
  * leaving the pictures whole); only the result inside the reply is
  * swapped. Returns what was asked.
@@ -69,9 +80,10 @@ async function mockMakeActions(
 	page: Page,
 	words: TimedWord[],
 	replies: MakeReply[],
-	tracks: string[] = []
+	tracks: string[] = [],
+	checks: CheckReply[] = [NOTHING_TO_FIX]
 ) {
-	const seen = { plans: [] as string[], editorTranscripts: 0 }
+	const seen = { plans: [] as string[], checks: [] as string[], editorTranscripts: 0 }
 	await page.route(
 		(url) => url.pathname.endsWith('/make') || url.pathname.endsWith('/editor'),
 		async (route) => {
@@ -80,14 +92,18 @@ async function mockMakeActions(
 			const body = request.postData() ?? ''
 			const isTranscript = body.includes('"audioBase64"')
 			const isPlan = body.includes('"frames"')
-			if (!isTranscript && !isPlan) return route.continue()
+			const isCheck = body.includes('"planText"')
+			if (!isTranscript && !isPlan && !isCheck) return route.continue()
 			if (isTranscript && request.url().includes('/editor')) seen.editorTranscripts++
 			const data = isTranscript
 				? toTranscript(words)
-				: { reply: replies[Math.min(seen.plans.length, replies.length - 1)], tracks }
+				: isPlan
+					? { reply: replies[Math.min(seen.plans.length, replies.length - 1)], tracks }
+					: checks[Math.min(seen.checks.length, checks.length - 1)]
 			if (isPlan) seen.plans.push(body)
+			if (isCheck) seen.checks.push(body)
 			const response = await route.fetch({
-				postData: isPlan
+				postData: !isTranscript
 					? body.replace(/"request":"(?:[^"\\]|\\.)*"/, '"request":""')
 					: body.replace(/"audioBase64":"[^"]*"/, '"audioBase64":""')
 			})
@@ -142,7 +158,8 @@ test('a reel is planned, shown, applied as one undo step, and exported vertical 
 		'A short talk, cut into a vertical reel.',
 		'Shortened from 0:0',
 		'Under 60 seconds, as reels, TikToks and Shorts need',
-		'Captions, word by word',
+		'Captions, one big word at a time',
+		'Checked against your request: nothing to fix.',
 		'1 zoom on key lines',
 		'No music: there are no tracks in public/music yet',
 		'Vertical 9:16, following the face'
@@ -168,7 +185,7 @@ test('a reel is planned, shown, applied as one undo step, and exported vertical 
 	await expect(
 		page.getByRole('button', { name: 'Captions', exact: true, pressed: true })
 	).toHaveText('On')
-	await expect(page.getByRole('checkbox', { name: 'Word by word' })).toBeChecked()
+	await expect(page.getByRole('combobox', { name: 'Caption style' })).toHaveValue('words')
 	expect(seen.editorTranscripts).toBe(0)
 
 	// The export is 9:16, and the crop follows the square: near the crop's
@@ -220,7 +237,7 @@ test('an unclear request asks first; the plan says what it left out; Cancel chan
 		reply({
 			style: 'professional',
 			format: 'other',
-			captions: 'lines',
+			captions: 'classic',
 			vertical: false,
 			zoomSentences: [],
 			title: 'Meet Jordan from the team',
@@ -242,7 +259,7 @@ test('an unclear request asks first; the plan says what it left out; Cancel chan
 	await expect(plan(page).getByRole('heading')).toHaveText(
 		/^A professional edit, about \d seconds$/
 	)
-	await expect(plan(page)).toContainText('Captions, a line at a time')
+	await expect(plan(page)).toContainText('Captions, a line or two at a time')
 	// The title named someone never mentioned: left out, and said so.
 	await expect(plan(page)).toContainText(
 		'Left out a title that named someone or something not in the video'
@@ -384,7 +401,14 @@ test("a long, busy video's pictures reach the server whole, and its reel comes o
 	// cuts none, so the plan runs about 70 s until it's cut to fit.
 	const sentences = Array.from({ length: 20 }, (_, i) => w(`Step${i + 1}.`, i * 3.5, i * 3.5 + 3))
 	const seen = await mockMakeActions(page, sentences, [
-		reply({ zoomSentences: [], keyMoments: [12, 3], faces: [] })
+		reply({
+			zoomSentences: [],
+			moments: [
+				{ first: 12, last: 14 },
+				{ first: 3, last: 5 }
+			],
+			faces: []
+		})
 	])
 	await page.goto('/make')
 	await pickNoiseVideo(page, 'Video to make into something', 70)
@@ -409,6 +433,8 @@ test("a long, busy video's pictures reach the server whole, and its reel comes o
 	await expect(plan(page)).toContainText(
 		'Cut further to stay under 60 seconds, keeping the key moments'
 	)
+	// It opens with the strongest moment, not with what came first.
+	await expect(plan(page)).toContainText('Opens with its strongest line: “Step12.”')
 	await plan(page).getByRole('button', { name: 'Apply' }).click()
 	const scrubber = page.getByRole('slider', { name: 'Playhead position' })
 	await expect(scrubber).toBeVisible({ timeout: 60_000 })
@@ -509,4 +535,115 @@ test('a request that fails on the server shows a plain message, never the error 
 	await expect(page.getByRole('textbox', { name: 'What should it become?' })).toHaveValue(
 		'make this an Instagram reel'
 	)
+})
+
+test('the second check fixes the plan before it shows: its title and key line come in word by word', async ({
+	page
+}) => {
+	const seen = await mockMakeActions(
+		page,
+		WORDS,
+		// The plan names someone never mentioned and has no key line; the check fixes both.
+		[reply({ title: 'Meet Jordan', zoomSentences: [], captions: 'bold_words' })],
+		[],
+		[
+			{
+				problems: ['The title named someone who is never mentioned.'],
+				title: 'This is the key point',
+				keyLines: [{ sentence: 3, text: 'Bye' }],
+				captions: 'highlight',
+				transition: 'none',
+				dropSentences: []
+			}
+		]
+	)
+	await startMaking(page, 'make this an Instagram reel')
+	await expect(plan(page)).toContainText('Checked against your request, and fixed:', {
+		timeout: 60_000
+	})
+	await expect(plan(page)).toContainText('The title named someone who is never mentioned.')
+	await expect(plan(page)).toContainText('Title at the start: “This is the key point”')
+	await expect(plan(page)).toContainText('Captions with the word being said highlighted')
+	// The check read the plan as made: its title, what it made, how long.
+	expect(seen.checks).toHaveLength(1)
+	// It had already lost its title (Jordan was never mentioned): the check put one back.
+	expect(seen.checks[0]).toContain('Title: none')
+	expect(seen.checks[0]).toContain('Making: instagram_reel')
+
+	await plan(page).getByRole('button', { name: 'Apply' }).click()
+	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
+		timeout: 30_000
+	})
+	// The key line (after the title: never two at once) is on the Text lane, beside the title.
+	await expect(page.getByRole('button', { name: 'Bye', exact: true })).toBeVisible()
+	// At the start, the title's words haven't come in yet, each one its own.
+	const words = page.locator('[data-title-text] > span > span')
+	await expect(words).toHaveCount(5)
+	await expect.poll(() => words.first().evaluate((w) => getComputedStyle(w).opacity)).toBe('0')
+	// Once in, it's the whole line at rest: no word by word left.
+	await seekTo(page, 1.5)
+	await expect(words).toHaveCount(0)
+	await expect(page.locator('[data-title-text]')).toHaveText('This is the key point')
+
+	// The export (9:16, following the square as the face). At 0.1 s the title
+	// (near the top) has barely begun to come in; by 2.5 s it is all there,
+	// and "the" is being said: highlighted yellow at the bottom.
+	const bytes = await exportVideo(page)
+	const { frames } = await readExportFrames(
+		page,
+		bytes,
+		[0.1, 2.5],
+		({ context, width, height }) => {
+			const count = (
+				top: number,
+				bottom: number,
+				test: (r: number, g: number, b: number) => boolean
+			) => {
+				const data = context.getImageData(0, top, width, bottom - top).data
+				let n = 0
+				for (let i = 0; i < data.length; i += 4) {
+					if (test(data[i] ?? 0, data[i + 1] ?? 0, data[i + 2] ?? 0)) n++
+				}
+				return n
+			}
+			return {
+				titleWhite: count(
+					Math.round(height * 0.08),
+					Math.round(height * 0.28),
+					(r, g, b) => r > 220 && g > 220 && b > 220
+				),
+				captionYellow: count(
+					Math.round(height * 0.6),
+					height,
+					(r, g, b) => r > 200 && g > 170 && b < 90
+				)
+			}
+		}
+	)
+	const [start, later] = frames
+	expect(later?.titleWhite, 'the whole title by 2.5 s').toBeGreaterThan(40)
+	expect(start?.titleWhite ?? 0, `the title at ${start?.shown} s`).toBeLessThan(
+		(later?.titleWhite ?? 0) / 2
+	)
+	expect(later?.captionYellow, 'the word being said, highlighted').toBeGreaterThan(5)
+})
+
+test("a second check that can't run leaves the plan as made, and says so", async ({ page }) => {
+	await mockMakeActions(page, WORDS, [reply()])
+	await page.route(
+		(url) => url.pathname.endsWith('/make'),
+		async (route) => {
+			const request = route.request()
+			if (!request.headers()['next-action'] || !request.postData()?.includes('"planText"')) {
+				return route.fallback()
+			}
+			await route.fulfill({ status: 500, body: 'Internal Server Error' })
+		}
+	)
+	await startMaking(page, 'make this an Instagram reel')
+	await expect(plan(page)).toContainText(
+		'The second check couldn’t run, so this is the plan as first made.',
+		{ timeout: 60_000 }
+	)
+	await expect(plan(page).getByRole('button', { name: 'Apply' })).toBeEnabled()
 })
