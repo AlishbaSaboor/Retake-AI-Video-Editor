@@ -2410,7 +2410,12 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
   a plan (title and highlight captions), the title's words not yet in at
   0, plain at rest, and in the export: barely in at 0.1 s, whole by 2.5 s,
   with the spoken word yellow; a failed check leaving the plan as made; the
-  70 s video's reel opening with its strongest moment, 50–59 s. Run
+  70 s video's reel opening with its strongest moment, 50–59 s. (On CI the
+  highlight check first found only 2–3 yellow pixels, every try: that test's
+  reply followed a face, a 102 px wide export where the encoder blurs a tiny
+  yellow word under the threshold. It now uses a screen recording, fitted at
+  180×320 with captions on black: 91 yellow pixels, 0 with the highlight
+  switched off.) Run
   locally: the Make it, graphics, motion, site and the two transition
   specs; the full suite on CI only (low memory here).
 - **Not tried against real Gemini** (zero API cost rule): the new prompt

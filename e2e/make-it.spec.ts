@@ -544,7 +544,17 @@ test('the second check fixes the plan before it shows: its title and key line co
 		page,
 		WORDS,
 		// The plan names someone never mentioned and has no key line; the check fixes both.
-		[reply({ title: 'Meet Jordan', zoomSentences: [], captions: 'bold_words' })],
+		// A screen recording: the whole picture fitted, 180 × 320, so the
+		// captions are large enough to measure in the export, on black.
+		[
+			reply({
+				title: 'Meet Jordan',
+				zoomSentences: [],
+				captions: 'bold_words',
+				subject: 'screen',
+				faces: []
+			})
+		],
 		[],
 		[
 			{
@@ -585,9 +595,10 @@ test('the second check fixes the plan before it shows: its title and key line co
 	await expect(words).toHaveCount(0)
 	await expect(page.locator('[data-title-text]')).toHaveText('This is the key point')
 
-	// The export (9:16, following the square as the face). At 0.1 s the title
-	// (near the top) has barely begun to come in; by 2.5 s it is all there,
-	// and "the" is being said: highlighted yellow at the bottom.
+	// The export (the 320 × 180 video fitted to 9:16 with black bars). At
+	// 0.1 s the title (near the top) has barely begun to come in; by 2.5 s it
+	// is all there, and a word of "This is the key point." is being said:
+	// highlighted yellow at the bottom (yellowish, as the encoder blurs it).
 	const bytes = await exportVideo(page)
 	const { frames } = await readExportFrames(
 		page,
@@ -615,7 +626,7 @@ test('the second check fixes the plan before it shows: its title and key line co
 				captionYellow: count(
 					Math.round(height * 0.6),
 					height,
-					(r, g, b) => r > 200 && g > 170 && b < 90
+					(r, g, b) => r > 170 && g > 140 && r - b > 90
 				)
 			}
 		}
