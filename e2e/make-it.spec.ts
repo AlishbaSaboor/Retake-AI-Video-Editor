@@ -866,3 +866,92 @@ test('Edit manually on the plan opens the full editor with the plan applied', as
 		.toBe(2)
 	await expect(page.getByRole('group', { name: 'Editor mode' })).toHaveCount(0)
 })
+
+test('a follow-up in the chat changes the plan: questions first, what changed, Cancel, Apply, Undo, and what it cannot do', async ({
+	page
+}) => {
+	const first = reply()
+	// Shorter: sentence 2 (the long one) out, large captions; the zoom on it goes too.
+	const shorter = { ...first, removeSentences: [2], captions: 'large' as const, maxSeconds: null }
+	const seen = await mockMakeActions(
+		page,
+		WORDS,
+		[first],
+		[],
+		[NOTHING_TO_FIX],
+		[
+			{ ...first, questions: ['What should go?'], maxSeconds: null },
+			shorter,
+			shorter,
+			// Asked of the plan again after Undo: it can't, and changes nothing.
+			{ ...first, cannotDo: ['Add stock footage of a city'], maxSeconds: null }
+		]
+	)
+	await startMaking(page, 'make this an Instagram reel')
+	await expect(plan(page)).toBeVisible({ timeout: 60_000 })
+	await plan(page).getByRole('button', { name: 'Apply' }).click()
+	const chat = page.getByRole('region', { name: 'Chat' })
+	await expect(chat).toBeVisible({ timeout: 30_000 })
+	const yourEdit = page.getByText('Your edit', { exact: true }).locator('..')
+	const firstLength = (await yourEdit.locator('.font-mono').textContent()) ?? ''
+	expect(firstLength).toMatch(/^0:0\d$/)
+
+	// The chat speaks of the plan now.
+	const box = chat.getByRole('textbox', { name: 'Edit command' })
+	await expect(box).toHaveAttribute('placeholder', 'Try "make it shorter"')
+	await chat.getByRole('button', { name: 'Make it shorter' }).click()
+	await chat.getByRole('button', { name: 'Run' }).click()
+
+	// Unclear: a question first, nothing planned.
+	const answer = chat.getByRole('status', { name: 'The changed plan' })
+	await expect(answer).toContainText('A few questions first:', { timeout: 60_000 })
+	await answer.getByRole('textbox', { name: 'What should go?' }).fill('The long middle sentence')
+	await answer.getByRole('button', { name: 'Update the plan' }).click()
+
+	// What would change, against the plan applied: shorter, larger captions, the zoom gone.
+	await expect(answer).toContainText('What would change:', { timeout: 60_000 })
+	const lengths = (await answer.textContent())?.match(/Length (\d+) s to (\d+) s/)
+	expect(lengths, 'the length, before and after').not.toBeNull()
+	expect(Number(lengths?.[2])).toBeLessThan(Number(lengths?.[1]))
+	await expect(answer).toContainText('Captions: one big word at a time to large lines')
+	await expect(answer).toContainText('Zooms 1 to 0')
+	// The follow-up sent the plan, the transcript and the answer; not the pictures again.
+	expect(seen.followUps).toHaveLength(2)
+	const asked = seen.followUps[1] ?? ''
+	expect(asked).toContain('"followUp":"Make it shorter"')
+	expect(asked).toContain('"answer":"The long middle sentence"')
+	expect(asked).toContain('"captions":"bold_words"')
+	expect(asked).toContain('"text":"This is the key point."')
+	expect(asked).not.toContain('"frames"')
+	expect(seen.plans).toHaveLength(1)
+
+	// Cancel: nothing changes.
+	await answer.getByRole('button', { name: 'Cancel' }).click()
+	await expect(chat).toContainText('Cancelled. The plan stays as it was.')
+	await expect(yourEdit.locator('.font-mono')).toHaveText(firstLength)
+
+	// Asked again and applied: the edit is the new plan.
+	await box.fill('make it shorter')
+	await box.press('Enter')
+	const again = chat.getByRole('status', { name: 'The changed plan' })
+	await expect(again).toContainText('What would change:', { timeout: 60_000 })
+	await again.getByRole('button', { name: 'Apply changes' }).click()
+	await expect(chat).toContainText('Applied. Undo, at the top, goes back to the plan before.')
+	await expect(yourEdit.locator('.font-mono')).toHaveText(`0:0${lengths?.[2]}`)
+
+	// Undo: back to the plan before the follow-up.
+	await page.getByRole('button', { name: 'Undo' }).click()
+	await expect(yourEdit.locator('.font-mono')).toHaveText(firstLength)
+
+	// A follow-up now changes that plan (sentence 2 back in), and says plainly what it can't do.
+	await box.fill('add stock footage of a city')
+	await box.press('Enter')
+	const cannot = chat.getByRole('status', { name: 'The changed plan' })
+	await expect(cannot).toContainText('Nothing in the plan would change.', { timeout: 60_000 })
+	await expect(cannot).toContainText('What Retake can’t do:')
+	await expect(cannot).toContainText('Add stock footage of a city')
+	await expect(cannot.getByRole('button', { name: 'Apply changes' })).toHaveCount(0)
+	await expect(cannot).not.toContainText('changed by hand')
+	expect(seen.followUps[3]).toContain('"removeSentences":[]')
+	expect(seen.followUps[3]).toContain('"earlier":["make it shorter"]')
+})

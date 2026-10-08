@@ -18,8 +18,11 @@ import {
 	MAX_QUESTIONS,
 	MAX_REQUEST_LENGTH,
 	CHECK_TIMEOUT_MS,
+	FOLLOW_UP_REPLY_JSON_SCHEMA,
+	followUpReplySchema,
 	PLAN_TIMEOUT_MS,
 	type CheckReply,
+	type FollowUpReply,
 	type MakeReply
 } from './make-plan'
 
@@ -31,6 +34,19 @@ const MAX_FRAME_BASE64_LENGTH = 60_000
 const MAX_SENTENCES = 400
 const MAX_SENTENCE_LENGTH = 1000
 const MAX_ANSWER_LENGTH = 300
+/** Follow-ups already made, given again as what the plan has been through. */
+const MAX_FOLLOW_UPS = 20
+
+/** The transcript's sentences, as the page sends them. */
+const sentencesInput = z
+	.array(
+		z.object({
+			startSeconds: z.number().nonnegative(),
+			endSeconds: z.number().nonnegative(),
+			text: z.string().max(MAX_SENTENCE_LENGTH)
+		})
+	)
+	.max(MAX_SENTENCES)
 
 /** The tracks in public/music, by file name; none when it's empty or missing. */
 async function musicTracks(): Promise<string[]> {
@@ -175,6 +191,85 @@ export const checkMakePlan = validatedAction({
 	}
 })
 
+// A follow-up: the plan as it is, changed. Text only (the pictures were
+// read for the first plan), so it costs a fraction of one.
+const FOLLOW_UP_INSTRUCTION = [
+	MAKE_INSTRUCTION,
+	'This is a follow-up to a plan already made and applied. You get the request it was made',
+	'for, the follow-ups since, the plan as it is now (JSON), how long the edit is now, the',
+	'transcript, and one more change the user asks for. Answer with the whole plan, changed only',
+	'where the follow-up asks: every other field exactly as it is now. Sentences are numbered as',
+	'in the transcript. To make it shorter, take out sentences (removeSentences) or drop moments;',
+	'to take out a part ("the intro"), take out its sentences.',
+	'maxSeconds: the most it may run in seconds, when the follow-up asks for a length, or for it',
+	'shorter (then about two thirds of its length now); else as it is now (null when none).',
+	'Ask questions only when you cannot tell what change is wanted; then the plan as it is now.',
+	'cannotDo: each part of the follow-up this editor cannot do; change nothing for those parts.'
+].join(' ')
+
+/**
+ * Changes a plan already made with one follow-up ("make it shorter"), with
+ * Gemini reading the plan as it is and the transcript, not the pictures.
+ * Returns the whole plan again, as the first plan's reply comes (any music
+ * checked against the folder); null when the reply doesn't fit the shape.
+ */
+export const followUpMakeIt = validatedAction({
+	input: z.object({
+		request: z.string().trim().min(1).max(MAX_REQUEST_LENGTH),
+		earlier: z.array(z.string().max(MAX_REQUEST_LENGTH)).max(MAX_FOLLOW_UPS),
+		followUp: z.string().trim().min(1).max(MAX_REQUEST_LENGTH),
+		answers: z
+			.array(
+				z.object({
+					question: z.string().max(MAX_ANSWER_LENGTH),
+					answer: z.string().trim().max(MAX_ANSWER_LENGTH)
+				})
+			)
+			.max(MAX_QUESTIONS),
+		plan: followUpReplySchema,
+		durationSeconds: z.number().positive().max(MAX_MAKE_SECONDS),
+		editedSeconds: z.number().nonnegative().max(MAX_MAKE_SECONDS),
+		sentences: sentencesInput
+	}),
+	handler: async (input): Promise<{ reply: FollowUpReply | null }> => {
+		const tracks = await musicTracks()
+		const response = await generateContent(
+			{ feature: 'make_it_follow_up', model: 'gemini-3.5-flash-lite', timeoutMs: PLAN_TIMEOUT_MS },
+			{
+				contents: [
+					`Request: ${input.request}`,
+					...input.earlier.map((text) => `Follow-up already made: ${text}`),
+					`Plan now: ${JSON.stringify(input.plan)}`,
+					`The edit is now ${input.editedSeconds.toFixed(1)} s long; the video is ${input.durationSeconds.toFixed(1)} s.`,
+					`Music files: ${tracks.length > 0 ? tracks.join(', ') : 'none'}`,
+					input.sentences.length > 0
+						? `Transcript:\n${numberedSentences(input.sentences)}`
+						: 'Nothing is said in it.',
+					`Follow-up: ${input.followUp}`,
+					...input.answers.map(({ question, answer }) => `Asked: ${question} Answer: ${answer}`)
+				].join('\n'),
+				config: {
+					systemInstruction: FOLLOW_UP_INSTRUCTION,
+					responseMimeType: 'application/json',
+					responseJsonSchema: FOLLOW_UP_REPLY_JSON_SCHEMA,
+					temperature: 0
+				}
+			}
+		).catch(rethrowAiError('gemini', 'make_it_follow_up'))
+		try {
+			const parsed = followUpReplySchema.safeParse(JSON.parse(response.text ?? ''))
+			if (!parsed.success) return { reply: null }
+			const reply = parsed.data
+			// Answers given: plan now, whatever the reply says.
+			const questions = input.answers.length > 0 ? [] : reply.questions
+			const music = reply.music !== null && tracks.includes(reply.music) ? reply.music : null
+			return { reply: { ...reply, questions, music } }
+		} catch {
+			return { reply: null }
+		}
+	}
+})
+
 /**
  * Plans a whole edit from a request, with Gemini reading the transcript and
  * a picture every 2 s. Returns its reply (questions to ask first, or the
@@ -193,15 +288,7 @@ export const planMakeIt = validatedAction({
 			)
 			.max(MAX_QUESTIONS),
 		durationSeconds: z.number().positive().max(MAX_MAKE_SECONDS),
-		sentences: z
-			.array(
-				z.object({
-					startSeconds: z.number().nonnegative(),
-					endSeconds: z.number().nonnegative(),
-					text: z.string().max(MAX_SENTENCE_LENGTH)
-				})
-			)
-			.max(MAX_SENTENCES),
+		sentences: sentencesInput,
 		frames: z
 			.string()
 			.max(MAX_FRAMES * (MAX_FRAME_BASE64_LENGTH + 1))
