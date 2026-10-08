@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import type { MakeReply } from '../src/app/[locale]/(app)/make/make-plan'
 import { openTool, recordTestVideo, seekTo, w } from './editor-helpers'
 import { exportVideo, readExportFrames, readToneLevels } from './export-frames'
-import { makeReply, mockMakeActions } from './make-helpers'
+import { makeReply, mockMakeActions, NOTHING_TO_FIX } from './make-helpers'
 
 // Make it: a video and a request in, a whole edit planned, shown, and
 // applied in the editor. The transcript and Gemini's replies are canned
@@ -513,7 +513,8 @@ test('the second check fixes the plan before it shows: its title and key line co
 				keyLines: [{ sentence: 3, text: 'Bye' }],
 				captions: 'highlight',
 				transition: 'none',
-				dropSentences: []
+				dropSentences: [],
+				tooShort: false
 			}
 		]
 	)
@@ -587,6 +588,41 @@ test('the second check fixes the plan before it shows: its title and key line co
 		(later?.titleWhite ?? 0) / 2
 	)
 	expect(later?.captionYellow, 'the word being said, highlighted').toBeGreaterThan(5)
+})
+
+test("the plan's summary shows whole, with the edit's real length; a check's too short is shown", async ({
+	page
+}) => {
+	// Over 200 characters, and its length (55 s) a guess: the edit is a few seconds.
+	const summary =
+		'Shortened the 6s take to 55 seconds, keeping the greeting, the key point and the goodbye, ' +
+		'while cutting out the long pause before the last line, the dead air at the start and the ' +
+		'end, and every filler word in between.'
+	const seen = await mockMakeActions(
+		page,
+		WORDS,
+		[reply({ format: 'other', style: 'professional', vertical: false, summary })],
+		[],
+		[{ ...NOTHING_TO_FIX, tooShort: true }]
+	)
+	await startMaking(page, 'make it professional')
+	const heading = plan(page).getByRole('heading', {
+		name: /A professional edit, about \d+ seconds/
+	})
+	await expect(heading).toBeVisible({ timeout: 60_000 })
+	const seconds = Number((await heading.textContent())?.match(/about (\d+) seconds/)?.[1])
+	// Whole, to its last word, and saying the length the plan shows.
+	await expect(
+		plan(page).getByText(summary.replace('55 seconds', `${seconds} seconds`))
+	).toBeVisible()
+	await expect(plan(page)).not.toContainText('55 seconds')
+	// The check found it too short: a professional edit has nothing to fill to, so it says so.
+	expect(seen.checks).toHaveLength(1)
+	await expect(plan(page).getByRole('note')).toHaveText(
+		`The check found this shorter than you asked for, at ${seconds} seconds, and there was nothing more to add. Edit manually to add more.`
+	)
+	await expect(plan(page)).toContainText('Checked against your request: nothing to fix.')
+	await expect(plan(page).getByRole('button', { name: 'Apply' })).toBeEnabled()
 })
 
 test("a second check that can't run leaves the plan as made, and says so", async ({ page }) => {

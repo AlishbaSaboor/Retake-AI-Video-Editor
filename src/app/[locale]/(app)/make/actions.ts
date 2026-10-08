@@ -66,7 +66,7 @@ const MAKE_INSTRUCTION = [
 	'moments: complete thoughts as first and last sentence numbers, best first; the first is the',
 	'strongest line, which a reel opens with. Cover everything worth keeping.',
 	'summary: one or two plain sentences on how the footage was shortened: what was kept and what',
-	'was cut. Not what the video is in general.',
+	'was cut. Not what the video is in general, and no lengths: the editor shows them.',
 	'subject: one_person when one person on camera is clearly the subject; screen (a screen',
 	'recording), meeting (a call), slides, or other.',
 	'pictureMatters: false when the words carry the video (people talking to camera, a meeting or',
@@ -134,6 +134,9 @@ const CHECK_INSTRUCTION = [
 	'title, keyLines, captions, transition: as they should be (the same when right). keyLines',
 	'quote their sentence, given by number. dropSentences: numbers of sentences that should not',
 	'be in it (half a thought, off the point); the editor refills the time itself.',
+	'tooShort: true when it is clearly shorter than the request wants: a reel, TikTok or Short',
+	'under 50 seconds, or shorter than a length the request asks for. Say it only there, not in',
+	'problems; the editor lengthens it or tells the user.',
 	"Write in the request's language."
 ].join(' ')
 
