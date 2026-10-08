@@ -37,7 +37,8 @@ export const NOTHING_TO_FIX: CheckReply = {
 	keyLines: [],
 	captions: 'classic',
 	transition: 'none',
-	dropSentences: []
+	dropSentences: [],
+	tooShort: false
 }
 
 /**

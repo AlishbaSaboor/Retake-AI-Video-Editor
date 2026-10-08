@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import {
 	AiIcon,
+	AlertIcon,
 	ArrowRightIcon,
 	AttachIcon,
 	CaptionsIcon,
@@ -44,6 +45,7 @@ import {
 	MAX_REQUEST_LENGTH,
 	planMake,
 	applyCheck,
+	checkFound,
 	CHECK_TIMEOUT_MS,
 	describePlan,
 	PAGE_GRACE_MS,
@@ -195,7 +197,7 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 				return { kind: 'questions', questions: reply.questions } as const
 			}
 			const music = reply.music ? await loadTrack(reply.music) : null
-			const plan = (planned: MakeReply) =>
+			const plan = (planned: MakeReply, tooShort: { keepOut: number[] } | null = null) =>
 				planMake({
 					reply: planned,
 					request: ask.request,
@@ -204,16 +206,21 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 					transcript,
 					fillerCuts,
 					music,
-					musicAvailable: tracks.length > 0
+					musicAvailable: tracks.length > 0,
+					tooShort
 				})
 			// The plan as made, then checked against the request and made again
-			// with the check's fixes, if it found anything to fix.
+			// with the check's fixes, if it found anything to fix (lengthened,
+			// when it found the edit too short).
 			const first = plan(reply)
 			const check = await checkPlan(
 				ask.request,
 				describePlan(reply, first.summary, first.edit.clips ?? [], transcript?.segments ?? [])
 			)
-			const made = check && check.problems.length > 0 ? plan(applyCheck(reply, check)) : first
+			const made =
+				check && checkFound(check)
+					? plan(applyCheck(reply, check), check.tooShort ? { keepOut: check.dropSentences } : null)
+					: first
 			return { kind: 'plan', ...made, problems: check?.problems ?? null } as const
 		},
 		enabled: video !== null && ask !== null && frames.data !== undefined && transcriptReady,
@@ -705,6 +712,7 @@ function PlanView({
 		...(summary.limitSeconds === null
 			? []
 			: [{ row: 'length' as const, text: t(summary.trimmedToFit ? 'fitCut' : 'fitOk') }]),
+		...(summary.lengthened ? [{ row: 'length' as const, text: t('lengthened') }] : []),
 		...(summary.opensWith
 			? [
 					{
@@ -752,7 +760,9 @@ function PlanView({
 		...(summary.titleDropped ? [{ row: 'screen' as const, text: t('titleDropped') }] : []),
 		...(summary.pictureMatters ? [] : [{ row: 'note' as const, text: t('speechOnly') }])
 	]
-	const lines = entries.map(({ text }) => text)
+	const shortNote = summary.short ? t(`short.${summary.short}`, { length }) : null
+	// The lines shown again over the chat in the editor: the plan's, and the warning if any.
+	const lines = [...entries.map(({ text }) => text), ...(shortNote ? [shortNote] : [])]
 	const rows = PLAN_ROWS.flatMap(({ key, icon: Icon }) => {
 		const texts = entries.filter((entry) => entry.row === key).map(({ text }) => text)
 		return texts.length > 0 ? [{ key, Icon, texts }] : []
@@ -777,8 +787,19 @@ function PlanView({
 				<h2 className="text-text text-[25px] leading-tight font-extrabold tracking-[-0.02em]">
 					{t(`making.${summary.making}`, { length })}
 				</h2>
-				<p className="text-text-muted text-[13px]">{summary.summary}</p>
+				{summary.summary && <p className="text-text-muted text-[13px]">{summary.summary}</p>}
 			</div>
+			{shortNote && (
+				<p
+					role="note"
+					className="bg-warning/10 text-text flex items-start gap-2 rounded-xl p-3 text-sm"
+				>
+					<span className="text-warning mt-0.5 shrink-0">
+						<AlertIcon size={15} />
+					</span>
+					{shortNote}
+				</p>
+			)}
 			{notes.length > 0 && (
 				<ul className="text-text-muted -mt-2 flex flex-col gap-0.5 text-[13px]">
 					{notes.map((note) => (

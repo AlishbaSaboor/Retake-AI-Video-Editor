@@ -14,6 +14,9 @@ import {
 	planMake,
 	quotedLine,
 	applyCheck,
+	checkFound,
+	clipText,
+	summaryWithLength,
 	chooseSentences,
 	describePlan,
 	SHORT_FORM_MAX_SECONDS,
@@ -221,6 +224,9 @@ test('a reply is planned into one edit: clips, transitions, word captions, zooms
 			summary: 'A short talk; tightened into a reel.',
 			limitSeconds: SHORT_FORM_MAX_SECONDS,
 			trimmedToFit: false,
+			lengthened: false,
+			// A 20 s video: under 50 s, but there is no more to it.
+			short: null,
 			keptSentences: 4,
 			totalSentences: 5,
 			originalSeconds: DURATION,
@@ -576,7 +582,8 @@ test('the second check reads the plan in play order, and its fixes apply only wh
 		keyLines: [],
 		captions: 'highlight' as const,
 		transition: 'slide' as const,
-		dropSentences: [5]
+		dropSentences: [5],
+		tooShort: false
 	}
 	assert.equal(applyCheck(REPLY, fixes), REPLY)
 	const fixed = applyCheck(REPLY, {
@@ -688,4 +695,180 @@ test("a designed frame's card sits low on the left in the picture's own shape, a
 	near(wordPop(2, 2), 1.3)
 	assert.ok(wordPop(2, 2.1) < 1.3 && wordPop(2, 2.1) > 1)
 	assert.equal(wordPop(2, 2.5), 1)
+})
+
+test('notes are cut at a word, never inside one; the summary has room for two sentences', () => {
+	const text = 'Shortened the walkthrough, keeping the strongest intro and the key demos, and long'
+	const clipped = clipText(text, 60)
+	assert.ok(clipped.length <= 60, clipped)
+	assert.equal(clipped, 'Shortened the walkthrough, keeping the strongest intro and…')
+	// Short enough: as it was, trimmed.
+	assert.equal(clipText('  Kept the intro.  ', 60), 'Kept the intro.')
+	// One word longer than the limit is the only thing cut through.
+	assert.equal(clipText('x'.repeat(30), 10), `${'x'.repeat(9)}…`)
+	// The real run's summary (over 200 characters) is kept whole now.
+	const real =
+		'Shortened the 180s walkthrough to 55 seconds, keeping the strongest intro on the clone, ' +
+		'the key feature demos and the file processing highlights, while cutting out filler words, ' +
+		'dead navigation and long pauses.'
+	assert.ok(real.length > 200)
+	const parse = (summary: string) => makeReplySchema.parse({ ...REPLY, summary }).summary
+	assert.equal(parse(real), real)
+	// Longer than 400: it ends on a whole word.
+	const twice = `${real} ${real}`
+	const long = parse(twice)
+	assert.ok(long.length <= 400 && long.endsWith('…'), long)
+	assert.equal(twice[long.length - 1], ' ', 'cut where a word ends')
+	assert.ok(twice.startsWith(long.slice(0, -1)))
+	// Other notes still stop at 200, on a word.
+	const question = makeReplySchema.parse({ ...REPLY, questions: [real] }).questions[0] ?? ''
+	assert.ok(question.length <= 200 && question.endsWith('…'), question)
+	assert.ok(real.startsWith(question.slice(0, -1)))
+	assert.equal(real[question.length - 1], ' ', 'cut where a word ends')
+})
+
+test("the summary's length for the result is the edit's own; the original's and the parts' stay", () => {
+	assert.equal(
+		summaryWithLength('Shortened the 180s walkthrough to 55 seconds, keeping the intro.', 50.2),
+		'Shortened the 180s walkthrough to 50 seconds, keeping the intro.'
+	)
+	assert.equal(
+		summaryWithLength('A 55-second reel of the demos; 10 seconds of silence cut.', 49.6),
+		'A 50-second reel of the demos; 10 seconds of silence cut.'
+	)
+	assert.equal(summaryWithLength('Cut from 3:00 to 0:55.', 50), 'Cut from 3:00 to 0:50.')
+	assert.equal(summaryWithLength('Now about 1 minute long.', 50), 'Now about 0:50 long.')
+	assert.equal(summaryWithLength('Cut down to 1.5 min.', 125), 'Cut down to 2:05.')
+	// Already right (within a second), or not a length of the result: untouched.
+	assert.equal(summaryWithLength('Tightened to 50 s.', 50.4), 'Tightened to 50 s.')
+	assert.equal(
+		summaryWithLength('Kept the best 30 seconds; removed 12 s of pauses.', 50),
+		'Kept the best 30 seconds; removed 12 s of pauses.'
+	)
+
+	// planMake shows the edit's real length, whatever the reply guessed.
+	const { summary } = planMake({
+		reply: { ...REPLY, summary: 'Shortened the 20s take to 55 seconds, dropping the false start.' },
+		request: 'make this an Instagram reel',
+		durationSeconds: DURATION,
+		picture: { width: 1920, height: 1080 },
+		transcript,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false
+	})
+	assert.equal(
+		summary.summary,
+		`Shortened the 20s take to ${Math.round(summary.editedSeconds)} seconds, dropping the false start.`
+	)
+})
+
+test("a reel the check finds too short takes back sentences the plan left out, never the check's drops", () => {
+	// 40 sentences, 140 s; the reply keeps only the first 12 (about 42 s).
+	const talk = longTalk(40)
+	const reply: MakeReply = {
+		...REPLY,
+		summary: 'Kept the first steps, as a 42 second reel.',
+		moments: [
+			{ first: 1, last: 2 },
+			{ first: 20, last: 21 }
+		],
+		removeSentences: Array.from({ length: 28 }, (_, i) => i + 13),
+		transition: 'none',
+		zoomSentences: [],
+		keyLines: []
+	}
+	const make = (tooShort: { keepOut: number[] } | null, fields: Partial<MakeReply> = {}) =>
+		planMake({
+			reply: { ...reply, ...fields },
+			request: fields.format === 'other' ? 'make it professional' : 'make this an Instagram reel',
+			durationSeconds: 140,
+			picture: { width: 1920, height: 1080 },
+			transcript: talk,
+			fillerCuts: [],
+			music: null,
+			musicAvailable: false,
+			tooShort
+		})
+	const keeps = (plan: ReturnType<typeof make>, number: number) => {
+		const sentence = talk.segments[number - 1]
+		return (plan.edit.clips ?? []).some((clip) =>
+			clip.ranges.some(
+				(range) =>
+					sentence !== undefined &&
+					range.startSeconds <= sentence.startSeconds &&
+					range.endSeconds >= sentence.endSeconds
+			)
+		)
+	}
+
+	// As planned: short, and said so, not lengthened.
+	const asPlanned = make(null)
+	assert.ok(asPlanned.summary.editedSeconds < SHORT_FORM_TARGET_SECONDS)
+	assert.equal(asPlanned.summary.lengthened, false)
+	assert.equal(asPlanned.summary.short, 'short_form')
+	assert.equal(
+		asPlanned.summary.summary,
+		`Kept the first steps, as a ${Math.round(asPlanned.summary.editedSeconds)} second reel.`
+	)
+
+	// The check said too short, and dropped 13 and 14: filled to 50–59 s,
+	// the plan's next moment first, 13 and 14 still out.
+	const longer = make({ keepOut: [13, 14] })
+	const seconds = longer.summary.editedSeconds
+	assert.ok(seconds >= SHORT_FORM_TARGET_SECONDS && seconds <= SHORT_FORM_MAX_SECONDS, `${seconds}`)
+	assert.equal(longer.summary.lengthened, true)
+	assert.equal(longer.summary.short, null)
+	assert.ok(keeps(longer, 20) && keeps(longer, 21), 'the next moment is put back')
+	assert.ok(!keeps(longer, 13) && !keeps(longer, 14), "the check's drops stay out")
+	for (let number = 1; number <= 12; number++) assert.ok(keeps(longer, number), `${number} kept`)
+	// Its summary says the new length.
+	assert.equal(
+		longer.summary.summary,
+		`Kept the first steps, as a ${Math.round(seconds)} second reel.`
+	)
+
+	// Nothing left to put back: as it was, and said so.
+	const nothing = make({ keepOut: Array.from({ length: 28 }, (_, i) => i + 13) })
+	assert.equal(nothing.summary.lengthened, false)
+	assert.equal(nothing.summary.short, 'short_form')
+	near(nothing.summary.editedSeconds, asPlanned.summary.editedSeconds)
+
+	// Not a reel: there's no length to fill to, so it's only said.
+	const other = make({ keepOut: [] }, { format: 'other', style: 'professional' })
+	assert.equal(other.summary.limitSeconds, null)
+	assert.equal(other.summary.lengthened, false)
+	assert.equal(other.summary.short, 'asked')
+	assert.equal(make(null, { format: 'other', style: 'professional' }).summary.short, null)
+
+	// A reel of a video under 50 s isn't short: there's nothing more.
+	const brief = planMake({
+		reply: REPLY,
+		request: 'make this an Instagram reel',
+		durationSeconds: DURATION,
+		picture: { width: 1920, height: 1080 },
+		transcript,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false,
+		tooShort: { keepOut: [] }
+	})
+	assert.equal(brief.summary.short, null)
+})
+
+test('the check makes the plan again for a problem or for too short, not otherwise', () => {
+	const none = {
+		problems: [],
+		title: null,
+		keyLines: [],
+		captions: 'classic' as const,
+		transition: 'none' as const,
+		dropSentences: [],
+		tooShort: false
+	}
+	assert.equal(checkFound(none), false)
+	assert.equal(checkFound({ ...none, tooShort: true }), true)
+	assert.equal(checkFound({ ...none, problems: ['A key line misquotes.'] }), true)
+	// Too short alone keeps the reply as it was: the lengthening is planMake's.
+	assert.equal(applyCheck(REPLY, { ...none, tooShort: true }), REPLY)
 })
