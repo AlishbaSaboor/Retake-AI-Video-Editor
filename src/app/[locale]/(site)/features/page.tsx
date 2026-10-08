@@ -1,9 +1,8 @@
 import type { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
-import { AppScreen } from '@/components/site/app-screen'
 import { ClosingBand } from '@/components/site/closing-band'
 import { Eyebrow, PageHero, emphasis } from '@/components/site/display'
-import { Device, MakeScreen } from '@/components/site/make-screen'
+import { Device, ZoomShot } from '@/components/site/shot'
 import { cn } from '@/lib/cn'
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -22,11 +21,18 @@ const SECTIONS = [
 /** Features: three parts, each with what it covers beside a picture of it. */
 export default async function FeaturesPage() {
 	const t = await getTranslations('Site.features')
-	const pictures = {
-		ai: <MakeScreen />,
-		hand: <AppScreen panel="assistant" id="features-hand" className="rounded-[18px]" />,
-		tidy: <AppScreen panel="cleanup" id="features-tidy" className="rounded-[18px]" />
-	}
+	const shots = await getTranslations('Site.shots')
+	// The real screen each part describes: Make it's plan, the assistant on
+	// the timeline, Clean up.
+	const picture = (name: 'plan' | 'assistant' | 'tidy') => (
+		<ZoomShot
+			name={name}
+			alt={shots(name)}
+			label={shots('zoom')}
+			className="overflow-hidden rounded-[18px]"
+		/>
+	)
+	const pictures = { ai: picture('plan'), hand: picture('assistant'), tidy: picture('tidy') }
 	return (
 		<main>
 			<PageHero eyebrow={t('eyebrow')} title={t.rich('title', { em: emphasis('accent') })} />

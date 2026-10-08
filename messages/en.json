@@ -964,34 +964,6 @@
 				"captions": "Captions added",
 				"undo": "Undo, any time"
 			},
-			"demo": {
-				"window": "Retake · Weekend trip",
-				"project": "Weekend trip",
-				"saved": "Saved",
-				"planning": "Planning the edit…",
-				"export": "Export",
-				"lanes": {
-					"video": "Video",
-					"captions": "Captions",
-					"music": "Music"
-				},
-				"assistant": "Assistant",
-				"ask": "Make this an Instagram reel",
-				"planTitle": "Here's my plan",
-				"plan": {
-					"0": "Crop to vertical 9:16",
-					"1": "Cut filler words and pauses",
-					"2": "Captions, word by word",
-					"3": "Soft music underneath"
-				},
-				"applied": "Applied",
-				"undo": "Undo",
-				"placeholder": "Tell Retake what to do…",
-				"speak": "Speak",
-				"attach": "Attach",
-				"um": "um",
-				"uh": "uh"
-			},
 			"storyEyebrow": "The story",
 			"storyTitle": "From “I'll fix it later” to <em>done</em>, in five scenes.",
 			"storySteps": "The five scenes",
@@ -1049,15 +1021,15 @@
 					"professional": "After · Professional",
 					"ad": "After · Ad 9:16"
 				},
+				"before": "Before · raw clip",
+				"compare": "Compare before and after",
+				"said": "You said: “{request}”. Drag to compare.",
 				"cards": {
 					"reel": "golden hour, <em>no filter</em>",
 					"funny": "wait for <em>it…</em>",
 					"professional": "The <em>quarterly</em> update",
 					"ad": "Try it <em>free</em>"
-				},
-				"before": "Before · raw clip",
-				"compare": "Compare before and after",
-				"said": "You said: “{request}”. Drag to compare."
+				}
 			},
 			"promises": {
 				"eyebrow": "Three promises",
@@ -1080,6 +1052,34 @@
 				"eyebrow": "Day and night",
 				"title": "Edit by lamplight, <em>or by daylight.</em>",
 				"compare": "Compare dark and light theme"
+			},
+			"demo": {
+				"window": "Retake · Weekend trip",
+				"project": "Weekend trip",
+				"saved": "Saved",
+				"planning": "Planning the edit…",
+				"export": "Export",
+				"lanes": {
+					"video": "Video",
+					"captions": "Captions",
+					"music": "Music"
+				},
+				"assistant": "Assistant",
+				"ask": "Make this an Instagram reel",
+				"planTitle": "Here's my plan",
+				"plan": {
+					"0": "Crop to vertical 9:16",
+					"1": "Cut filler words and pauses",
+					"2": "Captions, word by word",
+					"3": "Soft music underneath"
+				},
+				"applied": "Applied",
+				"undo": "Undo",
+				"placeholder": "Tell Retake what to do…",
+				"speak": "Speak",
+				"attach": "Attach",
+				"um": "um",
+				"uh": "uh"
 			}
 		},
 		"howItWorks": {
@@ -1089,7 +1089,7 @@
 			"paths": "Choose a path",
 			"pathNames": {
 				"ai": "Make it with AI",
-				"hand": "Edit it yourself"
+				"hand": "Edit manually"
 			},
 			"stepsLabel": "Steps",
 			"ai": {
@@ -1615,6 +1615,24 @@
 				}
 			},
 			"questions": "Questions about your privacy? <link>Write to us.</link>"
+		},
+		"shots": {
+			"zoom": "Open full size.",
+			"close": "Close",
+			"upload": "Retake's home screen: two ways in, Make it with AI and Edit manually, each with an upload button.",
+			"say": "The Make it screen: a sunrise clip attached and the request “Make this an Instagram reel” typed in.",
+			"plan": "Make it's plan for a vertical reel, row by row, beside the clip, with Apply and open.",
+			"studio": "The edited reel open in the editor: the vertical video with its title and captions, and the chat beside it.",
+			"tidy": "The editor's Clean up panel: 2 filler words found, the button to remove them, and the video and timeline.",
+			"yours": "The editor with captions turned on: the line being said shown over the sunrise.",
+			"manual": "The full editor: the tools, the transcript, the video and the timeline.",
+			"assistant": "The editor's assistant: “Turn captions on” asked, and what it will do, waiting for Apply.",
+			"share": "Find highlights: three highlight cards from the video, each with a title, a description, its times and a Download button.",
+			"dark": "The editor in the dark theme.",
+			"light": "The editor in the light theme.",
+			"before": "Before: the original clip, the sun rising over a mountain range.",
+			"after": "After: the same clip as Retake exported it.",
+			"still": "A frame of the clip: mountain ridges at sunrise."
 		}
 	},
 	"Make": {
@@ -1707,7 +1725,7 @@
 			"titleDropped": "Left out a title that named someone or something not in the video",
 			"speechOnly": "Planned from what's said: the picture doesn't carry this video",
 			"cannotDo": "What Retake can't do here",
-			"apply": "Apply",
+			"apply": "Apply and open",
 			"cancel": "Cancel",
 			"check": {
 				"ok": "Checked against your request: nothing to fix.",
@@ -1715,7 +1733,18 @@
 				"failed": "The second check couldn’t run, so this is the plan as first made."
 			},
 			"notApplied": "Not applied yet",
-			"manual": "Edit manually"
+			"manual": "Edit manually",
+			"change": "Change my request",
+			"preview": "Your video",
+			"previewNote": "The plan is made from this video. Nothing is changed yet.",
+			"rows": {
+				"length": "Length",
+				"shape": "Shape",
+				"captions": "Captions",
+				"screen": "On screen",
+				"motion": "Motion",
+				"music": "Music"
+			}
 		},
 		"startFrom": "Or start from",
 		"stages": {
@@ -1724,10 +1753,6 @@
 			"review": "Review, then apply"
 		},
 		"chat": {
-			"title": "Retake AI",
-			"help": "It plans the whole edit and shows it to you before anything changes.",
-			"you": "You asked",
-			"video": "Your video",
 			"videoLabel": "{name}, the video you picked"
 		},
 		"attach": "Attach a video",

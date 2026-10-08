@@ -8,6 +8,12 @@ import {
 	AiIcon,
 	ArrowRightIcon,
 	AttachIcon,
+	CaptionsIcon,
+	CropIcon,
+	MusicIcon,
+	TextIcon,
+	TimingIcon,
+	VideoIcon,
 	ManualIcon,
 	CheckIcon,
 	LockIcon,
@@ -295,21 +301,21 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 
 	/** The page around each stage: where it is in the three steps, the heading, then the stage. */
 	const frame = (stage: Stage, content: React.ReactNode) =>
-		stage === 1 && !ask ? (
+		stage === 3 ? (
+			// The plan, as the mockup has it: the video on the left, the plan beside it.
+			<div className="flex flex-col items-center gap-7">
+				<Steps stage={stage} />
+				<div className="sr-only">{heading}</div>
+				<div className="flex w-full flex-col items-center gap-6 lg:flex-row lg:items-start lg:justify-center">
+					<Preview video={video} />
+					<div className="w-full max-w-[560px]">{content}</div>
+				</div>
+			</div>
+		) : (
 			<div className="flex flex-col items-center gap-8">
 				<Steps stage={stage} />
 				{heading}
 				<div className="w-full">{content}</div>
-			</div>
-		) : (
-			// Once asked: the conversation on the left, the video on the right.
-			<div className="flex flex-col gap-6">
-				<Steps stage={stage} />
-				<div className="sr-only">{heading}</div>
-				<div className="grid items-start gap-5 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
-					<Chat request={ask?.request ?? request.trim()}>{content}</Chat>
-					<VideoPane video={video} />
-				</div>
 			</div>
 		)
 
@@ -578,7 +584,7 @@ function Steps({ stage }: { stage: Stage }) {
 
 function Card({ children }: { children: React.ReactNode }) {
 	return (
-		<section className="border-border bg-surface-inset flex w-full flex-col gap-4 rounded-[18px_18px_18px_4px] border p-5">
+		<section className="border-glass-border bg-surface-raised mx-auto flex w-full max-w-[720px] flex-col gap-5 rounded-[28px] border p-7 shadow-(--shadow-card)">
 			{children}
 		</section>
 	)
@@ -632,7 +638,16 @@ function Questions({
 	)
 }
 
-const DOTS = ['bg-brand-violet', 'bg-brand-purple', 'bg-brand-blue', 'bg-brand-lilac'] as const
+/** The plan card's rows, in the mockup's order, each with its icon. */
+type PlanRow = 'length' | 'shape' | 'captions' | 'screen' | 'motion' | 'music'
+const PLAN_ROWS: { key: PlanRow; icon: (props: { size?: number }) => React.ReactNode }[] = [
+	{ key: 'length', icon: TimingIcon },
+	{ key: 'shape', icon: CropIcon },
+	{ key: 'captions', icon: CaptionsIcon },
+	{ key: 'screen', icon: TextIcon },
+	{ key: 'motion', icon: VideoIcon },
+	{ key: 'music', icon: MusicIcon }
+]
 
 /** The plan in plain words, with Apply and Cancel. */
 function PlanView({
@@ -661,81 +676,145 @@ function PlanView({
 					seconds: seconds % SECONDS_PER_MINUTE
 				})
 	const shortened = summary.removedParts > 0 || summary.fillerCuts > 0
-	const lines = [
-		shortened
-			? t('shortened', {
-					from: formatTimecode(summary.originalSeconds),
-					to: formatTimecode(seconds)
-				})
-			: t('whole', { length: formatTimecode(seconds) }),
+	// Each line of the plan, under the row of the plan card it belongs to; the
+	// lines themselves are the same words as ever.
+	const entries: { row: PlanRow | 'note'; text: string }[] = [
+		{
+			row: 'length',
+			text: shortened
+				? t('shortened', {
+						from: formatTimecode(summary.originalSeconds),
+						to: formatTimecode(seconds)
+					})
+				: t('whole', { length: formatTimecode(seconds) })
+		},
 		...(summary.keptSentences < summary.totalSentences
-			? [t('keptSentences', { kept: summary.keptSentences, total: summary.totalSentences })]
-			: []),
-		...(summary.fillerCuts > 0 ? [t('fillers', { count: summary.fillerCuts })] : []),
-		...(summary.limitSeconds === null ? [] : [t(summary.trimmedToFit ? 'fitCut' : 'fitOk')]),
-		...(summary.opensWith
-			? [t('opensWith', { line: firstWords(summary.opensWith, OPENER_WORDS) })]
-			: []),
-		t(`captions.${summary.captions}`),
-		...(summary.keyLines > 0 ? [t('keyLines', { count: summary.keyLines })] : []),
-		...(summary.zooms > 0 ? [t('zooms', { count: summary.zooms })] : []),
-		...(summary.transitions > 0
-			? [t(`transitions.${summary.transition}`, { count: summary.transitions })]
-			: []),
-		summary.music
-			? t('music', { name: summary.music })
-			: summary.musicMissing
-				? t('noMusicFolder')
-				: t('noMusic'),
-		...(summary.vertical
 			? [
-					t(
-						`vertical.${summary.vertical === 'designed' && summary.card === 'hidden' ? 'designedHidden' : summary.vertical}`
-					)
+					{
+						row: 'length' as const,
+						text: t('keptSentences', {
+							kept: summary.keptSentences,
+							total: summary.totalSentences
+						})
+					}
 				]
 			: []),
-		...(summary.title ? [t('title', { text: summary.title })] : []),
-		...(summary.titleDropped ? [t('titleDropped')] : []),
-		...(summary.pictureMatters ? [] : [t('speechOnly')])
+		...(summary.fillerCuts > 0
+			? [{ row: 'length' as const, text: t('fillers', { count: summary.fillerCuts }) }]
+			: []),
+		...(summary.limitSeconds === null
+			? []
+			: [{ row: 'length' as const, text: t(summary.trimmedToFit ? 'fitCut' : 'fitOk') }]),
+		...(summary.opensWith
+			? [
+					{
+						row: 'note' as const,
+						text: t('opensWith', { line: firstWords(summary.opensWith, OPENER_WORDS) })
+					}
+				]
+			: []),
+		{ row: 'captions', text: t(`captions.${summary.captions}`) },
+		...(summary.keyLines > 0
+			? [{ row: 'screen' as const, text: t('keyLines', { count: summary.keyLines }) }]
+			: []),
+		...(summary.zooms > 0
+			? [{ row: 'motion' as const, text: t('zooms', { count: summary.zooms }) }]
+			: []),
+		...(summary.transitions > 0
+			? [
+					{
+						row: 'motion' as const,
+						text: t(`transitions.${summary.transition}`, { count: summary.transitions })
+					}
+				]
+			: []),
+		{
+			row: 'music',
+			text: summary.music
+				? t('music', { name: summary.music })
+				: summary.musicMissing
+					? t('noMusicFolder')
+					: t('noMusic')
+		},
+		...(summary.vertical
+			? [
+					{
+						row: 'shape' as const,
+						text: t(
+							`vertical.${summary.vertical === 'designed' && summary.card === 'hidden' ? 'designedHidden' : summary.vertical}`
+						)
+					}
+				]
+			: []),
+		...(summary.title
+			? [{ row: 'screen' as const, text: t('title', { text: summary.title }) }]
+			: []),
+		...(summary.titleDropped ? [{ row: 'screen' as const, text: t('titleDropped') }] : []),
+		...(summary.pictureMatters ? [] : [{ row: 'note' as const, text: t('speechOnly') }])
 	]
+	const lines = entries.map(({ text }) => text)
+	const rows = PLAN_ROWS.flatMap(({ key, icon: Icon }) => {
+		const texts = entries.filter((entry) => entry.row === key).map(({ text }) => text)
+		return texts.length > 0 ? [{ key, Icon, texts }] : []
+	})
+	const notes = entries.filter((entry) => entry.row === 'note').map(({ text }) => text)
 	return (
 		<section
 			role="status"
 			aria-label={t('label')}
-			className="border-accent/50 bg-accent-soft flex w-full flex-col gap-4 rounded-[18px_18px_18px_4px] border p-5"
+			className="border-border bg-surface flex w-full flex-col gap-4 rounded-[20px] border p-6"
 		>
 			<div className="flex items-center justify-between gap-3">
 				<span className="text-accent-fg flex items-center gap-1.5 text-xs font-extrabold tracking-[0.14em] uppercase">
 					<SparkleIcon size={13} />
 					{t('label')}
 				</span>
-				<span className="bg-surface-hover text-text-muted rounded-full px-3 py-1 text-xs font-bold">
+				<span className="bg-surface-hover text-text-muted rounded-full px-2.5 py-1 text-[11px] font-bold">
 					{t('notApplied')}
 				</span>
 			</div>
 			<div className="flex flex-col gap-1.5">
-				<h2 className="text-text text-[clamp(24px,3vw,30px)] leading-tight font-extrabold tracking-[-0.02em]">
+				<h2 className="text-text text-[25px] leading-tight font-extrabold tracking-[-0.02em]">
 					{t(`making.${summary.making}`, { length })}
 				</h2>
-				<p className="text-text-muted text-[15px]">{summary.summary}</p>
+				<p className="text-text-muted text-[13px]">{summary.summary}</p>
 			</div>
-			<ul className="grid gap-2">
-				{lines.map((line, index) => (
+			{notes.length > 0 && (
+				<ul className="text-text-muted -mt-2 flex flex-col gap-0.5 text-[13px]">
+					{notes.map((note) => (
+						<li key={note}>{note}</li>
+					))}
+				</ul>
+			)}
+			<ul className="grid gap-2.5 sm:grid-cols-2">
+				{rows.map(({ key, Icon, texts }) => (
 					<li
-						key={line}
-						className="border-border bg-surface-inset text-text flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm leading-snug"
+						key={key}
+						className="border-border bg-surface-inset flex items-start gap-3 rounded-xl border p-3"
 					>
-						<span
-							aria-hidden
-							className={cn('mt-1.5 size-1.5 shrink-0 rounded-full', DOTS[index % DOTS.length])}
-						/>
-						{line}
+						<span className="bg-accent-soft text-accent-fg flex size-8 shrink-0 items-center justify-center rounded-lg">
+							<Icon size={15} />
+						</span>
+						<span className="flex min-w-0 flex-col gap-0.5">
+							<span className="text-text-faint text-[11px] font-bold">{t(`rows.${key}`)}</span>
+							{texts.map((text, index) => (
+								<span
+									key={text}
+									className={cn(
+										'text-[13px] leading-snug',
+										index === 0 ? 'text-text font-extrabold' : 'text-text-muted'
+									)}
+								>
+									{text}
+								</span>
+							))}
+						</span>
 					</li>
 				))}
 			</ul>
 			<div
 				className={cn(
-					'flex flex-col gap-1 rounded-2xl p-4',
+					'flex flex-col gap-1 rounded-xl p-3',
 					problems === null ? 'bg-surface-inset' : 'bg-success/10'
 				)}
 			>
@@ -770,33 +849,24 @@ function PlanView({
 					</ul>
 				</div>
 			)}
-			<div className="flex flex-wrap gap-2">
-				<Button
-					type="button"
-					size="lg"
-					className="flex-1 rounded-[14px]"
-					onClick={() => onApply(lines)}
-				>
+			<div className="flex flex-wrap items-center gap-2">
+				<Button type="button" className="rounded-[10px]" onClick={() => onApply(lines)}>
 					{t('apply')}
-					<ArrowRightIcon />
+					<ArrowRightIcon size={14} />
 				</Button>
 				<Button
 					type="button"
-					size="lg"
 					variant="outline"
-					className="rounded-[14px]"
+					className="rounded-[10px]"
 					onClick={() => onManual(lines)}
 				>
-					<ManualIcon />
+					<ManualIcon size={15} />
 					{t('manual')}
 				</Button>
-				<Button
-					type="button"
-					size="lg"
-					variant="ghost"
-					className="rounded-[14px]"
-					onClick={onCancel}
-				>
+				<Button type="button" variant="outline" className="rounded-[10px]" onClick={onCancel}>
+					{t('change')}
+				</Button>
+				<Button type="button" variant="ghost" className="ml-auto rounded-[10px]" onClick={onCancel}>
 					{t('cancel')}
 				</Button>
 			</div>
@@ -804,53 +874,30 @@ function PlanView({
 	)
 }
 
-/** The conversation: Retake's name, what was asked, then the stage as Retake's reply. */
-function Chat({ request, children }: { request: string; children: React.ReactNode }) {
+/**
+ * Beside the plan: the picked video, upright, as the plan will frame it,
+ * and a line saying nothing has changed yet.
+ */
+function Preview({ video }: { video: Video | null }) {
 	const t = useTranslations('Make.chat')
+	const plan = useTranslations('Make.plan')
 	return (
-		<section
-			aria-label={t('title')}
-			className="border-border bg-surface flex flex-col gap-4 rounded-[24px] border p-5 lg:min-h-[520px]"
-		>
-			<div className="flex items-center gap-3">
-				<span className="bg-brand flex size-9 shrink-0 items-center justify-center rounded-[11px] text-white">
-					<SparkleIcon size={17} />
-				</span>
-				<span className="flex flex-col">
-					<span className="text-text text-base font-extrabold">{t('title')}</span>
-					<span className="text-text-muted text-xs">{t('help')}</span>
+		<div className="flex shrink-0 flex-col items-center gap-2">
+			<div className="bg-night relative h-[440px] w-[248px] overflow-hidden rounded-[18px] border border-white/20">
+				{video && (
+					<video
+						src={video.url}
+						controls
+						playsInline
+						aria-label={t('videoLabel', { name: video.file.name })}
+						className="size-full object-cover"
+					/>
+				)}
+				<span className="text-ink pointer-events-none absolute top-3 left-3 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-extrabold tracking-wider uppercase">
+					{plan('preview')}
 				</span>
 			</div>
-			{request && (
-				<p className="bg-brand ml-auto max-w-[85%] rounded-[16px_16px_4px_16px] px-3.5 py-2.5 text-sm font-semibold text-white">
-					<span className="sr-only">{t('you')}: </span>
-					{request}
-				</p>
-			)}
-			{children}
-		</section>
-	)
-}
-
-/** The video the request is about, to watch while Retake works on it. */
-function VideoPane({ video }: { video: Video | null }) {
-	const t = useTranslations('Make.chat')
-	return (
-		<div className="border-border bg-night flex aspect-video items-center justify-center overflow-hidden rounded-[24px] border lg:sticky lg:top-6">
-			{video ? (
-				<video
-					src={video.url}
-					controls
-					playsInline
-					aria-label={t('videoLabel', { name: video.file.name })}
-					className="size-full object-contain"
-				/>
-			) : (
-				<span className="text-text-faint flex flex-col items-center gap-2 text-sm">
-					<SpinnerIcon size={22} />
-					{t('video')}
-				</span>
-			)}
+			<span className="text-text-faint text-[11px]">{plan('previewNote')}</span>
 		</div>
 	)
 }
