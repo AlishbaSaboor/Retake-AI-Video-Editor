@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { deepgramWords, transcribeAudio } from '@/server/ai/deepgram'
 import { generateContent } from '@/server/ai/google'
 import { validatedAction } from '@/server/actions/validated-action'
-import { rethrowAsBusy } from '@/server/lib/ai-busy'
+import { rethrowAiError } from '@/server/lib/ai-busy'
 import { EDIT_COMMAND_JSON_SCHEMA, editCommandSchema, type EditCommand } from './edit-command'
 import {
 	HIGHLIGHTS_JSON_SCHEMA,
@@ -124,7 +124,7 @@ export const parseEditCommand = validatedAction({
 					temperature: 0
 				}
 			}
-		).catch(rethrowAsBusy)
+		).catch(rethrowAiError('gemini', 'parse_edit_command'))
 		try {
 			const parsed = editCommandSchema.safeParse(JSON.parse(response.text ?? ''))
 			return parsed.success ? parsed.data : UNSUPPORTED
@@ -178,7 +178,7 @@ export const findHighlights = validatedAction({
 					temperature: 0
 				}
 			}
-		).catch(rethrowAsBusy)
+		).catch(rethrowAiError('gemini', 'find_highlights'))
 		try {
 			const parsed = highlightsReplySchema.safeParse(JSON.parse(response.text ?? ''))
 			return parsed.success ? parsed.data.highlights : []
@@ -201,7 +201,7 @@ export const transcribeTake = validatedAction({
 			{ feature: 'transcribe_take', model: 'nova-3' },
 			Buffer.from(audioBase64, 'base64'),
 			'audio/wav'
-		).catch(rethrowAsBusy)
+		).catch(rethrowAiError('deepgram', 'transcribe_take'))
 		return toTranscript(deepgramWords(response))
 	}
 })
@@ -217,7 +217,7 @@ export const transcribeVoiceCommand = validatedAction({
 			{ feature: 'voice_command', model: 'nova-3' },
 			Buffer.from(audioBase64, 'base64'),
 			'audio/wav'
-		).catch(rethrowAsBusy)
+		).catch(rethrowAiError('deepgram', 'voice_command'))
 		return deepgramWords(response)
 			.map((word) => word.punctuated_word ?? word.word)
 			.join(' ')

@@ -665,6 +665,61 @@ test("a second check that can't run leaves the plan as made, and says so", async
 	await expect(plan(page).getByRole('button', { name: 'Apply' })).toBeEnabled()
 })
 
+test('a plan that never comes back is given up after about a minute, with a plain message and a way back', async ({
+	page
+}) => {
+	// The server gives up at 60 s; the page, 5 s after, whatever happens to the request.
+	test.setTimeout(150_000)
+	await mockMakeActions(page, WORDS, [reply()])
+	// A fake AI that never answers: the plan request is held, never fulfilled.
+	await page.route(
+		(url) => url.pathname.endsWith('/make'),
+		async (route) => {
+			const request = route.request()
+			if (!request.headers()['next-action'] || !request.postData()?.includes('"frames"')) {
+				return route.fallback()
+			}
+			await new Promise(() => {})
+		}
+	)
+	await startMaking(page, 'make this an Instagram reel')
+	const message = page.getByText(
+		"Retake couldn't plan the edit just now. Go back and try again in a moment."
+	)
+	await expect(page.getByText('Planning the edit…')).toBeVisible({ timeout: 60_000 })
+	await expect(message).toBeVisible({ timeout: 90_000 })
+	await page.getByRole('button', { name: 'Back' }).click()
+	await expect(page.getByRole('textbox', { name: 'What should it become?' })).toHaveValue(
+		'make this an Instagram reel'
+	)
+})
+
+test("a refused key or a usage limit shows the server's plain words", async ({ page }) => {
+	await mockMakeActions(page, WORDS, [reply()])
+	const refused =
+		'The Gemini API key was refused. Check GEMINI_API_KEY in .env.local, then try again.'
+	// The plan request comes back as the server answers a refused key.
+	await page.route(
+		(url) => url.pathname.endsWith('/make'),
+		async (route) => {
+			const request = route.request()
+			if (!request.headers()['next-action'] || !request.postData()?.includes('"frames"')) {
+				return route.fallback()
+			}
+			const response = await route.fetch({ postData: JSON.stringify([{ frames: '' }]) })
+			await route.fulfill({
+				response,
+				body: (await response.text()).replace(
+					/\{"ok":false[^\n]*\}/,
+					JSON.stringify({ ok: false, error: refused, status: 401 })
+				)
+			})
+		}
+	)
+	await startMaking(page, 'make this an Instagram reel')
+	await expect(page.getByText(refused)).toBeVisible({ timeout: 60_000 })
+})
+
 /** The average colour of a region of an image, its edges as fractions of it. */
 type Region = { x: number; y: number; width: number; height: number }
 const REGIONS: Record<string, Region> = {

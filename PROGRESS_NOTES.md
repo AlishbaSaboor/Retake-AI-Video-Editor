@@ -7,6 +7,10 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-07.
+> - **Make it: time limits and plain AI errors** (section 3zh): planning gives
+>   up after 60 s (the second check after 30 s), the page after 65 s; a
+>   refused key, a usage limit or a busy AI shows the server's plain words
+>   and is logged; pictures go at medium detail (a quarter of the tokens).
 > - **Make it: designed verticals** (section 3zg): a reel/TikTok/Short/ad of a
 >   video whose picture doesn't carry it (a still meeting, an unchanging
 >   screen) is no longer a small picture in black bars: a 9:16 frame designed
@@ -2490,6 +2494,61 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
   matters (their screen recording would now be designed).
 - **Not tried against real Gemini** (zero API cost rule): the `card` field.
 
+## 3zh. Make it: time limits and plain AI errors (2026-10-07)
+
+- **Reported:** "Planning the edit…" stuck over 5 minutes, no error, after
+  the owner changed the Gemini key.
+- **Found:** the new key works (free calls: the model list and
+  `countTokens` both 200; it's a 53-character `AQ.` key, not the usual
+  `AIza…`). The `ai_usage` rows told the rest: the owner's Make it plans
+  sent **~159k input tokens** (a 5-minute video's 150 pictures: Gemini 3.5
+  reads each at ~1000 tokens, not the ~260 assumed in 3ze) and took **81–103
+  s** when they worked; three failed with **503 (overloaded)** after 23–87
+  s; and after every plan since 14:43 there was **no `make_it_check` row at
+  all**: rows are written when a call ends, either way, so those checks
+  never ended. The SDK has no time limit by default (and retries only when
+  asked), so the page waited on an unanswered call until the network layer's
+  own ~5-minute limit. Not proven with a paid generation call (zero API cost
+  rule).
+- **Fixed:**
+  - `withTimeout` (`src/lib/with-timeout.ts`): aborts the call through its
+    signal and rejects with `TimeoutError` at the limit even if the call
+    ignores it. `generateContent` takes `timeoutMs`; the plan has 60 s
+    (`PLAN_TIMEOUT_MS`), the check 30 s. A time-out is an `ai_usage` error
+    row (`error_type: TimeoutError`). The page stops waiting 5 s after the
+    server's limit (`PAGE_GRACE_MS`), whatever happens to the request, and
+    shows "Retake couldn't plan the edit just now. Go back and try again in
+    a moment." with Back; a check that times out shows the plan as first
+    made, as before.
+  - `rethrowAiError(provider, feature)` (replacing `rethrowAsBusy`, on every
+    AI action): `aiFailureOf` (`src/lib/ai-failure.ts`) names a time-out
+    (504), a refused key (401/403, or 400 "API key not valid": 401), a usage
+    limit (429) or a busy AI (503); each becomes an AppError with plain
+    words ("The Gemini API key was refused. Check GEMINI_API_KEY in
+    .env.local, then try again.", "The Gemini usage limit has been reached…")
+    and a `log.warn('AI call failed', { provider, feature, failure, status })`
+    on the server; anything else is still a reported bug. The page shows the
+    server's words for 401, 429 and 503 only (`isPlainAiStatus`), the
+    transcript's too (Deepgram's key or limit).
+  - The plan's pictures go at **medium detail** (`mediaResolution`, ~256
+    tokens each): about a quarter of the tokens, so a 5-minute plan fits the
+    60 s comfortably and costs less.
+- **Checked on a production build** with a preloaded fetch stub (no paid
+  call): Gemini never answering: the page showed the message at 60 s, Back
+  kept the request, the server logged `failure: "timeout"`, and `ai_usage`
+  has the 60012 ms `TimeoutError` row. Gemini refusing the key (its real 400
+  "API key not valid"): the plain key message at once, logged
+  `failure: "key"`, an error row.
+- **Tests:** unit (`withTimeout` with a fake AI that never answers: given up
+  at 50 ms, the signal aborted; an answer in time, its own failure;
+  `aiFailureOf` for each kind and the rest; `isPlainAiStatus`). e2e: a plan
+  request held forever gives the plain message after about a minute and a
+  way back; a refused key shows the server's words.
+- **Careful:** a production `pnpm build` here replaced `.next` under the
+  owner's own `next start` on port 3000, which then served blank pages;
+  tests ran against a separate server on 3100 (`E2E_BASE_URL`). Rebuild
+  before restarting a local production server.
+
 ---
 
 ## 4. Unresolved issues
@@ -3001,6 +3060,11 @@ command's reply (the request was still in flight when the test ended). All
 three passed when run again. Not changed. A second full run was stopped by
 Claude Code for low memory (many tests failing as the machine starved); the
 user chose to let CI's e2e shards be the second check.
+
+**Local, 2026-10-08:** `make-it.spec.ts:144` (the face-following export)
+measured the square at 0.73 of the frame at 1 s, against < 0.7: the frame
+shown was a little late, so the square had moved on. Passed twice on rerun.
+Not changed.
 
 ### 4d. Low memory on this machine (observed 2026-10-02)
 
