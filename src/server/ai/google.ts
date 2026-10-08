@@ -1,9 +1,11 @@
 import 'server-only'
 import {
 	GoogleGenAI,
+	MediaResolution,
 	type GenerateContentParameters,
 	type GenerateContentResponse
 } from '@google/genai'
+import { withTimeout } from '@/lib/with-timeout'
 import { env } from '@/lib/env'
 import { trackAiCall } from '@/server/lib/ai-usage/sink'
 import type { TrackedModel } from '@/server/lib/ai-usage/models'
@@ -42,7 +44,12 @@ export type AiContext = {
 	feature: string
 	model: TrackedModel
 	meta?: AiUsageMeta
+	/** Give up after this long: the request is aborted and the call fails with a TimeoutError (recorded). */
+	timeoutMs?: number
 }
+
+/** Pictures read at medium detail (~256 tokens each). The SDK's own value, so callers needn't import it. */
+export const MEDIA_RESOLUTION_MEDIUM = MediaResolution.MEDIA_RESOLUTION_MEDIUM
 
 /**
  * A tracked `models.generateContent`. Returns the SDK's own response
@@ -63,7 +70,14 @@ export function generateContent(
 	context: AiContext,
 	params: Omit<GenerateContentParameters, 'model'>
 ): Promise<GenerateContentResponse> {
-	return trackAiCall({ provider: 'google', ...context }, () =>
-		gemini().models.generateContent({ ...params, model: context.model })
+	const { timeoutMs, ...tracked } = context
+	const call = (abortSignal?: AbortSignal) =>
+		gemini().models.generateContent({
+			...params,
+			model: context.model,
+			config: { ...params.config, ...(abortSignal && { abortSignal }) }
+		})
+	return trackAiCall({ provider: 'google', ...tracked }, () =>
+		timeoutMs ? withTimeout(timeoutMs, call) : call()
 	)
 }

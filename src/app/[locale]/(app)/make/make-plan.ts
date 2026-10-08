@@ -57,6 +57,14 @@ export const FRAME_EVERY_SECONDS = 2
 export const MAX_MAKE_SECONDS = 300
 export const MAX_FRAMES = MAX_MAKE_SECONDS / FRAME_EVERY_SECONDS
 export const MAX_QUESTIONS = 3
+/**
+ * How long the plan and its second check may take on the server before
+ * they're given up as unanswered; the page stops waiting a little after.
+ */
+export const PLAN_TIMEOUT_MS = 60_000
+export const CHECK_TIMEOUT_MS = 30_000
+/** The page's own limit past the server's: room for the request to travel. */
+export const PAGE_GRACE_MS = 5_000
 export const MAX_REQUEST_LENGTH = 300
 const MAX_ZOOMS = 6
 /** Key lines on screen: a few, short, so they stay readable. */

@@ -16,6 +16,8 @@ import { VoiceCommandButton } from '@/app/[locale]/editor/voice-command-button'
 import { useRouter } from '@/i18n/routing'
 import { cn } from '@/lib/cn'
 import { captureClientError } from '@/lib/observability/capture-client-error'
+import { isPlainAiStatus } from '@/lib/ai-failure'
+import { withTimeout } from '@/lib/with-timeout'
 import { checkMakePlan, planMakeIt } from './actions'
 import { captureFrames } from './frames'
 import {
@@ -25,7 +27,10 @@ import {
 	MAX_REQUEST_LENGTH,
 	planMake,
 	applyCheck,
+	CHECK_TIMEOUT_MS,
 	describePlan,
+	PAGE_GRACE_MS,
+	PLAN_TIMEOUT_MS,
 	type CheckReply,
 	type MakeAnswer,
 	type MakeReply,
@@ -43,8 +48,6 @@ function firstWords(text: string, count: number): string {
 	const words = text.split(/\s+/)
 	return words.length > count ? `${words.slice(0, count).join(' ')}…` : text
 }
-/** The status a busy AI comes back with (rethrowAsBusy): its message is meant for the user. */
-const BUSY_STATUS = 503
 
 /** The picked video, read: where it plays from, how long it is, its picture's size. */
 type Video = { file: File; url: string; durationSeconds: number; picture: Size }
@@ -67,18 +70,20 @@ async function loadTrack(name: string): Promise<MusicTrack<AudioBuffer> | null> 
 
 /**
  * Asks the server for a plan. A failure comes back as what to tell the
- * user: the server's own words when the AI is busy (they're written for
- * people), `unclear` for anything else, which is reported, never shown.
+ * user: the server's own words for a refused key, a usage limit or a busy
+ * AI (written for people), `unclear` for anything else (no answer in time
+ * included), which is never shown as it is. The page stops waiting a little
+ * after the server's own time limit, whatever happens to the request.
  */
 async function requestPlan(input: Parameters<typeof planMakeIt>[0], unclear: string) {
 	let result: Awaited<ReturnType<typeof planMakeIt>>
 	try {
-		result = await planMakeIt(input)
+		result = await withTimeout(PLAN_TIMEOUT_MS + PAGE_GRACE_MS, () => planMakeIt(input))
 	} catch (error) {
 		captureClientError(error, { feature: 'make_it' })
 		throw new Error(unclear)
 	}
-	if (!result.ok) throw new Error(result.status === BUSY_STATUS ? result.error : unclear)
+	if (!result.ok) throw new Error(isPlainAiStatus(result.status) ? result.error : unclear)
 	return result.data
 }
 
@@ -88,7 +93,9 @@ async function requestPlan(input: Parameters<typeof planMakeIt>[0], unclear: str
  */
 async function checkPlan(request: string, planText: string): Promise<CheckReply | null> {
 	try {
-		const result = await checkMakePlan({ request, planText })
+		const result = await withTimeout(CHECK_TIMEOUT_MS + PAGE_GRACE_MS, () =>
+			checkMakePlan({ request, planText })
+		)
 		return result.ok ? result.data : null
 	} catch (error) {
 		captureClientError(error, { feature: 'make_it_check' })
@@ -231,7 +238,9 @@ export function MakeIt() {
 	// Plain words for each step that can fail; never an error's own text.
 	const failed =
 		transcriptState.status === 'failed'
-			? t('errors.transcript')
+			? transcriptState.plain
+				? transcriptState.error
+				: t('errors.transcript')
 			: frames.isError
 				? t('errors.pictures')
 				: plan.isError
