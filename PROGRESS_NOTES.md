@@ -7,6 +7,13 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-07.
+> - **Make it: designed verticals** (section 3zg): a reel/TikTok/Short/ad of a
+>   video whose picture doesn't carry it (a still meeting, an unchanging
+>   screen) is no longer a small picture in black bars: a 9:16 frame designed
+>   around the speech (a moving background in the style's colours, the
+>   picture a small rounded card or left out, big title and key-line cards,
+>   centred captions popping each word, a progress bar and a sound-wave),
+>   drawn by one set of functions in the preview and the export.
 > - **Make it, part 2: quality** (section 3zf): kinetic text (a title and key
 >   lines quoted from the speech, coming in word by word, popping, sliding or
 >   fading by style), caption looks (a word at a time, the spoken word
@@ -279,8 +286,8 @@ separate `chore(logs)` commit.
 | Motion graphics: title/text entrances and exits (fade, slide, pop), a lower third, an animated zoom                                                                                                                      | `feat(editor): animated text, a lower third and zoom`                    | Unit tests for the easing, the half-time cap, the zoom matrix and the commands. e2e measures real exports: the zoom (square width, centred, with a crop and a sped clip), the title sliding and fading, the lower third at the lower left sliding in and gone outside its time, a text pop; typed commands, save/reopen, undo.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | The logo by hand: drag anywhere, resize by its corner, keys, a size field; PNG or JPG                                                                                                                                    | `feat(editor): place and resize the logo by hand, PNG or JPG`            | Unit tests for placing, moving, resizing and clamping. e2e drags and resizes a JPG logo, checks the export puts it at the same place and size, the keys, the size field, undo per step, corners and the default-corner command.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
-**Current totals** (2026-10-07, Make it part 2): 378 unit tests
-(`src/**/*.test.mts`) and 103 e2e tests (plus the sign-in setup).
+**Current totals** (2026-10-07, Make it designed verticals): 383 unit tests
+(`src/**/*.test.mts`) and 104 e2e tests (plus the sign-in setup).
 Everything passes locally. On the meter commit the full e2e suite passed
 18/18 in each of two runs.
 
@@ -2420,6 +2427,68 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
   specs; the full suite on CI only (low memory here).
 - **Not tried against real Gemini** (zero API cost rule): the new prompt
   fields and the check's prompt.
+
+## 3zg. Make it: designed verticals for videos whose picture doesn't carry them (2026-10-07)
+
+- **Asked:** for a reel/TikTok/Shorts/ad request on a video Make it already
+  judges "the picture doesn't carry this video" (a static Zoom/Meet meeting
+  with a name card, a screen that never changes): no small card in black
+  bars, but a designed 9:16 video around the speech: a full-frame animated
+  background (colours by style, drawn on canvas, nothing paid), the picture
+  hidden or a small rounded corner card (so nothing important is lost), a
+  big animated title and key-line cards in the speaker's own words, centred
+  captions reacting to each word, a small sound-wave or progress bar. Cuts,
+  the 60 s limit, transitions, caption styles, the second check and music
+  unchanged; the preview's frame itself 9:16 and the export matching it;
+  real footage unchanged.
+- **When:** `planMake` designs when the request is short-form or an ad,
+  `pictureMatters` is false, there is speech, and it would otherwise fit
+  with black bars (no single face followed: a talking head still gets its
+  face crop). Gemini's new `card` says `corner` (the picture shows
+  anything worth keeping: a name card, a face, a slide, a screen) or
+  `hidden` (it shows nothing). A picture that matters, a professional or
+  funny edit, or a silent video: unchanged.
+- **The edit:** `design: { palette, picture }` in the snapshot (undo, reset,
+  save as ever; old projects open with none). The crop is part 1's fit, so
+  the frame is 9:16 (1080×1920 for 1080p). No push-ins on the sentences (the
+  picture isn't what's said); zoom cuts grow the card.
+- **Drawing, one set of functions** (`design.ts`): `drawDesign` paints the
+  gradient (turning slowly between the palette's two colours), three soft
+  shapes drifting, the progress bar and the wave (moving while a caption
+  is on screen), from the edited time; `cardRect` places the card (lower
+  left, 44% wide, the picture's shape, rounded). The export calls them on
+  its canvas (`drawFrame`'s designed branch: background, the picture in the
+  card with any clip dissolving or sliding in, the fade, then the text); the
+  preview's `DesignCanvas` calls `drawDesign` on a canvas filling the 9:16
+  output frame, and `PictureFrame` puts the video (and the dissolve's second
+  player) in the same card, or hides it. Annotations don't show in a
+  designed frame, in either.
+- **Text:** captions in the middle (`DESIGN_CAPTION_Y`), the word being
+  said growing 30% and settling over 0.18 s (`wordPop`; times from
+  `editedCaptions(…, timed)`, or a one-word caption's own start:
+  `saidWordAt`); colour only in highlight mode (`captionMode` now in
+  `Overlays`). Titles and key lines become rounded cards just around their
+  words, the title 25% bigger, wrapped to fit the frame (`cardLines`; the
+  preview measures with a canvas at the frame's own size, so it breaks the
+  same lines as the export), word by word across lines (`lineReveals`).
+  Every word still comes from the transcript (key lines quote it; titles
+  with names never said are dropped).
+- **Checked in the browser:** the preview's frame and the export's frame
+  side by side at 2.5 s: the same two-line title card, centred popping word,
+  card with the test video, wave and bar. Before wrapping, a long title
+  overflowed in the preview while the export squeezed it: fixed by the
+  wrapping.
+- **Tests:** unit (designed when, card or hidden, palette by style, not for
+  a picture that matters, professional, silence; 1080×1920; no sentence
+  zooms; the card's place; `wordPop`; `cardLines`, `lineReveals`,
+  `saidWordAt`). e2e: a designed reel: the plan says so, the preview's frame
+  is 9:16 with the background canvas and the card low on the left, and the
+  preview's screenshot and the export's frame at 1 s agree region by region
+  (both background edges and the card's corner within 25 levels), the
+  export 180×320, coloured, the card showing the video's own blue. Two
+  existing tests that measure a black-bar export now say the picture
+  matters (their screen recording would now be designed).
+- **Not tried against real Gemini** (zero API cost rule): the `card` field.
 
 ---
 

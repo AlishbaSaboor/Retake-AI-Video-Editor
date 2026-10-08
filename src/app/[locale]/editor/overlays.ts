@@ -7,7 +7,16 @@ import {
 	type Annotation,
 	type ObscureKind
 } from './annotations'
-import { captionAt, highlightColor, spokenWordAt, type Caption } from './captions'
+import { captionAt, highlightColor, spokenWordAt, type Caption, type CaptionMode } from './captions'
+import {
+	CARD_RADIUS,
+	cardRect,
+	DESIGN_CAPTION_Y,
+	drawDesign,
+	roundedRect,
+	wordPop,
+	type DesignedFrame
+} from './design'
 import { editedStarts, type Segment } from './sequence'
 import {
 	animationAt,
@@ -80,6 +89,10 @@ export type Overlays = {
 	autoZooms?: Zoom[]
 	/** Key lines, from Make it: more titles, each in its own time. */
 	autoTitles?: TitleCard[]
+	/** How the captions show; absent, a line or two. Only `highlight` colours the word being said. */
+	captionMode?: CaptionMode
+	/** A designed vertical frame (design.ts): background, picture card, centred captions, title cards. */
+	designed?: DesignedFrame | null
 }
 
 // The lower third's band, in the frame: its left edge and its bottom (above
@@ -97,6 +110,59 @@ export const LOWER_THIRD_PADDING_SCALE = 0.35
 export const TITLE_FONT_FRACTION = 0.08
 /** The dark band behind the title, as a multiple of the text height. */
 export const TITLE_BAND_SCALE = 2
+/** A designed frame's title card: room either side of the words, and its corners, as multiples of the text height. */
+export const TITLE_CARD_PADDING = 0.5
+/** Its lines' spacing, and the room above and below them, as multiples of the text height. */
+export const TITLE_CARD_LINE = 1.25
+export const TITLE_CARD_INSET = 0.4
+
+/**
+ * A title card's words in lines no wider than `maxWidth`, breaking between
+ * words; `measure` gives a stretch of text's width in the same units. A
+ * word wider than that has a line of its own.
+ */
+export function cardLines(text: string, maxWidth: number, measure: (text: string) => number) {
+	const lines: string[] = []
+	for (const word of text.split(/\s+/).filter(Boolean)) {
+		const last = lines.at(-1)
+		if (last !== undefined && measure(`${last} ${word}`) <= maxWidth) {
+			lines[lines.length - 1] = `${last} ${word}`
+		} else lines.push(word)
+	}
+	return lines
+}
+
+/**
+ * How far into a title's word-by-word entrance each of its lines is, as
+ * revealedWords takes it: the words before a line come in first.
+ */
+export function lineReveals(lines: string[], reveal: number | undefined): (number | undefined)[] {
+	if (reveal === undefined) return lines.map(() => undefined)
+	const counts = lines.map((line) => line.split(' ').length)
+	const total = counts.reduce((sum, n) => sum + n, 0)
+	let before = 0
+	return counts.map((count) => {
+		const at = (reveal * total - before) / count
+		before += count
+		return at
+	})
+}
+
+/**
+ * The caption word being said at `seconds`, and when it was said: from the
+ * caption's word times, or (`single`) a one-word caption's own start. Null
+ * when no word is picked out.
+ */
+export function saidWordAt(
+	caption: Caption,
+	seconds: number,
+	single: boolean
+): { index: number; start: number } | null {
+	const index = spokenWordAt(caption, seconds)
+	if (index !== null) return { index, start: caption.spoken?.[index] ?? caption.startSeconds }
+	const oneWord = caption.lines.length === 1 && !caption.lines[0]?.includes(' ')
+	return single && oneWord ? { index: 0, start: caption.startSeconds } : null
+}
 /** The widest the title's text may be, as a fraction of the picture's width. */
 export const TITLE_MAX_WIDTH_FRACTION = 0.9
 /** Caption text height (of the frame's shorter side), and the gap below the last line (of its height). */
@@ -465,7 +531,6 @@ export function drawFrame(
 	context.fillRect(0, 0, width, height)
 	const view = zoomsViewAt([overlays.zoom, ...(overlays.autoZooms ?? [])], seconds)
 	const z = view.scale === 1 ? m : zoomedMatrix(m, view, { width, height })
-	context.setTransform(z.a, z.b, z.c, z.d, z.e, z.f)
 	const {
 		incoming,
 		incomingAlpha,
@@ -474,6 +539,39 @@ export function drawFrame(
 		filter = null,
 		incomingFilter = null
 	} = mix
+	const { designed } = overlays
+	if (designed) {
+		// The background, then the picture (and any clip coming in) in its card, or not at all.
+		drawDesign(context, designed, seconds, captionAt(overlays.captions, seconds) !== undefined)
+		if (designed.picture === 'corner') {
+			const card = cardRect({ width, height }, picture)
+			const scale = view.scale
+			const w = card.width * width * scale
+			const h = card.height * height * scale
+			const x = (card.x + card.width / 2) * width - w / 2
+			const y = (card.y + card.height / 2) * height - h / 2
+			context.save()
+			roundedRect(context, x, y, w, h, CARD_RADIUS * width * scale)
+			context.clip()
+			if (filter) context.filter = filter
+			context.drawImage(source, x, y, w, h)
+			context.filter = 'none'
+			if (incoming && incomingAlpha > 0) {
+				context.globalAlpha = Math.min(1, incomingAlpha)
+				if (incomingFilter) context.filter = incomingFilter
+				context.drawImage(incoming, x + incomingShift * w, y, w, h)
+				context.filter = 'none'
+			}
+			context.restore()
+		}
+		if (light < 1) {
+			context.fillStyle = `rgba(0, 0, 0, ${1 - Math.max(0, light)})`
+			context.fillRect(0, 0, width, height)
+		}
+		drawFrameOverlays(context, overlays, seconds, logo)
+		return
+	}
+	context.setTransform(z.a, z.b, z.c, z.d, z.e, z.f)
 	// The grade only where there is one: an ungraded frame costs nothing extra.
 	if (filter) context.filter = filter
 	context.drawImage(source, 0, 0, picture.width, picture.height)
@@ -573,13 +671,19 @@ function drawFrameOverlays(
 		context.font = canvasFont(captionStyle, fontPixels)
 		context.textAlign = 'center'
 		context.textBaseline = 'middle'
+		const { designed } = overlays
 		const bottom = height * (1 - CAPTION_BOTTOM_FRACTION)
-		const spoken = spokenWordAt(caption, seconds)
-		const highlight = highlightColor(captionStyle.color)
+		const said = saidWordAt(caption, seconds, Boolean(designed))
+		const spoken = said?.index ?? null
+		const highlight =
+			overlays.captionMode === 'highlight' ? highlightColor(captionStyle.color) : captionStyle.color
+		const pop = said && designed ? wordPop(said.start, seconds) : 1
 		// Words counted across the lines, for which one is being said.
 		let wordIndex = 0
 		for (const [index, line] of caption.lines.entries()) {
-			const middle = bottom - (caption.lines.length - index - 0.5) * lineHeight
+			const middle = designed
+				? height * DESIGN_CAPTION_Y + (index - (caption.lines.length - 1) / 2) * lineHeight
+				: bottom - (caption.lines.length - index - 0.5) * lineHeight
 			const textWidth = context.measureText(line).width
 			const lineWidth = textWidth + padding * 2
 			if (captionStyle.background) {
@@ -595,8 +699,17 @@ function drawFrameOverlays(
 			context.textAlign = 'left'
 			let left = (width - textWidth) / 2
 			for (const word of line.split(' ')) {
-				context.fillStyle = wordIndex === spoken ? highlight : captionStyle.color
-				context.fillText(word, left, middle)
+				const isSaid = wordIndex === spoken
+				context.fillStyle = isSaid ? highlight : captionStyle.color
+				if (isSaid && pop !== 1) {
+					// Grown about its own middle.
+					const half = context.measureText(word).width / 2
+					context.save()
+					context.translate(left + half, middle)
+					context.scale(pop, pop)
+					context.fillText(word, -half, 0)
+					context.restore()
+				} else context.fillText(word, left, middle)
 				left += context.measureText(`${word} `).width
 				wordIndex++
 			}
@@ -604,7 +717,7 @@ function drawFrameOverlays(
 		}
 	}
 	for (const card of [title, ...(overlays.autoTitles ?? [])]) {
-		if (card) drawTitle(context, card, seconds)
+		if (card) drawTitle(context, card, seconds, Boolean(overlays.designed))
 	}
 	if (overlays.lowerThird) drawLowerThird(context, overlays.lowerThird, seconds)
 	if (watermark && logo) {
@@ -618,7 +731,12 @@ function drawFrameOverlays(
 }
 
 /** A title card (the title, or a key line), while it's on screen, with its band and motion. */
-function drawTitle(context: CanvasRenderingContext2D, title: TitleCard, seconds: number) {
+function drawTitle(
+	context: CanvasRenderingContext2D,
+	title: TitleCard,
+	seconds: number,
+	asCard: boolean
+) {
 	const { width, height } = context.canvas
 	const shorter = Math.min(width, height)
 	const titleMotion = animationAt(
@@ -636,11 +754,46 @@ function drawTitle(context: CanvasRenderingContext2D, title: TitleCard, seconds:
 		const y = centre.y * height
 		context.save()
 		applyMotion(context, titleMotion, { x: width, y: height }, { x, y })
+		context.font = canvasFont(style, fontPixels)
+		if (asCard) {
+			// In a designed frame: a rounded card just around the words, wrapped
+			// to fit the frame, its lines centred on the title's place.
+			const pad = fontPixels * TITLE_CARD_PADDING
+			const maxWidth = width * TITLE_MAX_WIDTH_FRACTION - pad * 2
+			const lines = cardLines(title.text, maxWidth, (text) => context.measureText(text).width)
+			const lineHeight = fontPixels * TITLE_CARD_LINE
+			const cardHeight = lines.length * lineHeight + fontPixels * TITLE_CARD_INSET * 2
+			const textWidth = Math.min(
+				maxWidth,
+				Math.max(...lines.map((line) => context.measureText(line).width))
+			)
+			if (style.background) {
+				context.fillStyle = bandColor(style.background)
+				roundedRect(
+					context,
+					x - textWidth / 2 - pad,
+					y - cardHeight / 2,
+					textWidth + pad * 2,
+					cardHeight,
+					pad
+				)
+				context.fill()
+			}
+			context.textAlign = 'center'
+			context.textBaseline = 'middle'
+			context.fillStyle = style.color
+			const reveals = lineReveals(lines, titleMotion.reveal)
+			for (const [index, line] of lines.entries()) {
+				const lineY = y + (index - (lines.length - 1) / 2) * lineHeight
+				drawText(context, line, x, lineY, maxWidth, reveals[index])
+			}
+			context.restore()
+			return
+		}
 		if (style.background) {
 			context.fillStyle = bandColor(style.background)
 			context.fillRect(0, y - band / 2, width, band)
 		}
-		context.font = canvasFont(style, fontPixels)
 		context.textAlign = 'center'
 		context.textBaseline = 'middle'
 		context.fillStyle = style.color
