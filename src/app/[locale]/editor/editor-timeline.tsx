@@ -515,7 +515,7 @@ export function EditorTimeline(props: EditorTimelineProps) {
 												<span className="text-text truncate text-xs font-semibold">
 													{tc('clipName', { number: index + 1 })}
 													{clip.speed !== undefined && (
-														<span className="text-accent ml-1.5">
+														<span className="text-accent-fg ml-1.5">
 															{tc('speed', { speed: clip.speed })}
 														</span>
 													)}

@@ -129,7 +129,7 @@ export function ToolRail({
 										className={cn(
 											'focus-visible:outline-accent flex shrink-0 flex-col items-center gap-0.5 rounded-lg px-0.5 py-1 text-center text-[10.5px] leading-tight transition-colors focus-visible:outline-2 max-lg:w-16',
 											selected
-												? 'bg-accent-soft text-accent font-medium'
+												? 'bg-accent-soft text-accent-fg font-medium'
 												: 'text-text-muted hover:bg-surface-hover hover:text-text'
 										)}
 									>

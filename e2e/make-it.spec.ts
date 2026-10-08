@@ -132,13 +132,30 @@ async function startMaking(page: Page, request: string) {
 
 const plan = (page: Page) => page.getByRole('status', { name: 'The plan' })
 
-test('Home offers Make it', async ({ page }) => {
+test('Home offers Make it: the video and what it should become go on to the Make it page', async ({
+	page
+}) => {
 	await page.goto('/home')
-	await page.getByRole('link', { name: 'Make it' }).click()
+	const card = page.getByRole('region', { name: 'Make it with AI' })
+	await card.getByRole('button', { name: 'Make it funny' }).click()
+	await expect(card.getByRole('textbox', { name: 'What should it become?' })).toHaveValue(
+		'Make it funny'
+	)
+	const video = await recordTestVideo(page, TONE)
+	await page
+		.getByLabel('Video to make into something')
+		.setInputFiles({ name: 'from-home.webm', mimeType: 'video/webm', buffer: video })
 	// A first visit compiles the page: the same allowance as the other first loads.
 	await expect(page.getByRole('heading', { level: 1, name: 'Make it with AI' })).toBeVisible({
 		timeout: 30_000
 	})
+	await expect(page.getByText('from-home.webm')).toBeVisible()
+	await expect(page.getByRole('textbox', { name: 'What should it become?' })).toHaveValue(
+		'Make it funny'
+	)
+	await expect(page.getByRole('button', { name: 'Make it', exact: true })).toBeEnabled()
+	// Nothing is planned until asked.
+	await expect(page.getByRole('status', { name: 'The plan' })).toHaveCount(0)
 })
 
 test('a reel is planned, shown, applied as one undo step, and exported vertical following the face', async ({

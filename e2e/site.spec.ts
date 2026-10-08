@@ -3,54 +3,55 @@ import { test, expect } from '@playwright/test'
 // The public site, as a visitor who isn't signed in sees it.
 test.use({ storageState: { cookies: [], origins: [] } })
 
-test('the landing page sums up how it works and features, each linking to its own page; the header has the pages, the theme switch and Sign in', async ({
+test('the landing page tells the story, shows Make it and the promises; the header has the pages, the theme switch and Open Retake', async ({
 	page
 }) => {
 	await page.goto('/')
 	await expect(
-		page.getByRole('heading', { level: 1, name: 'Fix the take. Keep the recording.' })
+		page.getByRole('heading', { level: 1, name: 'Keep the moment. Lose the mess.' })
 	).toBeVisible()
 	for (const heading of [
-		'From recording to finished video',
-		'Fix one line. Keep the rest.',
-		'What Retake does',
-		'For recordings you already have',
-		'Start with a recording you already have.',
-		'Frequently asked questions'
+		"From “I'll fix it later” to done, in five scenes.",
+		'One sentence in. A finished edit out.',
+		'Three promises',
+		'Edit by lamplight, or by daylight.',
+		'Your next video starts here.'
 	])
 		await expect(page.getByRole('heading', { level: 2, name: heading })).toBeVisible()
-	// The contact form is on its own page, not here.
+	// The contact form and the questions are on the contact page, not here.
 	await expect(page.getByLabel('Message')).toHaveCount(0)
-	// A question opens its answer below it, and closes it again.
-	const question = page.getByText('Is my video uploaded?')
-	const answer = page.getByText(/^No\. Editing, previews and export run in your browser/)
-	await expect(answer).toBeHidden()
-	await question.click()
-	await expect(answer).toBeVisible()
-	await question.click()
-	await expect(answer).toBeHidden()
-	// Each summary links on to its own page.
-	await page.getByRole('link', { name: 'Read how it works' }).click()
-	await expect(page).toHaveURL(/\/how-it-works$/, { timeout: 30_000 })
-	await expect(page.getByRole('heading', { level: 2, name: 'Re-record a sentence' })).toBeVisible()
-	await page.goto('/')
-	await page.getByRole('link', { name: 'See all features' }).click()
-	await expect(page).toHaveURL(/\/features$/, { timeout: 30_000 })
-	await expect(page.getByRole('heading', { level: 2, name: 'Motion graphics' })).toBeVisible()
-	await page.goto('/')
 
-	// The header: the pages, the theme switch and Sign in, nothing else.
+	// The five scenes: the stepper follows the scroll.
+	const scenes = page.getByRole('navigation', { name: 'The five scenes' })
+	await page.locator('#story-tidy').evaluate((scene) => scene.scrollIntoView({ block: 'center' }))
+	await expect(scenes.getByRole('link', { name: 'Tidy up' })).toHaveAttribute(
+		'aria-current',
+		'step'
+	)
+
+	// Make it: a style changes what was asked for; the slider compares.
+	const styles = page.getByRole('radiogroup', { name: 'Style' })
+	await styles.getByRole('radio', { name: 'Funny' }).click()
+	await expect(styles.getByRole('radio', { name: 'Funny' })).toHaveAttribute('aria-checked', 'true')
+	await expect(page.getByText('You said: “Make it funny”. Drag to compare.')).toBeVisible()
+	const compare = page.getByRole('slider', { name: 'Compare before and after' })
+	await compare.focus()
+	await compare.press('ArrowRight')
+	await expect(compare).toHaveValue('51')
+
+	// The header: the pages, the theme switch and Open Retake, nothing else.
 	const header = page.getByRole('banner')
 	const nav = header.getByRole('navigation', { name: 'Main' }).first()
-	await expect(nav.getByRole('link')).toHaveText(['How it works', 'Features', 'Contact us'])
-	await expect(header.getByRole('link', { name: 'Sign in' }).first()).toBeVisible()
-	await expect(header.getByRole('switch', { name: 'Light mode' })).toBeVisible()
+	await expect(nav.getByRole('link')).toHaveText(['Features', 'How it works', 'Pricing', 'Contact'])
+	await expect(header.getByRole('link', { name: 'Open Retake' }).first()).toBeVisible()
+	await expect(header.getByRole('switch', { name: 'Light mode' }).first()).toBeVisible()
 	await expect(header.getByRole('link', { name: 'Projects' })).toHaveCount(0)
-	// Each opens its own page.
+	// Each opens its own page, marked as the one you're on.
 	for (const [link, path, heading] of [
-		['How it works', /\/how-it-works$/, 'From recording to finished video'],
-		['Features', /\/features$/, 'What Retake does'],
-		['Contact us', /\/contact$/, 'Talk to us']
+		['Features', /\/features$/, "Everything a good edit needs. Nothing it doesn't."],
+		['How it works', /\/how-it-works$/, 'Two paths. Same happy ending.'],
+		['Pricing', /\/pricing$/, 'Free, while in beta.'],
+		['Contact', /\/contact$/, 'Say hello. We read everything.']
 	] as const) {
 		await nav.getByRole('link', { name: link }).click()
 		await expect(page).toHaveURL(path, { timeout: 30_000 })
@@ -58,29 +59,72 @@ test('the landing page sums up how it works and features, each linking to its ow
 		await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible({
 			timeout: 30_000
 		})
+		await expect(nav.getByRole('link', { name: link })).toHaveAttribute('aria-current', 'page')
 	}
-	// The contact page: Email and Message only.
+	// The contact page: name, email, what it's about and the message.
+	await expect(page.getByLabel('Name')).toBeVisible()
 	await expect(page.getByLabel('Email')).toBeVisible()
+	await expect(page.getByLabel("What's it about?")).toHaveValue('question')
 	await expect(page.getByLabel('Message')).toBeVisible()
-	await expect(page.getByLabel('Name')).toHaveCount(0)
+	// Then the questions: each opens its answer below it, and closes it again.
+	const question = page.getByText('Where are my videos kept?')
+	const answer = page.getByText(
+		/^In your browser\. Editing, previews and export run on your computer/
+	)
+	await expect(answer).toBeHidden()
+	await question.click()
+	await expect(answer).toBeVisible()
+	await question.click()
+	await expect(answer).toBeHidden()
+
+	// The footer reaches the privacy policy.
+	await page
+		.getByRole('navigation', { name: 'Footer' })
+		.getByRole('link', { name: 'Privacy' })
+		.click()
+	await expect(
+		page.getByRole('heading', { level: 1, name: 'Your videos, your call.' })
+	).toBeVisible({ timeout: 30_000 })
+	await expect(page.getByRole('heading', { level: 2, name: 'AI and other services' })).toBeVisible()
+})
+
+test('pricing says free while in beta, with the way in', async ({ page }) => {
+	await page.goto('/pricing')
+	await expect(page.getByRole('heading', { level: 2, name: 'Free' })).toBeVisible()
+	await expect(page.getByRole('list', { name: 'Included' }).getByRole('listitem')).toHaveCount(8)
+	await expect(page.getByRole('heading', { name: 'Any limits during beta?' })).toBeVisible()
+	await expect(page.getByText(/\[[A-Z ]+\]/)).toHaveCount(0)
+})
+
+test('how it works switches between its two paths', async ({ page }) => {
+	await page.goto('/how-it-works')
+	const paths = page.getByRole('radiogroup', { name: 'Choose a path' })
+	await expect(page.getByRole('heading', { level: 3, name: 'Read the plan.' })).toBeVisible()
+	await paths.getByRole('radio', { name: 'Edit it yourself' }).click()
+	await expect(page.getByRole('heading', { level: 3, name: 'Cut and arrange.' })).toBeVisible()
+	await expect(page.getByRole('heading', { level: 3, name: 'Read the plan.' })).toHaveCount(0)
 })
 
 test.describe('signed in', () => {
 	test.use({ storageState: 'e2e/.auth/user.json' })
 
-	test('the header has only New project, Projects, the theme switch and Sign out', async ({
+	test('the app bar has only New project, Projects, the theme switch and Sign out', async ({
 		page
 	}) => {
 		await page.goto('/projects')
 		const header = page.getByRole('banner')
 		const nav = header.getByRole('navigation', { name: 'Main' }).first()
 		await expect(nav.getByRole('link')).toHaveText(['New project', 'Projects'])
+		await expect(nav.getByRole('link', { name: 'Projects' })).toHaveAttribute(
+			'aria-current',
+			'page'
+		)
 		await expect(header.getByRole('switch', { name: 'Light mode' })).toBeVisible()
 		await expect(header.getByRole('link', { name: 'How it works' })).toHaveCount(0)
 		// With accounts off (no Supabase, as on CI) nobody is signed in to sign out.
 		const signedIn = await header.getByRole('button', { name: 'Sign out' }).first().isVisible()
 		test.skip(!signedIn, 'accounts are off here (no Supabase): nobody is signed in')
-		await expect(header.getByRole('link', { name: 'Sign in' })).toHaveCount(0)
+		await expect(header.getByRole('link', { name: 'Open Retake' })).toHaveCount(0)
 	})
 
 	test('dark is the default; the switch turns light on every page, and it is remembered', async ({
@@ -96,7 +140,7 @@ test.describe('signed in', () => {
 		await expect(toggle).toHaveAttribute('aria-checked', 'true')
 		// The page really is light: the background, not just the attribute.
 		const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
-		expect(background).toBe('rgb(246, 246, 243)')
+		expect(background).toBe('rgb(247, 246, 253)')
 
 		await page.goto('/projects')
 		expect(await theme()).toBe('light')
@@ -129,7 +173,9 @@ test('a contact message is checked, sent, and thanked', async ({ page }) => {
 		}
 	)
 	await page.goto('/contact')
+	await page.getByLabel('Name').fill('Sam')
 	await page.getByLabel('Email').fill('not-an-email')
+	await page.getByLabel("What's it about?").selectOption({ label: 'Feedback or an idea' })
 	await page.getByLabel('Message').fill('Hello')
 	await page.getByRole('button', { name: 'Send message' }).click()
 	// The browser's own check stops a malformed email before anything is sent.
@@ -146,9 +192,17 @@ test('the app pages ask a signed-out visitor to log in, when accounts are on', a
 	const url = new URL(page.url())
 	test.skip(url.pathname !== '/login', 'accounts are off here (no Supabase): nothing to sign in to')
 	expect(url.searchParams.get('next')).toBe('/projects')
-	await expect(page.getByRole('heading', { name: 'Log in to Retake' })).toBeVisible()
-	await page.getByRole('tab', { name: 'Sign up' }).click()
-	await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible()
+	await expect(page.getByRole('heading', { level: 1, name: 'Welcome back.' })).toBeVisible()
+	await expect(page.getByRole('form', { name: 'Log in to Retake' })).toBeVisible()
+	await page.getByRole('button', { name: 'Create an account' }).click()
+	await expect(page.getByRole('heading', { level: 1, name: 'Make an account.' })).toBeVisible()
+	await expect(page.getByRole('form', { name: 'Create your account' })).toBeVisible()
+	// The password can be shown, and hidden again.
+	const password = page.getByLabel('Password', { exact: true })
+	await page.getByRole('button', { name: 'Show password' }).click()
+	await expect(password).toHaveAttribute('type', 'text')
+	await page.getByRole('button', { name: 'Hide password' }).click()
+	await expect(password).toHaveAttribute('type', 'password')
 })
 
 test('on a phone, the menu closes once a page from it opens', async ({ page }) => {
@@ -158,8 +212,16 @@ test('on a phone, the menu closes once a page from it opens', async ({ page }) =
 	await page.locator('summary[aria-label="Menu"]').click()
 	await expect(menu).toHaveAttribute('open', '')
 	await menu.getByRole('link', { name: 'Features' }).click()
-	await expect(page.getByRole('heading', { level: 1, name: 'What Retake does' })).toBeVisible({
-		timeout: 30_000
-	})
+	await expect(
+		page.getByRole('heading', {
+			level: 1,
+			name: "Everything a good edit needs. Nothing it doesn't."
+		})
+	).toBeVisible({ timeout: 30_000 })
 	await expect(menu).not.toHaveAttribute('open')
+	// Nothing on the page is wider than the phone.
+	const overflow = await page.evaluate(
+		() => document.documentElement.scrollWidth - document.documentElement.clientWidth
+	)
+	expect(overflow).toBe(0)
 })

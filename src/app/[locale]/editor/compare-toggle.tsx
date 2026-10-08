@@ -17,14 +17,23 @@ const VIEWS = [
 export function CompareToggle({ showOriginal, onChange }: CompareToggleProps) {
 	const t = useTranslations('Editor.compare')
 	return (
-		<div role="group" aria-label={t('label')} className="flex gap-1">
+		<div
+			role="group"
+			aria-label={t('label')}
+			className="border-border bg-glass flex gap-0.5 rounded-[11px] border p-[3px]"
+		>
 			{VIEWS.map((view) => {
 				const isActive = view.showOriginal === showOriginal
 				return (
 					<Button
 						key={view.key}
 						size="sm"
-						variant={isActive ? 'secondary' : 'ghost'}
+						variant="ghost"
+						className={
+							isActive
+								? 'bg-selected text-text hover:bg-selected rounded-lg px-3.5 font-extrabold'
+								: 'rounded-lg px-3.5'
+						}
 						aria-pressed={isActive}
 						onClick={() => onChange(view.showOriginal)}
 					>

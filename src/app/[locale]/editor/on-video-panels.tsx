@@ -56,7 +56,7 @@ function OnThisVideo({ items, empty }: { items: Listed[]; empty: string }) {
 									<span className="text-text-muted text-xs">{item.when}</span>
 								</span>
 								{item.picked && (
-									<span className="text-accent font-mono text-[10px] tracking-wider uppercase">
+									<span className="text-accent-fg font-mono text-[10px] tracking-wider uppercase">
 										{t('selected')}
 									</span>
 								)}
@@ -436,7 +436,7 @@ export function AnnotatePanel({
 					className={cn(
 						'focus-visible:outline-accent flex flex-col items-center gap-1.5 rounded-lg border px-2 py-3 text-sm font-medium focus-visible:outline-2 disabled:pointer-events-none disabled:opacity-40',
 						drawing
-							? 'border-accent bg-accent-soft text-accent'
+							? 'border-accent bg-accent-soft text-accent-fg'
 							: 'border-border bg-surface text-text hover:border-border-strong hover:bg-surface-hover'
 					)}
 				>

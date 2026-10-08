@@ -917,9 +917,13 @@
 		"nav": {
 			"label": "Main",
 			"menu": "Menu",
-			"howItWorks": "How it works",
 			"features": "Features",
-			"contact": "Contact us",
+			"howItWorks": "How it works",
+			"pricing": "Pricing",
+			"contact": "Contact",
+			"contactFaq": "Contact & FAQ",
+			"privacy": "Privacy",
+			"open": "Open Retake",
 			"signIn": "Sign in",
 			"signOut": "Sign out",
 			"newProject": "New project",
@@ -932,179 +936,296 @@
 		},
 		"footer": {
 			"label": "Footer",
-			"tagline": "Fix the flaws in a recording without starting over — by typing, speaking, or by hand."
+			"tagline": "A video editor for the web. Keep the moment, lose the mess.",
+			"copyright": "© {year} Retake"
 		},
 		"landing": {
-			"badge": "For recordings you already have",
-			"title": "Fix the take. Keep the recording.",
-			"description": "Retake edits videos you have already recorded. Say what to change, or edit on the timeline. Say one sentence again and Retake splices it back in.",
-			"start": "Start a project",
-			"howItWorks": "How it works",
-			"preview": {
-				"file": "interview-final.mp4",
-				"ask": "Remove the ums and the long pause after the intro",
-				"understood": "Clean up 6 fillers and 1 silence",
-				"detail": "Cuts 4.2 s from 0:03–0:41. Nothing changes until you apply.",
-				"apply": "Apply changes",
-				"cancel": "Cancel",
-				"typeHere": "Type or speak a command",
-				"caption": "so here’s what we found",
-				"saved": "Saved"
+			"title": "Keep the moment. <em>Lose the mess.</em>",
+			"description": "Retake is a video editor for the web. Tell it what you want, a reel, a funnier cut, a polished ad, and it plans the edit for you to approve. Or take the timeline yourself, with help a message away.",
+			"start": "Start editing free",
+			"story": "See the story",
+			"scroll": "Scroll",
+			"chips": {
+				"fillers": "Ums removed",
+				"captions": "Captions added",
+				"undo": "Undo, any time"
 			},
 			"demo": {
-				"eyebrow": "Re-record one sentence",
-				"title": "Fix one line. Keep the rest.",
-				"body": "Said a sentence wrong? Pick it in the transcript and say it again. Retake puts the new take where the old one was, and the rest of the recording stays as it is.",
-				"before": "Here is the new dashboard.",
-				"flawed": "The launch is in March, no, sorry, April.",
-				"newTake": "New take",
-				"fixed": "The launch is in April.",
-				"after": "Next, the settings page."
+				"window": "Retake · Weekend trip",
+				"project": "Weekend trip",
+				"saved": "Saved",
+				"planning": "Planning the edit…",
+				"export": "Export",
+				"lanes": {
+					"video": "Video",
+					"captions": "Captions",
+					"music": "Music"
+				},
+				"assistant": "Assistant",
+				"ask": "Make this an Instagram reel",
+				"planTitle": "Here's my plan",
+				"plan": {
+					"0": "Crop to vertical 9:16",
+					"1": "Cut filler words and pauses",
+					"2": "Captions, word by word",
+					"3": "Soft music underneath"
+				},
+				"applied": "Applied",
+				"undo": "Undo",
+				"placeholder": "Tell Retake what to do…",
+				"speak": "Speak",
+				"attach": "Attach",
+				"um": "um",
+				"uh": "uh"
 			},
-			"audience": {
-				"eyebrow": "Who it is for",
-				"title": "For recordings you already have",
-				"teach": {
-					"title": "Lessons and tutorials",
-					"body": "Cut the pauses, add captions and titles, and fix a line you said wrong."
+			"storyEyebrow": "The story",
+			"storyTitle": "From “I'll fix it later” to <em>done</em>, in five scenes.",
+			"storySteps": "The five scenes",
+			"steps": {
+				"bring": {
+					"label": "Bring it in",
+					"title": "Start with what you already have.",
+					"body": "The talk you gave, the trip you filmed, the demo you recorded at midnight. Drop it in and Retake listens to every word.",
+					"pill": "Transcribed for you"
 				},
-				"demo": {
-					"title": "Product demos",
-					"body": "Trim the start, zoom in on the screen, and blur anything private."
+				"say": {
+					"label": "Say it",
+					"title": "Describe the video you want.",
+					"body": "“Make this an Instagram reel.” “Make it funny.” Say it the way you would to a friend. Retake answers with a plan, not a surprise.",
+					"pill": "Nothing changes until you press Apply"
 				},
-				"talk": {
-					"title": "Talks and interviews",
-					"body": "Remove the ums, split into clips, and reorder the parts."
+				"tidy": {
+					"label": "Tidy up",
+					"title": "Lose the ums. Keep the point.",
+					"body": "Filler words and long pauses, gone in one click. Or go through them one by one if you like to choose.",
+					"pill": "One click, or one by one"
 				},
-				"team": {
-					"title": "Updates for your team",
-					"body": "Tidy a quick recording and export it."
+				"yours": {
+					"label": "Make it yours",
+					"title": "Add your touch.",
+					"body": "Captions that pop in word by word, a zoom on the moment that matters, a crop for any screen. Ask the assistant when typing is quicker.",
+					"pill": "“zoom here” works too"
+				},
+				"share": {
+					"label": "Share it",
+					"title": "Take the best bits with you.",
+					"body": "Retake finds the strongest moments and hands them back as clips you can download, cropped to vertical for Reels and Shorts.",
+					"pill": "Your original stays as it is"
 				}
 			},
-			"closing": {
-				"title": "Start with a recording you already have.",
-				"body": "Upload it, say what to change, and export the finished video."
+			"make": {
+				"eyebrow": "Make it",
+				"title": "One sentence in. <em>A finished edit out.</em>",
+				"styles": "Style",
+				"tabs": {
+					"reel": "Reel",
+					"funny": "Funny",
+					"professional": "Professional",
+					"ad": "Ad"
+				},
+				"requests": {
+					"reel": "Make this an Instagram reel",
+					"funny": "Make it funny",
+					"professional": "Make it professional",
+					"ad": "Make this an ad"
+				},
+				"after": {
+					"reel": "After · Reel 9:16",
+					"funny": "After · Funny cut",
+					"professional": "After · Professional",
+					"ad": "After · Ad 9:16"
+				},
+				"cards": {
+					"reel": "golden hour, <em>no filter</em>",
+					"funny": "wait for <em>it…</em>",
+					"professional": "The <em>quarterly</em> update",
+					"ad": "Try it <em>free</em>"
+				},
+				"before": "Before · raw clip",
+				"compare": "Compare before and after",
+				"said": "You said: “{request}”. Drag to compare."
+			},
+			"promises": {
+				"eyebrow": "Three promises",
+				"items": {
+					"ask": {
+						"title": "Nothing changes until you say so.",
+						"body": "Every AI edit arrives as a plan or a preview first. Apply it, change it, or let it go."
+					},
+					"undo": {
+						"title": "Undo is always one click away.",
+						"body": "Your edits and the AI's, forwards and backwards, as many times as you like."
+					},
+					"browser": {
+						"title": "It lives in your browser.",
+						"body": "Nothing to install. Open Retake, bring a video, start."
+					}
+				}
+			},
+			"dayNight": {
+				"eyebrow": "Day and night",
+				"title": "Edit by lamplight, <em>or by daylight.</em>",
+				"compare": "Compare dark and light theme"
 			}
 		},
 		"howItWorks": {
 			"metaTitle": "How it works",
 			"eyebrow": "How it works",
-			"title": "From recording to finished video",
-			"steps": {
-				"start": {
-					"title": "Start a project",
-					"summary": "Upload a video from your computer.",
-					"body": "Go to New project and choose a video (MP4, WebM or MOV), or drop it on the page. You can type a first change with it, or open it straight on the timeline."
+			"title": "Two paths. <em>Same happy ending.</em>",
+			"paths": "Choose a path",
+			"pathNames": {
+				"ai": "Make it with AI",
+				"hand": "Edit it yourself"
+			},
+			"stepsLabel": "Steps",
+			"ai": {
+				"upload": {
+					"label": "Upload",
+					"title": "Upload a video.",
+					"body": "Drag it in or browse. Retake writes a transcript so it knows what you said."
 				},
-				"read": {
-					"title": "Retake reads it",
-					"summary": "A transcript, and flags for pauses and filler words.",
-					"body": "Retake writes a transcript of what is said. It flags long pauses, filler words like “um”, and stretches of bad audio: distorted, too quiet, or a loud background."
+				"describe": {
+					"label": "Describe",
+					"title": "Say what it should become.",
+					"body": "Type it or speak it: “make this an Instagram reel”, “make it funny”, “make this an ad”."
 				},
-				"ask": {
-					"title": "Say what to change",
-					"summary": "Type or speak. Check it, then apply.",
-					"body": "In the Assistant, type or speak an edit, like “remove the long pauses” or “add a title that says Welcome”. Retake shows what it understood. Nothing changes until you apply it."
+				"review": {
+					"label": "Review",
+					"title": "Read the plan.",
+					"body": "Format, cuts, captions and music, listed step by step. Not right? Change your request in plain words."
 				},
-				"hand": {
-					"title": "Adjust by hand",
-					"summary": "The timeline and the tools.",
-					"body": "Split, trim and reorder clips on the timeline. Use the tools to add text, a logo, captions, transitions and more. Drag text and logos on the video to place them. Undo and redo cover every change."
-				},
-				"rerecord": {
-					"title": "Re-record a sentence",
-					"summary": "Say one line again; it is spliced in.",
-					"body": "Pick a sentence in the transcript and record it again with your microphone. Listen to it in place, then use it. Retake joins it at the pauses around it, or you set the joins by ear."
+				"apply": {
+					"label": "Apply",
+					"title": "Press Apply.",
+					"body": "Only now does the video change. It opens in the editor, where you can keep asking the assistant or use the timeline."
 				},
 				"export": {
-					"title": "Save and export",
-					"summary": "Keep the project, download the video.",
-					"body": "Give the project a name to save it; after that it saves as you work. Export downloads the finished video as a file."
+					"label": "Export",
+					"title": "Download it.",
+					"body": "Tweak anything on the timeline first if you like, then export."
 				}
 			},
-			"description": "From upload to export, this is what happens to your video.",
-			"more": "Read how it works",
-			"privacy": {
-				"title": "What leaves your computer",
-				"browser": {
-					"title": "Your video stays in your browser",
-					"body": "Editing, previews and export run on your computer. Saved projects are kept in this browser. The video file itself is never uploaded."
+			"hand": {
+				"upload": {
+					"label": "Upload",
+					"title": "Upload a video.",
+					"body": "Choose Edit by hand and the editor opens on the transcript and the tools, with the assistant a tab away."
 				},
-				"speech": {
-					"title": "The audio is sent to Deepgram",
-					"body": "To write the transcript and to understand spoken commands, the audio is sent to Deepgram."
+				"tidy": {
+					"label": "Tidy",
+					"title": "Clean it up.",
+					"body": "Long pauses and filler words are flagged. Remove them in one click, or one by one."
 				},
-				"commands": {
-					"title": "Text, and pictures for Make it, are sent to Gemini",
-					"body": "A typed or spoken command is sent as text to Google Gemini to work out the edit. When you find highlights, the transcript's text is sent to Gemini to pick the moments. When you use Make it, the transcript and small pictures taken from the video every 2 seconds are sent to Gemini to plan the edit. The video file itself is not."
+				"shape": {
+					"label": "Shape",
+					"title": "Cut and arrange.",
+					"body": "Split, trim and reorder clips. Said a line wrong? Record that one sentence again and Retake splices it in."
+				},
+				"polish": {
+					"label": "Polish",
+					"title": "Add the finishing touches.",
+					"body": "Titles, captions, a logo, zooms, colour, transitions and music. Or ask the assistant: “zoom here”."
+				},
+				"export": {
+					"label": "Export",
+					"title": "Download it.",
+					"body": "Name the project to keep it in this browser, then export the finished video."
 				}
 			}
 		},
 		"features": {
 			"metaTitle": "Features",
 			"eyebrow": "Features",
-			"title": "What Retake does",
-			"items": {
+			"title": "Everything a good edit needs. <em>Nothing it doesn't.</em>",
+			"sections": {
 				"ai": {
-					"title": "Edit by asking",
-					"summary": "Say what you want. Check what Retake understood, then apply it.",
+					"eyebrow": "Make it with AI",
+					"title": "Say it once. Get a whole edit.",
 					"points": {
-						"0": "Type or speak an edit in plain words.",
-						"1": "Retake shows what it understood. Nothing changes until you apply it.",
-						"2": "Ask for cuts, clean-up, titles, captions, zooms, colour, speed, transitions and more.",
-						"3": "Attach a logo, music or another video in the chat.",
-						"4": "Undo, redo and reset work as commands too.",
-						"5": "Find highlights picks 3 to 5 of the best moments from the transcript. Watch each one and download it as its own video, cropped to 9:16 if you like. It needs a transcript, so videos up to 5 minutes.",
-						"6": "Make it turns a video into a reel, TikTok, Short, ad or a funny or professional edit from one request: it picks the best complete moments (50 to 59 seconds for short videos, opening with the strongest line), cuts dead time, adds captions in a matching style, key lines quoted from the speech, transitions and music, and frames it vertically. A second check reviews the plan against your request before you see it.",
-						"7": "When the picture doesn't carry the video, like a still meeting or an unchanging screen, Make it designs a vertical reel or ad around the speech: a moving background in the request's colours, big title and key-line cards in the speaker's own words, centred captions that react to each word, a progress bar, and the original picture as a small card in the corner, or left out when it shows nothing."
+						"plans": {
+							"title": "Plans the whole edit",
+							"body": "Format, cuts, captions and music from one sentence."
+						},
+						"shows": {
+							"title": "Shows you first",
+							"body": "Read the plan. Not right? Change your request in plain words."
+						},
+						"builds": {
+							"title": "Builds it on Apply",
+							"body": "Then undo is one click away."
+						}
 					}
 				},
-				"timeline": {
-					"title": "Edit on the timeline",
-					"summary": "Clips, picture and sound, by hand.",
+				"hand": {
+					"eyebrow": "Edit it yourself",
+					"title": "A timeline that stays out of your way.",
 					"points": {
-						"0": "Split, merge, reorder, duplicate and delete clips. Trim the start and end.",
-						"1": "Remove long silences and filler words in one click.",
-						"2": "Speed a clip from 0.25× to 4×, with the pitch kept.",
-						"3": "Crop, rotate and flip the picture. Set brightness, contrast and colour for the whole video or one clip.",
-						"4": "Volume, mute and fades per clip, and a lane for music or a voice-over.",
-						"5": "Add more videos to the same project."
+						"tracks": {
+							"title": "Video, text and audio tracks",
+							"body": "Trim, split, merge and reorder."
+						},
+						"finish": {
+							"title": "Captions, zooms, transitions, crop",
+							"body": "The finishing touches, without the fiddling."
+						},
+						"place": {
+							"title": "Text, logo and music",
+							"body": "Put them where you want them."
+						},
+						"assistant": {
+							"title": "An assistant on the timeline",
+							"body": "“zoom here”, “add a caption”."
+						},
+						"rerecord": {
+							"title": "Re-record one sentence",
+							"body": "Say it again and Retake splices it in."
+						}
 					}
 				},
-				"graphics": {
-					"title": "Motion graphics",
-					"summary": "Titles, text and transitions that move.",
+				"tidy": {
+					"eyebrow": "Tidy and share",
+					"title": "Clean it up. Cut it down.",
 					"points": {
-						"0": "A title that slides, fades, pops or comes in word by word. Drag it on the video and resize it.",
-						"1": "Text on the video, with its own font, size, colour and background.",
-						"2": "Captions from the transcript, a line at a time, a word at a time or with the word being said highlighted, and a lower third with a name and subtitle.",
-						"3": "Your logo, placed and sized by hand.",
-						"4": "Push-in and pull-out zooms.",
-						"5": "Fades, dissolves and slides between clips. Boxes, blurs, pixelation and drawings on the picture."
-					}
-				},
-				"rerecord": {
-					"title": "Re-record one sentence",
-					"summary": "Say one line again and Retake splices it in.",
-					"points": {
-						"0": "Pick the sentence in the transcript and record it again.",
-						"1": "Listen to the new take in place before you use it.",
-						"2": "Retake joins it at the pauses around it. Where there is no clear pause, you set the joins by ear.",
-						"3": "The rest of the recording stays as it is, and Undo takes the new take out."
+						"cleanup": {
+							"title": "One-click clean up",
+							"body": "Filler words and long pauses, gone."
+						},
+						"byHand": {
+							"title": "Or remove them by hand",
+							"body": "You choose which ones go."
+						},
+						"highlights": {
+							"title": "Highlights",
+							"body": "Best moments, downloadable in vertical."
+						},
+						"compare": {
+							"title": "Before and after",
+							"body": "Compare your edit with the original."
+						}
 					}
 				}
-			},
-			"description": "Four ways Retake helps you fix a recording.",
-			"more": "See all features"
+			}
 		},
 		"contact": {
 			"metaTitle": "Contact us",
 			"eyebrow": "Contact us",
-			"title": "Talk to us",
-			"description": "Questions, ideas or something not working? Send us a message.",
+			"title": "Say hello. <em>We read everything.</em>",
+			"description": "Questions, ideas or something not working? Retake is in beta, so every message helps.",
+			"reply": "We reply to the email you give",
 			"form": {
+				"name": "Name",
+				"namePlaceholder": "Your name",
 				"email": "Email",
+				"emailPlaceholder": "you@example.com",
+				"topic": "What's it about?",
+				"topics": {
+					"question": "A question",
+					"idea": "Feedback or an idea",
+					"broken": "Something's not working",
+					"other": "Something else"
+				},
 				"message": "Message",
+				"messagePlaceholder": "Tell us what's on your mind",
 				"send": "Send message",
 				"invalid": "Check your email and message, then try again.",
 				"sentTitle": "Message sent",
@@ -1114,38 +1235,50 @@
 		},
 		"login": {
 			"metaTitle": "Log in",
-			"eyebrow": "Welcome",
-			"pitch": "Your recordings, minus the retakes.",
-			"pitchBody": "Log in to start a new project or pick up a saved one.",
-			"modes": "Log in or sign up",
+			"pitch": "Keep the moment. <em>Lose the mess.</em>",
 			"email": "Email",
 			"password": "Password",
 			"passwordHint": "At least 6 characters.",
 			"invalid": "Enter a valid email and a password of at least 6 characters.",
 			"disabled": "Accounts aren’t set up on this copy of Retake, so logging in is off.",
 			"signIn": {
-				"tab": "Log in",
-				"title": "Log in to Retake",
-				"description": "Welcome back.",
-				"submit": "Log in"
+				"title": "Welcome <em>back.</em>",
+				"heading": "Log in to Retake",
+				"description": "Sign in to carry on with your projects.",
+				"submit": "Sign in",
+				"switch": "New to Retake?",
+				"switchLink": "Create an account"
 			},
 			"signUp": {
-				"tab": "Sign up",
-				"title": "Create your account",
+				"title": "Make an <em>account.</em>",
+				"heading": "Create your account",
 				"description": "It takes a few seconds.",
-				"submit": "Create account"
-			}
+				"submit": "Create account",
+				"switch": "Already have an account?",
+				"switchLink": "Sign in"
+			},
+			"pitchEyebrow": "AI video editor · In your browser",
+			"points": {
+				"plan": "Say what you want. Approve the plan before anything changes.",
+				"rerecord": "Fix one sentence by saying it again. No reshoot.",
+				"browser": "Your videos stay in your browser until you export."
+			},
+			"footnote": "Your videos stay in your browser until you choose to export them.",
+			"emailPlaceholder": "you@example.com",
+			"passwordPlaceholder": "Your password",
+			"showPassword": "Show password",
+			"hidePassword": "Hide password",
+			"waveform": "Said again · 0:18"
 		},
 		"home": {
 			"metaTitle": "New project",
-			"title": "What are we fixing today?",
-			"description": "Pick how you want to work. You can switch at any time in the editor.",
+			"title": "What are we <em>making</em> today?",
+			"description": "Two ways in. You can switch between them any time.",
 			"commandLabel": "Command",
 			"placeholder": "What should change first? e.g. “remove the ums and long pauses”",
-			"dropHint": "or drop a video on this card",
+			"dropHint": "or drop a video here",
 			"dropHere": "Drop the video to start",
 			"opening": "Opening {name} in the editor…",
-			"openSaved": "Open a saved project",
 			"examplesLabel": "Try a command",
 			"examples": {
 				"cleanup": "Remove the filler words and long silences",
@@ -1154,33 +1287,43 @@
 				"title": "Add a title that says Welcome",
 				"zoom": "Zoom in slowly from 2 to 5 seconds"
 			},
-			"upload": "Upload & edit",
 			"ai": {
 				"title": "Edit with AI",
-				"body": "Upload a video, then tell Retake what to change in the chat.",
+				"body": "Open a video with the assistant, and a first change waiting for you to apply.",
 				"inputLabel": "Choose a video file",
-				"optional": "Optional — you can also ask in the editor"
+				"upload": "Upload & ask"
 			},
 			"make": {
 				"title": "Make it with AI",
-				"body": "Upload a video and say what it should become: “make this an Instagram reel”, “make it funny”, “make this an ad”. Retake plans the whole edit, and you apply it or not.",
-				"open": "Make it"
+				"badge": "Fastest",
+				"body": "Upload a video and say what it should become. Retake plans the whole edit, shows it to you, and you apply it or not.",
+				"requestLabel": "What should it become?",
+				"placeholder": "Make this an Instagram reel…",
+				"upload": "Upload and describe",
+				"inputLabel": "Video to make into something"
 			},
 			"hand": {
 				"title": "Edit by hand",
-				"body": "Upload a video and open the editor on the timeline, the tools and the transcript. The assistant is a tab away.",
+				"body": "Open the editor with the timeline, the transcript and every tool. The assistant is a tab away.",
 				"inputLabel": "Video to edit by hand",
 				"items": {
 					"cut": "Trim, split and reorder",
 					"picture": "Crop, zoom and colour",
 					"sound": "Volume, fades and speed",
 					"graphics": "Titles, captions and logo"
-				}
+				},
+				"upload": "Upload and edit"
+			},
+			"welcome": "Welcome back",
+			"recent": {
+				"title": "Carry on where you left off",
+				"all": "All projects",
+				"edited": "{when}"
 			}
 		},
 		"projects": {
 			"title": "Saved projects",
-			"description": "Projects saved in this browser. Open one to carry on, or rename, download or delete it.",
+			"description": "Saved in this browser. Open one to carry on, or rename, download or delete it.",
 			"new": "New project",
 			"listLabel": "Saved projects",
 			"edited": "Edited {when}",
@@ -1201,53 +1344,291 @@
 			"deleteBody": "This removes the project and its saved video from this browser. It can’t be undone.",
 			"keep": "Keep it",
 			"deleteYes": "Delete project",
-			"deleteFailed": "Couldn’t delete the project"
+			"deleteFailed": "Couldn’t delete the project",
+			"heading": "Saved <em>projects</em>",
+			"search": "Search projects",
+			"sort": "Sort by",
+			"sortEdited": "Last edited",
+			"sortName": "Name",
+			"count": "{count, plural, one {# project} other {# projects}}",
+			"noMatch": "No project matches “{query}”.",
+			"renameHint": "Enter to save · Esc to cancel"
 		},
 		"faq": {
-			"eyebrow": "FAQ",
-			"title": "Frequently asked questions",
+			"title": "Questions, <em>answered.</em>",
 			"items": {
 				"what": {
-					"question": "What does Retake do?",
-					"answer": "It edits videos you have already recorded. It cuts pauses and filler words, lets you re-record one sentence, adds titles, captions and transitions, and exports the result."
+					"question": "What is Retake?",
+					"answer": "A video editor in your web browser. Describe the video you want and let Retake plan and build it, or edit it yourself on a timeline with an assistant to help."
 				},
-				"byHand": {
-					"question": "Do I have to edit by hand?",
-					"answer": "No. Type or say what you want changed. Retake shows what it understood, and nothing changes until you apply it. You can also do everything by hand on the timeline."
+				"free": {
+					"question": "Is Retake free?",
+					"answer": "Yes. Retake is free while it's in beta, with every feature included."
+				},
+				"asking": {
+					"question": "Will it change my video without asking?",
+					"answer": "No. Every AI edit shows you a plan or a preview first, and nothing changes until you press Apply."
+				},
+				"undo": {
+					"question": "Can I undo an edit?",
+					"answer": "Yes. Undo and redo cover every change, yours and the AI's, and Reset takes you back to the original."
+				},
+				"install": {
+					"question": "Do I need to install anything?",
+					"answer": "No. Retake runs in your web browser. Open it, bring a video and start."
+				},
+				"videos": {
+					"question": "Which videos can I upload?",
+					"answer": "MP4, WebM and MOV files. Transcripts, Make it and highlights work on videos up to 5 minutes."
+				},
+				"vertical": {
+					"question": "Can I make vertical clips?",
+					"answer": "Yes. Make it can turn a video into a vertical reel, TikTok or Short, and highlights can be downloaded cropped to 9:16."
 				},
 				"rerecord": {
-					"question": "How does re-recording a sentence work?",
-					"answer": "Pick the sentence in the transcript and record it again. Retake puts the new take where the old one was. If there is no clear pause around the sentence, you set the joins by ear."
+					"question": "Can I fix one sentence without filming it all again?",
+					"answer": "Yes. Pick the sentence in the transcript and record it again. Retake puts the new take where the old one was. If there is no clear pause around it, you set the joins by ear."
 				},
-				"add": {
-					"question": "What can I add to a video?",
-					"answer": "Titles, text, captions, a lower third, your logo, boxes, blurs, drawings, music or a voice-over, and fades or dissolves between clips."
-				},
-				"privacy": {
-					"question": "Is my video uploaded?",
-					"answer": "No. Editing, previews and export run in your browser. The audio is sent to Deepgram for a transcript. Commands, and the transcript when you find highlights, are sent as text to Google Gemini. Make it also sends Gemini small pictures taken from the video every 2 seconds, with the transcript, to plan the edit; the video file itself is not uploaded."
-				},
-				"saved": {
-					"question": "Where are my projects saved?",
-					"answer": "In your browser. Open them again from Projects, where you can also rename, download or delete them."
-				},
-				"export": {
-					"question": "What do I get when I export?",
-					"answer": "A video file of your edit, with its cuts, graphics, captions and sound."
+				"kept": {
+					"question": "Where are my videos kept?",
+					"answer": "In your browser. Editing, previews and export run on your computer, and saved projects stay in this browser. The audio is sent to Deepgram for a transcript. Commands, and for Make it the transcript and small pictures taken every 2 seconds, are sent to Google Gemini. The video file itself is never uploaded."
 				}
 			}
+		},
+		"closing": {
+			"title": "Your next video <em>starts here.</em>",
+			"body": "Bring something you've already recorded. Free while in beta.",
+			"start": "Start editing free"
+		},
+		"mock": {
+			"address": "retake.app/editor",
+			"makeAddress": "retake.app/make",
+			"project": "Weekend trip",
+			"saved": "Saved",
+			"reset": "Reset",
+			"edited": "Edited",
+			"original": "Original",
+			"search": "Search tools, e.g. blur",
+			"export": "Export",
+			"caption": "the last <hl>ridge</hl> before sunrise",
+			"time": "0:18 / 1:21",
+			"split": "Split",
+			"merge": "Merge",
+			"duplicate": "Duplicate",
+			"delete": "Delete",
+			"drag": "Drag clips to reorder",
+			"clips": "3 clips",
+			"fillers": "12 filler words",
+			"zoom": "Zoom",
+			"lanes": {
+				"video": "Video",
+				"text": "Text",
+				"captions": "Captions",
+				"audio": "Audio"
+			},
+			"clipNames": {
+				"intro": "Intro",
+				"climb": "The climb",
+				"ocean": "The ocean"
+			},
+			"texts": {
+				"title": "Golden hour in the hills",
+				"day": "Day one · the ridge",
+				"light": "Look at that light"
+			},
+			"captionsLane": "Word by word · from the transcript",
+			"music": "soft-morning.mp3",
+			"assistant": {
+				"ask": "Zoom in slowly from 2 to 5 seconds",
+				"heading": "Here's what I'll do",
+				"plan": "Push in to 130% from 0:02 to 0:05, on the whole picture.",
+				"note": "You'll see it on the Zoom track. Undo takes it back.",
+				"cancel": "Cancel",
+				"apply": "Apply changes",
+				"suggestions": {
+					"0": "Make it brighter",
+					"1": "Add a title",
+					"2": "Cut the last 3 seconds"
+				},
+				"placeholder": "Ask for an edit, e.g. “cut from 2 to 5 seconds”",
+				"zoomTag": "Zoom 130% · 0:02 – 0:05"
+			},
+			"cleanup": {
+				"pauses": "Long pauses",
+				"fillers": "Filler words with a clear gap",
+				"saves": "Saves about 7 seconds.",
+				"remove": "Remove pauses and filler words",
+				"note": "One click removes them all. Undo puts them back.",
+				"review": "Review them one by one",
+				"cut": "Cut “uh” at 0:36"
+			},
+			"transcript": {
+				"lines": {
+					"0": "We left before it was light.",
+					"1": "Um, the plan was to reach the ridge by six.",
+					"2": "And then, uh, the sun came up over the hills.",
+					"3": "That's the last ridge before sunrise."
+				}
+			},
+			"highlights": {
+				"found": "3 highlights found",
+				"items": {
+					"0": "The ridge at sunrise",
+					"1": "Reaching the top",
+					"2": "Look at that light"
+				},
+				"download": "Download",
+				"vertical": "Crop to 9:16"
+			},
+			"plan": {
+				"steps": {
+					"0": "Upload & describe",
+					"1": "Retake plans it",
+					"2": "Review, then apply"
+				},
+				"preview": "Preview",
+				"previewNote": "A preview of the plan. Nothing is changed yet.",
+				"label": "The plan",
+				"notApplied": "Not applied yet",
+				"title": "An Instagram Reel, about 31 seconds",
+				"summary": "Keeps the sunrise, the top of the ridge and your best lines. Cuts the setup and the waiting.",
+				"rows": {
+					"length": {
+						"label": "Length",
+						"value": "4:41 → 0:31",
+						"note": "9 of 79 sentences kept"
+					},
+					"shape": {
+						"label": "Shape",
+						"value": "Vertical 9:16",
+						"note": "The whole picture kept"
+					},
+					"captions": {
+						"label": "Captions",
+						"value": "One big word at a time",
+						"note": "From what you say"
+					},
+					"screen": {
+						"label": "On screen",
+						"value": "A title and 2 key lines",
+						"note": "In your own words"
+					},
+					"motion": {
+						"label": "Motion",
+						"value": "1 slow zoom, 3 zoom cuts",
+						"note": "Where parts were cut"
+					},
+					"music": {
+						"label": "Music",
+						"value": "Soft music",
+						"note": "From your music folder"
+					}
+				},
+				"checked": "Checked against your request",
+				"checkedBody": "Under 60 seconds, as reels, TikToks and Shorts need.",
+				"apply": "Apply and open",
+				"change": "Change my request",
+				"cancel": "Cancel",
+				"titleCard": "Golden hour <em>in the hills</em>",
+				"word": "RIDGE"
+			}
+		},
+		"pricing": {
+			"metaTitle": "Pricing",
+			"eyebrow": "Pricing",
+			"title": "Free, <em>while in beta.</em>",
+			"description": "Every feature, no catch. We're building Retake with the people who use it.",
+			"plan": "Beta",
+			"price": "Free",
+			"start": "Start editing free",
+			"included": "Included",
+			"features": {
+				"0": "Make it with AI, plan first",
+				"1": "Timeline for video, text and audio",
+				"2": "Assistant for quick commands",
+				"3": "One-click clean up",
+				"4": "Captions, zooms, transitions, crop",
+				"5": "Highlights in vertical",
+				"6": "Undo, redo and before/after",
+				"7": "Dark and light themes"
+			},
+			"after": {
+				"title": "What about after beta?",
+				"body": "Pricing after beta hasn't been decided. This page will say so clearly before anything changes."
+			},
+			"limits": {
+				"title": "Any limits during beta?",
+				"body": "Transcripts, Make it and highlights work on videos up to 5 minutes. Projects are saved in your browser, so how many you keep depends on its storage."
+			}
+		},
+		"privacy": {
+			"metaTitle": "Privacy",
+			"eyebrow": "Privacy",
+			"title": "Your videos, <em>your call.</em>",
+			"updated": "Privacy policy · Last updated: 8 October 2026",
+			"description": "What Retake collects when you use it, why, and the choices you have, in plain language.",
+			"sections": {
+				"who": {
+					"title": "Who we are",
+					"items": {
+						"0": "Retake is a video editor for the web, in beta. Questions about this policy reach us through the contact page."
+					}
+				},
+				"collect": {
+					"title": "What we collect",
+					"items": {
+						"0": "<b>Account details:</b> your email address, and your password, kept by our sign-in service (Supabase).",
+						"1": "<b>Your videos:</b> they stay on your computer. Editing, previews and export run in your browser, and saved projects, with their video, are kept in this browser, not on our servers.",
+						"2": "<b>Usage information:</b> which pages are visited and what is clicked (PostHog), and reports of errors so we can fix them (Sentry). Never your videos.",
+						"3": "<b>Messages:</b> what you send through the contact page, with your name and email, so we can reply."
+					}
+				},
+				"use": {
+					"title": "How we use it",
+					"items": {
+						"0": "To run Retake for you: transcribe your videos, find filler words and pauses, plan and apply the edits you approve, find highlights, and answer your messages."
+					}
+				},
+				"ai": {
+					"title": "AI and other services",
+					"items": {
+						"0": "<b>Deepgram</b> receives a video's audio, to write the transcript and to understand spoken commands.",
+						"1": "<b>Google Gemini</b> receives typed or spoken commands as text, the transcript's text when you find highlights, and for Make it the transcript and small pictures taken from the video every 2 seconds, to plan the edit.",
+						"2": "The video file itself is never uploaded."
+					}
+				},
+				"keep": {
+					"title": "How long we keep it",
+					"items": {
+						"0": "Projects stay in your browser until you delete them or clear the browser's data. We don't keep your videos, audio or transcripts on our servers. Your account and the messages you send are kept until you ask us to delete them."
+					}
+				},
+				"choices": {
+					"title": "Your choices",
+					"items": {
+						"0": "You can delete any project at any time from Projects, which removes it and its video from this browser. To delete your account or a message you sent, write to us through the contact page."
+					}
+				},
+				"changes": {
+					"title": "Changes",
+					"items": {
+						"0": "If this policy changes, we will update the date above."
+					}
+				}
+			},
+			"questions": "Questions about your privacy? <link>Write to us.</link>"
 		}
 	},
 	"Make": {
 		"metaTitle": "Make it with AI",
-		"title": "Make it with AI",
+		"title": "Make it with <em>AI</em>",
 		"description": "Upload a video and say what it should become. Retake plans the whole edit and shows it to you before anything changes.",
 		"videoLabel": "Video to make into something",
 		"dropHint": "Drop a video here",
 		"chooseVideo": "Choose a video",
 		"changeVideo": "Choose another video",
 		"requestLabel": "What should it become?",
-		"placeholder": "e.g. “make this an Instagram reel”",
+		"placeholder": "Make this an Instagram reel",
 		"examples": {
 			"reel": "Make this an Instagram reel",
 			"funny": "Make it funny",
@@ -1334,7 +1715,14 @@
 				"ok": "Checked against your request: nothing to fix.",
 				"fixed": "Checked against your request, and fixed:",
 				"failed": "The second check couldn’t run, so this is the plan as first made."
-			}
+			},
+			"notApplied": "Not applied yet"
+		},
+		"startFrom": "Or start from",
+		"stages": {
+			"upload": "Upload & describe",
+			"plans": "Retake plans it",
+			"review": "Review, then apply"
 		}
 	}
 }
