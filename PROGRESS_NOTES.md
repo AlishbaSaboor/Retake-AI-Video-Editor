@@ -7,6 +7,12 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-08.
+> - **App screens, UI only** (section 3zj): the app home has two ways in
+>   (Make it with AI, Edit manually; the "Edit with AI" row is gone, the
+>   owner's decision). Make it is a chat beside the video once asked; Apply
+>   opens the edited video with only the chat ("Edit with AI" view), and
+>   "Edit manually" (on the plan, or in the editor's top bar) opens the full
+>   editor on the same edit.
 > - **Redesign to the owner's design files** (section 3zi): the whole site
 >   and app re-skinned to `design/landing.html` and `design/app.html` (night
 >   blue and violet, Instrument Serif + Manrope, glass pill bar); new
@@ -2611,6 +2617,32 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
   toggle, phone overflow), `home.spec`, `make-it.spec` (Home hands its video
   to Make it), `auth.setup` (Sign in button). Light background checked at
   `rgb(247, 246, 253)`.
+
+## 3zj. App screens: two ways in, Make it as a chat, the chat-only view (2026-10-08)
+
+- **Home:** the "Edit with AI" row (a command typed on Home, waiting in the
+  editor) is removed, the owner's decision. "Edit by hand" is now "Edit
+  manually"; nothing else on Home changed.
+- **Make it:** the form shows the attached video as the design's attachment
+  row (a still from it, its length, `720p · 12 MB · ready`, Replace) and a
+  paperclip beside the mic. Once Make it is pressed, the page is a chat on
+  the left (Retake AI, the request, then the progress, questions or the plan)
+  beside the picked video on the right. The plan has Apply, Edit manually and
+  Cancel.
+- **The editor from Make it:** Apply hands the plan over as before plus
+  `studio` (the request, the plan's lines, the lengths). The editor then
+  opens on the edited video with only the chat on the left (the tool rail
+  hidden, not removed, so nothing in its panels is lost) and no timeline; an
+  "Edit with AI / Edit manually" switch in the top bar and a "Want finer
+  control?" card open the full editor on the same edit and history. Edit
+  manually on the plan opens the full editor straight away (as "Edit
+  manually" on Home does: on the transcript). The plan, the edit and the
+  history are exactly as before; only what's shown differs.
+- **Tests:** e2e `home` (two ways in; the command test removed with its
+  feature; the saved-projects test uploads through Edit manually),
+  `make-it` (after Apply, the existing checks go on in the full editor via
+  the switch; new: the chat and the chat-only view and back, and Edit
+  manually from the plan). Full suite 113/113 locally on a production build.
 
 ---
 

@@ -11,13 +11,26 @@ import type { Transcript } from './transcript'
  * `byHand`: started from "Edit by hand", so the editor opens on the
  * transcript, not the assistant. `edit`: Make it's plan, applied as one
  * undo step over the untouched video; `transcript` saves a second one.
+ * `studio`: open on the edited video and the chat only (the full editor is
+ * a click away).
  */
+/** What Make it applied, shown over the chat when the editor opens on it. */
+export type MadeWith = {
+	request: string
+	/** The plan in plain words, a line each, as the Make it page showed it. */
+	lines: string[]
+	editedSeconds: number
+	originalSeconds: number
+}
+
 export type EditorStart = {
 	file: File
 	command: string | null
 	byHand?: boolean
 	transcript?: Transcript | null
 	edit?: EditSnapshot
+	/** Make it's Apply: open on the edited video with only the chat beside it. */
+	studio?: MadeWith
 }
 
 let pending: EditorStart | null = null

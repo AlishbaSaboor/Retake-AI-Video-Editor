@@ -50,7 +50,8 @@ import { AnnotatePanel, TextLogoPanel, type MarkKind, type Picked } from './on-v
 import { TitleBox } from './title-box'
 import { ToolRail, type Tool } from './tool-rail'
 import { ProjectTitle } from './project-title'
-import { takeStart } from './editor-start'
+import { takeStart, type MadeWith } from './editor-start'
+import { MadeWithIntro, ModeSwitch, StudioCards } from './studio'
 import type { CommandContext, CommandPlan, TextTarget } from './edit-command'
 import { isOriginalEdit, ORIGINAL_EDIT, type EditSnapshot } from './edit-snapshot'
 import { ExportButton, useVideoExport } from './export-button'
@@ -218,6 +219,9 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	const [video, setVideo] = useState<LoadedVideo | null>(null)
 	// The command brought from the home page, asked once the video is ready.
 	const [startCommand, setStartCommand] = useState<string | null>(null)
+	// Opened from Make it's Apply: what it made, and whether only the chat shows.
+	const [made, setMade] = useState<MadeWith | null>(null)
+	const [studio, setStudio] = useState(false)
 	const [durationSeconds, setDurationSeconds] = useState(0)
 	const [currentTimeSeconds, setCurrentTimeSeconds] = useState(0)
 	// Which segment playback is in: a source time can end one and start another.
@@ -1682,12 +1686,25 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		}
 		setStartCommand(start.command)
 		if (start.byHand) setOpenTool('transcript')
+		if (start.studio) {
+			setMade(start.studio)
+			setStudio(true)
+		}
 	})
 	// After mount, as the opening of a project or a picked file would be: from
 	// a callback, not inside the effect's own render pass.
 	useEffect(() => {
 		void Promise.resolve().then(begin)
 	}, [])
+
+	/** The chat-only view, or the full editor; the project and its edit are the same either way. */
+	function chooseStudio(next: boolean) {
+		setStudio(next)
+		setShowOriginal(false)
+		// The chat is the panel either way; the full editor keeps it open, its tools a click away.
+		setOpenTool('assistant')
+		setSideOpen('panels', true)
+	}
 
 	const canEdit = !showOriginal
 	// What's picked, only while it's still there (an undo can take it away).
@@ -2241,7 +2258,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 								onRedo={redoEdit}
 								onReset={resetEdit}
 							/>
-							<CompareToggle showOriginal={showOriginal} onChange={setShowOriginal} />
+							{made && <ModeSwitch studio={studio} onChange={chooseStudio} />}
+							{!studio && <CompareToggle showOriginal={showOriginal} onChange={setShowOriginal} />}
 						</>
 					) : null
 				}
@@ -2253,6 +2271,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 							open={openTool}
 							onOpen={setOpenTool}
 							disabledNote={showOriginal ? t('original.toolsNote') : null}
+							chatOnly={studio && made ? <MadeWithIntro made={made} /> : null}
 						/>
 					) : null
 				}
@@ -2284,7 +2303,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 										{t('original.switch')}
 									</button>
 								</div>
-							) : (
+							) : studio ? null : (
 								<div className="flex flex-wrap items-start justify-center gap-2">
 									<div
 										role="toolbar"
@@ -2621,7 +2640,14 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 						)}
 					</ReRecordPanel>
 				)}
-				{video && hasDuration && (
+				{video && hasDuration && studio && made && (
+					<StudioCards
+						made={made}
+						editedSeconds={editedSeconds}
+						onManual={() => chooseStudio(false)}
+					/>
+				)}
+				{video && hasDuration && !studio && (
 					<EditorTimeline
 						view={showOriginal ? 'original' : 'edited'}
 						takeSeconds={durationSeconds}
