@@ -1,95 +1,67 @@
 import { getTranslations } from 'next-intl/server'
-import { Button } from '@/components/ui/button'
-import { HomeIcon, MenuIcon, ProjectsIcon, SignInIcon } from '@/components/ui/icons'
+import { MenuIcon } from '@/components/ui/icons'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Link } from '@/i18n/routing'
-import { cn } from '@/lib/cn'
-import { currentUser } from '@/server/auth/session'
 import { Logo } from './logo'
 import { MobileMenu } from './mobile-menu'
-import { SignOutButton } from './sign-out-button'
+import { NavLinks } from './nav-links'
 
 const PUBLIC_LINKS = [
-	{ href: '/how-it-works', key: 'howItWorks' },
 	{ href: '/features', key: 'features' },
+	{ href: '/how-it-works', key: 'howItWorks' },
+	{ href: '/pricing', key: 'pricing' },
 	{ href: '/contact', key: 'contact' }
 ] as const
 
-const navLink =
-	'text-text-muted hover:text-text hover:bg-surface-hover focus-visible:outline-accent inline-flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-2'
-
 /**
- * The top bar on every page. Signed-out visitors see the site's pages and
- * Sign in; signed-in ones only the app's (a new project, saved projects)
- * and Sign out. The theme switch is in both. `wide`: full width.
+ * The public pages' top bar: a floating glass pill with the logo, the
+ * site's pages (the one you're on marked with a dot), the theme switch and
+ * Open Retake, which takes you into the app (via logging in, when accounts
+ * are on). On a phone the pages fold into a menu.
  */
-export async function SiteHeader({ app = false, wide = false }: { app?: boolean; wide?: boolean }) {
+export async function SiteHeader() {
 	const t = await getTranslations('Site.nav')
-	const user = await currentUser()
-	const appLinks = [
-		{ href: '/home', key: 'newProject', icon: <HomeIcon /> },
-		{ href: '/projects', key: 'projects', icon: <ProjectsIcon /> }
-	] as const
-	const signedIn = app || user !== null
-	const links = signedIn
-		? appLinks.map(({ href, key, icon }) => (
-				<Link key={href} href={href} className={navLink}>
-					{icon}
-					{t(key)}
-				</Link>
-			))
-		: PUBLIC_LINKS.map(({ href, key }) => (
-				<Link key={href} href={href} className={navLink}>
-					{t(key)}
-				</Link>
-			))
-	const account = user ? (
-		<SignOutButton email={user.email} />
-	) : (
-		<Button asChild size="sm">
-			<Link href="/login">
-				<SignInIcon />
-				{t('signIn')}
-			</Link>
-		</Button>
-	)
-
-	return (
-		<header
-			className={cn(
-				'border-border bg-bg/85 sticky top-0 z-40 border-b backdrop-blur-md',
-				wide && 'static backdrop-blur-none'
-			)}
+	const items = PUBLIC_LINKS.map(({ href, key }) => ({ href, label: t(key) }))
+	const open = (
+		<Link
+			href="/home"
+			className="rt-btn bg-contrast text-contrast-ink focus-visible:outline-accent inline-flex h-11 shrink-0 items-center rounded-full px-5 text-[15px] font-bold focus-visible:outline-2 focus-visible:outline-offset-2"
 		>
-			<div
-				className={cn(
-					'mx-auto flex h-14 items-center gap-2 px-4',
-					wide ? 'max-w-none' : 'max-w-6xl md:px-6'
-				)}
-			>
-				<Logo href={user ? '/home' : '/'} className="mr-4" />
-				<nav aria-label={t('label')} className="hidden items-center gap-1 md:flex">
-					{links}
+			{t('open')}
+		</Link>
+	)
+	return (
+		<header className="sticky top-0 z-40 px-[clamp(12px,3vw,32px)] pt-3.5">
+			<div className="border-glass-border bg-glass mx-auto flex h-[62px] max-w-[1188px] items-center gap-2 rounded-full border py-2 pr-2 pl-[18px] backdrop-blur-[20px] backdrop-saturate-[1.4]">
+				<Logo />
+				<nav
+					aria-label={t('label')}
+					className="hidden flex-1 items-center justify-center gap-1 md:flex"
+				>
+					<NavLinks items={items} variant="site" />
 				</nav>
-				<div className="ml-auto flex items-center gap-2">
-					<ThemeToggle />
-					<div className="hidden md:block">{account}</div>
+				<div className="ml-auto flex items-center gap-2 md:ml-0">
+					<ThemeToggle variant="site" className="hidden sm:inline-flex" />
+					<span className="hidden sm:inline-flex">{open}</span>
 					<MobileMenu
 						summary={
 							<summary
 								aria-label={t('menu')}
-								className="border-border bg-surface text-text hover:bg-surface-hover flex size-9 cursor-pointer list-none items-center justify-center rounded-lg border [&::-webkit-details-marker]:hidden"
+								className="bg-surface-hover text-text flex size-11 cursor-pointer list-none items-center justify-center rounded-full [&::-webkit-details-marker]:hidden"
 							>
-								<MenuIcon size={18} />
+								<MenuIcon size={20} />
 							</summary>
 						}
 					>
 						<nav
 							aria-label={t('label')}
-							className="border-border bg-surface absolute right-0 mt-2 flex w-56 flex-col gap-1 rounded-lg border p-2 shadow-xl"
+							className="border-glass-border bg-surface absolute right-0 mt-3 flex w-64 flex-col gap-1 rounded-3xl border p-2 shadow-(--shadow-card)"
 						>
-							{links}
-							<div className="border-border mt-1 border-t pt-2">{account}</div>
+							<NavLinks items={items} variant="menu" />
+							<div className="border-border mt-1 flex items-center justify-between gap-2 border-t px-1 pt-3 pb-1">
+								<ThemeToggle variant="site" />
+								{open}
+							</div>
 						</nav>
 					</MobileMenu>
 				</div>

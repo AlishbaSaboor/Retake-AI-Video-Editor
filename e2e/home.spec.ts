@@ -8,7 +8,7 @@ test('a project starts on the home page: a command and a video open the editor, 
 }) => {
 	await mockActions(page, { words: [], command: editCommand({ action: 'captions_on' }) })
 	await page.goto('/home')
-	await expect(page.getByRole('heading', { name: 'What are we fixing today?' })).toBeVisible()
+	await expect(page.getByRole('heading', { name: 'What are we making today?' })).toBeVisible()
 	// An example fills the box; nothing is sent yet.
 	await page.getByRole('button', { name: 'Turn captions on' }).click()
 	await expect(page.getByRole('textbox', { name: 'Command' })).toHaveValue('Turn captions on')
@@ -42,7 +42,7 @@ test('editing by hand opens the editor on the tools and the transcript, the assi
 	await page.goto('/home')
 	const byHand = page.getByRole('region', { name: 'Edit by hand' })
 	await expect(page.getByRole('region', { name: 'Edit with AI' })).toBeVisible()
-	await expect(byHand.getByRole('button', { name: 'Upload & edit' })).toBeVisible()
+	await expect(byHand.getByRole('button', { name: 'Upload and edit' })).toBeVisible()
 	const video = await recordTestVideo(page)
 	await page
 		.getByLabel('Video to edit by hand')
@@ -139,12 +139,13 @@ test('saved projects are listed with a picture, a name and a date, and open in t
 	await expect(page.getByText('No saved projects yet')).toBeVisible()
 })
 
-test('signed in, the footer offers a new project, not logging in again', async ({ page }) => {
+test('signed in, Open Retake on the public pages goes straight to a new project', async ({
+	page
+}) => {
 	await page.goto('/features')
-	const signedIn = await page.getByRole('button', { name: 'Sign out' }).isVisible()
-	test.skip(!signedIn, 'accounts are off here (no Supabase): nobody is signed in')
-	const footer = page.getByRole('navigation', { name: 'Footer' })
-	await expect(footer.getByRole('link', { name: 'Sign in' })).toHaveCount(0)
-	await footer.getByRole('link', { name: 'New project' }).click()
+	await page.getByRole('banner').getByRole('link', { name: 'Open Retake' }).first().click()
 	await expect(page).toHaveURL(/\/home$/, { timeout: 30_000 })
+	await expect(
+		page.getByRole('heading', { level: 1, name: 'What are we making today?' })
+	).toBeVisible()
 })

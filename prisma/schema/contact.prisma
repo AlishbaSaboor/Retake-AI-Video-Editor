@@ -4,7 +4,7 @@
 // not, so no user is attached.
 model ContactMessage {
 	id        String   @id @default(cuid())
-	/// Only on messages sent before the form dropped its Name field.
+	/// Optional on the form; null when left empty.
 	name      String?
 	email     String
 	message   String
