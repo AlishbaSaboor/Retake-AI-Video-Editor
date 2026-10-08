@@ -8,7 +8,6 @@ import {
 	ImageIcon,
 	ManualIcon,
 	SoundIcon,
-	SparkleIcon,
 	SpinnerIcon,
 	SplitIcon,
 	TextIcon,
@@ -21,7 +20,6 @@ import { useRouter } from '@/i18n/routing'
 import { cn } from '@/lib/cn'
 import { handOffMake } from '../make/make-start'
 
-const EXAMPLES = ['cleanup', 'captions', 'trim', 'title', 'zoom'] as const
 /** Make it's starting points, each with its dot's colour. */
 const MAKE_EXAMPLES = [
 	{ key: 'reel', dot: 'bg-brand-violet' },
@@ -37,7 +35,7 @@ const HAND_TOOLS = [
 	{ key: 'graphics', icon: TextIcon }
 ] as const
 
-type Way = 'make' | 'hand' | 'ai'
+type Way = 'make' | 'hand'
 
 const chip =
 	'border-border text-text-muted hover:border-border-strong hover:text-text focus-visible:outline-accent inline-flex items-center gap-2 rounded-full border px-[11px] py-1.5 text-[12.5px] font-bold transition-colors focus-visible:outline-2'
@@ -45,16 +43,13 @@ const chip =
 /**
  * Where a project starts. Two ways in, side by side: Make it with AI (the
  * video and what it should become go to the Make it page, which plans the
- * whole edit) and Edit by hand (straight to the tools and the timeline).
- * Under them, a third: open the video with the assistant and a first change
- * waiting for Apply.
+ * whole edit) and Edit manually (straight to the tools and the timeline).
  */
 export function StartBox() {
 	const t = useTranslations('Site.home')
 	const examples = useTranslations('Make.examples')
 	const router = useRouter()
 	const [request, setRequest] = useState('')
-	const [command, setCommand] = useState('')
 	const [opening, setOpening] = useState<{ way: Way; name: string } | null>(null)
 
 	function start(file: File, way: Way) {
@@ -66,11 +61,7 @@ export function StartBox() {
 		}
 		// The editor remembers whether its panels are hidden: both ways start with them shown.
 		setSideOpen('panels', true)
-		handOffStart({
-			file,
-			command: way === 'ai' ? command.trim() || null : null,
-			byHand: way === 'hand'
-		})
+		handOffStart({ file, command: null, byHand: true })
 		router.push('/editor')
 	}
 
@@ -177,61 +168,6 @@ export function StartBox() {
 					/>
 				</DropCard>
 			</div>
-			<DropCard
-				way="ai"
-				onFile={(file) => start(file, 'ai')}
-				className="border-glass-border bg-glass rounded-[24px] border p-6 lg:flex-row lg:items-start lg:gap-6"
-			>
-				<div className="flex flex-col gap-2 lg:w-[300px] lg:shrink-0">
-					<div className="text-accent-fg flex items-center gap-2">
-						<SparkleIcon size={18} />
-						<h2 id="start-ai" className="text-text text-lg font-extrabold">
-							{t('ai.title')}
-						</h2>
-					</div>
-					<p className="text-text-muted text-sm leading-relaxed">{t('ai.body')}</p>
-				</div>
-				<div className="flex flex-1 flex-col gap-3">
-					<div className="border-border-strong bg-surface-inset focus-within:border-accent/60 focus-within:ring-accent-soft flex items-start gap-2 rounded-[14px] border px-3 py-2.5 transition-shadow focus-within:ring-4">
-						<textarea
-							value={command}
-							onChange={(event) => setCommand(event.target.value)}
-							rows={1}
-							aria-label={t('commandLabel')}
-							placeholder={t('placeholder')}
-							disabled={opening !== null}
-							className="text-text placeholder:text-text-faint field-sizing-content min-h-7 w-full flex-1 resize-none bg-transparent text-sm focus-visible:outline-none"
-						/>
-						<VoiceCommandButton
-							disabled={opening !== null}
-							onText={(text) =>
-								setCommand((typed) => (typed.trim() ? `${typed.trim()} ${text}` : text))
-							}
-						/>
-					</div>
-					<ul aria-label={t('examplesLabel')} className="flex flex-wrap gap-1.5">
-						{EXAMPLES.map((example) => (
-							<li key={example}>
-								<button
-									type="button"
-									onClick={() => setCommand(t(`examples.${example}`))}
-									className={chip}
-								>
-									{t(`examples.${example}`)}
-								</button>
-							</li>
-						))}
-					</ul>
-				</div>
-				<Upload
-					label={t('ai.inputLabel')}
-					text={t('ai.upload')}
-					variant="outline"
-					busy={opening?.way === 'ai'}
-					disabled={opening !== null}
-					onFile={(file) => start(file, 'ai')}
-				/>
-			</DropCard>
 			{opening && (
 				<p role="status" className="text-text-muted flex items-center justify-center gap-2 text-sm">
 					<SpinnerIcon />
@@ -316,8 +252,8 @@ function Upload({
 }: {
 	label: string
 	text: string
-	hint?: string
-	variant?: 'primary' | 'contrast' | 'outline'
+	hint: string
+	variant?: 'primary' | 'contrast'
 	busy: boolean
 	disabled: boolean
 	onFile: (file: File) => void
@@ -336,7 +272,7 @@ function Upload({
 				{busy ? <SpinnerIcon /> : <UploadIcon size={18} />}
 				{text}
 			</Button>
-			{hint && <span className="text-text-faint text-[13px]">{hint}</span>}
+			<span className="text-text-faint text-[13px]">{hint}</span>
 			<input
 				ref={inputRef}
 				type="file"

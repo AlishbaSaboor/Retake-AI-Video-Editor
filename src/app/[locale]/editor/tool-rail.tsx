@@ -64,7 +64,8 @@ export function ToolRail({
 	tools,
 	open,
 	onOpen,
-	disabledNote = null
+	disabledNote = null,
+	chatOnly = null
 }: {
 	tools: Tool[]
 	/** The open tool's id. */
@@ -72,6 +73,12 @@ export function ToolRail({
 	onOpen: (id: string) => void
 	/** Why nothing in the panels can be changed right now (the Original view); null when it can. */
 	disabledNote?: string | null
+	/**
+	 * Show only the open tool's panel (the chat), under this instead of the
+	 * tool's heading and the search. The other tools stay mounted, hidden,
+	 * so nothing in them is lost when the whole rail comes back.
+	 */
+	chatOnly?: React.ReactNode | null
 }) {
 	const t = useTranslations('Editor.tools')
 	const [query, setQuery] = useState('')
@@ -89,6 +96,7 @@ export function ToolRail({
 		<section aria-label={t('label')} className="flex h-full min-h-0 max-lg:flex-col">
 			<div
 				role="tablist"
+				hidden={chatOnly !== null}
 				aria-label={t('tabsLabel')}
 				aria-orientation="vertical"
 				className="border-border flex min-h-0 w-[4.5rem] shrink-0 flex-col gap-0.5 overflow-y-auto border-r px-1 py-2 max-lg:w-full max-lg:flex-row max-lg:overflow-x-auto max-lg:border-r-0 max-lg:border-b"
@@ -146,9 +154,13 @@ export function ToolRail({
 				id="tool-panel"
 				role="tabpanel"
 				aria-labelledby={tool ? `tool-tab-${tool.id}` : undefined}
-				className="border-border flex min-h-0 w-[min(21rem,calc(100vw-5rem))] shrink-0 flex-col border-r max-lg:w-full max-lg:border-r-0"
+				className={cn(
+					'border-border flex min-h-0 shrink-0 flex-col border-r max-lg:w-full max-lg:border-r-0',
+					chatOnly === null ? 'w-[min(21rem,calc(100vw-5rem))]' : 'w-[min(26rem,100vw)]'
+				)}
 			>
-				<div className="flex flex-col gap-3 px-5 pt-5 pb-4">
+				{chatOnly}
+				<div hidden={chatOnly !== null} className="flex flex-col gap-3 px-5 pt-5 pb-4">
 					<div className="flex flex-col gap-0.5">
 						<h2 className="text-text text-[15px] font-semibold">{tool?.label}</h2>
 						<p className="text-text-faint text-xs leading-snug">{tool?.help}</p>

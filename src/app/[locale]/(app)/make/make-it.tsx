@@ -7,12 +7,13 @@ import { Button } from '@/components/ui/button'
 import {
 	AiIcon,
 	ArrowRightIcon,
+	AttachIcon,
+	ManualIcon,
 	CheckIcon,
 	LockIcon,
 	SparkleIcon,
 	SpinnerIcon,
-	UploadIcon,
-	VideoIcon
+	UploadIcon
 } from '@/components/ui/icons'
 import { handOffStart } from '@/app/[locale]/editor/editor-start'
 import { setSideOpen } from '@/app/[locale]/editor/editor-layout-store'
@@ -248,10 +249,28 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 		setAsk({ request: request.trim(), answers })
 	}
 
-	function apply() {
-		if (!video || plan.data?.kind !== 'plan') return
+	/**
+	 * Opens the plan in the editor, as one undoable step: with only the chat
+	 * beside the video (Apply), or straight into the full editor (Edit manually).
+	 */
+	function apply(lines: string[], manual: boolean) {
+		if (!video || !ask || plan.data?.kind !== 'plan') return
 		setSideOpen('panels', true)
-		handOffStart({ file: video.file, command: null, transcript, edit: plan.data.edit })
+		handOffStart({
+			file: video.file,
+			command: null,
+			transcript,
+			edit: plan.data.edit,
+			byHand: manual,
+			studio: manual
+				? undefined
+				: {
+						request: ask.request,
+						lines,
+						editedSeconds: plan.data.summary.editedSeconds,
+						originalSeconds: plan.data.summary.originalSeconds
+					}
+		})
 		router.push('/editor')
 	}
 
@@ -275,13 +294,24 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 				: t('steps.planning')
 
 	/** The page around each stage: where it is in the three steps, the heading, then the stage. */
-	const frame = (stage: Stage, content: React.ReactNode) => (
-		<div className="flex flex-col items-center gap-8">
-			<Steps stage={stage} />
-			{heading}
-			<div className="w-full">{content}</div>
-		</div>
-	)
+	const frame = (stage: Stage, content: React.ReactNode) =>
+		stage === 1 && !ask ? (
+			<div className="flex flex-col items-center gap-8">
+				<Steps stage={stage} />
+				{heading}
+				<div className="w-full">{content}</div>
+			</div>
+		) : (
+			// Once asked: the conversation on the left, the video on the right.
+			<div className="flex flex-col gap-6">
+				<Steps stage={stage} />
+				<div className="sr-only">{heading}</div>
+				<div className="grid items-start gap-5 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
+					<Chat request={ask?.request ?? request.trim()}>{content}</Chat>
+					<VideoPane video={video} />
+				</div>
+			</div>
+		)
 
 	if (ask && failed) {
 		return frame(
@@ -321,7 +351,8 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 			<PlanView
 				summary={plan.data.summary}
 				problems={plan.data.problems}
-				onApply={apply}
+				onApply={(lines) => apply(lines, false)}
+				onManual={(lines) => apply(lines, true)}
 				onCancel={() => setAsk(null)}
 			/>
 		)
@@ -383,18 +414,11 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 					)}
 				>
 					{file ? (
-						<div className="bg-surface-hover flex flex-wrap items-center gap-4 rounded-[18px] p-3.5">
-							<span className="bg-night text-accent-fg flex h-14 w-24 shrink-0 items-center justify-center rounded-xl">
-								<VideoIcon size={24} />
-							</span>
-							<span className="text-text min-w-0 flex-1 truncate text-[15px] font-extrabold">
-								{file.name}
-							</span>
-							<Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>
-								<UploadIcon />
-								{t('changeVideo')}
-							</Button>
-						</div>
+						<AttachedVideo
+							key={`${file.name}|${file.size}|${file.lastModified}`}
+							file={file}
+							onReplace={() => inputRef.current?.click()}
+						/>
 					) : (
 						<button
 							type="button"
@@ -440,6 +464,15 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 						className="text-text placeholder:text-text-faint -mt-2 w-full resize-none bg-transparent px-1 text-[22px] font-semibold focus-visible:outline-none"
 					/>
 					<div className="flex items-center gap-2">
+						<button
+							type="button"
+							aria-label={t('attach')}
+							title={t('attach')}
+							onClick={() => inputRef.current?.click()}
+							className="border-border-strong text-text-muted hover:text-text hover:bg-surface-hover focus-visible:outline-accent flex size-10 items-center justify-center rounded-[12px] border transition-colors focus-visible:outline-2"
+						>
+							<AttachIcon size={17} />
+						</button>
 						<VoiceCommandButton
 							onText={(text) =>
 								setRequest((typed) => (typed.trim() ? `${typed.trim()} ${text}` : text))
@@ -545,7 +578,7 @@ function Steps({ stage }: { stage: Stage }) {
 
 function Card({ children }: { children: React.ReactNode }) {
 	return (
-		<section className="border-glass-border bg-surface-raised mx-auto flex w-full max-w-[720px] flex-col gap-5 rounded-[28px] border p-7 shadow-(--shadow-card)">
+		<section className="border-border bg-surface-inset flex w-full flex-col gap-4 rounded-[18px_18px_18px_4px] border p-5">
 			{children}
 		</section>
 	)
@@ -606,12 +639,15 @@ function PlanView({
 	summary,
 	problems,
 	onApply,
+	onManual,
 	onCancel
 }: {
 	summary: MakeSummary
 	/** What the second check fixed: none, or null when it couldn't run. */
 	problems: string[] | null
-	onApply: () => void
+	/** Each gets the plan's lines, to show again over the chat in the editor. */
+	onApply: (lines: string[]) => void
+	onManual: (lines: string[]) => void
 	onCancel: () => void
 }) {
 	const t = useTranslations('Make.plan')
@@ -666,7 +702,7 @@ function PlanView({
 		<section
 			role="status"
 			aria-label={t('label')}
-			className="border-glass-border bg-surface-raised mx-auto flex w-full max-w-[720px] flex-col gap-5 rounded-[28px] border p-7 shadow-(--shadow-card)"
+			className="border-accent/50 bg-accent-soft flex w-full flex-col gap-4 rounded-[18px_18px_18px_4px] border p-5"
 		>
 			<div className="flex items-center justify-between gap-3">
 				<span className="text-accent-fg flex items-center gap-1.5 text-xs font-extrabold tracking-[0.14em] uppercase">
@@ -683,7 +719,7 @@ function PlanView({
 				</h2>
 				<p className="text-text-muted text-[15px]">{summary.summary}</p>
 			</div>
-			<ul className="grid gap-2 sm:grid-cols-2">
+			<ul className="grid gap-2">
 				{lines.map((line, index) => (
 					<li
 						key={line}
@@ -735,7 +771,12 @@ function PlanView({
 				</div>
 			)}
 			<div className="flex flex-wrap gap-2">
-				<Button type="button" size="lg" className="rounded-[14px]" onClick={onApply}>
+				<Button
+					type="button"
+					size="lg"
+					className="flex-1 rounded-[14px]"
+					onClick={() => onApply(lines)}
+				>
 					{t('apply')}
 					<ArrowRightIcon />
 				</Button>
@@ -744,11 +785,123 @@ function PlanView({
 					size="lg"
 					variant="outline"
 					className="rounded-[14px]"
+					onClick={() => onManual(lines)}
+				>
+					<ManualIcon />
+					{t('manual')}
+				</Button>
+				<Button
+					type="button"
+					size="lg"
+					variant="ghost"
+					className="rounded-[14px]"
 					onClick={onCancel}
 				>
 					{t('cancel')}
 				</Button>
 			</div>
 		</section>
+	)
+}
+
+/** The conversation: Retake's name, what was asked, then the stage as Retake's reply. */
+function Chat({ request, children }: { request: string; children: React.ReactNode }) {
+	const t = useTranslations('Make.chat')
+	return (
+		<section
+			aria-label={t('title')}
+			className="border-border bg-surface flex flex-col gap-4 rounded-[24px] border p-5 lg:min-h-[520px]"
+		>
+			<div className="flex items-center gap-3">
+				<span className="bg-brand flex size-9 shrink-0 items-center justify-center rounded-[11px] text-white">
+					<SparkleIcon size={17} />
+				</span>
+				<span className="flex flex-col">
+					<span className="text-text text-base font-extrabold">{t('title')}</span>
+					<span className="text-text-muted text-xs">{t('help')}</span>
+				</span>
+			</div>
+			{request && (
+				<p className="bg-brand ml-auto max-w-[85%] rounded-[16px_16px_4px_16px] px-3.5 py-2.5 text-sm font-semibold text-white">
+					<span className="sr-only">{t('you')}: </span>
+					{request}
+				</p>
+			)}
+			{children}
+		</section>
+	)
+}
+
+/** The video the request is about, to watch while Retake works on it. */
+function VideoPane({ video }: { video: Video | null }) {
+	const t = useTranslations('Make.chat')
+	return (
+		<div className="border-border bg-night flex aspect-video items-center justify-center overflow-hidden rounded-[24px] border lg:sticky lg:top-6">
+			{video ? (
+				<video
+					src={video.url}
+					controls
+					playsInline
+					aria-label={t('videoLabel', { name: video.file.name })}
+					className="size-full object-contain"
+				/>
+			) : (
+				<span className="text-text-faint flex flex-col items-center gap-2 text-sm">
+					<SpinnerIcon size={22} />
+					{t('video')}
+				</span>
+			)}
+		</div>
+	)
+}
+
+const BYTES_PER_MB = 1024 * 1024
+
+/**
+ * The picked video as an attachment: a still from it with its length, its
+ * name, its picture size and file size, and Replace. Read from the file in
+ * the browser, only to show it.
+ */
+function AttachedVideo({ file, onReplace }: { file: File; onReplace: () => void }) {
+	const t = useTranslations('Make')
+	const [meta, setMeta] = useState<{ seconds: number; height: number } | null>(null)
+	const size = `${(file.size / BYTES_PER_MB).toFixed(file.size < 10 * BYTES_PER_MB ? 1 : 0)} MB`
+	return (
+		<div className="bg-surface-hover flex flex-wrap items-center gap-4 rounded-[18px] p-3.5">
+			<span className="bg-night relative h-14 w-24 shrink-0 overflow-hidden rounded-xl">
+				<video
+					// The file's own URL, for as long as this shows it.
+					ref={(element) => {
+						if (!element) return
+						const url = URL.createObjectURL(file)
+						element.src = `${url}#t=0.5`
+						return () => URL.revokeObjectURL(url)
+					}}
+					muted
+					playsInline
+					preload="metadata"
+					aria-hidden
+					onLoadedMetadata={(event) => {
+						const { duration, videoHeight } = event.currentTarget
+						setMeta({ seconds: Number.isFinite(duration) ? duration : 0, height: videoHeight })
+					}}
+					className="size-full object-cover"
+				/>
+				{meta && meta.seconds > 0 && (
+					<span className="absolute right-1 bottom-1 rounded bg-black/70 px-1 font-mono text-[10px] text-white">
+						{formatTimecode(meta.seconds)}
+					</span>
+				)}
+			</span>
+			<span className="flex min-w-0 flex-1 flex-col">
+				<span className="text-text truncate text-[15px] font-extrabold">{file.name}</span>
+				<span className="text-text-muted text-[13px]">
+					{meta && meta.height > 0 ? t('ready', { quality: `${meta.height}p`, size }) : size}
+				</span>
+			</span>
+			<Button type="button" variant="outline" aria-label={t('changeVideo')} onClick={onReplace}>
+				{t('replace')}
+			</Button>
+		</div>
 	)
 }

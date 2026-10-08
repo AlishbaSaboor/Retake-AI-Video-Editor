@@ -1,48 +1,16 @@
-import { test, expect, type Page } from '@playwright/test'
-import { editCommand, mockActions, recordTestVideo, openTool } from './editor-helpers'
+import { test, expect } from '@playwright/test'
+import { recordTestVideo, openTool } from './editor-helpers'
 
-const reply = (page: Page) => page.getByRole('status').filter({ hasText: 'You asked' })
-
-test('a project starts on the home page: a command and a video open the editor, which asks first', async ({
-	page
-}) => {
-	await mockActions(page, { words: [], command: editCommand({ action: 'captions_on' }) })
-	await page.goto('/home')
-	await expect(page.getByRole('heading', { name: 'What are we making today?' })).toBeVisible()
-	// An example fills the box; nothing is sent yet.
-	await page.getByRole('button', { name: 'Turn captions on' }).click()
-	await expect(page.getByRole('textbox', { name: 'Command' })).toHaveValue('Turn captions on')
-
-	const video = await recordTestVideo(page)
-	await page
-		.getByLabel('Choose a video file')
-		.setInputFiles({ name: 'home-take.webm', mimeType: 'video/webm', buffer: video })
-	// A cold editor compiles on first visit: the same 30 s allowance as the video waits.
-	await expect(page).toHaveURL(/\/editor$/, { timeout: 30_000 })
-	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
-		timeout: 30_000
-	})
-	await expect(
-		page.getByRole('region', { name: 'Clips' }).getByText('home-take.webm').first()
-	).toBeVisible()
-	// The command was asked against the video, and waits for Apply.
-	await expect(reply(page)).toContainText('Turn captions on')
-	await expect(reply(page).getByRole('button', { name: 'Apply' })).toBeVisible()
-	// Asked once, and the chat is free again: development mounts the editor
-	// twice, which once left a second "Reading" bubble stuck, the box locked.
-	await expect(page.getByText('Reading your command…')).toHaveCount(0)
-	await expect(page.getByRole('textbox', { name: 'Edit command' })).toBeEnabled()
-	await reply(page).getByRole('button', { name: 'Apply' }).click()
-	await expect(reply(page)).toHaveCount(0)
-})
-
-test('editing by hand opens the editor on the tools and the transcript, the assistant a tab away', async ({
+test('editing manually opens the editor on the tools and the transcript, the assistant a tab away', async ({
 	page
 }) => {
 	await page.goto('/home')
-	const byHand = page.getByRole('region', { name: 'Edit by hand' })
-	await expect(page.getByRole('region', { name: 'Edit with AI' })).toBeVisible()
+	// Two ways in, nothing else.
+	await expect(page.getByRole('region', { name: 'Make it with AI' })).toBeVisible()
+	const byHand = page.getByRole('region', { name: 'Edit manually' })
 	await expect(byHand.getByRole('button', { name: 'Upload and edit' })).toBeVisible()
+	await expect(page.getByRole('region', { name: 'Edit with AI' })).toHaveCount(0)
+	await expect(page.getByRole('textbox', { name: 'Command' })).toHaveCount(0)
 	const video = await recordTestVideo(page)
 	await page
 		.getByLabel('Video to edit by hand')
@@ -76,7 +44,7 @@ test('saved projects are listed with a picture, a name and a date, and open in t
 	await page.goto('/home')
 	const video = await recordTestVideo(page)
 	await page
-		.getByLabel('Choose a video file')
+		.getByLabel('Video to edit by hand')
 		.setInputFiles({ name: 'listed.webm', mimeType: 'video/webm', buffer: video })
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
 		timeout: 30_000
