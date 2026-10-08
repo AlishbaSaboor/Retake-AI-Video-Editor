@@ -132,6 +132,15 @@ async function startMaking(page: Page, request: string) {
 
 const plan = (page: Page) => page.getByRole('status', { name: 'The plan' })
 
+/** Apply opens the edited video with only the chat; these tests then go on in the full editor. */
+async function applyAndEditManually(page: Page) {
+	await plan(page).getByRole('button', { name: 'Apply' }).click()
+	await page
+		.getByRole('group', { name: 'Editor mode' })
+		.getByRole('button', { name: 'Edit manually' })
+		.click({ timeout: 30_000 })
+}
+
 test('Home offers Make it: the video and what it should become go on to the Make it page', async ({
 	page
 }) => {
@@ -185,7 +194,7 @@ test('a reel is planned, shown, applied as one undo step, and exported vertical 
 		await expect(plan(page)).toContainText(line)
 	}
 
-	await plan(page).getByRole('button', { name: 'Apply' }).click()
+	await applyAndEditManually(page)
 	const scrubber = page.getByRole('slider', { name: 'Playhead position' })
 	await expect(scrubber).toBeVisible({ timeout: 30_000 })
 	// Two pieces: the long pause before the last sentence is gone.
@@ -331,7 +340,7 @@ test('the music picked plays under the whole edit, turned down while someone spe
 	await expect(plan(page)).toContainText('Music: tone.wav, quieter while someone speaks', {
 		timeout: 60_000
 	})
-	await plan(page).getByRole('button', { name: 'Apply' }).click()
+	await applyAndEditManually(page)
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
 		timeout: 30_000
 	})
@@ -453,7 +462,7 @@ test("a long, busy video's pictures reach the server whole, and its reel comes o
 	)
 	// It opens with the strongest moment, not with what came first.
 	await expect(plan(page)).toContainText('Opens with its strongest line: “Step12.”')
-	await plan(page).getByRole('button', { name: 'Apply' }).click()
+	await applyAndEditManually(page)
 	const scrubber = page.getByRole('slider', { name: 'Playhead position' })
 	await expect(scrubber).toBeVisible({ timeout: 60_000 })
 	await expect
@@ -475,7 +484,7 @@ test('a screen recording made vertical keeps all of its picture, with black bars
 		{ timeout: 60_000 }
 	)
 	expect(seen.plans).toHaveLength(1)
-	await plan(page).getByRole('button', { name: 'Apply' }).click()
+	await applyAndEditManually(page)
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
 		timeout: 30_000
 	})
@@ -603,7 +612,7 @@ test('the second check fixes the plan before it shows: its title and key line co
 	expect(seen.checks[0]).toContain('Title: none')
 	expect(seen.checks[0]).toContain('Making: instagram_reel')
 
-	await plan(page).getByRole('button', { name: 'Apply' }).click()
+	await applyAndEditManually(page)
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
 		timeout: 30_000
 	})
@@ -800,7 +809,7 @@ test('a reel of a meeting is designed around the speech: a 9:16 frame, its pictu
 		'Vertical 9:16, designed around the speech: a moving background, big text, and the picture as a small card in the corner',
 		{ timeout: 60_000 }
 	)
-	await plan(page).getByRole('button', { name: 'Apply' }).click()
+	await applyAndEditManually(page)
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
 		timeout: 30_000
 	})
@@ -843,4 +852,65 @@ test('a reel of a meeting is designed around the speech: a 9:16 frame, its pictu
 	expect(Math.max(...(exported.left ?? [])), 'the background is coloured').toBeGreaterThan(40)
 	const [r = 0, g = 0, blue = 0] = exported.card ?? []
 	expect(blue > r && blue > 35 && g < 80, `the card shows the picture: ${exported.card}`).toBe(true)
+})
+
+test('the plan comes as a chat beside the video; Apply opens the edited video with only the chat, and the full editor is a click away', async ({
+	page
+}) => {
+	await mockMakeActions(page, WORDS, [reply()])
+	await startMaking(page, 'make this an Instagram reel')
+	await expect(plan(page)).toBeVisible({ timeout: 60_000 })
+	// The conversation: what was asked, then the plan, beside the video.
+	await expect(page.getByRole('region', { name: 'Retake AI' })).toContainText(
+		'make this an Instagram reel'
+	)
+	await expect(page.getByLabel('talk.webm, the video you picked')).toBeVisible()
+
+	await plan(page).getByRole('button', { name: 'Apply' }).click()
+	const modes = page.getByRole('group', { name: 'Editor mode' })
+	await expect(modes.getByRole('button', { name: 'Edit with AI' })).toHaveAttribute(
+		'aria-pressed',
+		'true',
+		{ timeout: 30_000 }
+	)
+	// Only the chat beside the video: no tools, no timeline.
+	await expect(page.getByRole('region', { name: 'Chat' })).toBeVisible()
+	await expect(page.getByRole('tab', { name: 'Text & logo' })).toBeHidden()
+	await expect(page.getByRole('slider', { name: 'Playhead position' })).toHaveCount(0)
+	await expect(page.getByRole('region', { name: 'What was applied' })).toContainText(
+		'Vertical 9:16, following the face'
+	)
+
+	// The full editor, on the same edit: two pieces, the long pause gone.
+	await page.getByRole('button', { name: 'Edit manually' }).last().click()
+	const scrubber = page.getByRole('slider', { name: 'Playhead position' })
+	await expect(scrubber).toBeVisible()
+	await expect(page.getByRole('tab', { name: 'Text & logo' })).toBeVisible()
+	await expect(modes.getByRole('button', { name: 'Edit manually' })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	)
+	await expect
+		.poll(async () => JSON.parse((await scrubber.getAttribute('data-segments')) ?? '[]').length)
+		.toBe(2)
+	// And back: the chat only again.
+	await modes.getByRole('button', { name: 'Edit with AI' }).click()
+	await expect(page.getByRole('slider', { name: 'Playhead position' })).toHaveCount(0)
+})
+
+test('Edit manually on the plan opens the full editor with the plan applied', async ({ page }) => {
+	await mockMakeActions(page, WORDS, [reply()])
+	await startMaking(page, 'make this an Instagram reel')
+	await expect(plan(page)).toBeVisible({ timeout: 60_000 })
+	await plan(page).getByRole('button', { name: 'Edit manually' }).click()
+	const scrubber = page.getByRole('slider', { name: 'Playhead position' })
+	await expect(scrubber).toBeVisible({ timeout: 30_000 })
+	await expect(page.getByRole('tab', { name: /^Transcript/ })).toHaveAttribute(
+		'aria-selected',
+		'true'
+	)
+	await expect
+		.poll(async () => JSON.parse((await scrubber.getAttribute('data-segments')) ?? '[]').length)
+		.toBe(2)
+	await expect(page.getByRole('group', { name: 'Editor mode' })).toHaveCount(0)
 })

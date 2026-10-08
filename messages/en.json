@@ -911,6 +911,20 @@
 			"added": "Added",
 			"replace": "Replace the first video",
 			"help": "An added video plays after the others as a clip of its own: split, reorder and trim it like any clip."
+		},
+		"studio": {
+			"modes": "Editor mode",
+			"ai": "Edit with AI",
+			"manual": "Edit manually",
+			"title": "Retake AI",
+			"help": "Ask for changes in your own words. You approve each one.",
+			"applied": "What was applied",
+			"appliedLength": "Applied. Your edit is {length} long.",
+			"undoHint": "Undo, at the top, takes all of this back in one step.",
+			"yourEdit": "Your edit",
+			"from": "from {length} of video",
+			"finer": "Want finer control?",
+			"finerBody": "Open the timeline, the transcript and every tool. Your AI edit comes with you."
 		}
 	},
 	"Site": {
@@ -1274,25 +1288,9 @@
 			"metaTitle": "New project",
 			"title": "What are we <em>making</em> today?",
 			"description": "Two ways in. You can switch between them any time.",
-			"commandLabel": "Command",
-			"placeholder": "What should change first? e.g. “remove the ums and long pauses”",
 			"dropHint": "or drop a video here",
 			"dropHere": "Drop the video to start",
 			"opening": "Opening {name} in the editor…",
-			"examplesLabel": "Try a command",
-			"examples": {
-				"cleanup": "Remove the filler words and long silences",
-				"captions": "Turn captions on",
-				"trim": "Keep 0:05 to 0:40",
-				"title": "Add a title that says Welcome",
-				"zoom": "Zoom in slowly from 2 to 5 seconds"
-			},
-			"ai": {
-				"title": "Edit with AI",
-				"body": "Open a video with the assistant, and a first change waiting for you to apply.",
-				"inputLabel": "Choose a video file",
-				"upload": "Upload & ask"
-			},
 			"make": {
 				"title": "Make it with AI",
 				"badge": "Fastest",
@@ -1303,7 +1301,7 @@
 				"inputLabel": "Video to make into something"
 			},
 			"hand": {
-				"title": "Edit by hand",
+				"title": "Edit manually",
 				"body": "Open the editor with the timeline, the transcript and every tool. The assistant is a tab away.",
 				"inputLabel": "Video to edit by hand",
 				"items": {
@@ -1716,13 +1714,24 @@
 				"fixed": "Checked against your request, and fixed:",
 				"failed": "The second check couldn’t run, so this is the plan as first made."
 			},
-			"notApplied": "Not applied yet"
+			"notApplied": "Not applied yet",
+			"manual": "Edit manually"
 		},
 		"startFrom": "Or start from",
 		"stages": {
 			"upload": "Upload & describe",
 			"plans": "Retake plans it",
 			"review": "Review, then apply"
-		}
+		},
+		"chat": {
+			"title": "Retake AI",
+			"help": "It plans the whole edit and shows it to you before anything changes.",
+			"you": "You asked",
+			"video": "Your video",
+			"videoLabel": "{name}, the video you picked"
+		},
+		"attach": "Attach a video",
+		"replace": "Replace",
+		"ready": "{quality} · {size} · ready"
 	}
 }
