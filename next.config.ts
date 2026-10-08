@@ -15,6 +15,11 @@ const nextConfig: NextConfig = {
 	reactCompiler: {
 		panicThreshold: 'all_errors'
 	},
+	// The landing page's stills of its footage go at 85 (the default 75
+	// softens sky gradients); every other image keeps the default.
+	images: {
+		qualities: [75, 85]
+	},
 	experimental: {
 		// The transcript action receives a take's audio: up to 5 minutes of
 		// 16 kHz mono WAV, base64-encoded (~12.8 MB). Both limits below sit in

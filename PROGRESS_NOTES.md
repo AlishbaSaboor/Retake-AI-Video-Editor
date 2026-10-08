@@ -7,6 +7,10 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-08.
+> - **The site shows the real app, in the mockups' layouts** (section 3zk):
+>   screenshots and footage (a Pexels sunrise, no people; CREDITS.md) in the
+>   mockups' own slots, made by `e2e/site-shots.ts` (`pnpm shots`, fake AI,
+>   ffmpeg); Make it's plan and the editor after Apply as in the mockup.
 > - **App screens, UI only** (section 3zj): the app home has two ways in
 >   (Make it with AI, Edit manually; the "Edit with AI" row is gone, the
 >   owner's decision). Make it is a chat beside the video once asked; Apply
@@ -2644,6 +2648,45 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
   the switch; new: the chat and the chat-only view and back, and Edit
   manually from the plan). Full suite 113/113 locally on a production build.
 
+## 3zk. The site shows the real app, in the mockups' layouts (2026-10-08)
+
+- **Layouts are the mockups'** (`design/landing.html`, `design/app.html`): an
+  earlier attempt (PR #19, closed) rearranged the story, hero, Make it and
+  How it works; those are back as in the mockups, and only their pictures
+  are real: the story's and How it works' device frames, Features' pictures
+  and the day-and-night slider hold screenshots of the app; the hero window
+  holds stills of the footage; Make it's before/after plays the footage and
+  the app's own exports. Clicking a device screenshot opens it full size (Esc
+  or a click outside closes it).
+- **App screens to the mockup:** Make it's plan is the mockup's review screen
+  (the video beside a plan card of rows: Length, Shape, Captions, On screen,
+  Motion, Music; the check; Apply and open, Edit manually, Change my request,
+  Cancel; the plan's words unchanged). After Apply the editor shows the chat
+  on the right, Your edit and Want finer control beside the video from
+  1280 px (under it below that).
+- **Footage:** Pexels 35571635, "Stunning Sunrise Over Serene Mountain Range"
+  by Yogendra Singh (Pexels License; CREDITS.md), upright 9:16, no people.
+  It has no sound: the shots script gives the app's copy a stand-in voice
+  (noise shaped like syllables, written as a WAV) so the transcript steps
+  run; the words are a voice-over written for it, answered by the fake AI.
+  Not committed: the download and the working copy.
+- **`e2e/site-shots.ts`** (own config, never run by the suite;
+  `SHOTS_CLIP=… FFMPEG=… E2E_BASE_URL=… pnpm shots` on a production build,
+  restarted afterwards so it serves the new files): ffmpeg cuts the app's
+  copy, the "before" (1920×1080 VP9, ~1.3 MB, poster 2160×1216), the hero
+  picture (1080×810) and timeline stills (640×360) from the full-resolution
+  download; the app takes 10 screens per theme at 2x (device slots at
+  1100 × 710, the app's desktop layout; day and night at 1440 × 930); each
+  Make it style is applied and exported through the app and re-encoded for
+  the site (720×1280, ~2.1 MB, poster). Stills go through `next/image`
+  (`sizes`, quality 85, allowed in `next.config.ts`).
+- **Why the earlier pictures were blurry:** recorded in real time in a
+  headless browser from a 4K/60 fps file, which dropped frames (a 20 KB
+  "before"), at 1x or smaller than shown.
+- **Notes:** long pauses count from 7 s, longer than the clip, so Clean up
+  says "No long silences"; the plan cuts the pause between sentences instead.
+  Highlight and plan sentences are numbered from 1.
+
 ---
 
 ## 4. Unresolved issues
@@ -3160,6 +3203,17 @@ user chose to let CI's e2e shards be the second check.
 measured the square at 0.73 of the frame at 1 s, against < 0.7: the frame
 shown was a little late, so the square had moved on. Passed twice on rerun.
 Not changed.
+
+- 2026-10-08, PR 2 (site screenshots), local full run on a production build:
+  `commands.spec.ts:62` (export as a command) and `clip-speed.spec.ts:130`
+  ("exported 5.28 s for 5 s") failed with four tests at once; both passed
+  run alone. Export timing under load (see 4f); that change touches no
+  editor code.
+
+- 2026-10-08, the mockup-fixes PR, local full run on a production build:
+  `re-record-by-ear.spec.ts:27` failed (an element not found in time) with
+  four tests at once and passed run alone; that change touches no
+  re-record code.
 
 ### 4d. Low memory on this machine (observed 2026-10-02)
 

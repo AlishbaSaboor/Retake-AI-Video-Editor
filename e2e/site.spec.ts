@@ -100,7 +100,7 @@ test('how it works switches between its two paths', async ({ page }) => {
 	await page.goto('/how-it-works')
 	const paths = page.getByRole('radiogroup', { name: 'Choose a path' })
 	await expect(page.getByRole('heading', { level: 3, name: 'Read the plan.' })).toBeVisible()
-	await paths.getByRole('radio', { name: 'Edit it yourself' }).click()
+	await paths.getByRole('radio', { name: 'Edit manually' }).click()
 	await expect(page.getByRole('heading', { level: 3, name: 'Cut and arrange.' })).toBeVisible()
 	await expect(page.getByRole('heading', { level: 3, name: 'Read the plan.' })).toHaveCount(0)
 })

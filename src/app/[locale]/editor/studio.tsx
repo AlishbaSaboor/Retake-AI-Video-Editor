@@ -110,7 +110,7 @@ export function StudioCards({
 }) {
 	const t = useTranslations('Editor.studio')
 	return (
-		<div className="mx-auto grid w-full max-w-3xl gap-3 sm:grid-cols-2">
+		<div className="grid w-full gap-3 sm:grid-cols-2 xl:col-start-2! xl:row-span-2 xl:row-start-1 xl:grid-cols-1 xl:self-end">
 			<div className="border-border bg-surface flex flex-col gap-1.5 rounded-[18px] border p-4">
 				<span className="text-text-faint text-[11px] font-extrabold tracking-[0.12em] uppercase">
 					{t('yourEdit')}

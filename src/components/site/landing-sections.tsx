@@ -1,27 +1,33 @@
 import { getTranslations } from 'next-intl/server'
 import { PlusIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
-import { AppScreen } from './app-screen'
 import { CompareSlider } from './compare-slider'
 import { DisplayHeading, Eyebrow, emphasis } from './display'
 import { MakeShowcase } from './make-showcase'
+import { Shot, ZoomShot, type ShotName } from './shot'
 import { StoryScroller } from './story-scroller'
 
 // The landing page's sections below the hero, and the questions shown on
 // the contact page. Each wording lives in messages/en.json (Site.*).
 
-/** The five scenes, and which picture of the app goes with each. */
+/**
+ * The five scenes, and the real screen of the app each one describes:
+ * bringing a video in (the upload screen), saying what it should become
+ * (Make it, the video attached and the request typed), tidying up (Clean up),
+ * making it yours (captions on) and sharing it (Find highlights' cards).
+ */
 const STORY = [
 	{ id: 'bring', screen: 0 },
 	{ id: 'say', screen: 1 },
 	{ id: 'tidy', screen: 2 },
-	{ id: 'yours', screen: 1 },
-	{ id: 'share', screen: 3 }
+	{ id: 'yours', screen: 3 },
+	{ id: 'share', screen: 4 }
 ] as const
-const STORY_SCREENS = ['transcript', 'assistant', 'cleanup', 'highlights'] as const
+const STORY_SCREENS: readonly ShotName[] = ['upload', 'say', 'tidy', 'yours', 'share']
 
 export async function StorySection() {
 	const t = await getTranslations('Site.landing')
+	const shots = await getTranslations('Site.shots')
 	return (
 		<section
 			id="story"
@@ -44,8 +50,14 @@ export async function StorySection() {
 					body: t(`steps.${id}.body`),
 					pill: t(`steps.${id}.pill`)
 				}))}
-				screens={STORY_SCREENS.map((panel) => (
-					<AppScreen key={panel} panel={panel} id={`story-${panel}`} className="rounded-[18px]" />
+				screens={STORY_SCREENS.map((name) => (
+					<ZoomShot
+						key={name}
+						name={name}
+						alt={shots(name)}
+						label={shots('zoom')}
+						className="overflow-hidden rounded-[18px]"
+					/>
 				))}
 			/>
 		</section>
@@ -56,6 +68,7 @@ const MAKE_STYLES = ['reel', 'funny', 'professional', 'ad'] as const
 
 export async function MakeSection() {
 	const t = await getTranslations('Site.landing.make')
+	const shots = await getTranslations('Site.shots')
 	return (
 		<section
 			aria-labelledby="make-title"
@@ -72,13 +85,18 @@ export async function MakeSection() {
 				}
 				stylesLabel={t('styles')}
 				before={t('before')}
+				beforeVideo="/site/clip/before.webm"
+				beforePoster="/site/clip/before-poster.webp"
+				beforeAlt={shots('before')}
+				afterAlt={shots('after')}
 				compare={t('compare')}
 				styles={MAKE_STYLES.map((id) => ({
 					id,
 					tab: t(`tabs.${id}`),
 					after: t(`after.${id}`),
-					card: t.rich(`cards.${id}`, { em: emphasis('plain') }),
-					said: t('said', { request: t(`requests.${id}`) })
+					said: t('said', { request: t(`requests.${id}`) }),
+					video: `/site/clip/after-${id}.webm`,
+					poster: `/site/clip/after-${id}-poster.webp`
 				}))}
 			/>
 		</section>
@@ -120,6 +138,7 @@ export async function PromisesSection() {
 
 export async function DayNightSection() {
 	const t = await getTranslations('Site.landing.dayNight')
+	const shots = await getTranslations('Site.shots')
 	return (
 		<section aria-labelledby="day-night" className="mx-auto max-w-[1060px] px-5 pt-32 xl:px-0">
 			<div className="rt-reveal mb-12 flex flex-col items-center gap-3.5 text-center">
@@ -131,16 +150,8 @@ export async function DayNightSection() {
 			<CompareSlider
 				label={t('compare')}
 				className="rt-reveal aspect-[1440/930] rounded-[22px] shadow-(--shadow-card)"
-				before={
-					<div data-theme="dark" className="size-full">
-						<AppScreen panel="assistant" id="night" className="rounded-none border-0" />
-					</div>
-				}
-				after={
-					<div data-theme="light" className="size-full">
-						<AppScreen panel="assistant" id="day" className="rounded-none border-0" />
-					</div>
-				}
+				before={<Shot name="daynight" theme="dark" alt={shots('dark')} />}
+				after={<Shot name="daynight" theme="light" alt={shots('light')} />}
 			/>
 		</section>
 	)
