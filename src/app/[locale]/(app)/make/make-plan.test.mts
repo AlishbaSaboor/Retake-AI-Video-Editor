@@ -14,6 +14,12 @@ import {
 	planMake,
 	quotedLine,
 	applyCheck,
+	followUpPlan,
+	followUpReplySchema,
+	FOLLOW_UP_REPLY_JSON_SCHEMA,
+	isPlanEdit,
+	MAKE_REPLY_JSON_SCHEMA,
+	planChanges,
 	checkFound,
 	clipText,
 	summaryWithLength,
@@ -224,6 +230,7 @@ test('a reply is planned into one edit: clips, transitions, word captions, zooms
 			summary: 'A short talk; tightened into a reel.',
 			limitSeconds: SHORT_FORM_MAX_SECONDS,
 			trimmedToFit: false,
+			maxSeconds: null,
 			lengthened: false,
 			// A 20 s video: under 50 s, but there is no more to it.
 			short: null,
@@ -871,4 +878,186 @@ test('the check makes the plan again for a problem or for too short, not otherwi
 	assert.equal(checkFound({ ...none, problems: ['A key line misquotes.'] }), true)
 	// Too short alone keeps the reply as it was: the lengthening is planMake's.
 	assert.equal(applyCheck(REPLY, { ...none, tooShort: true }), REPLY)
+})
+
+test('a follow-up asking for a length cuts the plan to it, fills most of it, and is never called short', () => {
+	// 40 sentences, 140 s: a reel of 50 to 59 s, then "make it 30 seconds".
+	const talk = longTalk(40)
+	const reply: MakeReply = {
+		...REPLY,
+		removeSentences: [],
+		moments: [{ first: 5, last: 6 }],
+		transition: 'none',
+		zoomSentences: [],
+		keyLines: []
+	}
+	const make = (maxSeconds: number | null, request = 'make this an Instagram reel') =>
+		planMake({
+			reply,
+			request,
+			durationSeconds: 140,
+			picture: { width: 1920, height: 1080 },
+			transcript: talk,
+			fillerCuts: [],
+			music: null,
+			musicAvailable: false,
+			maxSeconds
+		})
+	const reel = make(null)
+	assert.ok(reel.summary.editedSeconds >= SHORT_FORM_TARGET_SECONDS)
+	assert.equal(reel.summary.maxSeconds, null)
+
+	const asked = make(30)
+	assert.ok(asked.summary.editedSeconds <= 30, `${asked.summary.editedSeconds}`)
+	assert.ok(asked.summary.editedSeconds >= 30 * 0.85, `${asked.summary.editedSeconds}`)
+	assert.equal(asked.summary.maxSeconds, 30)
+	assert.equal(asked.summary.limitSeconds, 30)
+	assert.equal(asked.summary.trimmedToFit, true)
+	// Asked for: never "shorter than a reel usually runs".
+	assert.equal(asked.summary.short, null)
+	// The reply as used names the sentences cut to fit, so planning it again changes nothing.
+	assert.ok(asked.used.removeSentences.length > 0)
+	const again = planMake({
+		reply: asked.used,
+		request: 'make this an Instagram reel',
+		durationSeconds: 140,
+		picture: { width: 1920, height: 1080 },
+		transcript: talk,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false,
+		maxSeconds: 30
+	})
+	near(again.summary.editedSeconds, asked.summary.editedSeconds)
+
+	// Any edit, not only short-form: a professional one asked for 40 s.
+	const pro = planMake({
+		reply: { ...reply, format: 'other', style: 'professional' },
+		request: 'make it professional',
+		durationSeconds: 140,
+		picture: { width: 1920, height: 1080 },
+		transcript: talk,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false,
+		maxSeconds: 40
+	})
+	assert.ok(pro.summary.editedSeconds <= 40 && pro.summary.editedSeconds >= 34)
+	// A length over a minute doesn't lift a reel's limit.
+	assert.equal(make(90).summary.limitSeconds, SHORT_FORM_MAX_SECONDS)
+})
+
+test('what changed between two plans is listed in the plan card order, and nothing when nothing did', () => {
+	const make = (fields: Partial<MakeReply>) =>
+		planMake({
+			reply: { ...REPLY, ...fields },
+			request: 'make this an Instagram reel',
+			durationSeconds: DURATION,
+			picture: { width: 1920, height: 1080 },
+			transcript,
+			fillerCuts: [],
+			music: null,
+			musicAvailable: false
+		}).summary
+	const before = make({})
+	assert.deepEqual(planChanges(before, make({})), [])
+	// Sentence 4 out (so the dissolves at the joins change too), large
+	// captions, no zooms, a different title.
+	const after = make({
+		removeSentences: [3, 4],
+		captions: 'large',
+		zoomSentences: [],
+		keyLines: [],
+		title: 'Hello this is good'
+	})
+	const changes = planChanges(before, after)
+	assert.deepEqual(
+		changes.map((change) => change.kind),
+		['length', 'sentences', 'captions', 'title', 'keyLines', 'zooms', 'transitions']
+	)
+	assert.deepEqual(changes[0], {
+		kind: 'length',
+		from: Math.round(before.editedSeconds),
+		to: Math.round(after.editedSeconds)
+	})
+	assert.deepEqual(changes[1], { kind: 'sentences', from: 4, to: 3 })
+	assert.deepEqual(changes[2], { kind: 'captions', from: 'bold_words', to: 'large' })
+	// The first plan's title named someone never said ("Sarah"): it had none.
+	assert.deepEqual(changes[3], { kind: 'title', from: null, to: 'Hello this is good' })
+	// Lengths compare as the plan shows them: in whole seconds.
+	assert.deepEqual(
+		planChanges(before, { ...before, editedSeconds: before.editedSeconds + 0.2 }).filter(
+			(change) => change.kind === 'length'
+		),
+		Math.round(before.editedSeconds + 0.2) === Math.round(before.editedSeconds)
+			? []
+			: [
+					{
+						kind: 'length',
+						from: Math.round(before.editedSeconds),
+						to: Math.round(before.editedSeconds + 0.2)
+					}
+				]
+	)
+	assert.deepEqual(planChanges(before, { ...before, vertical: 'fit', music: 'calm.mp3' }), [
+		{ kind: 'shape', from: 'face', to: 'fit' },
+		{ kind: 'music', from: null, to: 'calm.mp3' }
+	])
+})
+
+test("a follow-up's answer keeps what only the pictures told, and its shape is checked", () => {
+	const answer = {
+		...REPLY,
+		captions: 'large' as const,
+		subject: 'screen' as const,
+		faces: [],
+		pictureMatters: true,
+		maxSeconds: 30
+	}
+	const used = followUpPlan(REPLY, answer)
+	assert.equal(used.captions, 'large')
+	// The pictures weren't sent again: what they showed stays as the first plan saw it.
+	assert.equal(used.subject, REPLY.subject)
+	assert.equal(used.faces, REPLY.faces)
+	assert.equal(used.pictureMatters, REPLY.pictureMatters)
+	assert.equal('maxSeconds' in used, false)
+	assert.deepEqual(Object.keys(used).sort(), Object.keys(REPLY).sort())
+	assert.equal(followUpReplySchema.safeParse(answer).success, true)
+	assert.equal(followUpReplySchema.safeParse({ ...answer, maxSeconds: -5 }).success, false)
+	const withoutLength: Partial<typeof answer> = { ...answer }
+	delete withoutLength.maxSeconds
+	assert.equal(followUpReplySchema.safeParse(withoutLength).success, false)
+	assert.deepEqual(
+		[...FOLLOW_UP_REPLY_JSON_SCHEMA.required].sort(),
+		[...MAKE_REPLY_JSON_SCHEMA.required, 'maxSeconds'].sort()
+	)
+})
+
+test("the edit is known as a plan while it holds that plan's own values, not after a change by hand", () => {
+	const made = planMake({
+		reply: REPLY,
+		request: 'make this an Instagram reel',
+		durationSeconds: DURATION,
+		picture: { width: 1920, height: 1080 },
+		transcript,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false
+	})
+	assert.equal(isPlanEdit(made.edit, { ...made.edit }), true)
+	// Captions turned off by hand; a clip moved (a new list, the same clips).
+	assert.equal(isPlanEdit(made.edit, { ...made.edit, captionsOn: false }), false)
+	assert.equal(isPlanEdit(made.edit, { ...made.edit, clips: [...(made.edit.clips ?? [])] }), false)
+	// The same plan made again is a different plan: equal values, not the same ones.
+	const again = planMake({
+		reply: REPLY,
+		request: 'make this an Instagram reel',
+		durationSeconds: DURATION,
+		picture: { width: 1920, height: 1080 },
+		transcript,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false
+	})
+	assert.equal(isPlanEdit(made.edit, again.edit), false)
 })

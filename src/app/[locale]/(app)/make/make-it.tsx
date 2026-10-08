@@ -25,7 +25,6 @@ import {
 import { handOffStart } from '@/app/[locale]/editor/editor-start'
 import { setSideOpen } from '@/app/[locale]/editor/editor-layout-store'
 import { probeVideo } from '@/app/[locale]/editor/sources'
-import { decodeAudio } from '@/app/[locale]/editor/take-audio'
 import { formatTimecode } from '@/app/[locale]/editor/timeline-scale'
 import type { Size } from '@/app/[locale]/editor/transform'
 import { useTakeAnalysis } from '@/app/[locale]/editor/use-take-analysis'
@@ -37,6 +36,7 @@ import { isPlainAiStatus } from '@/lib/ai-failure'
 import { withTimeout } from '@/lib/with-timeout'
 import { checkMakePlan, planMakeIt } from './actions'
 import { clearMakeStart, peekMakeStart } from './make-start'
+import { loadTrack } from './music-track'
 import { captureFrames } from './frames'
 import {
 	FRAME_SEPARATOR,
@@ -53,8 +53,7 @@ import {
 	type CheckReply,
 	type MakeAnswer,
 	type MakeReply,
-	type MakeSummary,
-	type MusicTrack
+	type MakeSummary
 } from './make-plan'
 
 /** The starting points, each with its dot's colour. */
@@ -78,20 +77,6 @@ function firstWords(text: string, count: number): string {
 type Video = { file: File; url: string; durationSeconds: number; picture: Size }
 /** What's being planned: the request, and the answers to any questions asked about it. */
 type Ask = { request: string; answers: MakeAnswer[] }
-
-/** A track from public/music, fetched and decoded; null when it can't be had. */
-async function loadTrack(name: string): Promise<MusicTrack<AudioBuffer> | null> {
-	try {
-		const response = await fetch(`/music/${encodeURIComponent(name)}`)
-		if (!response.ok) return null
-		const file = await response.blob()
-		const buffer = await decodeAudio(file)
-		return buffer ? { name, file, buffer, seconds: buffer.duration } : null
-	} catch (error) {
-		captureClientError(error, { feature: 'make_it_music' })
-		return null
-	}
-}
 
 /**
  * Asks the server for a plan. A failure comes back as what to tell the
@@ -209,6 +194,7 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 					musicAvailable: tracks.length > 0,
 					tooShort
 				})
+			const musicAvailable = tracks.length > 0
 			// The plan as made, then checked against the request and made again
 			// with the check's fixes, if it found anything to fix (lengthened,
 			// when it found the edit too short).
@@ -221,7 +207,13 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 				check && checkFound(check)
 					? plan(applyCheck(reply, check), check.tooShort ? { keepOut: check.dropSentences } : null)
 					: first
-			return { kind: 'plan', ...made, problems: check?.problems ?? null } as const
+			return {
+				kind: 'plan',
+				...made,
+				music,
+				musicAvailable,
+				problems: check?.problems ?? null
+			} as const
 		},
 		enabled: video !== null && ask !== null && frames.data !== undefined && transcriptReady,
 		staleTime: Infinity,
@@ -281,7 +273,22 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 						request: ask.request,
 						lines,
 						editedSeconds: plan.data.summary.editedSeconds,
-						originalSeconds: plan.data.summary.originalSeconds
+						originalSeconds: plan.data.summary.originalSeconds,
+						// For follow-ups in the chat: the plan as applied, and what it was made from.
+						plan: {
+							reply: plan.data.used,
+							maxSeconds: null,
+							summary: plan.data.summary,
+							edit: plan.data.edit,
+							music: plan.data.music
+						},
+						basis: {
+							request: ask.request,
+							durationSeconds: video.durationSeconds,
+							picture: video.picture,
+							fillerCuts,
+							musicAvailable: plan.data.musicAvailable
+						}
 					}
 		})
 		router.push('/editor')
