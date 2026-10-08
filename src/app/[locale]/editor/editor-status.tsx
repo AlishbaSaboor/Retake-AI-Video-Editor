@@ -45,7 +45,7 @@ export function JobProgress({ jobs }: { jobs: Job[] }) {
 				<span
 					key={job.id}
 					data-job={job.id}
-					className="bg-accent-soft text-accent inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium"
+					className="bg-accent-soft text-accent-fg inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium"
 				>
 					<SpinnerIcon size={14} />
 					{job.label}

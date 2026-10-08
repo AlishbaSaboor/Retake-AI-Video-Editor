@@ -4,7 +4,16 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
-import { AiIcon, SpinnerIcon, UploadIcon, VideoIcon } from '@/components/ui/icons'
+import {
+	AiIcon,
+	ArrowRightIcon,
+	CheckIcon,
+	LockIcon,
+	SparkleIcon,
+	SpinnerIcon,
+	UploadIcon,
+	VideoIcon
+} from '@/components/ui/icons'
 import { handOffStart } from '@/app/[locale]/editor/editor-start'
 import { setSideOpen } from '@/app/[locale]/editor/editor-layout-store'
 import { probeVideo } from '@/app/[locale]/editor/sources'
@@ -19,6 +28,7 @@ import { captureClientError } from '@/lib/observability/capture-client-error'
 import { isPlainAiStatus } from '@/lib/ai-failure'
 import { withTimeout } from '@/lib/with-timeout'
 import { checkMakePlan, planMakeIt } from './actions'
+import { clearMakeStart, peekMakeStart } from './make-start'
 import { captureFrames } from './frames'
 import {
 	FRAME_SEPARATOR,
@@ -38,7 +48,13 @@ import {
 	type MusicTrack
 } from './make-plan'
 
-const EXAMPLES = ['reel', 'funny', 'professional', 'ad'] as const
+/** The starting points, each with its dot's colour. */
+const EXAMPLES = [
+	{ key: 'reel', dot: 'bg-brand-violet' },
+	{ key: 'funny', dot: 'bg-brand-purple' },
+	{ key: 'professional', dot: 'bg-brand-blue' },
+	{ key: 'ad', dot: 'bg-brand-lilac' }
+] as const
 const SECONDS_PER_MINUTE = 60
 /** How much of the opening line the plan quotes. */
 const OPENER_WORDS = 10
@@ -108,18 +124,22 @@ async function checkPlan(request: string, planText: string): Promise<CheckReply 
  * whole edit (asking first when the request is unclear). The plan is shown
  * with Apply and Cancel; Apply opens it in the editor as one undoable step.
  */
-export function MakeIt() {
+export function MakeIt({ heading }: { heading: React.ReactNode }) {
 	const t = useTranslations('Make')
 	const router = useRouter()
 	const inputRef = useRef<HTMLInputElement>(null)
-	const [file, setFile] = useState<File | null>(null)
-	const [request, setRequest] = useState('')
+	// A video and request handed over from the home page's Make it card, if any.
+	const [file, setFile] = useState<File | null>(() => peekMakeStart()?.file ?? null)
+	const [request, setRequest] = useState(() => peekMakeStart()?.request ?? '')
 	const [video, setVideo] = useState<Video | null>(null)
 	const [ask, setAsk] = useState<Ask | null>(null)
 	const [problem, setProblem] = useState<'notVideo' | 'tooLong' | null>(null)
 	const [reading, setReading] = useState(false)
 	const [dragging, setDragging] = useState(false)
 	const analysis = useTakeAnalysis(video)
+
+	// Taken once: a later visit to the page starts empty.
+	useEffect(() => clearMakeStart(), [])
 
 	// The picked video's URL goes when another is picked, or with the page.
 	const videoUrl = video?.url
@@ -254,8 +274,18 @@ export function MakeIt() {
 				? t('steps.pictures')
 				: t('steps.planning')
 
+	/** The page around each stage: where it is in the three steps, the heading, then the stage. */
+	const frame = (stage: Stage, content: React.ReactNode) => (
+		<div className="flex flex-col items-center gap-8">
+			<Steps stage={stage} />
+			{heading}
+			<div className="w-full">{content}</div>
+		</div>
+	)
+
 	if (ask && failed) {
-		return (
+		return frame(
+			2,
 			<Card>
 				<p role="alert" className="text-text text-sm">
 					{failed}
@@ -276,7 +306,8 @@ export function MakeIt() {
 		)
 	}
 	if (ask && plan.data?.kind === 'questions') {
-		return (
+		return frame(
+			1,
 			<Questions
 				questions={plan.data.questions}
 				onAnswer={(answers) => void start(answers)}
@@ -285,7 +316,8 @@ export function MakeIt() {
 		)
 	}
 	if (ask && plan.data?.kind === 'plan') {
-		return (
+		return frame(
+			3,
 			<PlanView
 				summary={plan.data.summary}
 				problems={plan.data.problems}
@@ -295,7 +327,8 @@ export function MakeIt() {
 		)
 	}
 	if (ask && plan.data?.kind === 'none') {
-		return (
+		return frame(
+			2,
 			<Card>
 				<p role="alert" className="text-text text-sm">
 					{t('errors.noPlan')}
@@ -307,18 +340,23 @@ export function MakeIt() {
 		)
 	}
 	if (ask || reading) {
-		return (
+		return frame(
+			2,
 			<Card>
-				<p role="status" className="text-text flex items-center gap-2 text-sm">
-					<SpinnerIcon />
+				<p role="status" className="text-text flex items-center gap-3 text-base font-bold">
+					<SpinnerIcon size={18} className="text-accent-fg" />
 					{step}
 				</p>
-				<p className="text-text-muted text-xs">{t('steps.note')}</p>
+				<span aria-hidden className="bg-track relative h-1.5 overflow-hidden rounded-full">
+					<span className="bg-brand-wide rt-sheen absolute inset-0 bg-size-[200%_100%] opacity-80" />
+				</span>
+				<p className="text-text-muted text-sm">{t('steps.note')}</p>
 			</Card>
 		)
 	}
 
-	return (
+	return frame(
+		1,
 		<form
 			className="flex flex-col gap-5"
 			onSubmit={(event) => {
@@ -326,46 +364,68 @@ export function MakeIt() {
 				void start()
 			}}
 		>
-			<section
-				onDragOver={(event) => {
-					event.preventDefault()
-					setDragging(true)
-				}}
-				onDragLeave={() => setDragging(false)}
-				onDrop={(event) => {
-					event.preventDefault()
-					setDragging(false)
-					const dropped = event.dataTransfer.files[0]
-					if (dropped) pick(dropped)
-				}}
-				className={cn(
-					'bg-surface flex flex-col items-center gap-3 rounded-lg border border-dashed p-6 text-center transition-colors',
-					dragging ? 'border-accent ring-accent-glow ring-4' : 'border-border-strong'
-				)}
-			>
-				<VideoIcon size={28} className="text-accent" />
-				<p className="text-text text-sm font-medium">{file ? file.name : t('dropHint')}</p>
-				<Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>
-					<UploadIcon />
-					{file ? t('changeVideo') : t('chooseVideo')}
-				</Button>
-				<input
-					ref={inputRef}
-					type="file"
-					accept="video/*"
-					className="sr-only"
-					tabIndex={-1}
-					aria-label={t('videoLabel')}
-					onChange={(event) => {
-						const picked = event.target.files?.[0]
-						event.target.value = ''
-						if (picked) pick(picked)
+			<div className="from-brand-blue via-brand-violet to-brand-purple mx-auto w-full max-w-[780px] rounded-[30px] bg-linear-100 p-[3px] shadow-(--shadow-card)">
+				<section
+					onDragOver={(event) => {
+						event.preventDefault()
+						setDragging(true)
 					}}
-				/>
-			</section>
-			<div className="flex flex-col gap-2">
-				<div className="border-border bg-surface-inset focus-within:border-accent focus-within:ring-accent-glow flex flex-col rounded-lg border transition-shadow focus-within:ring-2">
+					onDragLeave={() => setDragging(false)}
+					onDrop={(event) => {
+						event.preventDefault()
+						setDragging(false)
+						const dropped = event.dataTransfer.files[0]
+						if (dropped) pick(dropped)
+					}}
+					className={cn(
+						'bg-surface-raised flex flex-col gap-4 rounded-[27px] p-[22px] transition-shadow',
+						dragging && 'ring-accent-glow ring-4 ring-inset'
+					)}
+				>
+					{file ? (
+						<div className="bg-surface-hover flex flex-wrap items-center gap-4 rounded-[18px] p-3.5">
+							<span className="bg-night text-accent-fg flex h-14 w-24 shrink-0 items-center justify-center rounded-xl">
+								<VideoIcon size={24} />
+							</span>
+							<span className="text-text min-w-0 flex-1 truncate text-[15px] font-extrabold">
+								{file.name}
+							</span>
+							<Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>
+								<UploadIcon />
+								{t('changeVideo')}
+							</Button>
+						</div>
+					) : (
+						<button
+							type="button"
+							onClick={() => inputRef.current?.click()}
+							className="border-border-strong hover:border-accent/60 hover:bg-accent-soft focus-visible:outline-accent flex flex-col items-center gap-2 rounded-[18px] border border-dashed px-6 py-8 text-center transition-colors focus-visible:outline-2"
+						>
+							<span className="bg-accent-soft text-accent-fg flex size-12 items-center justify-center rounded-[14px]">
+								<UploadIcon size={22} />
+							</span>
+							<span className="text-text text-[15px] font-extrabold">{t('chooseVideo')}</span>
+							<span className="text-text-faint text-[13px]">{t('dropHint')}</span>
+						</button>
+					)}
+					<input
+						ref={inputRef}
+						type="file"
+						accept="video/*"
+						className="sr-only"
+						tabIndex={-1}
+						aria-label={t('videoLabel')}
+						onChange={(event) => {
+							const picked = event.target.files?.[0]
+							event.target.value = ''
+							if (picked) pick(picked)
+						}}
+					/>
+					<label htmlFor="make-request" className="text-text-muted px-1 text-[13px] font-bold">
+						{t('requestLabel')}
+					</label>
 					<textarea
+						id="make-request"
 						value={request}
 						onChange={(event) => setRequest(event.target.value)}
 						onKeyDown={(event) => {
@@ -376,48 +436,116 @@ export function MakeIt() {
 						}}
 						rows={2}
 						maxLength={MAX_REQUEST_LENGTH}
-						aria-label={t('requestLabel')}
 						placeholder={t('placeholder')}
-						className="text-text placeholder:text-text-faint w-full resize-none bg-transparent px-3 pt-2.5 text-sm focus-visible:outline-none"
+						className="text-text placeholder:text-text-faint -mt-2 w-full resize-none bg-transparent px-1 text-[22px] font-semibold focus-visible:outline-none"
 					/>
-					<div className="flex justify-end px-1.5 pb-1.5">
+					<div className="flex items-center gap-2">
 						<VoiceCommandButton
 							onText={(text) =>
 								setRequest((typed) => (typed.trim() ? `${typed.trim()} ${text}` : text))
 							}
 						/>
+						<Button
+							type="submit"
+							size="lg"
+							className="ml-auto rounded-[14px] px-6"
+							disabled={!file || !request.trim()}
+						>
+							<AiIcon />
+							{t('makeIt')}
+						</Button>
 					</div>
-				</div>
-				<ul className="flex flex-wrap gap-1.5">
-					{EXAMPLES.map((example) => (
-						<li key={example}>
-							<button
-								type="button"
-								onClick={() => setRequest(t(`examples.${example}`))}
-								className="border-border text-text-muted hover:border-accent hover:text-text focus-visible:outline-accent rounded-full border px-2.5 py-1 text-xs transition-colors focus-visible:outline-2"
-							>
-								{t(`examples.${example}`)}
-							</button>
-						</li>
-					))}
-				</ul>
+				</section>
+			</div>
+			<div className="flex flex-wrap items-center justify-center gap-2">
+				<span className="text-text-faint text-sm">{t('startFrom')}</span>
+				{EXAMPLES.map(({ key, dot }) => (
+					<button
+						key={key}
+						type="button"
+						onClick={() => setRequest(t(`examples.${key}`))}
+						className={cn(
+							'focus-visible:outline-accent inline-flex h-[38px] items-center gap-2 rounded-full border px-3.5 text-[13.5px] font-bold transition-colors focus-visible:outline-2',
+							request === t(`examples.${key}`)
+								? 'border-accent/60 bg-accent-soft text-accent-fg'
+								: 'border-border text-text-muted hover:border-border-strong hover:text-text'
+						)}
+					>
+						<span aria-hidden className={cn('size-[7px] rounded-full', dot)} />
+						{t(`examples.${key}`)}
+					</button>
+				))}
 			</div>
 			{problem && (
-				<p role="alert" className="text-danger text-sm">
+				<p role="alert" className="text-danger text-center text-sm">
 					{t(`errors.${problem}`, { minutes: MAX_MAKE_SECONDS / 60 })}
 				</p>
 			)}
-			<Button type="submit" size="lg" className="self-center" disabled={!file || !request.trim()}>
-				<AiIcon />
-				{t('makeIt')}
-			</Button>
+			<p className="text-text-faint flex items-start justify-center gap-2 text-center text-[13px]">
+				<LockIcon size={14} className="mt-0.5 shrink-0" />
+				{t('steps.note')}
+			</p>
 		</form>
+	)
+}
+
+type Stage = 1 | 2 | 3
+const STAGES = ['upload', 'plans', 'review'] as const
+
+/** Where Make it is: 1 the video and request, 2 the plan being made, 3 the plan to review. */
+function Steps({ stage }: { stage: Stage }) {
+	const t = useTranslations('Make.stages')
+	return (
+		<ol className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm font-bold">
+			{STAGES.map((key, index) => {
+				const number = index + 1
+				const done = number < stage
+				const current = number === stage
+				return (
+					<li
+						key={key}
+						aria-current={current ? 'step' : undefined}
+						className="flex items-center gap-3"
+					>
+						{index > 0 && (
+							<span
+								aria-hidden
+								className={cn(
+									'hidden h-0.5 w-10 rounded-full sm:block',
+									done || current ? 'bg-accent' : 'bg-border-strong'
+								)}
+							/>
+						)}
+						<span
+							className={cn(
+								'flex items-center gap-2',
+								current || done ? 'text-text' : 'text-text-muted'
+							)}
+						>
+							<span
+								className={cn(
+									'flex size-[26px] items-center justify-center rounded-full text-xs',
+									current
+										? 'bg-accent text-white'
+										: done
+											? 'bg-success/15 text-success'
+											: 'border-border-strong border'
+								)}
+							>
+								{done ? <CheckIcon size={13} /> : number}
+							</span>
+							{t(key)}
+						</span>
+					</li>
+				)
+			})}
+		</ol>
 	)
 }
 
 function Card({ children }: { children: React.ReactNode }) {
 	return (
-		<section className="border-border bg-surface flex flex-col gap-4 rounded-lg border p-6 shadow-xl">
+		<section className="border-glass-border bg-surface-raised mx-auto flex w-full max-w-[720px] flex-col gap-5 rounded-[28px] border p-7 shadow-(--shadow-card)">
 			{children}
 		</section>
 	)
@@ -444,17 +572,19 @@ function Questions({
 					onAnswer(questions.map((question, index) => ({ question, answer: answers[index] ?? '' })))
 				}}
 			>
-				<h2 className="font-display text-text text-xl font-semibold">{t('questions.title')}</h2>
+				<h2 className="text-text text-[25px] font-extrabold tracking-[-0.02em]">
+					{t('questions.title')}
+				</h2>
 				{questions.map((question, index) => (
 					<label key={question} className="flex flex-col gap-1.5">
-						<span className="text-text text-sm">{question}</span>
+						<span className="text-text text-sm font-bold">{question}</span>
 						<input
 							value={answers[index] ?? ''}
 							onChange={(event) =>
 								setAnswers((all) => all.map((a, i) => (i === index ? event.target.value : a)))
 							}
 							maxLength={MAX_REQUEST_LENGTH}
-							className="border-border bg-surface-inset text-text focus-visible:border-accent rounded-lg border px-3 py-2 text-sm focus-visible:outline-none"
+							className="border-border-strong bg-surface-inset text-text focus-visible:border-accent/60 focus-visible:ring-accent-soft h-12 rounded-[14px] border px-4 text-base focus-visible:ring-4 focus-visible:outline-none"
 						/>
 					</label>
 				))}
@@ -468,6 +598,8 @@ function Questions({
 		</Card>
 	)
 }
+
+const DOTS = ['bg-brand-violet', 'bg-brand-purple', 'bg-brand-blue', 'bg-brand-lilac'] as const
 
 /** The plan in plain words, with Apply and Cancel. */
 function PlanView({
@@ -534,21 +666,50 @@ function PlanView({
 		<section
 			role="status"
 			aria-label={t('label')}
-			className="border-border bg-surface flex flex-col gap-4 rounded-lg border p-6 shadow-xl"
+			className="border-glass-border bg-surface-raised mx-auto flex w-full max-w-[720px] flex-col gap-5 rounded-[28px] border p-7 shadow-(--shadow-card)"
 		>
-			<div className="flex flex-col gap-1">
-				<h2 className="font-display text-text text-xl font-semibold">
+			<div className="flex items-center justify-between gap-3">
+				<span className="text-accent-fg flex items-center gap-1.5 text-xs font-extrabold tracking-[0.14em] uppercase">
+					<SparkleIcon size={13} />
+					{t('label')}
+				</span>
+				<span className="bg-surface-hover text-text-muted rounded-full px-3 py-1 text-xs font-bold">
+					{t('notApplied')}
+				</span>
+			</div>
+			<div className="flex flex-col gap-1.5">
+				<h2 className="text-text text-[clamp(24px,3vw,30px)] leading-tight font-extrabold tracking-[-0.02em]">
 					{t(`making.${summary.making}`, { length })}
 				</h2>
-				<p className="text-text-muted text-sm">{summary.summary}</p>
+				<p className="text-text-muted text-[15px]">{summary.summary}</p>
 			</div>
-			<ul className="text-text flex list-disc flex-col gap-1 pl-5 text-sm">
-				{lines.map((line) => (
-					<li key={line}>{line}</li>
+			<ul className="grid gap-2 sm:grid-cols-2">
+				{lines.map((line, index) => (
+					<li
+						key={line}
+						className="border-border bg-surface-inset text-text flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm leading-snug"
+					>
+						<span
+							aria-hidden
+							className={cn('mt-1.5 size-1.5 shrink-0 rounded-full', DOTS[index % DOTS.length])}
+						/>
+						{line}
+					</li>
 				))}
 			</ul>
-			<div className="border-border bg-surface-inset flex flex-col gap-1 rounded-lg border p-3">
-				<p className="text-text text-sm font-medium">
+			<div
+				className={cn(
+					'flex flex-col gap-1 rounded-2xl p-4',
+					problems === null ? 'bg-surface-inset' : 'bg-success/10'
+				)}
+			>
+				<p
+					className={cn(
+						'flex items-center gap-1.5 text-sm font-extrabold',
+						problems === null ? 'text-text' : 'text-success'
+					)}
+				>
+					{problems !== null && <CheckIcon size={14} />}
 					{problems === null
 						? t('check.failed')
 						: problems.length === 0
@@ -564,8 +725,8 @@ function PlanView({
 				)}
 			</div>
 			{summary.cannotDo.length > 0 && (
-				<div className="border-border bg-surface-inset flex flex-col gap-1 rounded-lg border p-3">
-					<p className="text-text text-sm font-medium">{t('cannotDo')}</p>
+				<div className="border-border bg-surface-inset flex flex-col gap-1 rounded-2xl border p-4">
+					<p className="text-text text-sm font-extrabold">{t('cannotDo')}</p>
 					<ul className="text-text-muted list-disc pl-5 text-sm">
 						{summary.cannotDo.map((line) => (
 							<li key={line}>{line}</li>
@@ -573,11 +734,18 @@ function PlanView({
 					</ul>
 				</div>
 			)}
-			<div className="flex gap-2">
-				<Button type="button" onClick={onApply}>
+			<div className="flex flex-wrap gap-2">
+				<Button type="button" size="lg" className="rounded-[14px]" onClick={onApply}>
 					{t('apply')}
+					<ArrowRightIcon />
 				</Button>
-				<Button type="button" variant="outline" onClick={onCancel}>
+				<Button
+					type="button"
+					size="lg"
+					variant="outline"
+					className="rounded-[14px]"
+					onClick={onCancel}
+				>
 					{t('cancel')}
 				</Button>
 			</div>

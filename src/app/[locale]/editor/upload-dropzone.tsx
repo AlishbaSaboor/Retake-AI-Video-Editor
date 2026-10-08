@@ -44,7 +44,7 @@ export function UploadDropzone({ onFile }: { onFile: (file: File) => void }) {
 					: 'border-border-strong bg-surface-inset hover:bg-surface'
 			)}
 		>
-			<span className="border-border bg-surface text-accent mb-4 flex size-16 items-center justify-center rounded-lg border shadow-md transition-transform group-hover:scale-105 motion-reduce:transition-none">
+			<span className="border-border bg-surface text-accent-fg mb-4 flex size-16 items-center justify-center rounded-lg border shadow-md transition-transform group-hover:scale-105 motion-reduce:transition-none">
 				<UploadIcon size={UPLOAD_ICON_SIZE} />
 			</span>
 			<span className="text-text mb-1 text-base font-semibold">{t('title')}</span>

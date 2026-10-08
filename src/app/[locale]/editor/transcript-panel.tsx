@@ -161,7 +161,9 @@ export function TranscriptPanel({
 												})
 											: segment.text}
 										{isReplaced && (
-											<span className="text-accent ml-2 text-xs font-medium">{t('replaced')}</span>
+											<span className="text-accent-fg ml-2 text-xs font-medium">
+												{t('replaced')}
+											</span>
 										)}
 									</span>
 								</button>

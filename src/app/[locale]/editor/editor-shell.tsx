@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl'
 import { ArrowLeftIcon, PanelIcon } from '@/components/ui/icons'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { LogoMark } from '@/components/site/logo'
 import { Link } from '@/i18n/routing'
 import { cn } from '@/lib/cn'
 
@@ -44,7 +45,7 @@ export function EditorShell({
 			<header
 				role="toolbar"
 				aria-label={t('toolbar')}
-				className="border-border bg-surface flex min-h-14 flex-wrap items-center gap-2 border-b px-2 py-2 sm:px-3"
+				className="border-border bg-bg flex min-h-[60px] flex-wrap items-center gap-2 border-b px-2 py-2 sm:px-4"
 			>
 				<Link
 					href="/home"
@@ -54,10 +55,7 @@ export function EditorShell({
 				>
 					<ArrowLeftIcon size={18} />
 				</Link>
-				<span
-					aria-hidden
-					className="bg-accent shadow-accent-glow mr-1 size-2.5 shrink-0 rounded-full shadow-[0_0_12px]"
-				/>
+				<LogoMark className="mr-1" />
 				<div className="flex min-w-0 flex-1 items-center gap-2 lg:flex-none">{title}</div>
 				<div className="flex items-center gap-1.5 lg:mx-auto">{centre}</div>
 				<div className="ml-auto flex shrink-0 items-center gap-1.5 lg:ml-0">

@@ -20,19 +20,19 @@ setup('sign in', async ({ page }) => {
 		return
 	}
 	await page.getByLabel('Email').fill(EMAIL)
-	await page.getByLabel('Password').fill(PASSWORD)
-	await page.getByRole('button', { name: 'Log in', exact: true }).last().click()
+	await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+	await page.getByRole('button', { name: 'Sign in', exact: true }).click()
 	// Not any alert: Next's route announcer is one too.
 	const refused = page.getByRole('alert').filter({ hasText: 'don’t match an account' })
 	await expect(
-		page.getByRole('heading', { name: 'What are we fixing today?' }).or(refused)
+		page.getByRole('heading', { name: 'What are we making today?' }).or(refused)
 	).toBeVisible({
 		timeout: 30_000
 	})
 	if (await refused.isVisible()) {
-		await page.getByRole('tab', { name: 'Sign up' }).click()
+		await page.getByRole('button', { name: 'Create an account' }).click()
 		await page.getByRole('button', { name: 'Create account' }).click()
-		await expect(page.getByRole('heading', { name: 'What are we fixing today?' })).toBeVisible({
+		await expect(page.getByRole('heading', { name: 'What are we making today?' })).toBeVisible({
 			timeout: 30_000
 		})
 	}

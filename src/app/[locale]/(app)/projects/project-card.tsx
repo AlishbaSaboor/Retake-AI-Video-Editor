@@ -14,10 +14,11 @@ import {
 	type ProjectSummary
 } from '@/app/[locale]/editor/projects'
 import { Link } from '@/i18n/routing'
+import { cn } from '@/lib/cn'
 import { ProjectThumbnail } from './project-thumbnail'
 
 const action =
-	'text-text-muted hover:bg-surface-hover hover:text-text focus-visible:outline-accent inline-flex size-8 items-center justify-center rounded-md transition-colors focus-visible:outline-2'
+	'text-text-muted hover:bg-surface-hover hover:text-text focus-visible:outline-accent inline-flex size-9 items-center justify-center rounded-[10px] transition-colors focus-visible:outline-2'
 
 /**
  * A saved project: its picture, name and last edit, opening in the editor;
@@ -67,7 +68,10 @@ export function ProjectCard({ project }: { project: ProjectSummary }) {
 	return (
 		<article
 			aria-label={project.name}
-			className="group border-border bg-surface hover:border-border-strong flex flex-col overflow-hidden rounded-lg border transition-colors"
+			className={cn(
+				'group rt-lift bg-surface flex flex-col overflow-hidden rounded-[22px] border transition-colors',
+				renaming ? 'border-accent/60' : 'border-border hover:border-border-strong'
+			)}
 		>
 			<Link
 				href={{ pathname: '/editor', query: { project: project.id } }}
@@ -76,7 +80,7 @@ export function ProjectCard({ project }: { project: ProjectSummary }) {
 			>
 				<ProjectThumbnail id={project.id} savedAt={project.savedAt} />
 			</Link>
-			<div className="flex items-start gap-2 p-4">
+			<div className="flex items-center gap-2 px-[18px] py-4">
 				<div className="flex min-w-0 flex-1 flex-col gap-1">
 					{renaming ? (
 						<form
@@ -96,18 +100,20 @@ export function ProjectCard({ project }: { project: ProjectSummary }) {
 									setRenaming(false)
 								}}
 								aria-label={t('nameLabel')}
-								className="border-accent bg-surface-inset text-text w-full rounded-md border px-2 py-1 text-sm font-semibold focus-visible:outline-none"
+								className="border-accent/60 bg-surface-inset text-text ring-accent-soft w-full rounded-xl border px-3 py-2 text-[15px] font-extrabold ring-4 focus-visible:outline-none"
 							/>
 						</form>
 					) : (
 						<Link
 							href={{ pathname: '/editor', query: { project: project.id } }}
-							className="text-text hover:text-accent focus-visible:outline-accent truncate rounded font-semibold focus-visible:outline-2"
+							className="text-text hover:text-accent-fg focus-visible:outline-accent truncate rounded text-base font-extrabold focus-visible:outline-2"
 						>
 							{project.name}
 						</Link>
 					)}
-					<span className="text-text-muted text-sm">{t('edited', { when })}</span>
+					<span className="text-text-faint text-[13px]">
+						{renaming ? t('renameHint') : t('edited', { when })}
+					</span>
 				</div>
 				<div className="flex shrink-0 gap-0.5">
 					<button
@@ -142,10 +148,10 @@ export function ProjectCard({ project }: { project: ProjectSummary }) {
 			<dialog
 				ref={dialogRef}
 				aria-labelledby={`delete-${project.id}`}
-				className="border-border bg-surface text-text m-auto w-[min(24rem,calc(100vw-2rem))] rounded-lg border p-0 shadow-2xl backdrop:bg-black/60"
+				className="border-border bg-surface-raised text-text m-auto w-[min(26rem,calc(100vw-2rem))] rounded-3xl border p-0 shadow-(--shadow-card) backdrop:bg-black/60 backdrop:backdrop-blur-sm"
 			>
-				<div className="flex flex-col gap-3 p-5">
-					<h2 id={`delete-${project.id}`} className="font-display text-lg font-semibold">
+				<div className="flex flex-col gap-3 p-6">
+					<h2 id={`delete-${project.id}`} className="text-xl font-extrabold">
 						{t('deleteTitle', { name: project.name })}
 					</h2>
 					<p className="text-text-muted text-sm">{t('deleteBody')}</p>

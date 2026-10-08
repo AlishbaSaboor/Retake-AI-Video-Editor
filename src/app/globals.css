@@ -5,15 +5,38 @@
    both declares them as real CSS variables and generates the matching
    Tailwind utilities (e.g. --radius-lg below gives you `rounded-lg`). */
 @theme {
-	--radius-sm: 6px;
-	--radius: 10px;
-	--radius-lg: 16px;
+	--radius-sm: 7px;
+	--radius: 11px;
+	--radius-lg: 14px;
+	--radius-xl: 18px;
+	--radius-2xl: 24px;
+	--radius-3xl: 30px;
+	/* The brand's four colours, the same in both themes (the logo, the dots,
+	   the gradients, the coloured bullets). */
+	--color-brand-violet: #6d5bff;
+	--color-brand-purple: #9b6bff;
+	--color-brand-blue: #4c7dff;
+	--color-brand-lilac: #d9c2ff;
+	/* What stays dark in both themes (the closing band, a video's frame), and
+	   the ink on a white button there. */
+	--color-night: #09081a;
+	--color-ink: #0b0c14;
+	/* A zoom's box and the word being said, drawn on the video. */
+	--color-zoom: #ffd27a;
+	/* The theme switch's knob in the dark, and its sun in the light. */
+	--color-knob: #2a2d3a;
+	--color-sun: #e8590c;
+	/* The design's easing: quick out, soft landing. */
+	--ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* The font families come from next/font (layout.tsx), as variables on <html>. */
+/* The font families come from next/font (layout.tsx), as variables on <html>:
+   Manrope for the interface and headings, Instrument Serif for the large
+   display lines (an italic gradient word in each), Geist Mono for timecodes. */
 @theme inline {
-	--font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-	--font-display: var(--font-grotesk), var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+	--font-sans: var(--font-manrope), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-display: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+	--font-serif: var(--font-instrument), Georgia, 'Times New Roman', serif;
 	--font-mono: var(--font-geist-mono), ui-monospace, 'SFMono-Regular', Menlo, monospace;
 }
 
@@ -22,55 +45,96 @@
    reference these variables live rather than inlining today's computed
    value at build time. See DESIGN.md for the full token table.
 
-   Two schemes, one accent. Dark is the default (a video editor is judged
-   against footage); light is `data-theme="light"` on <html>, set before
-   first paint by the script in layout.tsx from the visitor's choice.
+   Two schemes, one violet accent. Dark is the default (a video editor is
+   judged against footage); light is `data-theme="light"` on <html>, set
+   before first paint by the script in layout.tsx from the visitor's choice.
    `color-scheme` makes native UI (video controls, scrollbars, form fields)
-   follow. */
-:root {
+   follow. `--accent` fills (buttons, the playhead, selected chips) and
+   carries white ink; `--accent-fg` is the accent as text or an icon, a
+   lighter violet on dark and a deeper one on light so it reads on both. */
+/* A part of a page can also wear one theme whatever the page's (data-theme on
+   any element): the day-and-night picture on the landing page. */
+:root,
+[data-theme='dark'] {
 	color-scheme: dark;
-	--bg: #0b0b0d;
-	--surface: #151518;
-	--surface-hover: #1f1f23;
-	--surface-inset: #101012;
-	--border: #26262b;
-	--border-strong: #3a3a41;
-	--text: #f4f4f5;
-	--text-muted: #a1a1aa;
-	--text-faint: #7f7f89;
-	--accent: #c6f432;
-	--accent-hover: #d7ff5c;
-	--accent-ink: #0b0b0d;
-	--accent-soft: rgb(198 244 50 / 0.12);
-	--accent-secondary: #e4f9a6;
-	--accent-glow: rgb(198 244 50 / 0.28);
-	--success: #3dd6a3;
-	--warning: #f2a93b;
-	--danger: #f2555a;
-	--filler: #c79bff;
+	--bg: #09081a;
+	--surface: #121122;
+	--surface-hover: #1b1a2d;
+	--surface-inset: #07061a;
+	--surface-raised: #17152e;
+	--border: rgb(255 255 255 / 0.08);
+	--border-strong: rgb(255 255 255 / 0.17);
+	--text: #f4f3fa;
+	--text-muted: rgb(244 243 250 / 0.7);
+	--text-faint: rgb(244 243 250 / 0.55);
+	--accent: #6d5bff;
+	--accent-hover: #7b6bff;
+	--accent-fg: #b8acff;
+	--accent-ink: #ffffff;
+	--accent-soft: rgb(109 91 255 / 0.16);
+	--accent-secondary: #9b6bff;
+	--accent-glow: rgb(109 91 255 / 0.35);
+	--blue: #4c7dff;
+	--lilac: #d9c2ff;
+	/* The solid button that sits beside the gradient one: white on dark, ink on light. */
+	--contrast: #ffffff;
+	--contrast-ink: #0b0a16;
+	--success: #4ade9b;
+	--warning: #ffd27a;
+	--danger: #ff6b7a;
+	--filler: #ffb067;
+	/* The page's glow: violet from the top, blue from the right. */
+	--glow-violet: rgb(109 91 255 / 0.22);
+	--glow-blue: rgb(76 125 255 / 0.14);
+	--orb-violet: rgb(155 107 255 / 0.55);
+	--orb-blue: rgb(76 125 255 / 0.5);
+	--glass: rgb(255 255 255 / 0.06);
+	--glass-border: rgb(255 255 255 / 0.09);
+	--shadow-card: 0 30px 80px -30px rgb(0 0 0 / 0.75);
+	--gradient-text: linear-gradient(90deg, #d9c2ff, #9b6bff, #6d5bff, #4c7dff, #d9c2ff);
+	/* The picked option of a segmented control, and a slider's empty track. */
+	--selected: rgb(255 255 255 / 0.13);
+	--track: rgb(255 255 255 / 0.12);
 }
 
-:root[data-theme='light'] {
+:root[data-theme='light'],
+[data-theme='light'] {
 	color-scheme: light;
-	--bg: #f6f6f3;
+	--bg: #f7f6fd;
 	--surface: #ffffff;
-	--surface-hover: #efefea;
-	--surface-inset: #ecece6;
-	--border: #e0e0d9;
-	--border-strong: #c4c4bb;
-	--text: #121214;
-	--text-muted: #55555c;
-	--text-faint: #6a6a72;
-	--accent: #4a7a00;
-	--accent-hover: #3d6600;
+	--surface-hover: #efeef8;
+	--surface-inset: #f3f2fb;
+	--surface-raised: #ffffff;
+	--border: rgb(20 18 50 / 0.09);
+	--border-strong: rgb(20 18 50 / 0.18);
+	--text: #12111f;
+	--text-muted: rgb(18 17 31 / 0.7);
+	--text-faint: rgb(18 17 31 / 0.62);
+	--accent: #6d5bff;
+	--accent-hover: #5c49f2;
+	--accent-fg: #4f3fd9;
 	--accent-ink: #ffffff;
-	--accent-soft: rgb(74 122 0 / 0.1);
-	--accent-secondary: #3d6600;
-	--accent-glow: rgb(74 122 0 / 0.22);
+	--accent-soft: rgb(109 91 255 / 0.1);
+	--accent-secondary: #7b3fd6;
+	--accent-glow: rgb(109 91 255 / 0.28);
+	--blue: #2f5bd9;
+	--lilac: #7b3fd6;
+	--contrast: #12111f;
+	--contrast-ink: #ffffff;
 	--success: #0b7656;
 	--warning: #a8640a;
 	--danger: #c5282e;
-	--filler: #7c3aed;
+	--filler: #b4570f;
+	--glow-violet: rgb(109 91 255 / 0.16);
+	--glow-blue: rgb(76 125 255 / 0.1);
+	--orb-violet: rgb(155 107 255 / 0.35);
+	--orb-blue: rgb(76 125 255 / 0.3);
+	--glass: rgb(255 255 255 / 0.62);
+	--glass-border: rgb(11 12 20 / 0.09);
+	--shadow-card: 0 24px 60px -24px rgb(30 20 80 / 0.28);
+	--gradient-text: linear-gradient(90deg, #4f3fd9, #7b3fd6, #2f5bd9, #4f3fd9);
+	--selected: rgb(20 18 50 / 0.08);
+	--track: rgb(20 18 50 / 0.1);
 }
 
 @theme inline {
@@ -78,6 +142,7 @@
 	--color-surface: var(--surface);
 	--color-surface-hover: var(--surface-hover);
 	--color-surface-inset: var(--surface-inset);
+	--color-surface-raised: var(--surface-raised);
 	--color-border: var(--border);
 	--color-border-strong: var(--border-strong);
 	--color-text: var(--text);
@@ -85,14 +150,30 @@
 	--color-text-faint: var(--text-faint);
 	--color-accent: var(--accent);
 	--color-accent-hover: var(--accent-hover);
+	--color-accent-fg: var(--accent-fg);
 	--color-accent-ink: var(--accent-ink);
 	--color-accent-soft: var(--accent-soft);
 	--color-accent-secondary: var(--accent-secondary);
 	--color-accent-glow: var(--accent-glow);
+	--color-blue: var(--blue);
+	--color-lilac: var(--lilac);
+	--color-contrast: var(--contrast);
+	--color-contrast-ink: var(--contrast-ink);
+	--color-glass: var(--glass);
+	--color-orb-violet: var(--orb-violet);
+	--color-orb-blue: var(--orb-blue);
+	--color-selected: var(--selected);
+	--color-track: var(--track);
+	--color-glass-border: var(--glass-border);
 	--color-success: var(--success);
 	--color-warning: var(--warning);
 	--color-danger: var(--danger);
 	--color-filler: var(--filler);
+	--shadow-card: var(--shadow-card);
+}
+
+[data-theme] {
+	color: var(--text);
 }
 
 body {
@@ -104,4 +185,175 @@ body {
 
 ::selection {
 	background-color: var(--accent-glow);
+}
+
+:focus-visible {
+	outline-color: var(--accent-fg);
+}
+
+/* The brand gradient, as a fill (buttons, the logo) and as text (the italic
+   word in each display heading). */
+@utility bg-brand {
+	background-image: linear-gradient(135deg, #6d5bff, #9b6bff);
+}
+@utility bg-brand-wide {
+	background-image: linear-gradient(135deg, #6d5bff, #9b6bff 35%, #4c7dff 70%, #d9c2ff);
+}
+@utility text-gradient {
+	background-image: var(--gradient-text);
+	background-size: 200% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	color: transparent;
+	/* Instrument Serif's italic leans past its box: room so the clip keeps it. */
+	padding-right: 0.08em;
+}
+/* The page's soft glow behind a heading. */
+@utility bg-glow {
+	background-image:
+		radial-gradient(50% 60% at 20% 0%, var(--glow-violet), transparent 70%),
+		radial-gradient(40% 50% at 85% 10%, var(--glow-blue), transparent 70%);
+}
+
+/* Motion: light, and none at all for anyone who asks for less. */
+@keyframes rt-rise {
+	from {
+		opacity: 0;
+		transform: translateY(48px);
+		filter: blur(8px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+		filter: none;
+	}
+}
+@keyframes rt-float {
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+	50% {
+		transform: translateY(-10px);
+	}
+}
+@keyframes rt-pulse {
+	0%,
+	100% {
+		opacity: 1;
+		transform: scale(1);
+	}
+	50% {
+		opacity: 0.45;
+		transform: scale(1.35);
+	}
+}
+@keyframes rt-scrollhint {
+	0% {
+		transform: translateY(0);
+		opacity: 0;
+	}
+	30% {
+		opacity: 1;
+	}
+	100% {
+		transform: translateY(14px);
+		opacity: 0;
+	}
+}
+@keyframes rt-sheen {
+	from {
+		background-position: 0% 50%;
+	}
+	to {
+		background-position: 200% 50%;
+	}
+}
+@keyframes rt-bar {
+	0%,
+	100% {
+		transform: scaleY(0.35);
+	}
+	50% {
+		transform: scaleY(1);
+	}
+}
+@keyframes rt-fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	/* Rises into place as it scrolls into view. Without scroll-driven
+	   animations (Firefox today), it's simply there. */
+	@supports (animation-timeline: view()) {
+		.rt-reveal {
+			animation: rt-rise linear both;
+			animation-timeline: view();
+			animation-range: entry 0% entry 60%;
+		}
+	}
+	.rt-rise {
+		animation: rt-rise 0.9s var(--ease-out-soft) both;
+	}
+	.rt-float {
+		animation: rt-float 6s ease-in-out infinite;
+	}
+	.rt-pulse {
+		animation: rt-pulse 1.4s ease-in-out infinite;
+	}
+	.rt-scrollhint {
+		animation: rt-scrollhint 1.8s ease-in-out infinite;
+	}
+	.rt-sheen {
+		animation: rt-sheen 8s linear infinite;
+	}
+	.rt-bar {
+		animation: rt-bar 0.9s ease-in-out infinite;
+		transform-origin: center;
+	}
+	.rt-fade-in {
+		animation: rt-fade-in 0.4s ease both;
+	}
+	/* Lifts a little under the pointer. */
+	.rt-lift {
+		transition:
+			transform 0.35s var(--ease-out-soft),
+			box-shadow 0.35s ease;
+	}
+	.rt-lift:hover {
+		transform: translateY(-3px);
+	}
+	.rt-btn {
+		transition:
+			transform 0.25s var(--ease-out-soft),
+			box-shadow 0.25s ease,
+			background-color 0.2s ease,
+			filter 0.2s ease;
+	}
+	.rt-btn:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 18px 40px -14px rgb(109 91 255 / 0.55);
+	}
+}
+
+/* A picture of the app drawn at a fixed size (the canvas) and scaled to
+   fit its frame's width, text and all, like a screenshot that stays sharp.
+   tan(atan2()) turns the frame's width over the canvas's into a plain
+   number for scale(). */
+.mock-frame {
+	container-type: inline-size;
+	position: relative;
+	overflow: hidden;
+}
+.mock-canvas {
+	position: absolute;
+	top: 0;
+	left: 0;
+	transform-origin: 0 0;
+	transform: scale(tan(atan2(100cqw, var(--mock-width))));
 }
