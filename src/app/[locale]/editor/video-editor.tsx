@@ -2279,7 +2279,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 									<button
 										type="button"
 										onClick={() => setShowOriginal(false)}
-										className="bg-accent text-accent-contrast focus-visible:outline-accent rounded-md px-3 py-1.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
+										className="bg-accent text-accent-ink focus-visible:outline-accent rounded-md px-3 py-1.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
 									>
 										{t('original.switch')}
 									</button>

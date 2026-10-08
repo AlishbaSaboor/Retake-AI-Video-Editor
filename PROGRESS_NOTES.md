@@ -6,7 +6,13 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **Read this first: where things stand right now**
 >
-> - Branch `main`. Updated 2026-10-07.
+> - Branch `main`. Updated 2026-10-08.
+> - **Redesign to the owner's design files** (section 3zi): the whole site
+>   and app re-skinned to `design/landing.html` and `design/app.html` (night
+>   blue and violet, Instrument Serif + Manrope, glass pill bar); new
+>   Pricing and Privacy pages; Contact with name and topic plus the FAQ;
+>   a split-screen sign-in; the home's two ways in, Make it handed a video
+>   from Home, projects searchable and sortable. Logic unchanged.
 > - **Make it: time limits and plain AI errors** (section 3zh): planning gives
 >   up after 60 s (the second check after 30 s), the page after 65 s; a
 >   refused key, a usage limit or a busy AI shows the server's plain words
@@ -2548,6 +2554,63 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
   owner's own `next start` on port 3000, which then served blank pages;
   tests ran against a separate server on 3100 (`E2E_BASE_URL`). Rebuild
   before restarting a local production server.
+
+## 3zi. Redesign to the owner's design files (2026-10-08)
+
+- **Asked:** make the whole site match `design/landing.html` (public pages)
+  and `design/app.html` (the app) exactly, dark and light, keeping every
+  feature; true content instead of the design's placeholders; free in beta.
+- **How the designs were read:** each is a bundled page that unpacks its
+  boards into iframes. A Playwright script (temporary, not committed)
+  screenshotted every board while scrolling it (sections animate in on
+  scroll), clicked the app prototype's own nav for each screen, and dumped
+  every element's computed font, colour, border, radius and shadow. Those
+  numbers are what the code uses.
+- **Tokens** (`globals.css`, DESIGN.md): night blue `#09081A` / lavender
+  white `#F7F6FD`; violet `--accent` for fills, `--accent-fg` for accent text
+  (every `text-accent` became `text-accent-fg`); brand gradient utilities;
+  fonts Manrope, Instrument Serif, Geist Mono (Geist and Space Grotesk gone);
+  light CSS motion all under `prefers-reduced-motion: no-preference`. A
+  `data-theme` on any element scopes a theme (the day-and-night slider).
+- **Public site** (`(site)/`): glass pill header (active page dotted, wide
+  theme switch, Open Retake), new footer (Features, How it works, Pricing,
+  Contact & FAQ, Privacy). Home: hero with a drawn app window and floating
+  notes; the five-scene story (sticky stepper following the scroll, the
+  picture of the app changing per scene); Make it's style tabs and
+  before/after slider; three promises; a day-and-night slider; the closing
+  band. Features: three sections beside pictures of the app. How it works:
+  two paths (AI, by hand), each a scroll story. **Pricing** (new): free while
+  in beta, eight features, after beta undecided, limits = 5-minute videos
+  for transcripts/Make it/highlights, projects in the browser's storage.
+  **Contact**: Name (optional, into the existing nullable `name` column),
+  email, "What's it about?" (kept as `[topic] ` at the start of the message:
+  no schema change), message; then the FAQ (9 questions, true answers).
+  **Privacy** (new): who, what's collected (Supabase account, PostHog usage,
+  Sentry errors, contact messages; videos stay in the browser), Deepgram and
+  Gemini and what each receives, keeping, choices, changes.
+- **Sign-in** moved to an `(auth)` group (same `/login`): the design's split
+  screen, show/hide password, a link to switch to sign-up (the tabs went).
+- **App**: the app bar (New project / Projects, filled when current, initial,
+  Sign out; icons only on a phone). Home: "What are we _making_ today?",
+  Make it with AI (request box, its four starting points, Upload and
+  describe hands the video and request to `/make` via `make-start.ts`;
+  nothing is planned until Make it is pressed there), Edit by hand, and the
+  old Edit with AI (a command waiting in the editor) kept as a third row so
+  no feature is lost; recent projects under them. Make it: the three-step
+  indicator, gradient-framed form, starting points, the plan as tiles with
+  the check in green. Projects: serif heading, search, sort by last edited
+  or name, count, video length on each picture. Editor: logo mark and the
+  segmented Edited/Original in its bar; the rest follows the tokens.
+- **Drawn pictures**: the design's photos and app screenshots are drawn in
+  markup and SVG (`app-screen.tsx`, `make-screen.tsx`, `scenes.tsx`), scaled
+  by `.mock-frame` (tan(atan2()) to turn widths into a scale), and hidden
+  from screen readers.
+- **Tests**: unit for the contact schema (name, topic) and the projects
+  search/sort; e2e `site.spec` rewritten (story stepper, Make it tabs and
+  slider, new pages, pricing, how-it-works paths, login switch and password
+  toggle, phone overflow), `home.spec`, `make-it.spec` (Home hands its video
+  to Make it), `auth.setup` (Sign in button). Light background checked at
+  `rgb(247, 246, 253)`.
 
 ---
 

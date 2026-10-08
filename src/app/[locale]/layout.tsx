@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono, Space_Grotesk } from 'next/font/google'
+import { Geist_Mono, Instrument_Serif, Manrope } from 'next/font/google'
 import { NextIntlClientProvider, hasLocale } from 'next-intl'
 import { notFound } from 'next/navigation'
 import { routing } from '@/i18n/routing'
@@ -12,12 +12,17 @@ import '../globals.css'
 
 export const metadata: Metadata = {
 	title: { default: 'Retake', template: '%s · Retake' },
-	description: 'Fix the flaws in a recording without starting over.'
+	description: 'A video editor for the web. Keep the moment, lose the mess.'
 }
 
-const geist = Geist({ subsets: ['latin'], variable: '--font-geist' })
+const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope' })
+const instrument = Instrument_Serif({
+	subsets: ['latin'],
+	weight: '400',
+	style: ['normal', 'italic'],
+	variable: '--font-instrument'
+})
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
-const grotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-grotesk' })
 
 export default async function LocaleLayout({
 	children,
@@ -41,7 +46,7 @@ export default async function LocaleLayout({
 		<html
 			lang={locale}
 			suppressHydrationWarning
-			className={cn(geist.variable, geistMono.variable, grotesk.variable)}
+			className={cn(manrope.variable, instrument.variable, geistMono.variable)}
 		>
 			<head>
 				{/* A plain <script>, run by the browser as it reads the page, so a

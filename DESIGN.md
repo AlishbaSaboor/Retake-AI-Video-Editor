@@ -57,28 +57,50 @@ component that uses it. This template ships a neutral starter set:
 | `--filler`                                 | —                        | filler-word flags on the timeline (silences use `--warning`)    |
 | `--radius-sm` / `--radius` / `--radius-lg` | 6px / 10px / 16px        | never hardcode a `border-radius` outside these                  |
 
-**Retake has two schemes, dark by default, and one accent.** The live values
-are in `globals.css`: dark on `:root` (graphite surfaces, an electric-lime
-`--accent` with dark ink on it), light under `:root[data-theme='light']`
-(warm off-white surfaces, a deep lime `--accent` with white ink, so accent
-text still reads on white). `--accent-soft` is the accent at ~10% for
-selected and highlighted surfaces; `--accent-secondary` is now a tint of the
-same hue, not a second colour. The switch in the top bar sets `data-theme` and
-remembers it in `localStorage` (`retake-theme`); a script in `<head>`
-(`src/lib/theme.ts`) applies it before first paint. Body text meets WCAG AA
-in both (checked 2026-10-05: text-faint 4.6:1 or better, accent on white
-4.8:1, success 5.6:1). Anything drawn on the video itself (handles, the
-letterbox, crop shade) stays black/white in both schemes: it sits on footage,
-not on the page.
+**Retake has two schemes, dark by default, and one violet accent**, taken
+from the owner's design files (`design/landing.html`, the public site;
+`design/app.html`, the app; 12 MB, so kept out of the repo), which are the
+source of truth for the look. The live
+values are in `globals.css`: dark on `:root` (night-blue `#09081A`, white at
+3.5-6% for surfaces), light under `:root[data-theme='light']` (lavender-white
+`#F7F6FD`, white surfaces). `--accent` (`#6D5BFF`) is for fills and carries
+white ink; `--accent-fg` is the accent as text or an icon (`#B8ACFF` on dark,
+`#4F3FD9` on light). The brand's four colours (`brand-violet`,
+`brand-purple`, `brand-blue`, `brand-lilac`) are static tokens, the same in
+both themes, for the logo, gradients (`bg-brand`, `bg-brand-wide`,
+`text-gradient`) and coloured bullets. `--contrast` is the solid button beside
+the gradient one: white on dark, ink on light. A part of a page can wear one
+theme whatever the page's (`data-theme` on any element: the day-and-night
+comparison). The switch sets `data-theme` on `<html>` and remembers it in
+`localStorage` (`retake-theme`); a script in `<head>` (`src/lib/theme.ts`)
+applies it before first paint. Checked 2026-10-08 (WCAG): muted text 8.8:1
+dark / 6.7:1 light, faint 5.7 / 5.1, accent text 9.8 / 6.9, success 11.5 /
+5.2, white on `--accent` 4.6. White on the light end of the button gradient
+(`#9B6BFF`) is 3.5:1, as the design has it. Anything drawn on the video
+itself (handles, the letterbox, crop shade) stays black/white in both
+schemes: it sits on footage, not on the page.
 
-**Type:** Geist for the interface (`font-sans`), Space Grotesk for headings
-(`font-display`), Geist Mono for timecodes and labels (`font-mono`), all from
-`next/font` (`layout.tsx`), self-hosted at build.
+**Type:** Manrope for the interface and its headings (`font-sans`,
+`font-display`), Instrument Serif for the large display lines with one
+italic phrase each (`font-serif`; the `<em>` of a rich message, styled by
+`emphasis()` in `src/components/site/display.tsx`), Geist Mono for timecodes
+(`font-mono`), all from `next/font` (`layout.tsx`), self-hosted at build.
 
-**Shared pieces:** `src/components/site/` (top bar, footer, logo, page
-heading), `src/components/theme-toggle.tsx`, and the `ui/` foundation.
-Buttons are `rounded-lg`, primary is the accent with `font-semibold`;
-cards and panels are `bg-surface`, `border-border`, `rounded-lg`; inputs are
+**Motion:** light CSS only, in `globals.css`: `rt-rise` (a page's opening),
+`rt-reveal` (rises in as it scrolls into view, by scroll-driven animation;
+simply there where that isn't supported), `rt-float`, `rt-sheen`, `rt-lift`,
+`rt-btn`. All of it sits under `prefers-reduced-motion: no-preference`, so
+reduced motion shows everything at once and still.
+
+**Shared pieces:** `src/components/site/`: the public pill bar
+(`site-header.tsx`), the app bar (`app-header.tsx`), footer, logo,
+`display.tsx` (eyebrow, serif headings, page hero), the closing band, and the
+pictures of the app drawn in markup (`app-screen.tsx`, `make-screen.tsx`,
+`scenes.tsx`; drawn at a fixed size and scaled to fit by `.mock-frame`).
+Plus `src/components/theme-toggle.tsx` (`site` and `app` sizes) and the
+`ui/` foundation. Primary buttons are the brand gradient with white
+extra-bold text; `contrast` is the solid one; cards are `rounded-[22-30px]`
+on `bg-surface`/`bg-glass` with `border-border`; inputs are
 `bg-surface-inset`.
 
 ## 3. Component conventions
