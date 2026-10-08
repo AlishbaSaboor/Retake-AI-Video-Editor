@@ -1,5 +1,6 @@
 import type { Annotation } from './annotations'
 import type { CaptionMode } from './captions'
+import type { Design } from './design'
 import type { AudioItem } from './audio-lane'
 import type { AddedVideo } from './sources'
 import type { LowerThird, Zoom } from './motion'
@@ -42,6 +43,8 @@ export type EditSnapshot<R = ReplacementTake> = {
 	autoZooms: Zoom[]
 	/** Key lines, from Make it: more titles, each in its own time. */
 	autoTitles: TitleCard[]
+	/** A designed vertical frame around the speech (design.ts), for a picture that doesn't carry the video. */
+	design: Design | null
 }
 
 /** The edit right after upload: the whole take, untouched. */
@@ -64,7 +67,8 @@ export const ORIGINAL_EDIT: EditSnapshot = {
 	lowerThird: null,
 	zoom: null,
 	autoZooms: [],
-	autoTitles: []
+	autoTitles: [],
+	design: null
 }
 
 /**
@@ -95,6 +99,7 @@ export function isOriginalEdit<R>(edit: EditSnapshot<R>, durationSeconds: number
 		!edit.zoom &&
 		edit.autoZooms.length === 0 &&
 		edit.autoTitles.length === 0 &&
+		edit.design === null &&
 		(edit.clips === null ||
 			(otherClips.length === 0 &&
 				otherRanges.length === 0 &&

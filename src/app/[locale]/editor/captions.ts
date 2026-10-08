@@ -74,12 +74,14 @@ export function editedWords(words: TranscriptWord[], segments: Segment[]): Trans
  * play, in play order, grouped into captions that end at a sentence, a
  * pause, or two full lines. `words`: one word at a time instead, each
  * held until the next starts unless a pause comes first. `highlight`: the
- * lines, with when each word is said.
+ * lines, with when each word is said; `timed` gives the lines that too (a
+ * designed frame's captions pop each word as it's said).
  */
 export function editedCaptions(
 	words: TranscriptWord[],
 	segments: Segment[],
-	mode: CaptionMode = 'lines'
+	mode: CaptionMode = 'lines',
+	timed = mode === 'highlight'
 ): Caption[] {
 	const playing = editedWords(words, segments)
 	if (mode === 'words') {
@@ -117,7 +119,7 @@ export function editedCaptions(
 			lines: [],
 			startSeconds: word.startSeconds,
 			endSeconds: word.endSeconds,
-			...(mode === 'highlight' && { spoken: [] })
+			...(timed && { spoken: [] })
 		}
 		current.spoken?.push(word.startSeconds)
 		line = line ? `${line} ${word.text}` : word.text

@@ -52,6 +52,7 @@ const reply = (fields: Partial<MakeReply> = {}): MakeReply => ({
 	keyLines: [],
 	vertical: true,
 	faces: FACES,
+	card: 'corner',
 	music: null,
 	title: null,
 	cannotDo: [],
@@ -447,7 +448,10 @@ test("a long, busy video's pictures reach the server whole, and its reel comes o
 test('a screen recording made vertical keeps all of its picture, with black bars above and below', async ({
 	page
 }) => {
-	const seen = await mockMakeActions(page, WORDS, [reply({ subject: 'screen', zoomSentences: [] })])
+	// A screen demo whose picture matters: fitted with black bars, not designed.
+	const seen = await mockMakeActions(page, WORDS, [
+		reply({ subject: 'screen', pictureMatters: true, zoomSentences: [] })
+	])
 	await startMaking(page, 'make this an Instagram reel')
 	await expect(plan(page)).toContainText(
 		'Vertical 9:16, the whole picture kept, with black bars above and below',
@@ -552,6 +556,8 @@ test('the second check fixes the plan before it shows: its title and key line co
 				zoomSentences: [],
 				captions: 'bold_words',
 				subject: 'screen',
+				// The picture matters here: fitted with black bars, not designed.
+				pictureMatters: true,
 				faces: []
 			})
 		],
@@ -712,4 +718,112 @@ test("a refused key or a usage limit shows the server's plain words", async ({ p
 	)
 	await startMaking(page, 'make this an Instagram reel')
 	await expect(page.getByText(refused)).toBeVisible({ timeout: 60_000 })
+})
+
+/** The average colour of a region of an image, its edges as fractions of it. */
+type Region = { x: number; y: number; width: number; height: number }
+const REGIONS: Record<string, Region> = {
+	// The background, at the left and right edges, clear of all text.
+	left: { x: 0.02, y: 0.36, width: 0.08, height: 0.12 },
+	right: { x: 0.9, y: 0.36, width: 0.08, height: 0.12 },
+	// Inside the picture card's top-left corner: the test video's dark blue (#112233).
+	card: { x: 0.08, y: 0.79, width: 0.06, height: 0.02 }
+}
+
+/** Each region's average red, green and blue in an image (PNG bytes), read in the page. */
+async function regionColours(page: Page, png: Buffer) {
+	return page.evaluate(
+		async ({ bytes, regions }) => {
+			const image = await createImageBitmap(
+				new Blob([new Uint8Array(bytes)], { type: 'image/png' })
+			)
+			const canvas = Object.assign(document.createElement('canvas'), {
+				width: image.width,
+				height: image.height
+			})
+			const context = canvas.getContext('2d')
+			if (!context) throw new Error('no 2d context')
+			context.drawImage(image, 0, 0)
+			return Object.fromEntries(
+				Object.entries(regions).map(([name, r]) => {
+					const data = context.getImageData(
+						Math.round(r.x * image.width),
+						Math.round(r.y * image.height),
+						Math.max(1, Math.round(r.width * image.width)),
+						Math.max(1, Math.round(r.height * image.height))
+					).data
+					const sum = [0, 0, 0]
+					for (let i = 0; i < data.length; i += 4) {
+						for (let c = 0; c < 3; c++) sum[c] = (sum[c] ?? 0) + (data[i + c] ?? 0)
+					}
+					return [name, sum.map((v) => Math.round(v / (data.length / 4)))]
+				})
+			) as Record<string, number[]>
+		},
+		{ bytes: [...png], regions: REGIONS }
+	)
+}
+
+test('a reel of a meeting is designed around the speech: a 9:16 frame, its picture a card, the export as the preview', async ({
+	page
+}) => {
+	test.setTimeout(150_000)
+	await mockMakeActions(page, WORDS, [
+		reply({
+			subject: 'meeting',
+			faces: [],
+			card: 'corner',
+			zoomSentences: [],
+			title: 'This is the key point',
+			keyLines: [{ sentence: 3, text: 'Bye' }]
+		})
+	])
+	await startMaking(page, 'make this an Instagram reel')
+	await expect(plan(page)).toContainText(
+		'Vertical 9:16, designed around the speech: a moving background, big text, and the picture as a small card in the corner',
+		{ timeout: 60_000 }
+	)
+	await plan(page).getByRole('button', { name: 'Apply' }).click()
+	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
+		timeout: 30_000
+	})
+
+	// The preview's frame is itself 9:16, the background drawn in it, the picture a card low on the left.
+	const frame = page.getByTestId('output-frame')
+	const box = await frame.boundingBox()
+	if (!box) throw new Error('no output frame')
+	expect(box.width / box.height).toBeCloseTo(9 / 16, 2)
+	await expect(frame.getByTestId('design-background')).toBeVisible()
+	const card = await frame.getByTestId('picture').boundingBox()
+	if (!card) throw new Error('no picture card')
+	expect((card.x - box.x) / box.width).toBeCloseTo(0.06, 1)
+	expect(card.width / box.width).toBeCloseTo(0.44, 1)
+	expect((card.y + card.height - box.y) / box.height).toBeCloseTo(0.92, 1)
+
+	// The preview at 1 s, and the export's frame at 1 s: the same colours, region by region.
+	await seekTo(page, 1)
+	await page.waitForTimeout(300)
+	const preview = await regionColours(page, await frame.screenshot())
+	const bytes = await exportVideo(page)
+	const { videoWidth, videoHeight, frames } = await readExportFrames(
+		page,
+		bytes,
+		[1],
+		({ context }) => ({ png: context.canvas.toDataURL('image/png') })
+	)
+	expect([videoWidth, videoHeight]).toEqual([180, 320])
+	const exported = await regionColours(
+		page,
+		Buffer.from(String(frames[0]?.png).split(',')[1] ?? '', 'base64')
+	)
+	for (const name of Object.keys(REGIONS)) {
+		const a = preview[name] ?? []
+		const b = exported[name] ?? []
+		const off = Math.max(...a.map((value, c) => Math.abs(value - (b[c] ?? 0))))
+		expect(off, `${name}: preview ${a}, export ${b}`).toBeLessThan(25)
+	}
+	// A coloured background, not black bars; the card the picture's own dark blue.
+	expect(Math.max(...(exported.left ?? [])), 'the background is coloured').toBeGreaterThan(40)
+	const [r = 0, g = 0, blue = 0] = exported.card ?? []
+	expect(blue > r && blue > 35 && g < 80, `the card shows the picture: ${exported.card}`).toBe(true)
 })

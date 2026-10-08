@@ -18,7 +18,7 @@ export const STEPS = ['start', 'read', 'ask', 'hand', 'rerecord', 'export'] as c
 const PRIVACY = ['browser', 'speech', 'commands'] as const
 
 export const FEATURES = [
-	{ key: 'ai', icon: AiIcon, points: 7 },
+	{ key: 'ai', icon: AiIcon, points: 8 },
 	{ key: 'timeline', icon: SplitIcon, points: 6 },
 	{ key: 'graphics', icon: TextIcon, points: 6 },
 	{ key: 'rerecord', icon: MicIcon, points: 4 }

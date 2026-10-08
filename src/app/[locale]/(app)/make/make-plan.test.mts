@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { toTranscript } from '../../editor/transcript'
+import { cardRect, wordPop } from '../../editor/design'
 import { exportSize } from '../../editor/transform'
 import {
 	faceFollow,
@@ -65,6 +66,7 @@ const REPLY: MakeReply = {
 		...[5, 6, 7, 8, 9, 10].map((frame) => ({ frame, x: 800, y: 400 })),
 		{ frame: 99, x: 100, y: 100 }
 	],
+	card: 'corner',
 	music: 'upbeat.mp3',
 	title: 'Meet Sarah now',
 	cannotDo: []
@@ -234,6 +236,7 @@ test('a reply is planned into one edit: clips, transitions, word captions, zooms
 			music: 'upbeat.mp3',
 			musicMissing: false,
 			vertical: 'face',
+			card: null,
 			title: null,
 			titleDropped: true,
 			pictureMatters: false,
@@ -412,10 +415,10 @@ test('short-form is known from the format or the request itself', () => {
 	assert.equal(isShortForm('other', 'keep it short'), false)
 })
 
-test('a screen recording made vertical keeps the whole picture, with black bars, faces or not', () => {
+test('a screen demo whose picture matters keeps the whole picture, with black bars, faces or not', () => {
 	const picture = { width: 1920, height: 1080 }
 	const { edit, summary } = planMake({
-		reply: { ...REPLY, subject: 'screen', pictureMatters: false },
+		reply: { ...REPLY, subject: 'screen', pictureMatters: true },
 		request: 'make this an Instagram reel',
 		durationSeconds: DURATION,
 		picture,
@@ -546,7 +549,8 @@ test('the crop follows a face only when one person is clearly the subject: in ha
 			{ frame: 1, x: 500, y: 300 },
 			{ frame: 2, x: 500, y: 300 }
 		]),
-		'fit'
+		// Not following: a reel of a video its picture doesn't carry is designed around the speech.
+		'designed'
 	)
 	assert.equal(plan([1, 2, 3, 4, 5].map((frame) => ({ frame, x: 500, y: 300 }))), 'face')
 })
@@ -617,4 +621,71 @@ test('the strongest moment opens even from the middle of one long stretch, cut o
 	assert.ok(kept[0].endSeconds >= last.endSeconds && kept[0].endSeconds < last.endSeconds + 0.5)
 	assert.equal(summary.opensWith, 'Step12.')
 	assert.ok(summary.editedSeconds >= SHORT_FORM_TARGET_SECONDS && summary.editedSeconds <= 59)
+})
+
+test('a reel of a meeting or a still screen is designed around the speech: the picture a card, or hidden', () => {
+	const plan = (fields: Partial<MakeReply>, request = 'make this an Instagram reel') =>
+		planMake({
+			reply: { ...REPLY, subject: 'meeting', faces: [], ...fields },
+			request,
+			durationSeconds: DURATION,
+			picture: { width: 1920, height: 1080 },
+			transcript,
+			fillerCuts: [],
+			music: null,
+			musicAvailable: false
+		})
+	const designed = plan({})
+	assert.equal(designed.summary.vertical, 'designed')
+	assert.equal(designed.summary.card, 'corner')
+	assert.deepEqual(designed.edit.design, { palette: 'reel', picture: 'corner' })
+	// The frame is 9:16 (recorded at 1080 × 1920), the whole picture kept for the card.
+	assert.equal(designed.edit.transform.crop?.fit, true)
+	assert.deepEqual(exportSize({ width: 1920, height: 1080 }, designed.edit.transform), {
+		width: 1080,
+		height: 1920
+	})
+	// No push-ins on a picture that isn't what's being said; the captions and cuts as ever.
+	assert.equal(designed.edit.autoZooms.length, 0)
+	assert.equal(designed.edit.captionsOn, true)
+	assert.deepEqual(
+		designed.edit.clips?.map((clip) => ranges(clip.ranges)),
+		[[[0.25, 2.65]], [[8.75, 11.25]], [[13.75, 15.25]]]
+	)
+	// Hidden when the picture shows nothing to keep; the ad's colours for an ad.
+	assert.deepEqual(plan({ card: 'hidden' }).edit.design, { palette: 'reel', picture: 'hidden' })
+	assert.deepEqual(plan({ style: 'ad', format: 'other' }, 'make this an ad').edit.design, {
+		palette: 'ad',
+		picture: 'corner'
+	})
+	// Not for a picture that matters, nor a professional edit, nor a video with nothing said.
+	assert.equal(plan({ pictureMatters: true }).edit.design, null)
+	assert.equal(
+		plan({ style: 'professional', format: 'other' }, 'make it professional').edit.design,
+		null
+	)
+	const silent = planMake({
+		reply: { ...REPLY, subject: 'meeting', faces: [] },
+		request: 'make this an Instagram reel',
+		durationSeconds: DURATION,
+		picture: { width: 1920, height: 1080 },
+		transcript: null,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false
+	})
+	assert.equal(silent.edit.design, null)
+})
+
+test("a designed frame's card sits low on the left in the picture's own shape, and words pop as they're said", () => {
+	const card = cardRect({ width: 1080, height: 1920 }, { width: 1920, height: 1080 })
+	near(card.x, 0.06)
+	near(card.width, 0.44)
+	// 0.44 of 1080 wide, 16:9: 267.3 px high of 1920.
+	near(card.height * 1920, 0.44 * 1080 * (9 / 16))
+	near(card.y + card.height, 0.92)
+	assert.equal(wordPop(2, 1.9), 1)
+	near(wordPop(2, 2), 1.3)
+	assert.ok(wordPop(2, 2.1) < 1.3 && wordPop(2, 2.1) > 1)
+	assert.equal(wordPop(2, 2.5), 1)
 })
