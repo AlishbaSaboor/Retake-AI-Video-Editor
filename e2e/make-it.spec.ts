@@ -1,8 +1,8 @@
 import { test, expect, type Page } from '@playwright/test'
-import type { CheckReply, MakeReply } from '../src/app/[locale]/(app)/make/make-plan'
-import { toTranscript } from '../src/app/[locale]/editor/transcript'
-import { openTool, recordTestVideo, seekTo, w, type TimedWord } from './editor-helpers'
+import type { MakeReply } from '../src/app/[locale]/(app)/make/make-plan'
+import { openTool, recordTestVideo, seekTo, w } from './editor-helpers'
 import { exportVideo, readExportFrames, readToneLevels } from './export-frames'
+import { makeReply, mockMakeActions } from './make-helpers'
 
 // Make it: a video and a request in, a whole edit planned, shown, and
 // applied in the editor. The transcript and Gemini's replies are canned
@@ -36,89 +36,7 @@ const FACES = [
 	{ frame: 2, x: 906, y: 500 }
 ]
 
-const reply = (fields: Partial<MakeReply> = {}): MakeReply => ({
-	questions: [],
-	style: 'reel',
-	format: 'instagram_reel',
-	subject: 'one_person',
-	summary: 'A short talk, cut into a vertical reel.',
-	pictureMatters: false,
-	moments: [],
-	removeSentences: [],
-	removeSpans: [],
-	captions: 'bold_words',
-	zoomSentences: [2],
-	transition: 'none',
-	keyLines: [],
-	vertical: true,
-	faces: FACES,
-	card: 'corner',
-	music: null,
-	title: null,
-	cannotDo: [],
-	...fields
-})
-
-/** The second check's answer: nothing to fix, unless a test says otherwise. */
-const NOTHING_TO_FIX: CheckReply = {
-	problems: [],
-	title: null,
-	keyLines: [],
-	captions: 'classic',
-	transition: 'none',
-	dropSentences: []
-}
-
-/**
- * Answers the transcript, plan and check requests with canned results, on
- * the Make it page and in the editor. Each request still reaches the real
- * server, which decodes it as it would any other, with one field emptied so
- * validation stops it before any AI call (the audio; the request's text,
- * leaving the pictures whole); only the result inside the reply is
- * swapped. Returns what was asked.
- */
-async function mockMakeActions(
-	page: Page,
-	words: TimedWord[],
-	replies: MakeReply[],
-	tracks: string[] = [],
-	checks: CheckReply[] = [NOTHING_TO_FIX]
-) {
-	const seen = { plans: [] as string[], checks: [] as string[], editorTranscripts: 0 }
-	await page.route(
-		(url) => url.pathname.endsWith('/make') || url.pathname.endsWith('/editor'),
-		async (route) => {
-			const request = route.request()
-			if (!request.headers()['next-action']) return route.continue()
-			const body = request.postData() ?? ''
-			const isTranscript = body.includes('"audioBase64"')
-			const isPlan = body.includes('"frames"')
-			const isCheck = body.includes('"planText"')
-			if (!isTranscript && !isPlan && !isCheck) return route.continue()
-			if (isTranscript && request.url().includes('/editor')) seen.editorTranscripts++
-			const data = isTranscript
-				? toTranscript(words)
-				: isPlan
-					? { reply: replies[Math.min(seen.plans.length, replies.length - 1)], tracks }
-					: checks[Math.min(seen.checks.length, checks.length - 1)]
-			if (isPlan) seen.plans.push(body)
-			if (isCheck) seen.checks.push(body)
-			const response = await route.fetch({
-				postData: !isTranscript
-					? body.replace(/"request":"(?:[^"\\]|\\.)*"/, '"request":""')
-					: body.replace(/"audioBase64":"[^"]*"/, '"audioBase64":""')
-			})
-			await route.fulfill({
-				response,
-				body: (await response.text()).replace(
-					/\{"ok":false[^\n]*\}/,
-					JSON.stringify({ ok: true, data })
-				)
-			})
-		}
-	)
-	return seen
-}
+const reply = (fields: Partial<MakeReply> = {}): MakeReply => makeReply({ faces: FACES, ...fields })
 
 async function startMaking(page: Page, request: string) {
 	await page.goto('/make')
@@ -854,17 +772,15 @@ test('a reel of a meeting is designed around the speech: a 9:16 frame, its pictu
 	expect(blue > r && blue > 35 && g < 80, `the card shows the picture: ${exported.card}`).toBe(true)
 })
 
-test('the plan comes as a chat beside the video; Apply opens the edited video with only the chat, and the full editor is a click away', async ({
+test('the plan comes beside the video; Apply opens the edited video with only the chat, and the full editor is a click away', async ({
 	page
 }) => {
 	await mockMakeActions(page, WORDS, [reply()])
 	await startMaking(page, 'make this an Instagram reel')
 	await expect(plan(page)).toBeVisible({ timeout: 60_000 })
-	// The conversation: what was asked, then the plan, beside the video.
-	await expect(page.getByRole('region', { name: 'Retake AI' })).toContainText(
-		'make this an Instagram reel'
-	)
+	// The plan beside the video it's made from, as the design has it.
 	await expect(page.getByLabel('talk.webm, the video you picked')).toBeVisible()
+	await expect(plan(page).getByRole('button', { name: 'Change my request' })).toBeVisible()
 
 	await plan(page).getByRole('button', { name: 'Apply' }).click()
 	const modes = page.getByRole('group', { name: 'Editor mode' })

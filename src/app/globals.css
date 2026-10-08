@@ -357,3 +357,15 @@ body {
 	transform-origin: 0 0;
 	transform: scale(tan(atan2(100cqw, var(--mock-width))));
 }
+
+/* A screenshot comes in both themes (Shot, src/components/site/shot.tsx):
+   only the page's own shows. */
+.shot-light {
+	display: none;
+}
+[data-theme='light'] .shot-light {
+	display: block;
+}
+[data-theme='light'] .shot-dark {
+	display: none;
+}
