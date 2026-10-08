@@ -21,7 +21,9 @@ export function EditorShell({
 	rail,
 	children,
 	panelsShown,
-	onPanelsShown
+	onPanelsShown,
+	railRight = false,
+	mainClassName
 }: {
 	/** The project's name and saved status; null before a video is in. */
 	title: React.ReactNode
@@ -35,10 +37,14 @@ export function EditorShell({
 	children: React.ReactNode
 	panelsShown: boolean
 	onPanelsShown: (shown: boolean) => void
+	/** The panel on the right of the picture, always shown (the chat-only view after Make it). */
+	railRight?: boolean
+	/** More classes for the middle (the picture and its controls). */
+	mainClassName?: string
 }) {
 	const t = useTranslations('Editor.layout')
 	const hasRail = rail !== null
-	const shown = hasRail && panelsShown
+	const shown = hasRail && (panelsShown || railRight)
 	const toggleLabel = panelsShown ? t('hidePanel') : t('showPanel')
 	return (
 		<div className="flex min-h-dvh flex-col lg:h-dvh">
@@ -66,10 +72,14 @@ export function EditorShell({
 			<div
 				className={cn(
 					'flex min-h-0 flex-1 flex-col lg:grid lg:grid-rows-[minmax(0,1fr)]',
-					shown ? 'lg:grid-cols-[auto_auto_minmax(0,1fr)]' : 'lg:grid-cols-[auto_minmax(0,1fr)]'
+					railRight
+						? 'lg:grid-cols-[minmax(0,1fr)_auto]'
+						: shown
+							? 'lg:grid-cols-[auto_auto_minmax(0,1fr)]'
+							: 'lg:grid-cols-[auto_minmax(0,1fr)]'
 				)}
 			>
-				{hasRail && (
+				{hasRail && !railRight && (
 					<div className="border-border flex shrink-0 border-b px-1 py-1 lg:flex-col lg:border-r lg:border-b-0 lg:py-2">
 						<button
 							type="button"
@@ -88,13 +98,22 @@ export function EditorShell({
 				{hasRail && (
 					<aside
 						id="tool-rail"
-						hidden={!panelsShown}
-						className="order-2 min-h-0 lg:order-none lg:h-full lg:overflow-hidden"
+						hidden={!shown}
+						className={cn(
+							'order-2 min-h-0 lg:h-full lg:overflow-hidden',
+							railRight ? 'border-border lg:order-2 lg:border-l' : 'lg:order-none'
+						)}
 					>
 						{rail}
 					</aside>
 				)}
-				<div className="relative order-1 flex min-h-0 min-w-0 flex-col gap-4 overflow-y-auto p-4 lg:order-none lg:p-6">
+				<div
+					className={cn(
+						'relative order-1 flex min-h-0 min-w-0 flex-col gap-4 overflow-y-auto p-4 lg:p-6',
+						railRight ? 'lg:order-1' : 'lg:order-none',
+						mainClassName
+					)}
+				>
 					{children}
 				</div>
 			</div>

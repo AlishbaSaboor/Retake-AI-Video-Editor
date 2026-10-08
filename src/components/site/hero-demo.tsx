@@ -1,7 +1,7 @@
+import Image from 'next/image'
 import { getTranslations } from 'next-intl/server'
 import { CaptionsIcon, CheckIcon, SendIcon, UndoIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
-import { CityScene, RidgeScene, SeaScene } from './scenes'
 
 const PLAN_DOTS = ['bg-brand-violet', 'bg-brand-purple', 'bg-brand-blue', 'bg-brand-lilac'] as const
 
@@ -40,7 +40,16 @@ export async function HeroDemo() {
 					<div className="flex flex-col">
 						<div className="bg-surface-inset flex justify-center px-6 py-7 md:px-14">
 							<div className="aspect-[4/3] w-full max-w-[540px] overflow-hidden rounded-2xl">
-								<RidgeScene id="hero-picture" />
+								<Image
+									src="/site/clip/hero-picture.webp"
+									alt=""
+									width={HERO_PICTURE.width}
+									height={HERO_PICTURE.height}
+									sizes="(min-width: 1024px) 540px, 90vw"
+									quality={IMAGE_QUALITY}
+									priority
+									className="size-full object-cover"
+								/>
 							</div>
 						</div>
 						<div className="border-border relative flex flex-col gap-2.5 border-t px-4 py-4 text-xs font-semibold">
@@ -48,19 +57,19 @@ export async function HeroDemo() {
 								<span className="text-text-muted w-16 shrink-0">{t('demo.lanes.video')}</span>
 								<div className="flex h-10 flex-1 gap-1">
 									<span className="flex-[2] overflow-hidden rounded-md">
-										<RidgeScene id="hero-clip-1" />
+										<Thumb n={1} />
 									</span>
 									<span className="border-filler text-filler bg-filler/15 flex w-9 items-center justify-center rounded-md border text-[11px]">
 										{t('demo.um')}
 									</span>
 									<span className="flex-[2.6] overflow-hidden rounded-md">
-										<SeaScene id="hero-clip-2" />
+										<Thumb n={2} />
 									</span>
 									<span className="border-filler text-filler bg-filler/15 flex w-9 items-center justify-center rounded-md border text-[11px]">
 										{t('demo.uh')}
 									</span>
 									<span className="flex-[2] overflow-hidden rounded-md">
-										<CityScene id="hero-clip-3" />
+										<Thumb n={3} />
 									</span>
 								</div>
 							</div>
@@ -133,6 +142,28 @@ export async function HeroDemo() {
 				{t('chips.undo')}
 			</Chip>
 		</div>
+	)
+}
+
+/** The hero picture's file: 2x the 540 × 405 it's shown at, from the full-resolution clip. */
+const HERO_PICTURE = { width: 1080, height: 810 }
+/** The timeline thumbnails' files: 2x their widest (265 × 40 at 1440). */
+const THUMB = { width: 640, height: 360 }
+/** WebP quality for the clip's stills; next.config.ts allows it. */
+const IMAGE_QUALITY = 85
+
+/** A clip on the window's timeline: a still of the footage at its moment. */
+function Thumb({ n }: { n: 1 | 2 | 3 }) {
+	return (
+		<Image
+			src={`/site/clip/thumb-${n}.webp`}
+			alt=""
+			width={THUMB.width}
+			height={THUMB.height}
+			sizes="280px"
+			quality={IMAGE_QUALITY}
+			className="size-full object-cover"
+		/>
 	)
 }
 

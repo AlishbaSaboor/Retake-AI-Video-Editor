@@ -2230,6 +2230,13 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 			<EditorShell
 				panelsShown={panelsShown}
 				onPanelsShown={(shown) => setSideOpen('panels', shown)}
+				railRight={studio}
+				// The chat-only view: the picture, with Your edit and Want finer control beside it.
+				mainClassName={
+					studio
+						? 'xl:grid xl:grid-cols-[minmax(0,1fr)_260px] xl:content-start xl:gap-x-6 xl:[&>*]:col-start-1'
+						: undefined
+				}
 				title={
 					video ? (
 						<>

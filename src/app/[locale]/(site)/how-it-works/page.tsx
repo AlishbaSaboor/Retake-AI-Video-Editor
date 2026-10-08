@@ -1,10 +1,9 @@
 import type { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
-import { AppScreen } from '@/components/site/app-screen'
 import { ClosingBand } from '@/components/site/closing-band'
 import { PageHero, emphasis } from '@/components/site/display'
-import { MakeScreen } from '@/components/site/make-screen'
 import { PathSwitcher } from '@/components/site/path-switcher'
+import { ZoomShot, type ShotName } from '@/components/site/shot'
 
 export async function generateMetadata(): Promise<Metadata> {
 	const t = await getTranslations('Site.howItWorks')
@@ -30,6 +29,18 @@ const HAND_STEPS = [
 /** How it works: two paths, with AI or by hand, step by step. */
 export default async function HowItWorksPage() {
 	const t = await getTranslations('Site.howItWorks')
+	const shots = await getTranslations('Site.shots')
+	/** A path's device screens: the real screen each of its steps describes. */
+	const screens = (names: ShotName[]) =>
+		names.map((name) => (
+			<ZoomShot
+				key={name}
+				name={name}
+				alt={shots(name)}
+				label={shots('zoom')}
+				className="overflow-hidden rounded-[18px]"
+			/>
+		))
 	const steps = (path: 'ai' | 'hand', list: typeof AI_STEPS | typeof HAND_STEPS) =>
 		list.map(({ id, screen }) => ({
 			id: `${path}-${id}`,
@@ -50,35 +61,13 @@ export default async function HowItWorksPage() {
 							id: 'ai',
 							name: t('pathNames.ai'),
 							steps: steps('ai', AI_STEPS),
-							screens: [
-								<MakeScreen key="plan" />,
-								<AppScreen key="studio" panel="assistant" id="how-ai" className="rounded-[18px]" />
-							]
+							screens: screens(['plan', 'studio'])
 						},
 						{
 							id: 'hand',
 							name: t('pathNames.hand'),
 							steps: steps('hand', HAND_STEPS),
-							screens: [
-								<AppScreen
-									key="transcript"
-									panel="transcript"
-									id="how-transcript"
-									className="rounded-[18px]"
-								/>,
-								<AppScreen
-									key="cleanup"
-									panel="cleanup"
-									id="how-cleanup"
-									className="rounded-[18px]"
-								/>,
-								<AppScreen
-									key="assistant"
-									panel="assistant"
-									id="how-hand"
-									className="rounded-[18px]"
-								/>
-							]
+							screens: screens(['manual', 'tidy', 'yours'])
 						}
 					]}
 				/>
