@@ -519,7 +519,13 @@ function PlanView({
 			: summary.musicMissing
 				? t('noMusicFolder')
 				: t('noMusic'),
-		...(summary.vertical ? [t(`vertical.${summary.vertical}`)] : []),
+		...(summary.vertical
+			? [
+					t(
+						`vertical.${summary.vertical === 'designed' && summary.card === 'hidden' ? 'designedHidden' : summary.vertical}`
+					)
+				]
+			: []),
 		...(summary.title ? [t('title', { text: summary.title })] : []),
 		...(summary.titleDropped ? [t('titleDropped')] : []),
 		...(summary.pictureMatters ? [] : [t('speechOnly')])

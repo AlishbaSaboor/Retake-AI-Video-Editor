@@ -1,6 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { editedSecondsAt, fitInside, titleShownAt, watermarkRect, type Watermark } from './overlays'
+import {
+	cardLines,
+	editedSecondsAt,
+	fitInside,
+	lineReveals,
+	saidWordAt,
+	titleShownAt,
+	watermarkRect,
+	type Watermark
+} from './overlays'
+import { revealedWords } from './motion'
 
 test('a title shows from its start for its duration, and not at its end', () => {
 	const title = { text: 'Hello', startSeconds: 1, durationSeconds: 2 }
@@ -66,4 +76,34 @@ test('the picture fills the frame one way and letterboxes the other', () => {
 	assert.deepEqual(fitInside(4 / 3, 16 / 9), { widthPercent: 75, heightPercent: 100 })
 	// 32:9 in 16:9: full width, half the height.
 	assert.deepEqual(fitInside(32 / 9, 16 / 9), { widthPercent: 100, heightPercent: 50 })
+})
+
+test("a designed frame's title card wraps between words to fit, a long word on its own line", () => {
+	// Every letter 1 wide, a space too.
+	const measure = (text: string) => text.length
+	assert.deepEqual(cardLines('This is the key point', 12, measure), ['This is the', 'key point'])
+	assert.deepEqual(cardLines('Short', 12, measure), ['Short'])
+	assert.deepEqual(cardLines('a extraordinarily b', 5, measure), ['a', 'extraordinarily', 'b'])
+})
+
+test('word by word across lines: the first line comes in, then the next', () => {
+	const lines = ['This is the', 'key point']
+	// 5 words, 40% through: the first two words of the first line.
+	// (The second line hasn't started: below 0, which shows none of its words.)
+	assert.deepEqual(lineReveals(lines, 0.4), [2 / 3, -0.5])
+	assert.ok(revealedWords('key point', -0.5).every((word) => word.opacity === 0))
+	assert.deepEqual(lineReveals(lines, 1), [5 / 3, 1])
+	assert.deepEqual(lineReveals(lines, undefined), [undefined, undefined])
+})
+
+test('the word being said: from the caption’s word times, or a one-word caption’s own start in a designed frame', () => {
+	const timed = { lines: ['Hello there'], startSeconds: 1, endSeconds: 2, spoken: [1, 1.5] }
+	assert.deepEqual(saidWordAt(timed, 1.6, false), { index: 1, start: 1.5 })
+	const oneWord = { lines: ['Hello'], startSeconds: 1, endSeconds: 2 }
+	assert.equal(saidWordAt(oneWord, 1.2, false), null)
+	assert.deepEqual(saidWordAt(oneWord, 1.2, true), { index: 0, start: 1 })
+	assert.equal(
+		saidWordAt({ lines: ['Hello there'], startSeconds: 1, endSeconds: 2 }, 1.2, true),
+		null
+	)
 })
