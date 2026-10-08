@@ -6,7 +6,11 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **Read this first: where things stand right now**
 >
-> - Branch `main`. Updated 2026-10-08.
+> - Branch `main`. Updated 2026-10-09.
+> - **Make it: the plan's summary and length agree** (section 3zl): the
+>   summary is cut on a word (room for 400 characters), says the edit's real
+>   length, and a check that finds a reel too short lengthens it, or the plan
+>   says plainly that it is short.
 > - **The site shows the real app, in the mockups' layouts** (section 3zk):
 >   screenshots and footage (a Pexels sunrise, no people; CREDITS.md) in the
 >   mockups' own slots, made by `e2e/site-shots.ts` (`pnpm shots`, fake AI,
@@ -2686,6 +2690,31 @@ real recording `Cap.mp4` (1080p, 1:48) and real Deepgram and Gemini calls.
 - **Notes:** long pauses count from 7 s, longer than the clip, so Clean up
   says "No long silences"; the plan cuts the pause between sentences instead.
   Highlight and plan sentences are numbered from 1.
+
+## 3zl. Make it: the plan's summary and length agree (2026-10-09)
+
+Found in the real Make it runs (a 3-minute walkthrough and a short clip).
+
+- **Summary cut mid-word:** every note was `slice(0, 200)`. Now `clipText`
+  cuts at the last space before the limit, with an ellipsis; the summary
+  may run to 400 characters (the real one was about 230), other notes 200.
+- **Summary length disagreed with the plan** ("to 55 seconds" for a 50 s
+  edit): Gemini writes the summary before the code cuts the edit to fit or
+  applies the check. `summaryWithLength` puts the edit's own length (rounded,
+  as the heading shows it) in place of a length said of the result ("to 55
+  seconds", "a 55-second reel", "0:55 long"); the original's length and the
+  lengths of parts cut stay. The prompt now asks for no lengths at all.
+- **A check's "too short" did nothing** (44 s reel stayed 44 s): the check
+  had no way to say it but free text, shown under "fixed". It now answers
+  `tooShort`. For a reel, TikTok or Short, `planMake` (told by `tooShort`)
+  takes back sentences the plan had left out, its moments first, never the
+  check's own drops, up to 50–59 s, and the Length row says so. When nothing
+  more fits, or the edit isn't short-form, a warning on the plan says it's
+  shorter than asked, with the real length; a short-form edit under 50 s of
+  a video that runs longer gets the same warning without the check.
+- Tests: unit (`make-plan.test.mts`) for each; e2e (`make-it.spec.ts`) for
+  the whole summary with its real length and the warning, with the fake AI.
+  Not tested against real Gemini (no paid calls).
 
 ---
 

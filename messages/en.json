@@ -1694,6 +1694,11 @@
 			"fillers": "{count, plural, one {# filler word} other {# filler words}} cut",
 			"fitOk": "Under 60 seconds, as reels, TikToks and Shorts need",
 			"fitCut": "Cut further to stay under 60 seconds, keeping the key moments",
+			"lengthened": "The check found it too short, so sentences it had left out were put back",
+			"short": {
+				"short_form": "Shorter than the 50 to 59 seconds a reel, TikTok or Short usually runs: {length}. Nothing more in the video was kept as worth it. Edit manually to add more.",
+				"asked": "The check found this shorter than you asked for, at {length}, and there was nothing more to add. Edit manually to add more."
+			},
 			"opensWith": "Opens with its strongest line: “{line}”",
 			"captions": {
 				"classic": "Captions, a line or two at a time",

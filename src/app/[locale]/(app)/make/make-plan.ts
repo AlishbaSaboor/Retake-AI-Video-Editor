@@ -72,6 +72,8 @@ const MAX_KEY_LINES = 4
 const MAX_KEY_LINE_WORDS = 8
 const MAX_NOTES = 5
 const MAX_NOTE_LENGTH = 200
+/** The plan's summary: two plain sentences, with room to finish them. */
+const MAX_SUMMARY_LENGTH = 400
 const MAX_TITLE_LENGTH = 60
 
 /**
@@ -92,10 +94,26 @@ export function frameTimes(durationSeconds: number): number[] {
 	)
 }
 
-const note = z
-	.string()
-	.transform((text) => text.trim().slice(0, MAX_NOTE_LENGTH))
-	.pipe(z.string().min(1))
+/**
+ * `text` at most `max` characters, cut at the last space before the limit
+ * (an ellipsis marks the cut), never inside a word; a single word longer
+ * than the limit is the only thing cut through.
+ */
+export function clipText(text: string, max: number): string {
+	const trimmed = text.trim()
+	if (trimmed.length <= max) return trimmed
+	const head = trimmed.slice(0, max - 1)
+	const space = head.search(/\s\S*$/)
+	const cut = (space > 0 ? head.slice(0, space) : head).replace(/[\s,;:.!?–—-]+$/u, '')
+	return `${cut}…`
+}
+
+const noteOf = (max: number) =>
+	z
+		.string()
+		.transform((text) => clipText(text, max))
+		.pipe(z.string().min(1))
+const note = noteOf(MAX_NOTE_LENGTH)
 
 /**
  * How captions look, as the reply picks them: a line or two in a band, one
@@ -113,7 +131,7 @@ export const makeReplySchema = z.object({
 	style: z.enum(MAKE_STYLES),
 	format: z.enum(MAKE_FORMATS),
 	subject: z.enum(MAKE_SUBJECTS),
-	summary: note,
+	summary: noteOf(MAX_SUMMARY_LENGTH),
 	pictureMatters: z.boolean(),
 	moments: z.array(z.object({ first: z.number().int(), last: z.number().int() })),
 	removeSentences: z.array(z.number().int()),
@@ -415,13 +433,15 @@ function firstSeconds(kept: SourceRange[], seconds: number): SourceRange[] {
  * The sentences (indexes) a short-form edit is made of: whole moments, best
  * first, each taken only if it still fits under `fits`, then single
  * sentences in order, until `enough` says it's long enough. Dead sentences
- * never; a moment that overlaps one taken before, never.
+ * never; a moment that overlaps one taken before, never. Starts from
+ * `start` (none, unless an edit is being lengthened).
  */
 export function chooseSentences(
 	moments: MakeReply['moments'],
 	count: number,
 	dead: ReadonlySet<number>,
-	fits: (chosen: ReadonlySet<number>) => { fits: boolean; enough: boolean }
+	fits: (chosen: ReadonlySet<number>) => { fits: boolean; enough: boolean },
+	start: ReadonlySet<number> = new Set()
 ): Set<number> {
 	const runs = moments
 		.map(({ first, last }) => ({ from: Math.min(first, last) - 1, to: Math.max(first, last) - 1 }))
@@ -430,7 +450,7 @@ export function chooseSentences(
 			Array.from({ length: to - from + 1 }, (_, i) => from + i).filter((i) => !dead.has(i))
 		)
 	const singles = Array.from({ length: count }, (_, i) => [i]).filter(([i]) => !dead.has(i ?? -1))
-	let chosen = new Set<number>()
+	let chosen = new Set(start)
 	for (const run of [...runs, ...singles]) {
 		if (run.length === 0 || run.some((i) => chosen.has(i))) continue
 		const trial = new Set([...chosen, ...run])
@@ -532,6 +552,44 @@ export function inventedNames(text: string, known: string): string[] {
 	return out
 }
 
+/** A length in words: 0:55, 55 s, 55s, 55 sec, 55 seconds, 55-second, 1 minute, 1.5 min. */
+const LENGTH = String.raw`(\d+):([0-5]\d)\b|(\d+(?:\.\d+)?)(\s*-?\s*)(s|secs?|seconds?|mins?|minutes?)\b`
+/** A length that is the result's: "to 55 seconds", "now 0:55", "a 55-second reel", "55 s long". */
+const RESULT_LENGTH = new RegExp(
+	String.raw`(\b(?:to|into|now|is|of|runs|running)\s+(?:(?:about|around|roughly|just|under|over|a|an)\s+)*)(?:${LENGTH})|(?:${LENGTH})(?=\s*(?:long|reels?|videos?|edits?|shorts?)\b)`,
+	'giu'
+)
+
+/**
+ * The summary with any length it gives the result put right. Gemini writes
+ * the summary before the edit is cut to fit (and before the check's fixes),
+ * so the length it names can be a plan's guess ("to 55 seconds" for an edit
+ * of 50). Only a length said of the result changes, to the edit's own
+ * rounded as the plan shows it; the original's length and the lengths of
+ * parts cut are left as they are.
+ */
+export function summaryWithLength(summary: string, editedSeconds: number): string {
+	const real = Math.round(editedSeconds)
+	return summary.replace(RESULT_LENGTH, (whole, lead: string | undefined, ...groups: unknown[]) => {
+		const [m1, s1, n1, gap1, unit1, m2, s2, n2, gap2, unit2] = groups as Array<string | undefined>
+		const minutes = m1 ?? m2
+		const seconds = s1 ?? s2
+		const number = n1 ?? n2
+		const gap = gap1 ?? gap2 ?? ' '
+		const unit = (unit1 ?? unit2 ?? '').toLowerCase()
+		const said =
+			minutes !== undefined
+				? Number(minutes) * 60 + Number(seconds)
+				: Number(number) * (unit.startsWith('m') ? 60 : 1)
+		if (Math.abs(said - editedSeconds) < 1) return whole
+		const length =
+			minutes !== undefined || unit.startsWith('m')
+				? `${Math.floor(real / 60)}:${String(real % 60).padStart(2, '0')}`
+				: `${real}${gap}${unit1 ?? unit2}`
+		return `${lead ?? ''}${length}`
+	})
+}
+
 /** Music the folder offers, decoded, to lay under the edit. */
 export type MusicTrack<Sound> = { name: string; file: Blob; buffer: Sound; seconds: number }
 
@@ -544,6 +602,14 @@ export type MakeSummary = {
 	/** The most it may run (short-form), and whether sentences beyond the reply's were taken out to fit. */
 	limitSeconds: number | null
 	trimmedToFit: boolean
+	/** The check found it too short, and sentences the plan had left out were put back. */
+	lengthened: boolean
+	/**
+	 * Still short: a reel, TikTok or Short under 50 s of a video that runs
+	 * longer (`short_form`), or shorter than the check says the request
+	 * wants with nothing to add (`asked`); null when it isn't.
+	 */
+	short: 'short_form' | 'asked' | null
 	/** Sentences kept of all the transcript's. */
 	keptSentences: number
 	totalSentences: number
@@ -585,6 +651,11 @@ export type MakeInput<Sound> = {
 	music: MusicTrack<Sound> | null
 	/** Whether the music folder offered any track at all. */
 	musicAvailable: boolean
+	/**
+	 * The second check found the edit too short: sentences the plan left out
+	 * may come back to fill it, except those the check itself dropped.
+	 */
+	tooShort?: { keepOut: number[] } | null
 }
 
 /**
@@ -721,7 +792,51 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 		cut = cutWith(removeSentences, null, opener)
 		if (cut.editedSeconds > limitSeconds) cut = cutWith(removeSentences, limitSeconds, opener)
 	}
+	// Too short, the check said: a short-form edit takes back sentences the
+	// plan had left out (its moments first, then in order, never the check's
+	// own drops), until it fills 50 seconds or nothing more fits.
+	let lengthened = false
+	if (
+		limitSeconds !== null &&
+		input.tooShort &&
+		cut.editedSeconds < SHORT_FORM_TARGET_SECONDS &&
+		sentences.length > 0
+	) {
+		const keepOut = sentenceIndexes(input.tooShort.keepOut, sentences.length)
+		const removed = sentenceIndexes(removeSentences, sentences.length)
+		const inIt = new Set(sentences.flatMap((_, index) => (removed.has(index) ? [] : [index])))
+		const keepOnly = (chosen: ReadonlySet<number>) =>
+			sentences.flatMap((_, index) => (chosen.has(index) ? [] : [index + 1]))
+		const chosen = chooseSentences(
+			reply.moments,
+			sentences.length,
+			keepOut,
+			(trial) => {
+				const length = cutWith(keepOnly(trial), null, opener).editedSeconds
+				return { fits: length <= limitSeconds, enough: length >= SHORT_FORM_TARGET_SECONDS }
+			},
+			inIt
+		)
+		if (chosen.size > inIt.size) {
+			const longer = cutWith(keepOnly(chosen), null, opener)
+			if (longer.editedSeconds > cut.editedSeconds) {
+				removeSentences = keepOnly(chosen)
+				cut = longer
+				lengthened = true
+			}
+		}
+	}
 	const { kept, clips, cuts, joins, transitions, segments, editedSeconds } = cut
+	// Rounded as the plan shows it, so "50 seconds" is never called short.
+	const short =
+		limitSeconds !== null
+			? Math.round(editedSeconds) < SHORT_FORM_TARGET_SECONDS &&
+				durationSeconds >= SHORT_FORM_TARGET_SECONDS
+				? 'short_form'
+				: null
+			: input.tooShort
+				? 'asked'
+				: null
 	const starts = editedStarts(segments)
 	const keptSentences = sentences.filter((sentence) =>
 		kept.some((range) => overlaps(range, sentence))
@@ -899,9 +1014,11 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 		summary: {
 			style: reply.style,
 			making: reply.format === 'other' ? reply.style : reply.format,
-			summary: reply.summary,
+			summary: summaryWithLength(reply.summary, editedSeconds),
 			limitSeconds,
 			trimmedToFit,
+			lengthened,
+			short,
 			keptSentences,
 			totalSentences: sentences.length,
 			originalSeconds: durationSeconds,
@@ -940,7 +1057,9 @@ export const checkReplySchema = z.object({
 	keyLines: z.array(z.object({ sentence: z.number().int(), text: z.string() })),
 	captions: z.enum(CAPTION_LOOKS),
 	transition: z.enum(MAKE_TRANSITIONS),
-	dropSentences: z.array(z.number().int())
+	dropSentences: z.array(z.number().int()),
+	/** Shorter than the request wants (a reel under 50 s with more worth keeping, a length asked for). */
+	tooShort: z.boolean()
 })
 export type CheckReply = z.infer<typeof checkReplySchema>
 
@@ -952,9 +1071,10 @@ export const CHECK_REPLY_JSON_SCHEMA = {
 		keyLines: MAKE_REPLY_JSON_SCHEMA.properties.keyLines,
 		captions: { type: 'string', enum: [...CAPTION_LOOKS] },
 		transition: { type: 'string', enum: [...MAKE_TRANSITIONS] },
-		dropSentences: { type: 'array', items: { type: 'integer' } }
+		dropSentences: { type: 'array', items: { type: 'integer' } },
+		tooShort: { type: 'boolean' }
 	},
-	required: ['problems', 'title', 'keyLines', 'captions', 'transition', 'dropSentences']
+	required: ['problems', 'title', 'keyLines', 'captions', 'transition', 'dropSentences', 'tooShort']
 } as const
 
 /**
@@ -990,7 +1110,16 @@ export function describePlan(
 	].join('\n')
 }
 
-/** The reply with the check's fixes, when it found anything to fix; as it was otherwise. */
+/** Whether the check asks for the plan to be made again: a problem found, or too short. */
+export function checkFound(check: CheckReply): boolean {
+	return check.problems.length > 0 || check.tooShort
+}
+
+/**
+ * The reply with the check's fixes, when it found a problem; as it was
+ * otherwise. Too short alone changes nothing here: planMake lengthens the
+ * edit, told by `tooShort`.
+ */
 export function applyCheck(reply: MakeReply, check: CheckReply): MakeReply {
 	if (check.problems.length === 0) return reply
 	return {
