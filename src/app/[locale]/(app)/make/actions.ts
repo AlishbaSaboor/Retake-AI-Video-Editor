@@ -117,7 +117,7 @@ const MAKE_INSTRUCTION = [
 	'card: when the picture does not carry the video (a meeting), a reel or ad is designed around',
 	'the speech with the picture as a small card: corner when the picture shows anything worth',
 	'keeping (a name card, a face, a slide), hidden only when it shows nothing (black, a still',
-	'logo). Choose either way for other videos. A screen recording is never a card: it shows whole.',
+	'logo). Only a meeting is ever a card: anything else shows whole.',
 	'music: exactly one file name from the list, or null when none fits or none is listed.',
 	'title: a short hook, for ads or when asked, else null; in sentence case, using only words',
 	'from the transcript or the request.',

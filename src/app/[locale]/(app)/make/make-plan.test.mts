@@ -565,8 +565,8 @@ test('the crop follows a face only when one person is clearly the subject: in ha
 			{ frame: 1, x: 500, y: 300 },
 			{ frame: 2, x: 500, y: 300 }
 		]),
-		// Not following: a reel of a video its picture doesn't carry is designed around the speech.
-		'designed'
+		// Not following: the whole picture (only a meeting is designed around the speech).
+		'whole'
 	)
 	assert.equal(plan([1, 2, 3, 4, 5].map((frame) => ({ frame, x: 500, y: 300 }))), 'face')
 })
@@ -1274,15 +1274,23 @@ test("a brief's parts are kept in its own words, and its call to action closes t
 	assert.ok((parsed.show ?? '').length <= 120 && parsed.show?.endsWith('…'))
 })
 
-test('a screen recording is never a card in a corner: as wide as the frame, centred, in every shape', () => {
-	const make = (shape: MakeReply['shape'], request: string, fields: Partial<MakeReply> = {}) =>
+test('only a meeting is ever a card in a corner: any other label, or an unknown one, is as wide as the frame, centred', () => {
+	// An unknown label is read as other, and doesn't stop the plan.
+	const unknown = makeReplySchema.parse({ ...REPLY, subject: 'webcam_over_screen' }).subject
+	assert.equal(unknown, 'other')
+	const make = (
+		subject: MakeReply['subject'],
+		shape: MakeReply['shape'],
+		request: string,
+		fields: Partial<MakeReply> = {}
+	) =>
 		planMake({
-			// Judged by its speech, as a static screen is: what used to be designed around a card.
+			// Judged by its speech (the picture doesn't carry it): what used to be designed around a card.
 			reply: {
 				...REPLY,
 				style: shape === 'vertical' ? 'reel' : 'ad',
 				format: 'other',
-				subject: 'screen',
+				subject,
 				pictureMatters: false,
 				faces: [],
 				fit: 'bars',
@@ -1297,31 +1305,40 @@ test('a screen recording is never a card in a corner: as wide as the frame, cent
 			music: null,
 			musicAvailable: false
 		})
-	for (const [shape, request, ratio] of [
-		['vertical', 'make this an Instagram reel', 9 / 16],
-		['square', 'a square ad', 1],
-		['portrait', 'a 4:5 ad', 4 / 5]
-	] as const) {
-		const { edit, summary } = make(shape, request)
-		assert.equal(edit.design, null, shape)
-		assert.equal(summary.shape.how, 'whole', shape)
-		// The whole picture across the frame's width, the same space above as below it.
-		const rect = edit.transform.crop?.rect
-		assert.ok(rect && edit.transform.crop?.fit, shape)
-		assert.equal(rect.x, 0, shape)
-		assert.equal(rect.width, 1, shape)
-		near(rect.height, 16 / 9 / ratio)
-		near(rect.y, -(rect.height - 1) / 2)
+	for (const subject of ['screen', 'slides', 'other', unknown, 'one_person'] as const) {
+		for (const [shape, request, ratio] of [
+			['vertical', 'make this an Instagram reel', 9 / 16],
+			['square', 'a square ad', 1],
+			['portrait', 'a 4:5 ad', 4 / 5]
+		] as const) {
+			const { edit, summary } = make(subject, shape, request)
+			const label = `${subject}, ${shape}`
+			assert.equal(edit.design, null, label)
+			assert.equal(summary.shape.how, 'whole', label)
+			// The whole picture across the frame's width, the same space above as below it.
+			const rect = edit.transform.crop?.rect
+			assert.ok(rect && edit.transform.crop?.fit, label)
+			assert.equal(rect.x, 0, label)
+			assert.equal(rect.width, 1, label)
+			near(rect.height, 16 / 9 / ratio)
+			near(rect.y, -(rect.height - 1) / 2)
+		}
+		// 16:9 is already its shape.
+		assert.equal(make(subject, 'horizontal', 'a horizontal ad').summary.shape.how, 'matches')
 	}
-	// Over a blur, the same place; and 16:9 is already its shape.
+	// Over a blur, the same place.
 	assert.equal(
-		make('vertical', 'make this an Instagram reel', { fit: 'blur' }).edit.transform.crop?.blur,
+		make('screen', 'vertical', 'make this an Instagram reel', { fit: 'blur' }).edit.transform.crop
+			?.blur,
 		true
 	)
-	assert.equal(make('horizontal', 'a horizontal ad').summary.shape.how, 'matches')
-	// A meeting is still designed around the speech.
+	// A meeting is designed around the speech, unless the user asked for a fit.
 	assert.equal(
-		make('vertical', 'make this an Instagram reel', { subject: 'meeting' }).summary.shape.how,
+		make('meeting', 'vertical', 'make this an Instagram reel').summary.shape.how,
 		'designed'
+	)
+	assert.equal(
+		make('meeting', 'vertical', 'a reel with black bars', { fitAsked: true }).summary.shape.how,
+		'whole'
 	)
 })
