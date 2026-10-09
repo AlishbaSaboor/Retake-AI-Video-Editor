@@ -43,6 +43,8 @@ export const MAKE_SUBJECTS = ['one_person', 'screen', 'meeting', 'slides', 'othe
 export const SHORT_FORM_MAX_SECONDS = 59
 /** A short-form edit fills at least this much when the video has enough worth keeping. */
 export const SHORT_FORM_TARGET_SECONDS = 50
+/** A length asked for ("make it 30 seconds") is filled to at least this share of it. */
+const ASKED_FILL = 0.85
 /** The request names a short-video format itself: a check that doesn't rest on the model. */
 const SHORT_FORM_REQUEST = /\b(reels?|tik\s?toks?|shorts|stor(?:y|ies))\b/i
 
@@ -226,6 +228,55 @@ export const MAKE_REPLY_JSON_SCHEMA = {
 
 /** A question asked and what the user answered. */
 export type MakeAnswer = { question: string; answer: string }
+
+/**
+ * A follow-up's answer: the whole plan again, changed only where the
+ * follow-up asks, and the most the edit may now run (a length asked for, or
+ * "shorter"); null when no length was asked.
+ */
+export const followUpReplySchema = makeReplySchema.extend({
+	maxSeconds: z.number().positive().max(MAX_MAKE_SECONDS).nullable()
+})
+export type FollowUpReply = z.infer<typeof followUpReplySchema>
+
+export const FOLLOW_UP_REPLY_JSON_SCHEMA = {
+	type: 'object',
+	properties: {
+		...MAKE_REPLY_JSON_SCHEMA.properties,
+		maxSeconds: { type: 'number', nullable: true }
+	},
+	required: [...MAKE_REPLY_JSON_SCHEMA.required, 'maxSeconds']
+} as const
+
+/**
+ * A follow-up's plan as it is used: what it changed, over what only the
+ * pictures could tell (the subject, the faces, whether the picture
+ * matters), which stay as the first plan saw them, since a follow-up
+ * doesn't send the pictures again.
+ */
+export function followUpPlan(current: MakeReply, answer: FollowUpReply): MakeReply {
+	return {
+		questions: answer.questions,
+		style: answer.style,
+		format: answer.format,
+		summary: answer.summary,
+		moments: answer.moments,
+		removeSentences: answer.removeSentences,
+		removeSpans: answer.removeSpans,
+		captions: answer.captions,
+		zoomSentences: answer.zoomSentences,
+		transition: answer.transition,
+		keyLines: answer.keyLines,
+		vertical: answer.vertical,
+		card: answer.card,
+		music: answer.music,
+		title: answer.title,
+		cannotDo: answer.cannotDo,
+		subject: current.subject,
+		faces: current.faces,
+		pictureMatters: current.pictureMatters
+	}
+}
 
 /** Room left around speech where a pause is cut: from the pause only, never a word. */
 const SPEECH_PADDING_SECONDS = 0.25
@@ -599,8 +650,10 @@ export type MakeSummary = {
 	/** What it is making, as the plan's first words say: a format named, else the style. */
 	making: Exclude<MakeFormat, 'other'> | MakeStyle
 	summary: string
-	/** The most it may run (short-form), and whether sentences beyond the reply's were taken out to fit. */
+	/** The most it may run (short-form, or asked), and whether sentences beyond the reply's were taken out to fit. */
 	limitSeconds: number | null
+	/** The most it may run as a follow-up asked ("make it 30 seconds", "shorter"); null when none was asked. */
+	maxSeconds: number | null
 	trimmedToFit: boolean
 	/** The check found it too short, and sentences the plan had left out were put back. */
 	lengthened: boolean
@@ -639,6 +692,65 @@ export type MakeSummary = {
 	cannotDo: string[]
 }
 
+/** The edit a plan makes, as the editor applies it. */
+export type PlannedEdit<Sound> = Omit<EditSnapshot, 'audioItems'> & {
+	audioItems: AudioItem<Sound>[]
+}
+
+/** A plan as applied: the reply it came from, the length asked for, what it said, and its edit. */
+export type MadePlan<Sound> = {
+	reply: MakeReply
+	maxSeconds: number | null
+	summary: MakeSummary
+	edit: PlannedEdit<Sound>
+	music: MusicTrack<Sound> | null
+}
+
+/**
+ * Whether the editor's edit is still `plan`'s, as applied: the same values,
+ * not copies (applying a plan puts its own in place; Undo puts them back).
+ */
+export function isPlanEdit<Sound>(
+	plan: PlannedEdit<Sound>,
+	edit: Pick<
+		PlannedEdit<Sound>,
+		| 'clips'
+		| 'cuts'
+		| 'title'
+		| 'captionsOn'
+		| 'captionMode'
+		| 'captionStyle'
+		| 'transform'
+		| 'audioItems'
+		| 'autoZooms'
+		| 'autoTitles'
+		| 'design'
+	>
+): boolean {
+	return (
+		plan.clips === edit.clips &&
+		plan.cuts === edit.cuts &&
+		plan.title === edit.title &&
+		plan.captionsOn === edit.captionsOn &&
+		plan.captionMode === edit.captionMode &&
+		plan.captionStyle === edit.captionStyle &&
+		plan.transform === edit.transform &&
+		plan.audioItems === edit.audioItems &&
+		plan.autoZooms === edit.autoZooms &&
+		plan.autoTitles === edit.autoTitles &&
+		plan.design === edit.design
+	)
+}
+
+/** What every plan of one video is made from, besides its reply: handed to the editor for follow-ups. */
+export type MakeBasis = {
+	request: string
+	durationSeconds: number
+	picture: Size
+	fillerCuts: Cut[]
+	musicAvailable: boolean
+}
+
 export type MakeInput<Sound> = {
 	reply: MakeReply
 	request: string
@@ -656,6 +768,8 @@ export type MakeInput<Sound> = {
 	 * may come back to fill it, except those the check itself dropped.
 	 */
 	tooShort?: { keepOut: number[] } | null
+	/** The most it may run, as a follow-up asked; it is then cut to fit, and never called short. */
+	maxSeconds?: number | null
 }
 
 /**
@@ -668,8 +782,10 @@ export type MakeInput<Sound> = {
  * picture, with black bars.
  */
 export function planMake<Sound>(input: MakeInput<Sound>): {
-	edit: Omit<EditSnapshot, 'audioItems'> & { audioItems: AudioItem<Sound>[] }
+	edit: PlannedEdit<Sound>
 	summary: MakeSummary
+	/** The reply as used: its sentences taken out as they were cut to fit or lengthened. */
+	used: MakeReply
 } {
 	const { reply, durationSeconds, picture, transcript, music } = input
 	const sentences = transcript?.segments ?? []
@@ -767,7 +883,16 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	// sentence, a stretch with no speech) keeps only its first part. Filler
 	// cuts and overlapping transitions only ever make it shorter.
 	const shortForm = isShortForm(reply.format, input.request)
-	const limitSeconds = shortForm ? SHORT_FORM_MAX_SECONDS : null
+	// A length asked for in a follow-up limits it further (any edit), and is
+	// what it fills towards.
+	const asked = input.maxSeconds ?? null
+	const limitSeconds =
+		asked !== null
+			? Math.min(asked, shortForm ? SHORT_FORM_MAX_SECONDS : Number.POSITIVE_INFINITY)
+			: shortForm
+				? SHORT_FORM_MAX_SECONDS
+				: null
+	const target = asked !== null ? (limitSeconds ?? asked) * ASKED_FILL : SHORT_FORM_TARGET_SECONDS
 	const dead = sentenceIndexes(reply.removeSentences, sentences.length)
 	const strongest = reply.moments[0]
 	const opener =
@@ -786,7 +911,7 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 			sentences.flatMap((_, index) => (chosen.has(index) ? [] : [index + 1]))
 		const chosen = chooseSentences(reply.moments, sentences.length, dead, (trial) => {
 			const length = cutWith(keepOnly(trial), null, opener).editedSeconds
-			return { fits: length <= limitSeconds, enough: length >= SHORT_FORM_TARGET_SECONDS }
+			return { fits: length <= limitSeconds, enough: length >= target }
 		})
 		if (chosen.size > 0) removeSentences = keepOnly(chosen)
 		cut = cutWith(removeSentences, null, opener)
@@ -797,6 +922,7 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	// own drops), until it fills 50 seconds or nothing more fits.
 	let lengthened = false
 	if (
+		asked === null &&
 		limitSeconds !== null &&
 		input.tooShort &&
 		cut.editedSeconds < SHORT_FORM_TARGET_SECONDS &&
@@ -829,14 +955,16 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	const { kept, clips, cuts, joins, transitions, segments, editedSeconds } = cut
 	// Rounded as the plan shows it, so "50 seconds" is never called short.
 	const short =
-		limitSeconds !== null
-			? Math.round(editedSeconds) < SHORT_FORM_TARGET_SECONDS &&
-				durationSeconds >= SHORT_FORM_TARGET_SECONDS
-				? 'short_form'
-				: null
-			: input.tooShort
-				? 'asked'
-				: null
+		asked !== null
+			? null
+			: limitSeconds !== null
+				? Math.round(editedSeconds) < SHORT_FORM_TARGET_SECONDS &&
+					durationSeconds >= SHORT_FORM_TARGET_SECONDS
+					? 'short_form'
+					: null
+				: input.tooShort
+					? 'asked'
+					: null
 	const starts = editedStarts(segments)
 	const keptSentences = sentences.filter((sentence) =>
 		kept.some((range) => overlaps(range, sentence))
@@ -1011,11 +1139,13 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	}
 	return {
 		edit,
+		used: { ...reply, removeSentences },
 		summary: {
 			style: reply.style,
 			making: reply.format === 'other' ? reply.style : reply.format,
 			summary: summaryWithLength(reply.summary, editedSeconds),
 			limitSeconds,
+			maxSeconds: asked,
 			trimmedToFit,
 			lengthened,
 			short,
@@ -1043,6 +1173,50 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 			cannotDo: reply.cannotDo
 		}
 	}
+}
+
+/** One way a follow-up's plan differs from the plan before it, for the chat to say. */
+export type PlanChange =
+	| {
+			kind: 'length' | 'sentences' | 'keyLines' | 'zooms' | 'transitions'
+			from: number
+			to: number
+	  }
+	| { kind: 'captions'; from: CaptionLook; to: CaptionLook }
+	| { kind: 'shape'; from: MakeSummary['vertical']; to: MakeSummary['vertical'] }
+	| { kind: 'title' | 'music'; from: string | null; to: string | null }
+
+/**
+ * What changed from plan `before` to plan `after`, in the plan card's order:
+ * the length (in whole seconds, as the plan shows it) and the sentences
+ * kept, then the shape, captions, text on screen, motion and music. Empty
+ * when nothing a person would notice changed.
+ */
+export function planChanges(before: MakeSummary, after: MakeSummary): PlanChange[] {
+	const changes: PlanChange[] = []
+	const count = (
+		kind: 'length' | 'sentences' | 'keyLines' | 'zooms' | 'transitions',
+		from: number,
+		to: number
+	) => {
+		if (from !== to) changes.push({ kind, from, to })
+	}
+	count('length', Math.round(before.editedSeconds), Math.round(after.editedSeconds))
+	count('sentences', before.keptSentences, after.keptSentences)
+	if (before.vertical !== after.vertical) {
+		changes.push({ kind: 'shape', from: before.vertical, to: after.vertical })
+	}
+	if (before.captions !== after.captions) {
+		changes.push({ kind: 'captions', from: before.captions, to: after.captions })
+	}
+	if (before.title !== after.title)
+		changes.push({ kind: 'title', from: before.title, to: after.title })
+	count('keyLines', before.keyLines, after.keyLines)
+	count('zooms', before.zooms, after.zooms)
+	count('transitions', before.transitions, after.transitions)
+	if (before.music !== after.music)
+		changes.push({ kind: 'music', from: before.music, to: after.music })
+	return changes
 }
 
 /**
@@ -1101,7 +1275,9 @@ export function describePlan(
 	)
 	return [
 		`Making: ${summary.making} (style ${reply.style}), ${summary.editedSeconds.toFixed(1)} s long` +
-			(summary.limitSeconds === null ? '.' : `, must be under 60 s.`),
+			(summary.limitSeconds === null
+				? '.'
+				: `, must be under ${Math.ceil(summary.limitSeconds + 0.01)} s.`),
 		'Plays, in order:',
 		...(played.length > 0 ? played : ['(no speech)']),
 		`Title: ${summary.title === null ? 'none' : `"${summary.title}"`}`,

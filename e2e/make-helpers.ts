@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import type { CheckReply, MakeReply } from '../src/app/[locale]/(app)/make/make-plan'
+import type { CheckReply, FollowUpReply, MakeReply } from '../src/app/[locale]/(app)/make/make-plan'
 import { toTranscript } from '../src/app/[locale]/editor/transcript'
 import type { TimedWord } from './editor-helpers'
 
@@ -42,7 +42,7 @@ export const NOTHING_TO_FIX: CheckReply = {
 }
 
 /**
- * Answers the transcript, plan and check requests with canned results, on
+ * Answers the transcript, plan, check and follow-up requests with canned results, on
  * the Make it page and in the editor. Each request still reaches the real
  * server, which decodes it as it would any other, with one field emptied so
  * validation stops it before any AI call (the audio; the request's text,
@@ -54,9 +54,15 @@ export async function mockMakeActions(
 	words: TimedWord[],
 	replies: MakeReply[],
 	tracks: string[] = [],
-	checks: CheckReply[] = [NOTHING_TO_FIX]
+	checks: CheckReply[] = [NOTHING_TO_FIX],
+	followUps: FollowUpReply[] = []
 ) {
-	const seen = { plans: [] as string[], checks: [] as string[], editorTranscripts: 0 }
+	const seen = {
+		plans: [] as string[],
+		checks: [] as string[],
+		followUps: [] as string[],
+		editorTranscripts: 0
+	}
 	await page.route(
 		(url) => url.pathname.endsWith('/make') || url.pathname.endsWith('/editor'),
 		async (route) => {
@@ -66,15 +72,19 @@ export async function mockMakeActions(
 			const isTranscript = body.includes('"audioBase64"')
 			const isPlan = body.includes('"frames"')
 			const isCheck = body.includes('"planText"')
-			if (!isTranscript && !isPlan && !isCheck) return route.continue()
+			const isFollowUp = body.includes('"followUp"')
+			if (!isTranscript && !isPlan && !isCheck && !isFollowUp) return route.continue()
 			if (isTranscript && request.url().includes('/editor')) seen.editorTranscripts++
 			const data = isTranscript
 				? toTranscript(words)
 				: isPlan
 					? { reply: replies[Math.min(seen.plans.length, replies.length - 1)], tracks }
-					: checks[Math.min(seen.checks.length, checks.length - 1)]
+					: isFollowUp
+						? { reply: followUps[Math.min(seen.followUps.length, followUps.length - 1)] ?? null }
+						: checks[Math.min(seen.checks.length, checks.length - 1)]
 			if (isPlan) seen.plans.push(body)
 			if (isCheck) seen.checks.push(body)
+			if (isFollowUp) seen.followUps.push(body)
 			const response = await route.fetch({
 				postData: !isTranscript
 					? body.replace(/"request":"(?:[^"\\]|\\.)*"/, '"request":""')
