@@ -7,6 +7,9 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-09.
+> - **Make it: only a meeting is ever a corner card** (section 3zp): the
+>   card no longer rests on Gemini's label being right; the owner's real
+>   recording (screen + webcam bubble) is labelled `one_person`.
 > - **Make it: a screen recording is never a corner card** (section 3zo): a
 >   reel of a screen recording showed a palette background and the screen
 >   tiny in the lower left; it now shows whole, full width and centred.
@@ -2835,6 +2838,32 @@ Found in the real Make it runs (a 3-minute walkthrough and a short clip).
   size checked and its frame read: green over the middle 80% of the
   centred, full-width area, none in the frame's corners (fails before the
   fix on 9:16: nothing green in the middle).
+
+## 3zp. Make it: only a meeting is ever a corner card (2026-10-10)
+
+- **Still happening after 3zo** on the owner's real recording (`Cap
+Recording - 26 September 2026.mp4`: a screen with a webcam bubble). Two
+  real runs (approved, about 4 cents each), on 3zo's code: the first got
+  the designed frame (picture hidden), its label not captured; the second,
+  captured, came back `subject: one_person`, `pictureMatters: true`, `fit:
+fill`. So Gemini doesn't call it a screen, and 3zo only excluded the label
+  `screen`. Its answers also differ run to run on the same file.
+- **Fix:** the designed frame (palette, corner card) is used only for
+  `subject: 'meeting'` (and, as before, only with no fit asked for). Every
+  other label (screen, slides, one person, other) takes the fit path. A
+  label outside the list is read as `other` (`.catch`), so it never stops a
+  plan nor earns a meeting's layout. The prompt says only a meeting is ever
+  a card.
+- **Still open:** with `one_person` and `fit: fill`, #23's rule zooms in to
+  follow the face (a reel of one person on camera), so the second real run
+  came out a 608×1080 crop around the webcam bubble, most of the screen cut
+  off. Whether that zoom should give way for a webcam over a screen is the
+  owner's call.
+- Tests: unit, each label (screen, slides, other, one_person, an unknown
+  one) in 9:16, 1:1, 4:5 (full width, centred) and 16:9 (matches); a meeting
+  designed unless a fit was asked for; fails with 3zo's condition. e2e: the
+  exported frame of a one-colour recording for screen in every shape, and
+  for slides, other and an unknown label at 9:16.
 
 ---
 

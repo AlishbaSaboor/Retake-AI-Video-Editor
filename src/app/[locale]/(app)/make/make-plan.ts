@@ -159,7 +159,9 @@ export const makeReplySchema = z.object({
 	questions: z.array(note).max(MAX_QUESTIONS),
 	style: z.enum(MAKE_STYLES),
 	format: z.enum(MAKE_FORMATS),
-	subject: z.enum(MAKE_SUBJECTS),
+	// A label outside the list is read as other: it never stops a plan, and
+	// never earns a layout only a meeting gets.
+	subject: z.enum(MAKE_SUBJECTS).catch('other'),
 	summary: noteOf(MAX_SUMMARY_LENGTH),
 	pictureMatters: z.boolean(),
 	moments: z.array(z.object({ first: z.number().int(), last: z.number().int() })),
@@ -1040,16 +1042,17 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	// it. Nothing is cut off unless a zoom is wanted: asked for, or to keep one
 	// person on camera in a reel in view (never in an ad unless asked), with a
 	// crop that follows their face. Otherwise the whole picture shows, with
-	// bars or over a blur; or, for a reel or an ad whose picture doesn't carry
-	// it (a static meeting), in a frame designed around the speech, the
-	// picture a small card. Never a screen recording: its screen is what's
-	// read, so it shows whole, as wide as the frame. A video already the shape
-	// is kept.
+	// bars or over a blur; or, only for a reel or an ad of a meeting whose
+	// picture doesn't carry it, in a frame designed around the speech, the
+	// picture a small card. Any other label (a screen recording, slides, one
+	// person, other, one not on the list) shows whole, as wide as the frame:
+	// the label is Gemini's guess, and a guess must never shrink the picture
+	// to a corner. A video already the shape is kept.
 	const shape: MakeShape = shortForm ? 'vertical' : reply.shape
 	const designable =
 		(shortForm || reply.style === 'ad') &&
+		reply.subject === 'meeting' &&
 		!pictureMatters &&
-		reply.subject !== 'screen' &&
 		words.length > 0
 	let fit: MakeFit | null = null
 	let how: MakeSummary['shape']['how'] = 'kept'
