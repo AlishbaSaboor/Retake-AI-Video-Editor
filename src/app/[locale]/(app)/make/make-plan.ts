@@ -51,6 +51,15 @@ export type MakeShape = (typeof MAKE_SHAPES)[number]
  */
 export const MAKE_FITS = ['bars', 'blur', 'fill'] as const
 export type MakeFit = (typeof MAKE_FITS)[number]
+/**
+ * How a screen recording shows: the whole screen (bars or a blur), or
+ * designed around what's said with no picture of the screen at all.
+ */
+export const SCREEN_TREATMENTS = ['whole', 'designed'] as const
+export type ScreenTreatment = (typeof SCREEN_TREATMENTS)[number]
+/** A request for an ad, a promo, a teaser or a highlights reel: a screen recording is designed for it. */
+const PROMO_REQUEST =
+	/\b(ads?|adverts?|advertisements?|promos?|promotional|teasers?|highlights?)\b/i
 /** What the picture shows: only one person as the clear subject gets a crop that follows a face. */
 export const MAKE_SUBJECTS = ['one_person', 'screen', 'meeting', 'slides', 'other'] as const
 
@@ -175,6 +184,8 @@ export const makeReplySchema = z.object({
 	fit: z.enum(MAKE_FITS),
 	/** The request (or a follow-up) named the fit: black bars, a blurred background, a zoom. */
 	fitAsked: z.boolean(),
+	/** A screen recording's treatment, when the request (or a follow-up) asked for one; null when not. */
+	treatment: z.enum(SCREEN_TREATMENTS).nullable(),
 	/** The most it may run, when a length was asked for; null when none was. */
 	maxSeconds: z.number().positive().max(MAX_MAKE_SECONDS).nullable(),
 	/** A request written as a brief: the parts it gives, in its own words. */
@@ -234,6 +245,7 @@ export const MAKE_REPLY_JSON_SCHEMA = {
 		shape: { type: 'string', enum: [...MAKE_SHAPES] },
 		fit: { type: 'string', enum: [...MAKE_FITS] },
 		fitAsked: { type: 'boolean' },
+		treatment: { type: 'string', enum: [...SCREEN_TREATMENTS], nullable: true },
 		maxSeconds: { type: 'number', nullable: true },
 		brief: {
 			type: 'object',
@@ -276,6 +288,7 @@ export const MAKE_REPLY_JSON_SCHEMA = {
 		'shape',
 		'fit',
 		'fitAsked',
+		'treatment',
 		'maxSeconds',
 		'brief',
 		'faces',
@@ -743,6 +756,16 @@ export type MakeSummary = {
 		asked: boolean
 	}
 	/**
+	 * A screen recording's treatment and why: the default (whole), a request
+	 * for an ad, promo, teaser or highlights (designed), asked for in so many
+	 * words, or whole because the second check couldn't run. Null for any
+	 * other video.
+	 */
+	screen: {
+		treatment: ScreenTreatment
+		why: 'default' | 'promo' | 'asked' | 'unchecked'
+	} | null
+	/**
 	 * The parts of a brief the plan used: who it's for and its tone (in the
 	 * style, captions and music), what to show (in what it keeps), a length
 	 * (the most it runs), and the call to action shown at the end.
@@ -838,6 +861,8 @@ export type MakeInput<Sound> = {
 	 * may come back to fill it, except those the check itself dropped.
 	 */
 	tooShort?: { keepOut: number[] } | null
+	/** The second check couldn't run: a screen recording then shows whole, never designed. */
+	unchecked?: boolean
 }
 
 /**
@@ -861,6 +886,10 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	const times = frameTimes(durationSeconds)
 	const whole = { startSeconds: 0, endSeconds: durationSeconds }
 	const pictureMatters = reply.pictureMatters || sentences.length === 0
+	// A screen recording (a demo, a walkthrough, a shared screen) is never
+	// zoomed into: no crop of one part of it, no push-ins, no zoom cuts.
+	const screen = reply.subject === 'screen'
+	const transition = screen && reply.transition === 'zoom_cut' ? 'none' : reply.transition
 
 	/**
 	 * The cut with these sentences (numbered from 1) taken out, at most `cap`
@@ -913,7 +942,7 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 			.sort((a, b) => b.jump - a.jump)
 			.slice(0, MAX_TRANSITIONS)
 			.map(({ index }) => index)
-		const kind = reply.transition
+		const kind = transition
 		if (kind === 'fade' || kind === 'dissolve' || kind === 'slide') {
 			for (const index of joins) {
 				const clip = clips[index]
@@ -1048,6 +1077,17 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	// person, other, one not on the list) shows whole, as wide as the frame:
 	// the label is Gemini's guess, and a guess must never shrink the picture
 	// to a corner. A video already the shape is kept.
+	//
+	// A screen recording has exactly two treatments: the whole screen (the
+	// default), or designed around what's said with no picture of the screen
+	// at all (the palette, captions and text), for an ad, promo, teaser or
+	// highlights reel or when asked. Whole whenever the second check
+	// couldn't run.
+	const treatment: ScreenTreatment | null = !screen
+		? null
+		: input.unchecked
+			? 'whole'
+			: (reply.treatment ?? (PROMO_REQUEST.test(input.request) ? 'designed' : 'whole'))
 	const shape: MakeShape = shortForm ? 'vertical' : reply.shape
 	const designable =
 		(shortForm || reply.style === 'ad') &&
@@ -1058,7 +1098,14 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	let how: MakeSummary['shape']['how'] = 'kept'
 	let design: Design | null = null
 	let transform = ORIGINAL_EDIT.transform
-	if (shape !== 'original') {
+	if (treatment === 'designed') {
+		design = { palette: reply.style, picture: 'hidden' }
+		how = 'designed'
+		if (shape !== 'original') {
+			const crop = fittedCrop(SHAPE_RATIO[shape], picture)
+			transform = { ...transform, crop: { aspect: SHAPE_ASPECT[shape], rect: crop, fit: true } }
+		}
+	} else if (shape !== 'original') {
 		const ratio = SHAPE_RATIO[shape]
 		const aspect = SHAPE_ASPECT[shape]
 		if (Math.abs(picture.width / picture.height - ratio) / ratio <= SAME_SHAPE) how = 'matches'
@@ -1069,7 +1116,8 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 				reply.faces.map((face) => face.frame).filter((frame) => frame >= 1 && frame <= times.length)
 			).size
 			const clearly = reply.subject === 'one_person' && faceFrames >= times.length / 2
-			const zoomed = reply.fit === 'fill' && (reply.fitAsked || (clearly && reply.style !== 'ad'))
+			const zoomed =
+				!screen && reply.fit === 'fill' && (reply.fitAsked || (clearly && reply.style !== 'ad'))
 			// A face is followed across: only where the crop is narrower than the picture.
 			const follow =
 				zoomed && clearly && rect.width < 1 ? faceFollow(reply.faces, times, rect.width) : null
@@ -1108,7 +1156,7 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 
 	// Zoom cuts at the chosen joins: the clip after starts a little closer and settles.
 	const autoZooms: Zoom[] =
-		reply.transition === 'zoom_cut'
+		transition === 'zoom_cut'
 			? joins.map((index) => {
 					const at = starts[index] ?? 0
 					return {
@@ -1120,9 +1168,9 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 				})
 			: []
 	// Zooms on the sentences named, where they still play, never overlapping;
-	// none in a designed frame, whose picture isn't what's being said.
+	// none in a designed frame, whose picture isn't what's being said, nor on a screen.
 	for (const index of [
-		...sentenceIndexes(design ? [] : reply.zoomSentences, sentences.length)
+		...sentenceIndexes(design || screen ? [] : reply.zoomSentences, sentences.length)
 	].sort((a, b) => a - b)) {
 		if (autoZooms.length >= MAX_ZOOMS) break
 		const sentence = sentences[index]
@@ -1284,12 +1332,25 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 			// Said when it moved: the strongest line opens, before what came first in the video.
 			opensWith:
 				(kept[0]?.startSeconds ?? 0) > (kept[1]?.startSeconds ?? Infinity) ? opening : null,
-			zooms: autoZooms.length - (reply.transition === 'zoom_cut' ? joins.length : 0),
-			transition: reply.transition,
+			zooms: autoZooms.length - (transition === 'zoom_cut' ? joins.length : 0),
+			transition,
 			transitions,
 			music: audioItems.length > 0 ? (music?.name ?? null) : null,
 			musicMissing: !input.musicAvailable,
 			shape: { target: shape, fit, how, asked: reply.fitAsked && fit !== null },
+			screen:
+				treatment === null
+					? null
+					: {
+							treatment,
+							why: input.unchecked
+								? 'unchecked'
+								: reply.treatment
+									? 'asked'
+									: treatment === 'designed'
+										? 'promo'
+										: 'default'
+						},
 			brief: {
 				audience: reply.brief.audience,
 				tone: reply.brief.tone,
