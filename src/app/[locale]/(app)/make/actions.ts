@@ -18,11 +18,8 @@ import {
 	MAX_QUESTIONS,
 	MAX_REQUEST_LENGTH,
 	CHECK_TIMEOUT_MS,
-	FOLLOW_UP_REPLY_JSON_SCHEMA,
-	followUpReplySchema,
 	PLAN_TIMEOUT_MS,
 	type CheckReply,
-	type FollowUpReply,
 	type MakeReply
 } from './make-plan'
 
@@ -101,7 +98,20 @@ const MAKE_INSTRUCTION = [
 	'professional dissolve or fade, reel and funny zoom_cut or slide, ad slide or zoom_cut.',
 	'keyLines: up to 4 short lines (at most 8 words) to show on screen, each quoting words said in',
 	'its sentence, given by number: the points worth reading. Empty when none fit.',
-	'vertical: true for reels, TikTok, Shorts, stories and ads for phones.',
+	'shape: vertical (9:16) for reels, TikToks, Shorts and stories; otherwise the one the request',
+	'names (square 1:1, portrait 4:5, horizontal 16:9, vertical), else original: the video keeps',
+	'its own shape. An ad keeps its own shape unless the request names a shape or a platform.',
+	'fit, for when the video is not that shape: bars (all of it, with black bars), blur (all of',
+	'it, over a blurred copy of itself) or fill (zoomed in to fill the frame, its edges cut off).',
+	'Prefer bars or blur, so nothing is cut off; fill only when the request asks to zoom or crop,',
+	'or one person on camera is the subject of a reel. An ad shows the whole picture unless asked.',
+	'fitAsked: true when the request names the fit (black bars, a blurred background, zoom in,',
+	'crop, fill the frame).',
+	'maxSeconds: the most it may run in seconds when the request asks for a length, else null.',
+	'brief: when the request is a brief, its parts in its own words, null for each it does not',
+	'give: audience (who it is for), tone, length, show (what to show), callToAction (the closing',
+	'line to show on screen, word for word). Use them: the style, captions and music to suit the',
+	'audience and tone, the moments to what it asks to show.',
 	'faces: only when subject is one_person: for each picture showing them, its number as frame,',
 	'and x and y of the face centre on a 0 to 1000 grid. Otherwise empty.',
 	'card: when the picture does not carry the video (a meeting, a still screen), a reel or ad is',
@@ -203,6 +213,8 @@ const FOLLOW_UP_INSTRUCTION = [
 	'to take out a part ("the intro"), take out its sentences.',
 	'maxSeconds: the most it may run in seconds, when the follow-up asks for a length, or for it',
 	'shorter (then about two thirds of its length now); else as it is now (null when none).',
+	'shape and fit as the follow-up asks ("make it square"; "keep the black bars" is bars; "zoom',
+	'in on the speaker" is fill), with fitAsked true when it names the fit.',
 	'Ask questions only when you cannot tell what change is wanted; then the plan as it is now.',
 	'cannotDo: each part of the follow-up this editor cannot do; change nothing for those parts.'
 ].join(' ')
@@ -226,12 +238,12 @@ export const followUpMakeIt = validatedAction({
 				})
 			)
 			.max(MAX_QUESTIONS),
-		plan: followUpReplySchema,
+		plan: makeReplySchema,
 		durationSeconds: z.number().positive().max(MAX_MAKE_SECONDS),
 		editedSeconds: z.number().nonnegative().max(MAX_MAKE_SECONDS),
 		sentences: sentencesInput
 	}),
-	handler: async (input): Promise<{ reply: FollowUpReply | null }> => {
+	handler: async (input): Promise<{ reply: MakeReply | null }> => {
 		const tracks = await musicTracks()
 		const response = await generateContent(
 			{ feature: 'make_it_follow_up', model: 'gemini-3.5-flash-lite', timeoutMs: PLAN_TIMEOUT_MS },
@@ -251,13 +263,13 @@ export const followUpMakeIt = validatedAction({
 				config: {
 					systemInstruction: FOLLOW_UP_INSTRUCTION,
 					responseMimeType: 'application/json',
-					responseJsonSchema: FOLLOW_UP_REPLY_JSON_SCHEMA,
+					responseJsonSchema: MAKE_REPLY_JSON_SCHEMA,
 					temperature: 0
 				}
 			}
 		).catch(rethrowAiError('gemini', 'make_it_follow_up'))
 		try {
-			const parsed = followUpReplySchema.safeParse(JSON.parse(response.text ?? ''))
+			const parsed = makeReplySchema.safeParse(JSON.parse(response.text ?? ''))
 			if (!parsed.success) return { reply: null }
 			const reply = parsed.data
 			// Answers given: plan now, whatever the reply says.

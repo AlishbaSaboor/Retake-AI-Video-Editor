@@ -15,7 +15,13 @@ import {
 	type SourceRange
 } from '../../editor/sequence'
 import { DEFAULT_TEXT_STYLE, type TextStyle } from '../../editor/text-style'
-import { centredCrop, fittedCrop, type CropKey, type Size } from '../../editor/transform'
+import {
+	centredCrop,
+	fittedCrop,
+	type CropAspect,
+	type CropKey,
+	type Size
+} from '../../editor/transform'
 import type { Transcript, TranscriptSegment } from '../../editor/transcript'
 import { transitionLimit, type TransitionKind } from '../../editor/transitions'
 
@@ -32,6 +38,19 @@ export type MakeStyle = (typeof MAKE_STYLES)[number]
 /** Where the video is going, when the request names a place for short videos. */
 export const MAKE_FORMATS = ['instagram_reel', 'tiktok', 'youtube_shorts', 'other'] as const
 export type MakeFormat = (typeof MAKE_FORMATS)[number]
+/**
+ * The shape it comes out: vertical 9:16, square 1:1, portrait 4:5,
+ * horizontal 16:9, or the video's own (original).
+ */
+export const MAKE_SHAPES = ['vertical', 'square', 'portrait', 'horizontal', 'original'] as const
+export type MakeShape = (typeof MAKE_SHAPES)[number]
+/**
+ * How the video goes into a shape that isn't its own: the whole of it with
+ * black bars, the whole of it over a blurred copy of itself, or filling the
+ * frame with its edges cut off (a zoom).
+ */
+export const MAKE_FITS = ['bars', 'blur', 'fill'] as const
+export type MakeFit = (typeof MAKE_FITS)[number]
 /** What the picture shows: only one person as the clear subject gets a crop that follows a face. */
 export const MAKE_SUBJECTS = ['one_person', 'screen', 'meeting', 'slides', 'other'] as const
 
@@ -77,6 +96,8 @@ const MAX_NOTE_LENGTH = 200
 /** The plan's summary: two plain sentences, with room to finish them. */
 const MAX_SUMMARY_LENGTH = 400
 const MAX_TITLE_LENGTH = 60
+/** A part of a brief, as the reply quotes it from the request. */
+const MAX_BRIEF_PART_LENGTH = 120
 
 /**
  * The pictures, as they go to the server: one string, separated by spaces
@@ -117,6 +138,12 @@ const noteOf = (max: number) =>
 		.pipe(z.string().min(1))
 const note = noteOf(MAX_NOTE_LENGTH)
 
+/** A part of a brief: the request's own words for it, or null when it gives none. */
+const briefPart = z
+	.string()
+	.nullable()
+	.transform((text) => (text === null ? null : clipText(text, MAX_BRIEF_PART_LENGTH) || null))
+
 /**
  * How captions look, as the reply picks them: a line or two in a band, one
  * big word at a time, lines with the word being said picked out, or large
@@ -142,7 +169,20 @@ export const makeReplySchema = z.object({
 	zoomSentences: z.array(z.number().int()),
 	transition: z.enum(MAKE_TRANSITIONS),
 	keyLines: z.array(z.object({ sentence: z.number().int(), text: z.string() })),
-	vertical: z.boolean(),
+	shape: z.enum(MAKE_SHAPES),
+	fit: z.enum(MAKE_FITS),
+	/** The request (or a follow-up) named the fit: black bars, a blurred background, a zoom. */
+	fitAsked: z.boolean(),
+	/** The most it may run, when a length was asked for; null when none was. */
+	maxSeconds: z.number().positive().max(MAX_MAKE_SECONDS).nullable(),
+	/** A request written as a brief: the parts it gives, in its own words. */
+	brief: z.object({
+		audience: briefPart,
+		tone: briefPart,
+		length: briefPart,
+		show: briefPart,
+		callToAction: briefPart
+	}),
 	faces: z.array(z.object({ frame: z.number().int(), x: z.number(), y: z.number() })),
 	card: z.enum(['corner', 'hidden']),
 	music: z.string().nullable(),
@@ -189,7 +229,21 @@ export const MAKE_REPLY_JSON_SCHEMA = {
 				required: ['sentence', 'text']
 			}
 		},
-		vertical: { type: 'boolean' },
+		shape: { type: 'string', enum: [...MAKE_SHAPES] },
+		fit: { type: 'string', enum: [...MAKE_FITS] },
+		fitAsked: { type: 'boolean' },
+		maxSeconds: { type: 'number', nullable: true },
+		brief: {
+			type: 'object',
+			properties: {
+				audience: { type: 'string', nullable: true },
+				tone: { type: 'string', nullable: true },
+				length: { type: 'string', nullable: true },
+				show: { type: 'string', nullable: true },
+				callToAction: { type: 'string', nullable: true }
+			},
+			required: ['audience', 'tone', 'length', 'show', 'callToAction']
+		},
 		faces: {
 			type: 'array',
 			items: {
@@ -217,7 +271,11 @@ export const MAKE_REPLY_JSON_SCHEMA = {
 		'zoomSentences',
 		'transition',
 		'keyLines',
-		'vertical',
+		'shape',
+		'fit',
+		'fitAsked',
+		'maxSeconds',
+		'brief',
 		'faces',
 		'card',
 		'music',
@@ -230,48 +288,15 @@ export const MAKE_REPLY_JSON_SCHEMA = {
 export type MakeAnswer = { question: string; answer: string }
 
 /**
- * A follow-up's answer: the whole plan again, changed only where the
- * follow-up asks, and the most the edit may now run (a length asked for, or
- * "shorter"); null when no length was asked.
- */
-export const followUpReplySchema = makeReplySchema.extend({
-	maxSeconds: z.number().positive().max(MAX_MAKE_SECONDS).nullable()
-})
-export type FollowUpReply = z.infer<typeof followUpReplySchema>
-
-export const FOLLOW_UP_REPLY_JSON_SCHEMA = {
-	type: 'object',
-	properties: {
-		...MAKE_REPLY_JSON_SCHEMA.properties,
-		maxSeconds: { type: 'number', nullable: true }
-	},
-	required: [...MAKE_REPLY_JSON_SCHEMA.required, 'maxSeconds']
-} as const
-
-/**
- * A follow-up's plan as it is used: what it changed, over what only the
- * pictures could tell (the subject, the faces, whether the picture
+ * A follow-up's plan as it is used: the whole plan again, as the follow-up
+ * changed it (a follow-up answers in the plan's own shape), over what only
+ * the pictures could tell (the subject, the faces, whether the picture
  * matters), which stay as the first plan saw them, since a follow-up
  * doesn't send the pictures again.
  */
-export function followUpPlan(current: MakeReply, answer: FollowUpReply): MakeReply {
+export function followUpPlan(current: MakeReply, answer: MakeReply): MakeReply {
 	return {
-		questions: answer.questions,
-		style: answer.style,
-		format: answer.format,
-		summary: answer.summary,
-		moments: answer.moments,
-		removeSentences: answer.removeSentences,
-		removeSpans: answer.removeSpans,
-		captions: answer.captions,
-		zoomSentences: answer.zoomSentences,
-		transition: answer.transition,
-		keyLines: answer.keyLines,
-		vertical: answer.vertical,
-		card: answer.card,
-		music: answer.music,
-		title: answer.title,
-		cannotDo: answer.cannotDo,
+		...answer,
 		subject: current.subject,
 		faces: current.faces,
 		pictureMatters: current.pictureMatters
@@ -305,6 +330,26 @@ const FOLLOW_SLACK = 0.2
 /** Background music, before it ducks under speech. */
 const MUSIC_VOLUME = 0.35
 const TITLE_SECONDS = 3
+/** A brief's call to action shows over the last seconds of the edit, at most this long. */
+const CALL_TO_ACTION_SECONDS = 3
+/** Less room than this at the end (after the title) and the call to action is left out. */
+const MIN_CALL_TO_ACTION_SECONDS = 1.5
+
+/** Each shape's width over height, and the crop preset it is. */
+const SHAPE_RATIO: Record<Exclude<MakeShape, 'original'>, number> = {
+	vertical: 9 / 16,
+	square: 1,
+	portrait: 4 / 5,
+	horizontal: 16 / 9
+}
+const SHAPE_ASPECT: Record<Exclude<MakeShape, 'original'>, CropAspect> = {
+	vertical: '9:16',
+	square: '1:1',
+	portrait: '4:5',
+	horizontal: '16:9'
+}
+/** A video within this share of a shape already is that shape: nothing is cropped or barred. */
+const SAME_SHAPE = 0.02
 
 /** The title's and key lines' look, by style: bold and quick, calm, playful, punchy. */
 const TEXT_STYLE: Record<MakeStyle, TextStyle> = {
@@ -681,8 +726,32 @@ export type MakeSummary = {
 	/** The track laid under it; null with none, `missing` when the folder has none to offer. */
 	music: string | null
 	musicMissing: boolean
-	/** Vertical: following one person's face, or the whole picture fitted with black bars. */
-	vertical: 'face' | 'fit' | 'designed' | 'already' | null
+	/**
+	 * The shape it comes out, and how the video goes into it: `how` is why
+	 * (`kept`: its own shape; `matches`: already the shape; `designed`: a
+	 * frame designed around the speech; `face`: zoomed to follow one person;
+	 * `centred`: zoomed in, centred; `whole`: all of it, with bars or a
+	 * blur). `fit` is null when nothing had to fit. `asked`: the request
+	 * named the fit.
+	 */
+	shape: {
+		target: MakeShape
+		fit: MakeFit | null
+		how: 'kept' | 'matches' | 'designed' | 'face' | 'centred' | 'whole'
+		asked: boolean
+	}
+	/**
+	 * The parts of a brief the plan used: who it's for and its tone (in the
+	 * style, captions and music), what to show (in what it keeps), a length
+	 * (the most it runs), and the call to action shown at the end.
+	 */
+	brief: {
+		audience: string | null
+		tone: string | null
+		show: string | null
+		lengthSeconds: number | null
+		callToAction: string | null
+	}
 	/** A designed frame's picture: a small card in a corner, or hidden; null when not designed. */
 	card: Design['picture'] | null
 	title: string | null
@@ -697,10 +766,9 @@ export type PlannedEdit<Sound> = Omit<EditSnapshot, 'audioItems'> & {
 	audioItems: AudioItem<Sound>[]
 }
 
-/** A plan as applied: the reply it came from, the length asked for, what it said, and its edit. */
+/** A plan as applied: the reply it came from, what it said, and its edit. */
 export type MadePlan<Sound> = {
 	reply: MakeReply
-	maxSeconds: number | null
 	summary: MakeSummary
 	edit: PlannedEdit<Sound>
 	music: MusicTrack<Sound> | null
@@ -768,8 +836,6 @@ export type MakeInput<Sound> = {
 	 * may come back to fill it, except those the check itself dropped.
 	 */
 	tooShort?: { keepOut: number[] } | null
-	/** The most it may run, as a follow-up asked; it is then cut to fit, and never called short. */
-	maxSeconds?: number | null
 }
 
 /**
@@ -883,9 +949,9 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	// sentence, a stretch with no speech) keeps only its first part. Filler
 	// cuts and overlapping transitions only ever make it shorter.
 	const shortForm = isShortForm(reply.format, input.request)
-	// A length asked for in a follow-up limits it further (any edit), and is
-	// what it fills towards.
-	const asked = input.maxSeconds ?? null
+	// A length asked for (in the request, or a follow-up) limits it further
+	// (any edit), and is what it fills towards; it is never called short.
+	const asked = reply.maxSeconds
 	const limitSeconds =
 		asked !== null
 			? Math.min(asked, shortForm ? SHORT_FORM_MAX_SECONDS : Number.POSITIVE_INFINITY)
@@ -970,44 +1036,66 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 		kept.some((range) => overlaps(range, sentence))
 	).length
 
-	// Vertical (short-form always is): a crop following the face only when
-	// one person is the subject and a face was found; anything else keeps the
-	// whole picture, never cut off: fitted inside with black bars, or, for a
-	// reel or an ad whose picture doesn't carry it (a static meeting, a still
-	// screen), a frame designed around the speech, the picture a small card.
-	const ratio = 9 / 16
-	const alreadyVertical = picture.width / picture.height <= ratio + 0.01
-	const wantsVertical = reply.vertical || shortForm
+	// The shape (short-form is always vertical) and how the video goes into
+	// it. Nothing is cut off unless a zoom is wanted: asked for, or to keep one
+	// person on camera in a reel in view (never in an ad unless asked), with a
+	// crop that follows their face. Otherwise the whole picture shows, with
+	// bars or over a blur; or, for a reel or an ad whose picture doesn't carry
+	// it (a static meeting, a still screen), in a frame designed around the
+	// speech, the picture a small card. A video already the shape is kept.
+	const shape: MakeShape = shortForm ? 'vertical' : reply.shape
 	const designable = (shortForm || reply.style === 'ad') && !pictureMatters && words.length > 0
-	let vertical: MakeSummary['vertical'] = null
+	let fit: MakeFit | null = null
+	let how: MakeSummary['shape']['how'] = 'kept'
 	let design: Design | null = null
 	let transform = ORIGINAL_EDIT.transform
-	if (wantsVertical && alreadyVertical) vertical = 'already'
-	else if (wantsVertical) {
-		const rect = centredCrop(ratio, picture)
-		// One person clearly the subject: said so, and a face in at least half the pictures.
-		const faceFrames = new Set(
-			reply.faces.map((face) => face.frame).filter((frame) => frame >= 1 && frame <= times.length)
-		).size
-		const clearly = reply.subject === 'one_person' && faceFrames >= times.length / 2
-		const follow = clearly ? faceFollow(reply.faces, times, rect.width) : null
-		const first = follow?.[0]
-		if (!first && designable) {
-			design = { palette: reply.style, picture: reply.card }
-			vertical = 'designed'
-		} else vertical = first ? 'face' : 'fit'
-		transform = {
-			...transform,
-			crop:
-				follow && first
-					? {
-							aspect: '9:16',
-							rect: { ...rect, x: first.x },
-							...(follow.length > 1 && { follow })
-						}
-					: { aspect: '9:16', rect: fittedCrop(ratio, picture), fit: true }
+	if (shape !== 'original') {
+		const ratio = SHAPE_RATIO[shape]
+		const aspect = SHAPE_ASPECT[shape]
+		if (Math.abs(picture.width / picture.height - ratio) / ratio <= SAME_SHAPE) how = 'matches'
+		else {
+			const rect = centredCrop(ratio, picture)
+			// One person clearly the subject: said so, and a face in at least half the pictures.
+			const faceFrames = new Set(
+				reply.faces.map((face) => face.frame).filter((frame) => frame >= 1 && frame <= times.length)
+			).size
+			const clearly = reply.subject === 'one_person' && faceFrames >= times.length / 2
+			const zoomed = reply.fit === 'fill' && (reply.fitAsked || (clearly && reply.style !== 'ad'))
+			// A face is followed across: only where the crop is narrower than the picture.
+			const follow =
+				zoomed && clearly && rect.width < 1 ? faceFollow(reply.faces, times, rect.width) : null
+			const first = follow?.[0]
+			if (zoomed) {
+				fit = 'fill'
+				how = first ? 'face' : 'centred'
+				transform = {
+					...transform,
+					crop:
+						follow && first
+							? { aspect, rect: { ...rect, x: first.x }, ...(follow.length > 1 && { follow }) }
+							: { aspect, rect }
+				}
+			} else if (shape === 'vertical' && designable && !reply.fitAsked) {
+				design = { palette: reply.style, picture: reply.card }
+				how = 'designed'
+				transform = { ...transform, crop: { aspect, rect: fittedCrop(ratio, picture), fit: true } }
+			} else {
+				fit = reply.fit === 'blur' ? 'blur' : 'bars'
+				how = 'whole'
+				transform = {
+					...transform,
+					crop: {
+						aspect,
+						rect: fittedCrop(ratio, picture),
+						fit: true,
+						...(fit === 'blur' && { blur: true })
+					}
+				}
+			}
 		}
 	}
+	// Text sits near the top of a frame taller than wide, clear of the captions.
+	const tall = (shape === 'original' ? picture.width / picture.height : SHAPE_RATIO[shape]) < 1
 
 	// Zoom cuts at the chosen joins: the clip after starts a little closer and settles.
 	const autoZooms: Zoom[] =
@@ -1034,8 +1122,7 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 		const end = editedTimeOf(sentence.endSeconds - 0.01, segments, starts)
 		if (start === null || end === null || end - start < MIN_ZOOM_SECONDS) continue
 		if (autoZooms.some((zoom) => start < zoom.endSeconds && end > zoom.startSeconds)) continue
-		const faceY =
-			vertical === 'face' ? faceHeightAt(reply.faces, times, sentence.startSeconds) : null
+		const faceY = how === 'face' ? faceHeightAt(reply.faces, times, sentence.startSeconds) : null
 		autoZooms.push({
 			startSeconds: start,
 			endSeconds: end,
@@ -1084,8 +1171,8 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 							}
 						: TEXT_STYLE[reply.style],
 					animation: TEXT_MOTION[reply.style],
-					// Above the captions; near the top of a vertical frame.
-					at: vertical === null ? MIDDLE_TEXT : TOP_TEXT
+					// Above the captions; near the top of a tall frame.
+					at: tall ? TOP_TEXT : MIDDLE_TEXT
 				}
 			: null
 
@@ -1113,6 +1200,34 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 			style: TEXT_STYLE[reply.style],
 			animation: TEXT_MOTION[reply.style],
 			at: TOP_TEXT
+		})
+	}
+	// A brief's call to action, over the last seconds: only with words the
+	// video or the request gave it, after the title, any key line it would
+	// meet left out.
+	const actionText = reply.brief.callToAction?.trim().slice(0, MAX_TITLE_LENGTH) ?? ''
+	const actionFrom = Math.max(
+		editedSeconds - CALL_TO_ACTION_SECONDS,
+		title ? title.startSeconds + title.durationSeconds : 0
+	)
+	const callToAction =
+		actionText &&
+		inventedNames(actionText, known).length === 0 &&
+		editedSeconds - actionFrom >= MIN_CALL_TO_ACTION_SECONDS
+			? actionText
+			: null
+	if (callToAction) {
+		for (let index = autoTitles.length - 1; index >= 0; index--) {
+			const line = autoTitles[index]
+			if (line && line.startSeconds + line.durationSeconds > actionFrom) autoTitles.splice(index, 1)
+		}
+		autoTitles.push({
+			text: callToAction,
+			startSeconds: actionFrom,
+			durationSeconds: editedSeconds - actionFrom,
+			style: TEXT_STYLE[reply.style],
+			animation: TEXT_MOTION[reply.style],
+			at: MIDDLE_TEXT
 		})
 	}
 	autoTitles.sort((a, b) => a.startSeconds - b.startSeconds)
@@ -1156,7 +1271,7 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 			removedParts: without(whole, kept).length,
 			fillerCuts: cuts.length,
 			captions,
-			keyLines: autoTitles.length,
+			keyLines: autoTitles.length - (callToAction ? 1 : 0),
 			// Said when it moved: the strongest line opens, before what came first in the video.
 			opensWith:
 				(kept[0]?.startSeconds ?? 0) > (kept[1]?.startSeconds ?? Infinity) ? opening : null,
@@ -1165,7 +1280,14 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 			transitions,
 			music: audioItems.length > 0 ? (music?.name ?? null) : null,
 			musicMissing: !input.musicAvailable,
-			vertical,
+			shape: { target: shape, fit, how, asked: reply.fitAsked && fit !== null },
+			brief: {
+				audience: reply.brief.audience,
+				tone: reply.brief.tone,
+				show: reply.brief.show,
+				lengthSeconds: asked,
+				callToAction
+			},
 			card: design?.picture ?? null,
 			title: title?.text ?? null,
 			titleDropped,
@@ -1183,8 +1305,15 @@ export type PlanChange =
 			to: number
 	  }
 	| { kind: 'captions'; from: CaptionLook; to: CaptionLook }
-	| { kind: 'shape'; from: MakeSummary['vertical']; to: MakeSummary['vertical'] }
+	| { kind: 'shape'; from: MakeShape; to: MakeShape }
+	| { kind: 'fit'; from: FitLabel; to: FitLabel }
 	| { kind: 'title' | 'music'; from: string | null; to: string | null }
+
+/** How the video goes into its shape, as a follow-up's change says it. */
+export type FitLabel = MakeFit | 'designed' | 'none'
+
+const fitLabel = (shape: MakeSummary['shape']): FitLabel =>
+	shape.how === 'designed' ? 'designed' : (shape.fit ?? 'none')
 
 /**
  * What changed from plan `before` to plan `after`, in the plan card's order:
@@ -1203,8 +1332,11 @@ export function planChanges(before: MakeSummary, after: MakeSummary): PlanChange
 	}
 	count('length', Math.round(before.editedSeconds), Math.round(after.editedSeconds))
 	count('sentences', before.keptSentences, after.keptSentences)
-	if (before.vertical !== after.vertical) {
-		changes.push({ kind: 'shape', from: before.vertical, to: after.vertical })
+	if (before.shape.target !== after.shape.target) {
+		changes.push({ kind: 'shape', from: before.shape.target, to: after.shape.target })
+	}
+	if (fitLabel(before.shape) !== fitLabel(after.shape)) {
+		changes.push({ kind: 'fit', from: fitLabel(before.shape), to: fitLabel(after.shape) })
 	}
 	if (before.captions !== after.captions) {
 		changes.push({ kind: 'captions', from: before.captions, to: after.captions })
@@ -1280,6 +1412,7 @@ export function describePlan(
 				: `, must be under ${Math.ceil(summary.limitSeconds + 0.01)} s.`),
 		'Plays, in order:',
 		...(played.length > 0 ? played : ['(no speech)']),
+		`Shape: ${summary.shape.target}${summary.shape.fit ? `, ${summary.shape.fit}` : ''}.`,
 		`Title: ${summary.title === null ? 'none' : `"${summary.title}"`}`,
 		`Key lines: ${reply.keyLines.map((line) => `[${line.sentence}] "${line.text}"`).join(', ') || 'none'}`,
 		`Captions: ${summary.captions}. Transitions: ${reply.transition}.`

@@ -18,7 +18,9 @@ import {
 	rotatedFrame,
 	transformAt,
 	withRotation,
-	type PictureTransform
+	type PictureTransform,
+	blurSampleSize,
+	coverRect
 } from './transform'
 
 const picture = { width: 320, height: 180 }
@@ -184,5 +186,28 @@ test('the export is never longer than the turned frame, so only a fitted crop is
 			width: 356,
 			height: 256
 		}
+	)
+})
+
+test('a blurred backdrop samples the picture small, in its own shape, and covers the frame, centred', () => {
+	assert.deepEqual(blurSampleSize({ width: 1920, height: 1080 }), { width: 16, height: 9 })
+	assert.deepEqual(blurSampleSize({ width: 1080, height: 1920 }), { width: 16, height: 28 })
+	// A 16 × 9 sample over a 1080 × 1920 frame: as tall as the frame, its sides past it.
+	const cover = coverRect({ width: 16, height: 9 }, { width: 1080, height: 1920 })
+	assert.equal(cover.height, 1920)
+	assert.ok(Math.abs(cover.width - (1920 * 16) / 9) < 1e-9)
+	assert.ok(Math.abs(cover.x - (1080 - cover.width) / 2) < 1e-9)
+	assert.equal(cover.y, 0)
+	// A turn refits a blurred fit and keeps its blur; a plain fit stays plain.
+	const blurred = {
+		rect: fittedCrop(9 / 16, { width: 1920, height: 1080 }),
+		aspect: '9:16' as const,
+		fit: true as const,
+		blur: true as const
+	}
+	assert.equal(refitCrop(blurred, { width: 1080, height: 1920 })?.blur, true)
+	assert.equal(
+		refitCrop({ ...blurred, blur: undefined }, { width: 1080, height: 1920 })?.blur,
+		undefined
 	)
 })

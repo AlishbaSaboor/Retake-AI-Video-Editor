@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import type { CheckReply, FollowUpReply, MakeReply } from '../src/app/[locale]/(app)/make/make-plan'
+import type { CheckReply, MakeReply } from '../src/app/[locale]/(app)/make/make-plan'
 import { toTranscript } from '../src/app/[locale]/editor/transcript'
 import type { TimedWord } from './editor-helpers'
 
@@ -21,7 +21,11 @@ export const makeReply = (fields: Partial<MakeReply> = {}): MakeReply => ({
 	zoomSentences: [2],
 	transition: 'none',
 	keyLines: [],
-	vertical: true,
+	shape: 'vertical',
+	fit: 'fill',
+	fitAsked: false,
+	maxSeconds: null,
+	brief: { audience: null, tone: null, length: null, show: null, callToAction: null },
 	faces: [],
 	card: 'corner',
 	music: null,
@@ -55,7 +59,7 @@ export async function mockMakeActions(
 	replies: MakeReply[],
 	tracks: string[] = [],
 	checks: CheckReply[] = [NOTHING_TO_FIX],
-	followUps: FollowUpReply[] = []
+	followUps: MakeReply[] = []
 ) {
 	const seen = {
 		plans: [] as string[],

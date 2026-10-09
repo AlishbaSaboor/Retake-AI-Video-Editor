@@ -2408,6 +2408,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 								transform={shownTransform}
 								zoom={shownZoom}
 								design={designFrame}
+								blurSource={videoRef}
 								frameRef={frameRef}
 								video={
 									<>
