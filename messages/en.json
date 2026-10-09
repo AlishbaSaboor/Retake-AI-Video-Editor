@@ -515,6 +515,12 @@
 				"description": "This export came out {seconds} s too {direction, select, long {long} other {short}}, probably because the computer ran low on memory. Close other apps and export again."
 			},
 			"failed": "The export didn't finish.",
+			"empty": {
+				"title": "The export came out empty.",
+				"description": "Nothing was recorded, so there is no file to download. Export again, and keep this tab open and in front while it runs."
+			},
+			"gettingReady": "Getting ready…",
+			"gettingReadyHint": "The editor is still reading the video. Export opens in a moment.",
 			"unsupported": {
 				"title": "This browser can't export video.",
 				"description": "Try a current version of Chrome, Edge, Firefox or Safari."
