@@ -1798,6 +1798,21 @@
 				"centred": "{shape}, zoomed in to fill the frame; the edges are cut off",
 				"designed": "Vertical 9:16, designed around the speech: a moving background, big text, and the picture as a small card in the corner",
 				"designedHidden": "Vertical 9:16, designed around the speech: a moving background and big text; the picture is left out, as it shows nothing to keep",
+				"screenDesigned": "{shape}, designed around what’s said: a palette background, big captions and text; no picture of the screen",
+				"screenWhy": {
+					"whole": {
+						"default": "A screen recording shows whole: nothing of the screen is cut off",
+						"asked": "As you asked: the whole screen",
+						"unchecked": "The plan couldn’t be checked, so the screen shows whole",
+						"promo": "A screen recording shows whole: nothing of the screen is cut off"
+					},
+					"designed": {
+						"default": "Designed around what’s said",
+						"asked": "As you asked: text only",
+						"unchecked": "Designed around what’s said",
+						"promo": "Designed, as your request is for an ad, promo, teaser or highlights reel"
+					}
+				},
 				"why": {
 					"asked": "As you asked",
 					"whole": "So nothing of the picture is cut off",

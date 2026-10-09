@@ -81,7 +81,10 @@ const MAKE_INSTRUCTION = [
 	'summary: one or two plain sentences on how the footage was shortened: what was kept and what',
 	'was cut. Not what the video is in general, and no lengths: the editor shows them.',
 	'subject: one_person when one person on camera is clearly the subject; screen (a screen',
-	'recording), meeting (a call), slides, or other.',
+	'recording: a demo, a walkthrough, a project talk or a shared screen, even with a webcam',
+	'bubble on it), meeting (a call), slides, or other.',
+	'treatment, for a screen recording only: designed when the request asks for text only or no',
+	'screen, whole when it asks to show the screen, else null.',
 	'pictureMatters: false when the words carry the video (people talking to camera, a meeting or',
 	'call, slides, a static screen); true when what is seen carries it (action, a demo, scenery).',
 	'A meeting, call, slides or screen recording is judged by its speech only: no zooms, no faces,',
@@ -214,7 +217,8 @@ const FOLLOW_UP_INSTRUCTION = [
 	'maxSeconds: the most it may run in seconds, when the follow-up asks for a length, or for it',
 	'shorter (then about two thirds of its length now); else as it is now (null when none).',
 	'shape and fit as the follow-up asks ("make it square"; "keep the black bars" is bars; "zoom',
-	'in on the speaker" is fill), with fitAsked true when it names the fit.',
+	'in on the speaker" is fill), with fitAsked true when it names the fit. For a screen',
+	'recording, "text only" is treatment designed and "show the screen" is treatment whole.',
 	'Ask questions only when you cannot tell what change is wanted; then the plan as it is now.',
 	'cannotDo: each part of the follow-up this editor cannot do; change nothing for those parts.'
 ].join(' ')

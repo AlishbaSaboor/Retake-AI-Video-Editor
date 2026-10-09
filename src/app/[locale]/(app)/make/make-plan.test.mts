@@ -69,6 +69,7 @@ const REPLY: MakeReply = {
 	shape: 'vertical',
 	fit: 'fill',
 	fitAsked: false,
+	treatment: null,
 	maxSeconds: null,
 	brief: { audience: null, tone: null, length: null, show: null, callToAction: null },
 	// A face in the middle until 7 s, then right of centre from 9 s; frame 99 doesn't exist.
@@ -251,6 +252,7 @@ test('a reply is planned into one edit: clips, transitions, word captions, zooms
 			music: 'upbeat.mp3',
 			musicMissing: false,
 			shape: { target: 'vertical', fit: 'fill', how: 'face', asked: false },
+			screen: null,
 			brief: { audience: null, tone: null, show: null, lengthSeconds: null, callToAction: null },
 			card: null,
 			title: null,
@@ -1077,12 +1079,13 @@ test('each shape and fit: the crop, and the size the export records, for a wide,
 	const TALL = { width: 1080, height: 1920 }
 	const make = (fields: Partial<MakeReply>, picture: Size, request = 'make an ad') =>
 		planMake({
-			// An ad of a screen demo: no face to follow, and its picture carries it.
+			// An ad of a product demo filmed (not a screen recording): no face to
+			// follow, and its picture carries it.
 			reply: {
 				...REPLY,
 				style: 'ad',
 				format: 'other',
-				subject: 'screen',
+				subject: 'other',
 				faces: [],
 				pictureMatters: true,
 				...fields
@@ -1308,8 +1311,8 @@ test('only a meeting is ever a card in a corner: any other label, or an unknown 
 	for (const subject of ['screen', 'slides', 'other', unknown, 'one_person'] as const) {
 		for (const [shape, request, ratio] of [
 			['vertical', 'make this an Instagram reel', 9 / 16],
-			['square', 'a square ad', 1],
-			['portrait', 'a 4:5 ad', 4 / 5]
+			['square', 'a square video', 1],
+			['portrait', 'a 4:5 video', 4 / 5]
 		] as const) {
 			const { edit, summary } = make(subject, shape, request)
 			const label = `${subject}, ${shape}`
@@ -1324,7 +1327,7 @@ test('only a meeting is ever a card in a corner: any other label, or an unknown 
 			near(rect.y, -(rect.height - 1) / 2)
 		}
 		// 16:9 is already its shape.
-		assert.equal(make(subject, 'horizontal', 'a horizontal ad').summary.shape.how, 'matches')
+		assert.equal(make(subject, 'horizontal', 'a horizontal video').summary.shape.how, 'matches')
 	}
 	// Over a blur, the same place.
 	assert.equal(
@@ -1340,5 +1343,114 @@ test('only a meeting is ever a card in a corner: any other label, or an unknown 
 	assert.equal(
 		make('meeting', 'vertical', 'a reel with black bars', { fitAsked: true }).summary.shape.how,
 		'whole'
+	)
+})
+
+test('a screen recording is the whole screen by default, designed with no picture for an ad, a promo or text only', () => {
+	const make = (request: string, fields: Partial<MakeReply> = {}, unchecked = false) =>
+		planMake({
+			reply: {
+				...REPLY,
+				subject: 'screen',
+				pictureMatters: false,
+				faces: [],
+				// Everything that would zoom into a part of it.
+				fit: 'fill',
+				fitAsked: true,
+				zoomSentences: [1, 2, 4],
+				transition: 'zoom_cut',
+				...fields
+			},
+			request,
+			durationSeconds: DURATION,
+			picture: { width: 1920, height: 1080 },
+			transcript,
+			fillerCuts: [],
+			music: null,
+			musicAvailable: false,
+			unchecked
+		})
+	/** The whole picture across a 9:16 frame's width, centred; no design, no zooms of any kind. */
+	const whole = (plan: ReturnType<typeof make>, why: string) => {
+		assert.deepEqual(plan.summary.screen, { treatment: 'whole', why }, why)
+		assert.equal(plan.edit.design, null, why)
+		assert.equal(plan.summary.shape.how, 'whole', why)
+		const rect = plan.edit.transform.crop?.rect
+		assert.ok(rect && plan.edit.transform.crop?.fit, why)
+		assert.equal(rect.x, 0, why)
+		assert.equal(rect.width, 1, why)
+		near(rect.y, -(rect.height - 1) / 2)
+		assert.deepEqual(plan.edit.autoZooms, [], why)
+		assert.equal(plan.summary.transition, 'none', why)
+	}
+	/** Designed around what's said: no picture at all, never the corner card. */
+	const designed = (plan: ReturnType<typeof make>, why: string) => {
+		assert.deepEqual(plan.summary.screen, { treatment: 'designed', why }, why)
+		assert.deepEqual(plan.edit.design, { palette: plan.used.style, picture: 'hidden' }, why)
+		assert.equal(plan.summary.card, 'hidden', why)
+		assert.equal(plan.summary.shape.how, 'designed', why)
+		assert.deepEqual(plan.edit.autoZooms, [], why)
+	}
+
+	// The default: the whole screen, even asked to fill (never a cut-out of one part).
+	whole(make('make this an Instagram reel'), 'default')
+	// An ad, a promo, a teaser or a highlights reel: designed.
+	for (const request of [
+		'make an ad from this',
+		'a promo reel for the launch',
+		'cut a teaser',
+		'a highlights reel of the demo'
+	]) {
+		designed(make(request), 'promo')
+	}
+	// "Text only" (the reply says so): designed; "show the screen" on a promo: whole.
+	designed(make('make this an Instagram reel', { treatment: 'designed' }), 'asked')
+	whole(make('a promo reel', { treatment: 'whole' }), 'asked')
+	// The second check couldn't run: whole, even for a promo or text only.
+	whole(make('a promo reel', {}, true), 'unchecked')
+	whole(make('a reel', { treatment: 'designed' }, true), 'unchecked')
+	// Designed in its own shape too: a horizontal ad keeps no picture, uncropped.
+	const wideAd = make('make an ad from this', { shape: 'original', format: 'other', style: 'ad' })
+	assert.deepEqual(wideAd.edit.design, { palette: 'ad', picture: 'hidden' })
+	assert.equal(wideAd.edit.transform.crop, null)
+
+	// An unknown label is other: never designed, whatever the request.
+	const unknown = makeReplySchema.parse({ ...REPLY, subject: 'screencast_with_webcam' })
+	const fallback = planMake({
+		reply: { ...unknown, pictureMatters: false, faces: [], fit: 'bars' },
+		request: 'a promo reel',
+		durationSeconds: DURATION,
+		picture: { width: 1920, height: 1080 },
+		transcript,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false
+	})
+	assert.equal(fallback.summary.screen, null)
+	assert.equal(fallback.edit.design, null)
+	assert.equal(fallback.summary.shape.how, 'whole')
+
+	// The meeting and person purposes are as they were.
+	const meeting = make('make this an Instagram reel', {
+		subject: 'meeting',
+		fit: 'bars',
+		fitAsked: false,
+		transition: 'none'
+	})
+	assert.equal(meeting.summary.shape.how, 'designed')
+	assert.equal(meeting.summary.card, 'corner')
+	assert.equal(meeting.summary.screen, null)
+	assert.equal(
+		planMake({
+			reply: REPLY,
+			request: 'make this an Instagram reel',
+			durationSeconds: DURATION,
+			picture: { width: 1920, height: 1080 },
+			transcript,
+			fillerCuts: [],
+			music: null,
+			musicAvailable: false
+		}).summary.shape.how,
+		'face'
 	)
 })

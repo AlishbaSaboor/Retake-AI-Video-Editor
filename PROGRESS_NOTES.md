@@ -7,6 +7,9 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-09.
+> - **Make it: a screen recording's two treatments** (section 3zq): the
+>   whole screen (default) or designed with no picture at all (for an ad,
+>   promo, teaser or highlights reel, or "text only"); never a cut-out.
 > - **Make it: only a meeting is ever a corner card** (section 3zp): the
 >   card no longer rests on Gemini's label being right; the owner's real
 >   recording (screen + webcam bubble) is labelled `one_person`.
@@ -2864,6 +2867,37 @@ fill`. So Gemini doesn't call it a screen, and 3zo only excluded the label
   designed unless a fit was asked for; fails with 3zo's condition. e2e: the
   exported frame of a one-colour recording for screen in every shape, and
   for slides, other and an unknown label at 9:16.
+
+## 3zq. Make it: a screen recording's two treatments (2026-10-10)
+
+- **Purpose `screen`** (a demo, walkthrough, project talk or shared screen,
+  even with a webcam bubble; the prompt now says so) has exactly two
+  treatments, `summary.screen.treatment`:
+  - `whole`: the whole screen, bars or a blur, full width and centred; a
+    webcam bubble stays the small overlay it is in the recording. Never a
+    fill, a face crop, a push-in or a zoom cut (a zoom cut becomes a plain
+    cut).
+  - `designed`: the existing designed frame with `picture: 'hidden'`:
+    palette, big captions, key lines, title and end card, transitions. No
+    picture of the screen, never the corner card. Any shape (its own too).
+- **Which:** asked for (`reply.treatment`: "text only" → designed, "show the
+  screen" → whole), else designed only when the request reads as an ad,
+  promo, teaser or highlights reel (`PROMO_REQUEST`), else whole. Whole
+  whenever the second check couldn't run (`planMake`'s `unchecked`, set by
+  the Make it page). An unknown label is `other`, never designed. The Shape
+  row says the treatment and why; a follow-up switches it (the chat's "Fit:
+  … to designed around the speech").
+- Meetings and one person are as before (3zp).
+- **Found while checking (not fixed):** Export straight after the editor
+  opens a long video can run before the editor has its transcript: the
+  export then has no captions, and once came out an empty 110-byte file.
+  Waiting a few seconds avoids it.
+- Tests: unit for the default, each promo wording, text only, show the
+  screen, unchecked, an unknown label, a designed horizontal ad, meetings
+  and one person unchanged; e2e on exported frames of a one-colour
+  recording: default whole (full width, centred), the "text only" follow-up
+  and a promo designed (no screen, no corner card), an unknown label whole.
+  The owner's recording (fake AI, `screen`) exported both ways at 9:16.
 
 ---
 
