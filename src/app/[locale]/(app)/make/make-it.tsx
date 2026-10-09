@@ -277,7 +277,6 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 						// For follow-ups in the chat: the plan as applied, and what it was made from.
 						plan: {
 							reply: plan.data.used,
-							maxSeconds: null,
 							summary: plan.data.summary,
 							edit: plan.data.edit,
 							music: plan.data.music
@@ -690,6 +689,43 @@ function PlanView({
 					seconds: seconds % SECONDS_PER_MINUTE
 				})
 	const shortened = summary.removedParts > 0 || summary.fillerCuts > 0
+
+	/** The Shape row: the shape and how the video goes into it, then why. */
+	function shapeLines({ shape, card }: MakeSummary): string[] {
+		const name = t(`shape.names.${shape.target}`)
+		switch (shape.how) {
+			case 'kept':
+				return [t('shape.kept')]
+			case 'matches':
+				return [t('shape.matches', { shape: name })]
+			case 'designed':
+				return [t(card === 'hidden' ? 'shape.designedHidden' : 'shape.designed')]
+			case 'face':
+				return [
+					t('shape.face', { shape: name }),
+					t(shape.asked ? 'shape.why.asked' : 'shape.why.face')
+				]
+			case 'centred':
+				return [t('shape.centred', { shape: name }), t('shape.why.asked')]
+			case 'whole':
+				return [
+					t(shape.fit === 'blur' ? 'shape.blur' : 'shape.bars', { shape: name }),
+					t(shape.asked ? 'shape.why.asked' : 'shape.why.whole')
+				]
+		}
+	}
+	// The parts of a brief the plan used, each in the request's own words.
+	const brief = [
+		...(summary.brief.audience ? [t('brief.audience', { text: summary.brief.audience })] : []),
+		...(summary.brief.tone ? [t('brief.tone', { text: summary.brief.tone })] : []),
+		...(summary.brief.lengthSeconds !== null
+			? [t('brief.length', { seconds: Math.round(summary.brief.lengthSeconds) })]
+			: []),
+		...(summary.brief.show ? [t('brief.show', { text: summary.brief.show })] : []),
+		...(summary.brief.callToAction
+			? [t('brief.callToAction', { text: summary.brief.callToAction })]
+			: [])
+	]
 	// Each line of the plan, under the row of the plan card it belongs to; the
 	// lines themselves are the same words as ever.
 	const entries: { row: PlanRow | 'note'; text: string }[] = [
@@ -751,21 +787,15 @@ function PlanView({
 					? t('noMusicFolder')
 					: t('noMusic')
 		},
-		...(summary.vertical
-			? [
-					{
-						row: 'shape' as const,
-						text: t(
-							`vertical.${summary.vertical === 'designed' && summary.card === 'hidden' ? 'designedHidden' : summary.vertical}`
-						)
-					}
-				]
-			: []),
+		...shapeLines(summary).map((text) => ({ row: 'shape' as const, text })),
 		...(summary.title
 			? [{ row: 'screen' as const, text: t('title', { text: summary.title }) }]
 			: []),
 		...(summary.titleDropped ? [{ row: 'screen' as const, text: t('titleDropped') }] : []),
-		...(summary.pictureMatters ? [] : [{ row: 'note' as const, text: t('speechOnly') }])
+		...(summary.pictureMatters ? [] : [{ row: 'note' as const, text: t('speechOnly') }]),
+		...(brief.length > 0
+			? [{ row: 'note' as const, text: t('brief.used', { parts: brief.join(' · ') }) }]
+			: [])
 	]
 	const shortNote = summary.short ? t(`short.${summary.short}`, { length }) : null
 	// The lines shown again over the chat in the editor: the plan's, and the warning if any.

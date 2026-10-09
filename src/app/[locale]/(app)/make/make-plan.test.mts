@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { toTranscript } from '../../editor/transcript'
 import { cardRect, wordPop } from '../../editor/design'
-import { exportSize } from '../../editor/transform'
+import { exportSize, type Size } from '../../editor/transform'
 import {
 	faceFollow,
 	frameTimes,
@@ -15,8 +15,6 @@ import {
 	quotedLine,
 	applyCheck,
 	followUpPlan,
-	followUpReplySchema,
-	FOLLOW_UP_REPLY_JSON_SCHEMA,
 	isPlanEdit,
 	MAKE_REPLY_JSON_SCHEMA,
 	planChanges,
@@ -68,7 +66,11 @@ const REPLY: MakeReply = {
 	zoomSentences: [4, 99, 1],
 	transition: 'dissolve',
 	keyLines: [{ sentence: 4, text: 'Key point' }],
-	vertical: true,
+	shape: 'vertical',
+	fit: 'fill',
+	fitAsked: false,
+	maxSeconds: null,
+	brief: { audience: null, tone: null, length: null, show: null, callToAction: null },
 	// A face in the middle until 7 s, then right of centre from 9 s; frame 99 doesn't exist.
 	faces: [
 		...[1, 2, 3, 4].map((frame) => ({ frame, x: 500, y: 300 })),
@@ -248,7 +250,8 @@ test('a reply is planned into one edit: clips, transitions, word captions, zooms
 			transitions: 2,
 			music: 'upbeat.mp3',
 			musicMissing: false,
-			vertical: 'face',
+			shape: { target: 'vertical', fit: 'fill', how: 'face', asked: false },
+			brief: { audience: null, tone: null, show: null, lengthSeconds: null, callToAction: null },
 			card: null,
 			title: null,
 			titleDropped: true,
@@ -276,7 +279,7 @@ test('with no speech, no faces and no music: no captions, the whole picture fitt
 	assert.equal(edit.captionsOn, false)
 	assert.equal(summary.captions, 'off')
 	assert.equal(summary.pictureMatters, true)
-	assert.equal(summary.vertical, 'fit')
+	assert.equal(summary.shape.how, 'whole')
 	assert.equal(edit.transform.crop?.follow, undefined)
 	assert.equal(edit.transform.crop?.fit, true)
 	assert.equal(summary.music, null)
@@ -298,7 +301,7 @@ test('a video already vertical is not cropped again', () => {
 		music: null,
 		musicAvailable: true
 	})
-	assert.equal(summary.vertical, 'already')
+	assert.equal(summary.shape.how, 'matches')
 	assert.equal(edit.transform.crop, null)
 	assert.equal(summary.musicMissing, false)
 })
@@ -403,7 +406,7 @@ test('one long stretch over a minute keeps only its first 59 seconds; other edit
 			style: 'professional',
 			moments: [],
 			keyLines: [],
-			vertical: false
+			shape: 'original'
 		},
 		request: 'make it professional',
 		durationSeconds: 100,
@@ -440,7 +443,7 @@ test('a screen demo whose picture matters keeps the whole picture, with black ba
 		music: null,
 		musicAvailable: false
 	})
-	assert.equal(summary.vertical, 'fit')
+	assert.equal(summary.shape.how, 'whole')
 	const crop = edit.transform.crop
 	assert.ok(crop)
 	assert.equal(crop.fit, true)
@@ -510,7 +513,7 @@ test('transitions go only at the few joins where the most was cut: slide overlap
 				moments: [],
 				zoomSentences: [],
 				keyLines: [],
-				vertical: false,
+				shape: 'original',
 				format: 'other',
 				style: 'professional'
 			},
@@ -556,7 +559,7 @@ test('the crop follows a face only when one person is clearly the subject: in ha
 			fillerCuts: [],
 			music: null,
 			musicAvailable: false
-		}).summary.vertical
+		}).summary.shape.how
 	assert.equal(
 		plan([
 			{ frame: 1, x: 500, y: 300 },
@@ -650,7 +653,7 @@ test('a reel of a meeting or a still screen is designed around the speech: the p
 			musicAvailable: false
 		})
 	const designed = plan({})
-	assert.equal(designed.summary.vertical, 'designed')
+	assert.equal(designed.summary.shape.how, 'designed')
 	assert.equal(designed.summary.card, 'corner')
 	assert.deepEqual(designed.edit.design, { palette: 'reel', picture: 'corner' })
 	// The frame is 9:16 (recorded at 1080 × 1920), the whole picture kept for the card.
@@ -893,15 +896,14 @@ test('a follow-up asking for a length cuts the plan to it, fills most of it, and
 	}
 	const make = (maxSeconds: number | null, request = 'make this an Instagram reel') =>
 		planMake({
-			reply,
+			reply: { ...reply, maxSeconds },
 			request,
 			durationSeconds: 140,
 			picture: { width: 1920, height: 1080 },
 			transcript: talk,
 			fillerCuts: [],
 			music: null,
-			musicAvailable: false,
-			maxSeconds
+			musicAvailable: false
 		})
 	const reel = make(null)
 	assert.ok(reel.summary.editedSeconds >= SHORT_FORM_TARGET_SECONDS)
@@ -925,22 +927,20 @@ test('a follow-up asking for a length cuts the plan to it, fills most of it, and
 		transcript: talk,
 		fillerCuts: [],
 		music: null,
-		musicAvailable: false,
-		maxSeconds: 30
+		musicAvailable: false
 	})
 	near(again.summary.editedSeconds, asked.summary.editedSeconds)
 
 	// Any edit, not only short-form: a professional one asked for 40 s.
 	const pro = planMake({
-		reply: { ...reply, format: 'other', style: 'professional' },
+		reply: { ...reply, format: 'other', style: 'professional', maxSeconds: 40 },
 		request: 'make it professional',
 		durationSeconds: 140,
 		picture: { width: 1920, height: 1080 },
 		transcript: talk,
 		fillerCuts: [],
 		music: null,
-		musicAvailable: false,
-		maxSeconds: 40
+		musicAvailable: false
 	})
 	assert.ok(pro.summary.editedSeconds <= 40 && pro.summary.editedSeconds >= 34)
 	// A length over a minute doesn't lift a reel's limit.
@@ -999,10 +999,18 @@ test('what changed between two plans is listed in the plan card order, and nothi
 					}
 				]
 	)
-	assert.deepEqual(planChanges(before, { ...before, vertical: 'fit', music: 'calm.mp3' }), [
-		{ kind: 'shape', from: 'face', to: 'fit' },
-		{ kind: 'music', from: null, to: 'calm.mp3' }
-	])
+	assert.deepEqual(
+		planChanges(before, {
+			...before,
+			shape: { target: 'square', fit: 'bars', how: 'whole', asked: true },
+			music: 'calm.mp3'
+		}),
+		[
+			{ kind: 'shape', from: 'vertical', to: 'square' },
+			{ kind: 'fit', from: 'fill', to: 'bars' },
+			{ kind: 'music', from: null, to: 'calm.mp3' }
+		]
+	)
 })
 
 test("a follow-up's answer keeps what only the pictures told, and its shape is checked", () => {
@@ -1020,16 +1028,18 @@ test("a follow-up's answer keeps what only the pictures told, and its shape is c
 	assert.equal(used.subject, REPLY.subject)
 	assert.equal(used.faces, REPLY.faces)
 	assert.equal(used.pictureMatters, REPLY.pictureMatters)
-	assert.equal('maxSeconds' in used, false)
+	// What it changed stays: the length asked for with it.
+	assert.equal(used.maxSeconds, 30)
 	assert.deepEqual(Object.keys(used).sort(), Object.keys(REPLY).sort())
-	assert.equal(followUpReplySchema.safeParse(answer).success, true)
-	assert.equal(followUpReplySchema.safeParse({ ...answer, maxSeconds: -5 }).success, false)
+	assert.equal(makeReplySchema.safeParse(answer).success, true)
+	assert.equal(makeReplySchema.safeParse({ ...answer, maxSeconds: -5 }).success, false)
 	const withoutLength: Partial<typeof answer> = { ...answer }
 	delete withoutLength.maxSeconds
-	assert.equal(followUpReplySchema.safeParse(withoutLength).success, false)
+	assert.equal(makeReplySchema.safeParse(withoutLength).success, false)
+	// Every field asked of Gemini is one the reply is checked for.
 	assert.deepEqual(
-		[...FOLLOW_UP_REPLY_JSON_SCHEMA.required].sort(),
-		[...MAKE_REPLY_JSON_SCHEMA.required, 'maxSeconds'].sort()
+		[...MAKE_REPLY_JSON_SCHEMA.required].sort(),
+		Object.keys(makeReplySchema.shape).sort()
 	)
 })
 
@@ -1060,4 +1070,206 @@ test("the edit is known as a plan while it holds that plan's own values, not aft
 		musicAvailable: false
 	})
 	assert.equal(isPlanEdit(made.edit, again.edit), false)
+})
+
+test('each shape and fit: the crop, and the size the export records, for a wide, a tall and a matching video', () => {
+	const WIDE = { width: 1920, height: 1080 }
+	const TALL = { width: 1080, height: 1920 }
+	const make = (fields: Partial<MakeReply>, picture: Size, request = 'make an ad') =>
+		planMake({
+			// An ad of a screen demo: no face to follow, and its picture carries it.
+			reply: {
+				...REPLY,
+				style: 'ad',
+				format: 'other',
+				subject: 'screen',
+				faces: [],
+				pictureMatters: true,
+				...fields
+			},
+			request,
+			durationSeconds: DURATION,
+			picture,
+			transcript,
+			fillerCuts: [],
+			music: null,
+			musicAvailable: false
+		})
+	const recorded = (plan: ReturnType<typeof make>, picture: Size) =>
+		exportSize(picture, plan.edit.transform)
+
+	// Wide made vertical, bars: the whole picture, black above and below, recorded 1080 × 1920.
+	const bars = make({ shape: 'vertical', fit: 'bars' }, WIDE)
+	assert.deepEqual(bars.summary.shape, {
+		target: 'vertical',
+		fit: 'bars',
+		how: 'whole',
+		asked: false
+	})
+	assert.equal(bars.edit.transform.crop?.fit, true)
+	assert.equal(bars.edit.transform.crop?.blur, undefined)
+	assert.equal(bars.edit.transform.crop?.aspect, '9:16')
+	assert.deepEqual(recorded(bars, WIDE), { width: 1080, height: 1920 })
+	// The same over a blur.
+	const blur = make({ shape: 'vertical', fit: 'blur' }, WIDE)
+	assert.deepEqual(blur.summary.shape, {
+		target: 'vertical',
+		fit: 'blur',
+		how: 'whole',
+		asked: false
+	})
+	assert.equal(blur.edit.transform.crop?.blur, true)
+	assert.deepEqual(recorded(blur, WIDE), { width: 1080, height: 1920 })
+	// Fill unasked, in an ad: the whole picture all the same.
+	const unasked = make({ shape: 'vertical', fit: 'fill' }, WIDE)
+	assert.equal(unasked.summary.shape.how, 'whole')
+	assert.equal(unasked.summary.shape.fit, 'bars')
+	// Fill asked for: zoomed in, centred, the edges cut: 608 × 1080 of the picture.
+	const fill = make({ shape: 'vertical', fit: 'fill', fitAsked: true }, WIDE)
+	assert.deepEqual(fill.summary.shape, {
+		target: 'vertical',
+		fit: 'fill',
+		how: 'centred',
+		asked: true
+	})
+	assert.equal(fill.edit.transform.crop?.fit, undefined)
+	assert.deepEqual(recorded(fill, WIDE), { width: 608, height: 1080 })
+
+	// Tall made horizontal: bars at the sides, recorded 1920 × 1080; filled, 1080 × 608.
+	const wideBars = make({ shape: 'horizontal', fit: 'bars' }, TALL)
+	assert.deepEqual(wideBars.summary.shape, {
+		target: 'horizontal',
+		fit: 'bars',
+		how: 'whole',
+		asked: false
+	})
+	assert.deepEqual(recorded(wideBars, TALL), { width: 1920, height: 1080 })
+	assert.deepEqual(
+		recorded(make({ shape: 'horizontal', fit: 'fill', fitAsked: true }, TALL), TALL),
+		{
+			width: 1080,
+			height: 608
+		}
+	)
+	// Square and portrait from wide, over a blur.
+	assert.deepEqual(recorded(make({ shape: 'square', fit: 'blur' }, WIDE), WIDE), {
+		width: 1920,
+		height: 1920
+	})
+	assert.deepEqual(recorded(make({ shape: 'portrait', fit: 'bars' }, WIDE), WIDE), {
+		width: 1536,
+		height: 1920
+	})
+
+	// Already the shape: nothing cropped or barred, whatever the fit.
+	for (const [shape, picture] of [
+		['horizontal', WIDE],
+		['vertical', TALL],
+		['square', { width: 1080, height: 1080 }]
+	] as const) {
+		const same = make({ shape, fit: 'fill', fitAsked: true }, picture)
+		assert.deepEqual(same.summary.shape, { target: shape, fit: null, how: 'matches', asked: false })
+		assert.equal(same.edit.transform.crop, null)
+		assert.deepEqual(recorded(same, picture), picture)
+	}
+	// Its own shape (an ad that names none): nothing changes.
+	const own = make({ shape: 'original', fit: 'fill' }, TALL)
+	assert.equal(own.summary.shape.how, 'kept')
+	assert.equal(own.edit.transform.crop, null)
+	// A reel is vertical, whatever the reply says.
+	const reel = make({ shape: 'horizontal', fit: 'bars' }, WIDE, 'make this an Instagram reel')
+	assert.equal(reel.summary.shape.target, 'vertical')
+	assert.deepEqual(recorded(reel, WIDE), { width: 1080, height: 1920 })
+})
+
+test('a fill zooms in on its own only to follow one person in a reel; bars asked for are never designed', () => {
+	const reel = (fields: Partial<MakeReply>, request = 'make this an Instagram reel') =>
+		planMake({
+			reply: { ...REPLY, ...fields },
+			request,
+			durationSeconds: DURATION,
+			picture: { width: 1920, height: 1080 },
+			transcript,
+			fillerCuts: [],
+			music: null,
+			musicAvailable: false
+		}).summary.shape
+	// One person, a face in most pictures: the crop follows it, and says why.
+	assert.deepEqual(reel({}), { target: 'vertical', fit: 'fill', how: 'face', asked: false })
+	// "Keep the black bars" on the same video: bars, as asked.
+	assert.deepEqual(reel({ fit: 'bars', fitAsked: true }), {
+		target: 'vertical',
+		fit: 'bars',
+		how: 'whole',
+		asked: true
+	})
+	// A vertical ad of the same person, its picture carrying it: the whole
+	// picture, unless a zoom is asked for.
+	const ad = { style: 'ad', format: 'other', pictureMatters: true } as const
+	assert.equal(reel(ad, 'a vertical ad').how, 'whole')
+	assert.equal(reel({ ...ad, fitAsked: true }, 'a vertical ad, zoomed in on me').how, 'face')
+	// A meeting reel is designed around the speech, but not when bars or a blur were asked for.
+	assert.equal(reel({ subject: 'meeting', faces: [], fit: 'bars' }).how, 'designed')
+	assert.equal(reel({ subject: 'meeting', faces: [], fit: 'blur', fitAsked: true }).how, 'whole')
+})
+
+test("a brief's parts are kept in its own words, and its call to action closes the edit", () => {
+	const make = (brief: Partial<MakeReply['brief']>, fields: Partial<MakeReply> = {}) =>
+		planMake({
+			reply: {
+				...REPLY,
+				keyLines: [{ sentence: 5, text: 'Bye' }],
+				brief: { ...REPLY.brief, ...brief },
+				...fields
+			},
+			request: 'An ad for small business owners, friendly, 15 seconds. End with: Try it free today',
+			durationSeconds: DURATION,
+			picture: { width: 1920, height: 1080 },
+			transcript,
+			fillerCuts: [],
+			music: null,
+			musicAvailable: false
+		})
+	const plan = make(
+		{ audience: 'small business owners', tone: 'friendly', callToAction: 'Try it free today' },
+		{ maxSeconds: 15 }
+	)
+	assert.deepEqual(plan.summary.brief, {
+		audience: 'small business owners',
+		tone: 'friendly',
+		show: null,
+		lengthSeconds: 15,
+		callToAction: 'Try it free today'
+	})
+	// The call to action over the last 3 s; the key line it would have met left out.
+	const end = plan.summary.editedSeconds
+	const last = plan.edit.autoTitles.at(-1)
+	assert.equal(last?.text, 'Try it free today')
+	near(last?.startSeconds ?? 0, end - 3)
+	near((last?.startSeconds ?? 0) + (last?.durationSeconds ?? 0), end)
+	assert.equal(
+		plan.edit.autoTitles.some((line) => line.text === 'Bye'),
+		false
+	)
+	assert.equal(plan.summary.keyLines, 0)
+	// Naming anyone never said nor asked for: left out, like a title.
+	const named = make({ callToAction: 'Follow @retakehq' })
+	assert.equal(named.summary.brief.callToAction, null)
+	assert.equal(
+		named.edit.autoTitles.some((line) => line.text.includes('@retakehq')),
+		false
+	)
+	// None: the key line stays.
+	assert.equal(
+		make({}).edit.autoTitles.some((line) => line.text === 'Bye'),
+		true
+	)
+
+	// The reply's parts are clipped on a word, and an empty one is none.
+	const parsed = makeReplySchema.parse({
+		...REPLY,
+		brief: { ...REPLY.brief, audience: '  ', show: `the dashboard ${'demo '.repeat(40)}` }
+	}).brief
+	assert.equal(parsed.audience, null)
+	assert.ok((parsed.show ?? '').length <= 120 && parsed.show?.endsWith('…'))
 })

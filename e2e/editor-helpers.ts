@@ -21,14 +21,15 @@ export const RECORDING_SECONDS = 3
 export async function recordTestVideo(
 	page: Page,
 	toneSchedule?: Array<[number, boolean]>,
-	quietLevel = 0
+	quietLevel = 0,
+	size: { width: number; height: number } = { width: 320, height: 180 }
 ): Promise<Buffer> {
 	const seconds = toneSchedule
 		? toneSchedule.reduce((total, [length]) => total + length, 0)
 		: RECORDING_SECONDS
 	const bytes = await page.evaluate(
-		async ({ seconds, toneSchedule, quietLevel }) => {
-			const canvas = Object.assign(document.createElement('canvas'), { width: 320, height: 180 })
+		async ({ seconds, toneSchedule, quietLevel, size }) => {
+			const canvas = Object.assign(document.createElement('canvas'), size)
 			const context = canvas.getContext('2d')
 			if (!context) throw new Error('no 2d context')
 			const stream = canvas.captureStream(30)
@@ -57,7 +58,7 @@ export async function recordTestVideo(
 			const draw = setInterval(() => {
 				const elapsed = (performance.now() - startedAt) / 1000
 				context.fillStyle = '#112233'
-				context.fillRect(0, 0, 320, 180)
+				context.fillRect(0, 0, size.width, size.height)
 				context.fillStyle = '#ee6633'
 				context.fillRect(20 + elapsed * 80, 60, 60, 60)
 			}, 1000 / 30)
@@ -68,7 +69,7 @@ export async function recordTestVideo(
 			clearInterval(draw)
 			return [...new Uint8Array(await new Blob(chunks).arrayBuffer())]
 		},
-		{ seconds, toneSchedule, quietLevel }
+		{ seconds, toneSchedule, quietLevel, size }
 	)
 	return Buffer.from(bytes)
 }
