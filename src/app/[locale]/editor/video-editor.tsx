@@ -38,7 +38,9 @@ import { CompareToggle } from './compare-toggle'
 import { captionAt, editedCaptions, editedWords, type CaptionMode } from './captions'
 import { cardRect, type Design } from './design'
 import { DesignCanvas } from './design-canvas'
-import { CommandBar, type AttachedAs } from './command-bar'
+import { isPlanEdit, type MadePlan } from '@/app/[locale]/(app)/make/make-plan'
+import { CommandBar, type AttachedAs, type FollowUps } from './command-bar'
+import { planFollowUp } from './make-follow-ups'
 import { setSideOpen, useSideOpen } from './editor-layout-store'
 import { EditorShell } from './editor-shell'
 import { EditorTimeline, type LaneItem } from './editor-timeline'
@@ -221,6 +223,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	const [startCommand, setStartCommand] = useState<string | null>(null)
 	// Opened from Make it's Apply: what it made, and whether only the chat shows.
 	const [made, setMade] = useState<MadeWith | null>(null)
+	// Make it's plans as applied, the first one and each follow-up's since.
+	const [plans, setPlans] = useState<MadePlan<AudioBuffer>[]>([])
 	const [studio, setStudio] = useState(false)
 	const [durationSeconds, setDurationSeconds] = useState(0)
 	const [currentTimeSeconds, setCurrentTimeSeconds] = useState(0)
@@ -1688,6 +1692,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		if (start.byHand) setOpenTool('transcript')
 		if (start.studio) {
 			setMade(start.studio)
+			setPlans([start.studio.plan])
 			setStudio(true)
 		}
 	})
@@ -1696,6 +1701,38 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	useEffect(() => {
 		void Promise.resolve().then(begin)
 	}, [])
+
+	// The plan the edit is now (Undo can go back to an earlier one); null
+	// once it's been changed by hand, when a follow-up builds on the last
+	// plan applied and replaces those changes.
+	const currentPlan = plans.findLast((plan) => isPlanEdit(plan.edit, snapshot)) ?? null
+	const latestPlan = plans.at(-1)
+	const transcriptNow =
+		analysis.transcript.status === 'ready' ? analysis.transcript.transcript : null
+	const followUps: FollowUps | undefined =
+		studio && made && latestPlan
+			? {
+					plan: async (text, answers, earlier) => ({
+						outcome: await planFollowUp({
+							text,
+							answers,
+							base: currentPlan ?? latestPlan,
+							basis: made.basis,
+							earlier,
+							transcript: transcriptNow,
+							unclear: t('followUp.unclear'),
+							noPlan: t('followUp.noPlan')
+						}),
+						handEdited: currentPlan === null
+					}),
+					apply: (plan) => {
+						// One step, so Undo goes back to the plan before it.
+						recordEdit()
+						applySnapshot(plan.edit)
+						setPlans((all) => [...all, plan])
+					}
+				}
+			: undefined
 
 	/** The chat-only view, or the full editor; the project and its edit are the same either way. */
 	function chooseStudio(next: boolean) {
@@ -1886,6 +1923,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 								onApply={applyCommand}
 								onAttach={attachFile}
 								initialCommand={startCommand}
+								followUps={followUps}
 							/>
 						)
 					},

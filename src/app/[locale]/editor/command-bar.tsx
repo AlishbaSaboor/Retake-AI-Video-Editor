@@ -4,14 +4,19 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import {
 	AttachIcon,
+	CaptionsIcon,
 	CleanupIcon,
 	ImageIcon,
 	MicIcon,
+	MusicIcon,
 	SendIcon,
 	SparkleIcon,
 	SpinnerIcon,
-	TextIcon
+	TextIcon,
+	TimingIcon
 } from '@/components/ui/icons'
+import type { MadePlan, MakeAnswer } from '@/app/[locale]/(app)/make/make-plan'
+import { captureClientError } from '@/lib/observability/capture-client-error'
 import { toast } from '@/lib/toast'
 import { parseEditCommand } from './actions'
 import { CommandReply } from './command-reply'
@@ -21,6 +26,7 @@ import {
 	type CommandOutcome,
 	type CommandPlan
 } from './edit-command'
+import { FollowUpAnswer, type FollowUpOutcome } from './make-follow-ups'
 import { VoiceCommandButton } from './voice-command-button'
 
 /** What an attached file became, for the chat to say so. */
@@ -35,6 +41,22 @@ type CommandBarProps = {
 	onAttach: (file: File) => AttachedAs
 	/** A command brought from the home page: asked as soon as the chat appears, still applied only on Apply. */
 	initialCommand?: string | null
+	/**
+	 * Beside a Make it edit, in the chat-only view: what's typed changes the
+	 * plan (a follow-up), not a single command.
+	 */
+	followUps?: FollowUps
+}
+
+/** How the chat asks for a follow-up's plan and applies it. */
+export type FollowUps = {
+	/** The plan changed by `text` (with answers to its questions); `earlier`: follow-ups applied before. */
+	plan: (
+		text: string,
+		answers: MakeAnswer[],
+		earlier: string[]
+	) => Promise<{ outcome: FollowUpOutcome; handEdited: boolean }>
+	apply: (plan: MadePlan<AudioBuffer>) => void
 }
 
 type Answer = {
@@ -44,7 +66,15 @@ type Answer = {
 	outcome: CommandOutcome
 	resolved?: 'applied' | 'cancelled'
 }
-type Entry = Answer | { id: number; type: 'note'; text: string }
+type FollowUp = {
+	id: number
+	type: 'followUp'
+	command: string
+	outcome: FollowUpOutcome
+	handEdited: boolean
+	resolved?: 'applied' | 'cancelled' | 'answered'
+}
+type Entry = Answer | FollowUp | { id: number; type: 'note'; text: string }
 
 /** What to try first, each with what it touches. */
 const EXAMPLES = [
@@ -52,6 +82,13 @@ const EXAMPLES = [
 	{ key: 'captions', icon: TextIcon },
 	{ key: 'title', icon: SparkleIcon },
 	{ key: 'zoom', icon: ImageIcon }
+] as const
+/** What to try first beside a Make it edit: changes to its plan. */
+const FOLLOW_UP_EXAMPLES = [
+	{ key: 'shorter', icon: TimingIcon },
+	{ key: 'intro', icon: CleanupIcon },
+	{ key: 'captions', icon: CaptionsIcon },
+	{ key: 'music', icon: MusicIcon }
 ] as const
 
 /**
@@ -66,23 +103,27 @@ export function CommandBar({
 	hasWatermark,
 	onApply,
 	onAttach,
-	initialCommand
+	initialCommand,
+	followUps
 }: CommandBarProps) {
 	const t = useTranslations('Editor.command')
+	const tFollowUp = useTranslations('Editor.followUp')
 	const [command, setCommand] = useState(initialCommand ?? '')
 	const [entries, setEntries] = useState<Entry[]>([])
 	const nextIdRef = useRef(0)
 	const endRef = useRef<HTMLDivElement>(null)
 	const open = entries.findLast(
-		(entry): entry is Answer => entry.type === 'command' && !entry.resolved
+		(entry): entry is Answer | FollowUp => entry.type !== 'note' && !entry.resolved
 	)
 
-	/** The open answer, if any, closed as applied or cancelled. */
-	function resolve(resolved: 'applied' | 'cancelled') {
+	/** The open answer, if any, closed as applied, cancelled, or (questions) answered. */
+	function resolve(resolved: 'applied' | 'cancelled' | 'answered') {
 		setEntries((all) =>
-			all.map((entry) =>
-				entry.type === 'command' && !entry.resolved ? { ...entry, resolved } : entry
-			)
+			all.map((entry) => {
+				if (entry.type === 'note' || entry.resolved) return entry
+				if (entry.type === 'followUp') return { ...entry, resolved }
+				return { ...entry, resolved: resolved === 'answered' ? 'cancelled' : resolved }
+			})
 		)
 	}
 
@@ -92,11 +133,30 @@ export function CommandBar({
 	// on "Reading your command…" though the answer had come).
 	const [reading, setReading] = useState<string | null>(null)
 
-	async function ask(text: string) {
+	async function ask(text: string, answers: MakeAnswer[] = []) {
 		if (!text.trim() || reading !== null) return
 		// A new command closes any answer still open: it was passed over.
-		resolve('cancelled')
+		resolve(answers.length > 0 ? 'answered' : 'cancelled')
 		setReading(text)
+		if (followUps) {
+			const earlier = entries.flatMap((entry) =>
+				entry.type === 'followUp' && entry.resolved === 'applied' ? [entry.command] : []
+			)
+			// Never left reading: anything thrown on the way is a plain failure, reported.
+			const { outcome, handEdited } = await followUps
+				.plan(text, answers, earlier)
+				.catch((error: unknown) => {
+					captureClientError(error, { feature: 'make_it_follow_up' })
+					return {
+						outcome: { kind: 'failed', message: tFollowUp('failed') } as const,
+						handEdited: false
+					}
+				})
+			setReading(null)
+			const id = nextIdRef.current++
+			setEntries((all) => [...all, { id, type: 'followUp', command: text, outcome, handEdited }])
+			return
+		}
 		const result = await parseEditCommand({
 			command: text,
 			durationSeconds: context.durationSeconds,
@@ -129,8 +189,13 @@ export function CommandBar({
 	}, [count, thinking])
 
 	function applyPlan() {
-		if (!open?.outcome.ok) return
-		onApply(open.outcome.plan)
+		if (open?.type === 'followUp') {
+			if (open.outcome.kind !== 'plan') return
+			followUps?.apply(open.outcome.plan)
+		} else {
+			if (!open?.outcome.ok) return
+			onApply(open.outcome.plan)
+		}
 		resolve('applied')
 		setCommand('')
 	}
@@ -142,6 +207,13 @@ export function CommandBar({
 		setEntries((all) => [...all, { id, type: 'note', text }])
 	}
 
+	// Beside a Make it edit, the chat's words are about the plan.
+	const examples = followUps ? FOLLOW_UP_EXAMPLES : EXAMPLES
+	const words = (key: 'intro' | 'thinking' | 'placeholder') =>
+		followUps ? tFollowUp(key) : key === 'placeholder' ? t('placeholder') : t(`chat.${key}`)
+	const example = (key: (typeof examples)[number]['key']) =>
+		followUps ? tFollowUp(`example.${key}`) : t(`chat.example.${key}`)
+
 	return (
 		<section aria-label={t('chat.label')} className="flex h-full min-h-0 flex-col">
 			<div className="relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 pb-4">
@@ -149,18 +221,18 @@ export function CommandBar({
 					// Empty: what the chat is for, and a few things to try. The panel
 					// above already says what it is, so no heading of its own.
 					<div className="flex flex-col gap-5">
-						<p className="text-text-muted text-xs leading-relaxed">{t('chat.intro')}</p>
+						<p className="text-text-muted text-xs leading-relaxed">{words('intro')}</p>
 						<div className="flex flex-col gap-1">
 							<p className="text-text-faint pb-1 text-[11px]">{t('chat.examples')}</p>
-							{EXAMPLES.map(({ key, icon: Icon }) => (
+							{examples.map(({ key, icon: Icon }) => (
 								<button
 									key={key}
 									type="button"
-									onClick={() => setCommand(t(`chat.example.${key}`))}
+									onClick={() => setCommand(example(key))}
 									className="text-text-muted hover:bg-surface-hover hover:text-text focus-visible:outline-accent flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors focus-visible:outline-2"
 								>
 									<Icon size={14} className="text-text-faint shrink-0" />
-									{t(`chat.example.${key}`)}
+									{example(key)}
 								</button>
 							))}
 						</div>
@@ -177,6 +249,20 @@ export function CommandBar({
 						<p key={entry.id} className="text-text-muted self-center px-2 text-center text-xs">
 							{entry.text}
 						</p>
+					) : entry.type === 'followUp' ? (
+						<div key={entry.id} className="flex flex-col gap-2">
+							<p className="bg-accent text-accent-ink max-w-[85%] self-end rounded-lg rounded-br-sm px-3 py-2 text-sm">
+								{entry.command}
+							</p>
+							<FollowUpAnswer
+								outcome={entry.outcome}
+								handEdited={entry.handEdited}
+								resolved={entry.resolved}
+								onApply={applyPlan}
+								onCancel={() => resolve('cancelled')}
+								onAnswer={(answers) => void ask(entry.command, answers)}
+							/>
+						</div>
 					) : (
 						<div key={entry.id} className="flex flex-col gap-2">
 							<p className="bg-accent text-accent-ink max-w-[85%] self-end rounded-lg rounded-br-sm px-3 py-2 text-sm">
@@ -201,7 +287,7 @@ export function CommandBar({
 						</p>
 						<p role="status" className="text-text-muted flex items-center gap-2 text-xs">
 							<SpinnerIcon />
-							{t('chat.thinking')}
+							{words('thinking')}
 						</p>
 					</div>
 				)}
@@ -226,7 +312,7 @@ export function CommandBar({
 							void ask(command)
 						}}
 						rows={2}
-						placeholder={t('placeholder')}
+						placeholder={words('placeholder')}
 						aria-label={t('label')}
 						disabled={thinking}
 						className="text-text placeholder:text-text-faint w-full resize-none bg-transparent px-3 pt-2.5 text-sm focus-visible:outline-none"

@@ -7,6 +7,11 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-09.
+> - **Make it: follow-ups in the chat** (section 3zm): after Apply, the
+>   chat beside the edited video changes the plan ("make it shorter",
+>   "remove the intro"): what would change is listed against the plan
+>   before, applied on Apply as one undo step; questions when unclear, and
+>   what it can't do said plainly. Text only: the pictures aren't sent again.
 > - **Make it: the plan's summary and length agree** (section 3zl): the
 >   summary is cut on a word (room for 400 characters), says the edit's real
 >   length, and a check that finds a reel too short lengthens it, or the plan
@@ -2715,6 +2720,48 @@ Found in the real Make it runs (a 3-minute walkthrough and a short clip).
 - Tests: unit (`make-plan.test.mts`) for each; e2e (`make-it.spec.ts`) for
   the whole summary with its real length and the warning, with the fake AI.
   Not tested against real Gemini (no paid calls).
+
+## 3zm. Make it: follow-ups in the chat (2026-10-09)
+
+- **Where:** the chat in the chat-only view after Make it's Apply (the
+  "Edit with AI" mode). There, what's typed is a follow-up to the plan; in
+  the full editor ("Edit manually") the chat stays the command chat. Same
+  layout as the mockup: only the intro, the four examples and the
+  placeholder speak of the plan instead.
+- **The call** (`followUpMakeIt` in `make/actions.ts`, feature
+  `make_it_follow_up`, the same model and 60 s limit as the plan): the
+  request, the follow-ups applied before, the plan as it is now (its reply
+  JSON), the edit's length now, the transcript and the follow-up. No
+  pictures, so it costs a fraction of a plan; what only they told (the
+  subject, faces, whether the picture matters) stays as the first plan saw
+  it (`followUpPlan`). The answer is the whole plan again plus `maxSeconds`,
+  a length asked for ("30 seconds", or "shorter": about two thirds of now).
+- **The plan** is made by `planMake` as the first one was. `maxSeconds`
+  limits any edit (never lifting a reel's 59 s) and fills to 85% of it; an
+  edit asked to be short is never warned as short. `planMake` now also
+  returns the reply as used (its sentences as cut to fit or lengthened), so
+  a follow-up starts from the edit as it was, not the reply's first guess.
+- **What changed** (`planChanges`): the length in whole seconds ("Length
+  50 s to 35 s"), sentences kept, shape, captions, title, key lines, zooms,
+  transitions, music. Nothing changed: said so, with no Apply.
+- **Apply** records an undo step and puts the new plan's edit in place;
+  **Cancel** changes nothing. The editor keeps the plans applied; a
+  follow-up builds on the one the edit is now (`isPlanEdit`: the plan's own
+  values, which Undo puts back), so after Undo it changes the plan before.
+  Changed by hand since: it builds on the last plan applied and says that
+  applying replaces those changes.
+- **Unclear:** 1 to 3 questions in the chat, answered there, then the plan.
+  **Can't do:** listed plainly; nothing changes for those parts.
+- **Errors:** the first plan's: the server's plain words for a refused key,
+  a usage limit or a busy AI; otherwise a plain "couldn't update the plan".
+- **Not done:** no second check on a follow-up's plan (the code's own rules
+  for length, quotes and names still hold); follow-ups only in the
+  chat-only view.
+- Tests: unit (`make-plan.test.mts`) for `maxSeconds`, `planChanges`,
+  `followUpPlan` and its schema, `isPlanEdit`; e2e (`make-it.spec.ts`) for
+  the whole flow with the fake AI (questions, changes, Cancel, Apply, Undo,
+  can't do; the request carries no pictures). Breaking the after-Undo base
+  (always the last plan) fails it. Not tested against real Gemini.
 
 ---
 

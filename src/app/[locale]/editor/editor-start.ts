@@ -1,3 +1,4 @@
+import type { MadePlan, MakeBasis } from '@/app/[locale]/(app)/make/make-plan'
 import type { EditSnapshot } from './edit-snapshot'
 import type { Transcript } from './transcript'
 
@@ -21,6 +22,9 @@ export type MadeWith = {
 	lines: string[]
 	editedSeconds: number
 	originalSeconds: number
+	/** The plan as applied, and what it was made from: a follow-up in the chat changes it. */
+	plan: MadePlan<AudioBuffer>
+	basis: MakeBasis
 }
 
 export type EditorStart = {

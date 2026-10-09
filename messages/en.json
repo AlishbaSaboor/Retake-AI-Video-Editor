@@ -925,6 +925,61 @@
 			"from": "from {length} of video",
 			"finer": "Want finer control?",
 			"finerBody": "Open the timeline, the transcript and every tool. Your AI edit comes with you."
+		},
+		"followUp": {
+			"label": "The changed plan",
+			"intro": "Ask for a change to the plan in your own words. Retake shows what would change first; nothing changes until you press Apply changes.",
+			"thinking": "Updating the plan…",
+			"placeholder": "Try \"make it shorter\"",
+			"example": {
+				"shorter": "Make it shorter",
+				"intro": "Remove the intro",
+				"captions": "Make the captions bigger",
+				"music": "Add calm music"
+			},
+			"changed": "What would change:",
+			"unchanged": "Nothing in the plan would change.",
+			"cannotDo": "What Retake can’t do:",
+			"handEdited": "The edit was changed by hand since the plan was applied. Applying this replaces those changes.",
+			"questions": "A few questions first:",
+			"answer": "Update the plan",
+			"apply": "Apply changes",
+			"cancel": "Cancel",
+			"dismiss": "Dismiss",
+			"none": "none",
+			"resolved": {
+				"applied": "Applied. Undo, at the top, goes back to the plan before.",
+				"cancelled": "Cancelled. The plan stays as it was.",
+				"answered": "Answered."
+			},
+			"changes": {
+				"length": "Length {from} to {to}",
+				"sentences": "Sentences kept {from} to {to}",
+				"captions": "Captions: {from} to {to}",
+				"shape": "Shape: {from} to {to}",
+				"title": "Title: {from} to {to}",
+				"keyLines": "Key lines on screen {from} to {to}",
+				"zooms": "Zooms {from} to {to}",
+				"transitions": "Transitions {from} to {to}",
+				"music": "Music: {from} to {to}"
+			},
+			"captions": {
+				"classic": "a line or two",
+				"bold_words": "one big word at a time",
+				"highlight": "the word being said highlighted",
+				"large": "large lines",
+				"off": "off"
+			},
+			"shape": {
+				"face": "vertical, following the face",
+				"fit": "vertical, the whole picture",
+				"designed": "vertical, designed around the speech",
+				"already": "vertical",
+				"none": "as filmed"
+			},
+			"unclear": "Retake couldn’t update the plan just now. Try again in a moment.",
+			"noPlan": "Retake couldn’t change the plan from that. Try saying it another way.",
+			"failed": "Something went wrong updating the plan. Try again in a moment."
 		}
 	},
 	"Site": {
