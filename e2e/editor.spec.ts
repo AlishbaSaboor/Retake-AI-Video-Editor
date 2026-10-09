@@ -762,3 +762,85 @@ test('an export that comes out too short says so, and still downloads', async ({
 	})
 	await exportAndWarn(page, 'short')
 })
+
+test('export waits for the transcript: clicked as soon as the video opens, it says it is getting ready, and starts only once it can', async ({
+	page
+}) => {
+	await mockActions(page, {
+		words: [w('Hello', 0.2, 0.6), w('there.', 0.6, 1.0), w('Bye.', 2.0, 2.4)]
+	})
+	// The transcript held back, as a long video keeps the editor reading it.
+	let release = () => {}
+	const held = new Promise<void>((resolve) => (release = resolve))
+	await page.route(
+		(url) => url.pathname.endsWith('/editor'),
+		async (route) => {
+			if (!route.request().postData()?.includes('"audioBase64"')) return route.fallback()
+			await held
+			await route.fallback()
+		}
+	)
+	const downloads: string[] = []
+	page.on('download', (download) => downloads.push(download.suggestedFilename()))
+	// With sound, so there is a transcript to wait for.
+	await openEditorWithVideo(page, [
+		[1, true],
+		[0.6, false],
+		[1.4, true]
+	])
+
+	// Straight away: Export is there, but waits, saying why; a click does nothing.
+	const button = page.getByRole('button', { name: 'Export video' })
+	await expect(button).toBeDisabled()
+	await expect(button).toHaveText('Getting ready…')
+	await button.click({ force: true })
+	await page.waitForTimeout(1500)
+	expect(downloads).toEqual([])
+	await expect(page.getByRole('status').filter({ hasText: 'Exporting' })).toHaveCount(0)
+
+	// The transcript comes: Export opens, and records a real file.
+	release()
+	await expect(button).toBeEnabled({ timeout: 30_000 })
+	await expect(button).toHaveText('Export')
+	const downloading = page.waitForEvent('download')
+	await button.click()
+	const file = await readFile(await (await downloading).path())
+	expect(file.length).toBeGreaterThan(1024)
+	await expect(page.getByText('Export finished', { exact: true })).toBeVisible()
+})
+
+test('an export that comes out empty says so plainly, and offers no file', async ({ page }) => {
+	await mockActions(page, { words: [] })
+	await openEditorWithVideo(page)
+	// A recorder that hands over nothing: a file with no frames in it.
+	await page.evaluate(() => {
+		const handler = Object.getOwnPropertyDescriptor(MediaRecorder.prototype, 'ondataavailable')
+		Object.defineProperty(MediaRecorder.prototype, 'ondataavailable', {
+			configurable: true,
+			get() {
+				return handler?.get?.call(this)
+			},
+			set(listener: ((event: BlobEvent) => void) | null) {
+				handler?.set?.call(
+					this,
+					listener && ((event: BlobEvent) => listener({ ...event, data: new Blob([]) }))
+				)
+			}
+		})
+	})
+	const downloads: string[] = []
+	page.on('download', (download) => downloads.push(download.suggestedFilename()))
+	await page.getByRole('button', { name: 'Export video' }).click()
+	await expect(page.getByText('The export came out empty.', { exact: true }).first()).toBeVisible({
+		timeout: 60_000
+	})
+	await expect(
+		page
+			.getByText(
+				'Nothing was recorded, so there is no file to download. Export again, and keep this tab open and in front while it runs.'
+			)
+			.first()
+	).toBeVisible()
+	await expect(page.getByText('Export finished', { exact: true })).toHaveCount(0)
+	expect(downloads).toEqual([])
+})
