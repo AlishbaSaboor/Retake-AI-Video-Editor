@@ -1,14 +1,26 @@
-// What a production server can't run without: the Supabase settings that
-// turn accounts on. Without them every paid AI action refuses (they require
-// a signed-in user), so a deployment missing them stops at boot instead of
-// serving an app nobody can use. Kept apart from env.ts so the boot check
-// can run before env.ts loads (it throws on the same thing).
+// What a production server can't run without, and what each is for: the
+// Supabase settings that turn accounts on (without them every paid AI
+// action refuses: they require a signed-in user), and the secret the contact
+// form's limit hashes senders' IPs with. A deployment missing one stops at
+// boot instead of serving a broken app. Kept apart from env.ts so the boot
+// check can run before env.ts loads (it throws on the same thing).
 
-/** The settings accounts need, by name. */
-const PRODUCTION_AUTH = [
-	'NEXT_PUBLIC_SUPABASE_URL',
-	'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'
-] as const
+const PRODUCTION_SETTINGS: ReadonlyArray<{
+	names: readonly string[]
+	/** The sentence for the missing ones of `names`. */
+	missing: (names: string) => string
+}> = [
+	{
+		names: ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'],
+		missing: (names) =>
+			`Accounts aren't set up: ${names} must be set in production, or every paid AI action refuses.`
+	},
+	{
+		names: ['CONTACT_IP_SECRET'],
+		missing: (names) =>
+			`The contact form's limit isn't set up: ${names} must be set in production, or one sender can't be told from another.`
+	}
+]
 
 /**
  * The settings a production server is missing (unset or empty). None while
@@ -16,12 +28,16 @@ const PRODUCTION_AUTH = [
  */
 export function missingProductionSettings(vars: NodeJS.ProcessEnv): string[] {
 	if (vars.NODE_ENV !== 'production' || vars.NEXT_PHASE === 'phase-production-build') return []
-	return PRODUCTION_AUTH.filter((name) => !vars[name])
+	return PRODUCTION_SETTINGS.flatMap(({ names }) => names.filter((name) => !vars[name]))
 }
 
-/** What to tell whoever starts it: exactly which settings to set. */
+/** What to tell whoever starts it: exactly which settings to set, and what for. */
 export function missingSettingsMessage(missing: readonly string[]): string {
-	return `Accounts aren't set up: ${missing.join(' and ')} must be set in production, or every paid AI action refuses. Set them, then start again.`
+	const sentences = PRODUCTION_SETTINGS.flatMap(({ names, missing: sentence }) => {
+		const these = names.filter((name) => missing.includes(name))
+		return these.length > 0 ? [sentence(these.join(' and '))] : []
+	})
+	return `${sentences.join(' ')} Set them, then start again.`
 }
 
 /**

@@ -13,13 +13,9 @@ import {
 import { useRouter } from '@/i18n/routing'
 import { cn } from '@/lib/cn'
 import { signIn, signUp } from './actions'
+import { safeNext } from './next-path'
 
 type Mode = 'signIn' | 'signUp'
-
-/** Where to go once signed in: a page of this site (`next`), else the home page. */
-function destination(next: string | null): string {
-	return next && next.startsWith('/') && !next.startsWith('//') ? next : '/home'
-}
 
 const field =
 	'border-border-strong bg-surface-inset text-text focus-within:border-accent/60 focus-within:ring-accent-soft flex h-[52px] items-center gap-3 rounded-[14px] border pl-3.5 transition-shadow focus-within:ring-4'
@@ -63,7 +59,7 @@ export function LoginForm({ next, enabled }: { next: string | null; enabled: boo
 							setError(result.error === 'Invalid request' ? t('invalid') : result.error)
 							return
 						}
-						router.push(destination(next))
+						router.push(safeNext(next, window.location.origin))
 						router.refresh()
 					})
 				}}

@@ -7,6 +7,11 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-11.
+> - **Contact form limit and a safe sign-in redirect** (section 3zw): the
+>   contact form has a hidden honeypot field and a per-sender limit (5 an
+>   hour by a keyed hash of the IP; 30 an hour shared when unknown);
+>   sign-in only ever goes back to a page on Retake. Production needs
+>   `CONTACT_IP_SECRET`.
 > - **Paid AI actions need a signed-in user** (section 3zv): each of the
 >   seven checks the session itself and fails closed (401), whatever the
 >   page redirect does; a production server without the Supabase settings
@@ -3127,6 +3132,64 @@ use this.","status":401}`; no `ai_usage` row was written.
 - **Not covered:** real Supabase sign-in in unit tests or CI (local e2e
   signs in for real; CI runs with accounts off).
 
+## 3zw. Contact form limit and a safe sign-in redirect (2026-10-11)
+
+From the whole-repo review: the public contact form wrote to the database
+with no limit, and sign-in's `next` check let `/\evil.com` through (a
+browser reads the backslash as a slash).
+
+- **Redirect** (`login/next-path.ts`, owner's rule): `next` is used only
+  when it starts with a single "/" and `new URL(next, location.origin)`
+  keeps the origin; the browser-resolved path is returned. Anything else
+  goes to `/home`. It is the only place `next` is read (the proxy only
+  writes it; the leave guard checks its own links' origin).
+- **Contact limit** (owner's choices): a hidden `website` field (out of
+  sight, out of the tab order, `aria-hidden`), and a per-sender limit
+  counted from the saved messages themselves, so it survives restarts and
+  holds on every instance. A sender is an HMAC-SHA256 of their IP with
+  `CONTACT_IP_SECRET` in the new nullable `contact_messages.ip_hash` (plus
+  an index), never the IP, never logged. 5 messages per rolling hour per
+  sender; 30 per hour shared by everyone who can't be told apart (no IP, or
+  no key: development, tests, a demo). Both checks refuse the same way: 429,
+  "Your message couldn't be sent right now. Please try again later." Refusals
+  are logged by check only.
+- **The IP:** the last `x-forwarded-for` entry, the one the host wrote:
+  Vercel replaces the header with the client's IP, a proxy appends to it,
+  and a client can only add entries before it. Self-hosted with no proxy,
+  Next fills it from the connection only when missing, so a client could
+  set it: there, the limit can be dodged by changing the header.
+- **The secret:** `CONTACT_IP_SECRET` in env.ts (at least 32 characters
+  when set) and `.env.example` (how to generate it: `openssl rand -hex 32`).
+  Required for a production server: the boot check from 3zv now names it
+  too, in its own sentence. Optional elsewhere (the shared limit applies).
+- **Migration:** schema only (additive: a nullable column and an index);
+  CI writes it. Previewed with `generate-migration.mjs --check`: against the
+  local database it also showed `name DROP NOT NULL`, which is already in
+  the committed `20261006092640_feat_calmer_site_and_editor` (that database
+  just hadn't applied it). After merging, run `prisma migrate deploy`
+  locally before using the contact form.
+- **Privacy page:** the Messages item now says a coded form of the network
+  address is kept with each message, only against floods; dated 11 October.
+- Tests: unit (redirect: normal paths, `//evil.com`, `/\evil.com`,
+  `/\/evil.com`, `\\evil.com`, `https://evil.com`, another host, a tab,
+  `javascript:`; the IP's last entry; the keyed hash; a normal message kept
+  with a hash and no IP; the honeypot refused; 5 then refused, another
+  sender through, a spoofed prefix not, refused just inside the hour and
+  allowed after it; the shared 30; the production check with the secret).
+  Six mutations each fail their tests. e2e: the hidden field is out of
+  sight, not offered to a screen reader and sent empty; a refused message
+  shows the plain words. The existing contact test passes unchanged.
+- **Hand checks** (a production build, a throwaway database, dropped
+  after): one sender's 6th and 7th messages refused, another sender's
+  accepted, the honeypot refused the same way; hashes 64 characters, no IP
+  in the table or the log. Signing in with `next` of `//evil.com`,
+  `/\evil.com`, `https://evil.com` or `/` + tab + `/evil.com` landed on
+  `/home`; `/projects` on `/projects`; no off-site request.
+- **Not covered:** how a real host passes the client's IP (only Vercel's
+  documented behaviour, not tested), and several messages sent at once from
+  one sender (the count and the save aren't one transaction, so a burst can
+  get a few past the limit).
+
 ---
 
 ## 4. Unresolved issues
@@ -3674,6 +3737,11 @@ Not changed.
 - 2026-10-11, the boot-exit follow-up, a full local run with accounts off:
   `commands.spec.ts:62` failed once with `route.fetch: read ECONNRESET` (the
   dev server dropped a request under four workers) and passed on a rerun.
+
+- 2026-10-11, the contact-limit branch, a full local run with accounts off:
+  `clip-speed.spec.ts:130` (exported 3.59 s for 3 s) and `motion.spec.ts:236`
+  (a pop-in frame missed) failed and passed on a rerun; real-time export
+  under load, neither touches the contact form or sign-in.
 
 ### 4d. Low memory on this machine (observed 2026-10-02)
 
