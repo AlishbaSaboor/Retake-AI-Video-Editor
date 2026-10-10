@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { toTranscript } from '../../editor/transcript'
@@ -14,6 +15,7 @@ import {
 	planMake,
 	quotedLine,
 	applyCheck,
+	askedTreatment,
 	followUpPlan,
 	isPlanEdit,
 	MAKE_REPLY_JSON_SCHEMA,
@@ -1128,7 +1130,11 @@ test('each shape and fit: the crop, and the size the export records, for a wide,
 	assert.equal(unasked.summary.shape.how, 'whole')
 	assert.equal(unasked.summary.shape.fit, 'bars')
 	// Fill asked for: zoomed in, centred, the edges cut: 608 × 1080 of the picture.
-	const fill = make({ shape: 'vertical', fit: 'fill', fitAsked: true }, WIDE)
+	const fill = make(
+		{ shape: 'vertical', fit: 'fill', fitAsked: true },
+		WIDE,
+		'make an ad, zoomed in'
+	)
 	assert.deepEqual(fill.summary.shape, {
 		target: 'vertical',
 		fit: 'fill',
@@ -1148,7 +1154,14 @@ test('each shape and fit: the crop, and the size the export records, for a wide,
 	})
 	assert.deepEqual(recorded(wideBars, TALL), { width: 1920, height: 1080 })
 	assert.deepEqual(
-		recorded(make({ shape: 'horizontal', fit: 'fill', fitAsked: true }, TALL), TALL),
+		recorded(
+			make(
+				{ shape: 'horizontal', fit: 'fill', fitAsked: true },
+				TALL,
+				'a wide ad, cropped to fill the frame'
+			),
+			TALL
+		),
 		{
 			width: 1080,
 			height: 608
@@ -1200,12 +1213,15 @@ test('a fill zooms in on its own only to follow one person in a reel; bars asked
 	// One person, a face in most pictures: the crop follows it, and says why.
 	assert.deepEqual(reel({}), { target: 'vertical', fit: 'fill', how: 'face', asked: false })
 	// "Keep the black bars" on the same video: bars, as asked.
-	assert.deepEqual(reel({ fit: 'bars', fitAsked: true }), {
-		target: 'vertical',
-		fit: 'bars',
-		how: 'whole',
-		asked: true
-	})
+	assert.deepEqual(
+		reel({ fit: 'bars', fitAsked: true }, 'make this an Instagram reel, keep the black bars'),
+		{
+			target: 'vertical',
+			fit: 'bars',
+			how: 'whole',
+			asked: true
+		}
+	)
 	// A vertical ad of the same person, its picture carrying it: the whole
 	// picture, unless a zoom is asked for.
 	const ad = { style: 'ad', format: 'other', pictureMatters: true } as const
@@ -1213,7 +1229,13 @@ test('a fill zooms in on its own only to follow one person in a reel; bars asked
 	assert.equal(reel({ ...ad, fitAsked: true }, 'a vertical ad, zoomed in on me').how, 'face')
 	// A meeting reel is designed around the speech, but not when bars or a blur were asked for.
 	assert.equal(reel({ subject: 'meeting', faces: [], fit: 'bars' }).how, 'designed')
-	assert.equal(reel({ subject: 'meeting', faces: [], fit: 'blur', fitAsked: true }).how, 'whole')
+	assert.equal(
+		reel(
+			{ subject: 'meeting', faces: [], fit: 'blur', fitAsked: true },
+			'make this an Instagram reel with a blurred background'
+		).how,
+		'whole'
+	)
 })
 
 test("a brief's parts are kept in its own words, and its call to action closes the edit", () => {
@@ -1404,8 +1426,8 @@ test('a screen recording is the whole screen by default, designed with no pictur
 		designed(make(request), 'promo')
 	}
 	// "Text only" (the reply says so): designed; "show the screen" on a promo: whole.
-	designed(make('make this an Instagram reel', { treatment: 'designed' }), 'asked')
-	whole(make('a promo reel', { treatment: 'whole' }), 'asked')
+	designed(make('make this an Instagram reel, text only', { treatment: 'designed' }), 'asked')
+	whole(make('a promo reel, show the screen', { treatment: 'whole' }), 'asked')
 	// The second check couldn't run: whole, even for a promo or text only.
 	whole(make('a promo reel', {}, true), 'unchecked')
 	whole(make('a reel', { treatment: 'designed' }, true), 'unchecked')
@@ -1453,4 +1475,100 @@ test('a screen recording is the whole screen by default, designed with no pictur
 		}).summary.shape.how,
 		'face'
 	)
+})
+
+test("the owner's two real replies: Gemini's filled-in treatment never decides, the user's words do", () => {
+	// Gemini's own replies from two real runs of a 4:41 screen recording, both
+	// with treatment "whole" filled in though nobody asked for it.
+	const real = (run: 1 | 2) =>
+		makeReplySchema.parse(
+			JSON.parse(
+				readFileSync(
+					new URL(`../../../../../e2e/fixtures/real-run${run}-reply.json`, import.meta.url),
+					'utf-8'
+				)
+			)
+		)
+	const run1 = real(1)
+	const run2 = real(2)
+	assert.equal(run1.treatment, 'whole')
+	assert.equal(run2.treatment, 'whole')
+	// The recording's 79 sentences, 4:41 long, as the replies number them.
+	const talk = longTalk(79)
+	const make = (reply: MakeReply, request: string, followUps: string[] = []) =>
+		planMake({
+			reply,
+			request,
+			durationSeconds: 281,
+			picture: { width: 1920, height: 1080 },
+			transcript: talk,
+			fillerCuts: [],
+			music: null,
+			musicAvailable: false,
+			followUps
+		}).summary
+
+	// Run 2, "make a promo ad": designed, because it's a promo, not "as you asked".
+	const promo = make(run2, 'make a promo ad')
+	assert.deepEqual(promo.screen, { treatment: 'designed', why: 'promo' })
+	assert.equal(promo.card, 'hidden')
+	assert.equal(promo.shape.how, 'designed')
+	// Run 1, "shorten this walkthrough": the whole screen, the plain reason.
+	const shorter = make(run1, 'shorten this walkthrough')
+	assert.deepEqual(shorter.screen, { treatment: 'whole', why: 'default' })
+	assert.equal(shorter.shape.asked, false)
+
+	// The user's own words still win: "show the screen" on a promo, "text only" on a walkthrough.
+	assert.deepEqual(make(run2, 'make a promo ad, show the screen').screen, {
+		treatment: 'whole',
+		why: 'asked'
+	})
+	assert.deepEqual(make(run1, 'shorten this walkthrough, text only').screen, {
+		treatment: 'designed',
+		why: 'asked'
+	})
+	// In a follow-up too, the latest ask winning.
+	assert.deepEqual(make(run1, 'shorten this walkthrough', ['text only']).screen, {
+		treatment: 'designed',
+		why: 'asked'
+	})
+	assert.deepEqual(make(run2, 'make a promo ad', ['text only', 'show the screen']).screen, {
+		treatment: 'whole',
+		why: 'asked'
+	})
+	// Gemini saying "designed" without being asked counts for nothing.
+	assert.deepEqual(make({ ...run1, treatment: 'designed' }, 'shorten this walkthrough').screen, {
+		treatment: 'whole',
+		why: 'default'
+	})
+	// A value not on the list is read as not asked.
+	const odd = makeReplySchema.parse({ ...run1, treatment: 'sideways' })
+	assert.equal(odd.treatment, null)
+	assert.deepEqual(make(odd, 'make a promo ad').screen, { treatment: 'designed', why: 'promo' })
+
+	// Close variants of each ask; both at once, or neither, is no ask.
+	for (const text of [
+		'text-only please',
+		'just the text',
+		'captions only',
+		'no screen',
+		'hide my screen'
+	]) {
+		assert.equal(askedTreatment([text]), 'designed', text)
+	}
+	for (const text of [
+		'show the screen',
+		'show my whole screen',
+		'keep the screen',
+		'full screen'
+	]) {
+		assert.equal(askedTreatment([text]), 'whole', text)
+	}
+	assert.equal(askedTreatment(['text only, but show the screen']), null)
+	assert.equal(askedTreatment(['make a promo ad']), null)
+
+	// A fit Gemini says was asked for is asked for only in the user's words.
+	const filled = { ...run1, fit: 'blur' as const, fitAsked: true, shape: 'vertical' as const }
+	assert.equal(make(filled, 'shorten this walkthrough').shape.asked, false)
+	assert.equal(make(filled, 'shorten this walkthrough, blurred background').shape.asked, true)
 })

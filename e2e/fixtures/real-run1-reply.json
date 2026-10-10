@@ -1,0 +1,75 @@
+{
+	"questions": [],
+	"style": "professional",
+	"format": "other",
+	"subject": "screen",
+	"summary": "Shortened the screen recording by removing stumbles, repetitive phrasing, and dead air during file uploads, keeping the key feature walkthrough intact.",
+	"pictureMatters": true,
+	"moments": [
+		{
+			"first": 4,
+			"last": 16
+		},
+		{
+			"first": 17,
+			"last": 25
+		},
+		{
+			"first": 26,
+			"last": 37
+		},
+		{
+			"first": 39,
+			"last": 46
+		},
+		{
+			"first": 56,
+			"last": 60
+		}
+	],
+	"removeSentences": [3, 5, 6, 18, 19, 22, 23, 28, 29, 33, 38, 62, 64, 65, 66, 67, 68, 69, 70, 75],
+	"removeSpans": [
+		{
+			"startSeconds": 106.2,
+			"endSeconds": 111.1
+		},
+		{
+			"startSeconds": 149.8,
+			"endSeconds": 155.5
+		}
+	],
+	"captions": "classic",
+	"zoomSentences": [],
+	"transition": "dissolve",
+	"keyLines": [
+		{
+			"sentence": 4,
+			"text": "Fathom AI meeting notetaker clone"
+		},
+		{
+			"sentence": 15,
+			"text": "Real Google authentication"
+		},
+		{
+			"sentence": 40,
+			"text": "Executive summary and action items"
+		}
+	],
+	"shape": "original",
+	"fit": "bars",
+	"fitAsked": false,
+	"treatment": "whole",
+	"maxSeconds": null,
+	"brief": {
+		"audience": null,
+		"tone": null,
+		"length": null,
+		"show": null,
+		"callToAction": null
+	},
+	"faces": [],
+	"card": "corner",
+	"music": null,
+	"title": null,
+	"cannotDo": []
+}
