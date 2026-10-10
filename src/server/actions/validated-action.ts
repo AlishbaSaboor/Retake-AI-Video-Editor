@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { captureError } from '@/lib/observability/capture-error'
 import { enforceAuthorize, type AdminContext } from '@/lib/rbac/context'
 import type { Permission } from '@/lib/rbac/permissions'
+import { requireUser } from '@/server/auth/session'
 
 export type ActionResult<Output> =
 	{ ok: true; data: Output } | { ok: false; error: string; status: number }
@@ -22,12 +23,19 @@ export function validatedAction<InputSchema extends z.ZodType, Output>(config: {
 	// AppError on failure, which the catch turns into { ok:false, error, status }.
 	// Omit for actions that aren't admin-gated. See docs/rules/authorization.md.
 	authorize?: Permission | ((ctx: AdminContext) => boolean | Promise<boolean>)
+	// Signed-in users only, run BEFORE input parsing/handler: every action
+	// that spends money on a provider. Fails closed (requireUser); the page's
+	// redirect in proxy.ts is not a guard. See docs/rules/auth.md.
+	signedIn?: boolean
 	handler: (input: z.infer<InputSchema>) => Promise<Output>
 }) {
 	return async function (rawInput: unknown): Promise<ActionResult<Output>> {
 		try {
 			if (config.authorize !== undefined) {
 				await enforceAuthorize(config.authorize)
+			}
+			if (config.signedIn) {
+				await requireUser()
 			}
 
 			const input = config.input.parse(rawInput)

@@ -8,17 +8,23 @@
 // `./src/*`), so a unit test can import a module by the same alias the app
 // uses — e.g. `import { redact } from '@/server/lib/logger'` — without booting
 // Next.
-import { pathToFileURL } from 'node:url'
 
 const CANDIDATE_SUFFIXES = ['.ts', '.tsx', '/index.ts']
 const ALIAS_PREFIX = '@/'
-const SRC_URL = pathToFileURL(new URL('../src/', import.meta.url).pathname).href
+const SRC_URL = new URL('../src/', import.meta.url).href
 
 function withSuffixes(specifier) {
 	return [specifier, ...CANDIDATE_SUFFIXES.map((suffix) => `${specifier}${suffix}`)]
 }
 
+// `server-only` is Next's own: on the server it is an empty module (the
+// `react-server` export Next resolves it to), so a unit test of server code
+// loads it the same way rather than hitting the client-side throw.
+const SERVER_ONLY = 'server-only'
+const SERVER_ONLY_TARGET = 'next/dist/compiled/server-only/empty.js'
+
 export async function resolve(specifier, context, nextResolve) {
+	if (specifier === SERVER_ONLY) return nextResolve(SERVER_ONLY_TARGET, context)
 	if (specifier.startsWith(ALIAS_PREFIX)) {
 		const base = `${SRC_URL}${specifier.slice(ALIAS_PREFIX.length)}`
 		for (const candidate of withSuffixes(base)) {
@@ -33,7 +39,12 @@ export async function resolve(specifier, context, nextResolve) {
 	try {
 		return await nextResolve(specifier, context)
 	} catch (error) {
-		if (!specifier.startsWith('.')) throw error
+		// A package path with no `exports` map (`next/navigation`): the file
+		// itself, as a bundler would find it.
+		if (!specifier.startsWith('.'))
+			return nextResolve(`${specifier}.js`, context).catch(() => {
+				throw error
+			})
 		for (const suffix of CANDIDATE_SUFFIXES) {
 			try {
 				return await nextResolve(`${specifier}${suffix}`, context)
