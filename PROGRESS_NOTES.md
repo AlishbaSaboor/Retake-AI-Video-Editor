@@ -6,7 +6,11 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **Read this first: where things stand right now**
 >
-> - Branch `main`. Updated 2026-10-10.
+> - Branch `main`. Updated 2026-10-11.
+> - **Saves, exports and re-linking you can trust** (section 3zu): a save
+>   is done only once its one transaction commits (storage full says so
+>   plainly, nothing left behind); hiding the tab stops an export with a
+>   message and no file; re-linking checks a fingerprint of the file's ends.
 > - **Make it: an honest brief, and designed text that never overlaps**
 >   (section 3zt): a brief part is "From your brief" only in the user's own
 >   words, else "Chosen for a promo / for you"; a popping caption word's
@@ -3011,6 +3015,48 @@ fill`. So Gemini doesn't call it a screen, and 3zo only excluded the label
   captions both show for the first 3 s; 3,499 and 3,548 frames with a word
   popping; both exports 3:11.38 for a 3:11 plan ("Export finished"). The
   card says "Chosen for a promo: energetic tone".
+
+## 3zu. Saves, exports and re-linking you can trust (2026-10-11)
+
+From the whole-repo review (three reliability gaps):
+
+- **Saves (`projects.ts`):** a write resolved when its request succeeded,
+  not when its transaction committed, so a write the browser aborts on
+  commit (its storage full) could still show "Saved"; and media went in
+  before the project, in their own transactions, so a failed save could
+  leave media behind. Now every write waits for its commit (`committed`:
+  `oncomplete`, or `onabort` with `tx.error`), and a save is one
+  transaction over the media and the project: all of it, or none.
+  Storage full (`isStorageFull`, a `QuotaExceededError`) shows "Your
+  browser’s storage is full. Delete a project or free some space, then
+  save again."; any other failure, as before.
+- **Export (`export-button.tsx`, `export-video.ts`):** a hidden tab draws
+  no frames, so an export would stall or come out wrong. Hiding the tab now
+  stops it (`visibilitychange`, aborted as "tab hidden") with "Export
+  stopped: this tab was hidden." and no file. `nextFrame` also settles
+  when aborted: waiting on a frame a hidden tab never draws, the export
+  would otherwise never notice the abort.
+- **Re-linking (owner's choice of fingerprint):** a stand-in file had to
+  match only the name and size. Media references now keep a fingerprint
+  (`mediaFingerprint`: SHA-256 of the size and the first and last 1 MB,
+  read once per file); re-linking checks it. Projects saved before have
+  none and still re-link on the name and size. Storage keys are unchanged.
+- **Test dependency (owner's decision):** `fake-indexeddb` 6.2.5, pinned,
+  dev only, Apache-2.0 (not MIT, accepted), for unit tests against a real
+  IndexedDB implementation.
+- Tests: unit, a commit that fails, and one failing as storage full (both an
+  error, nothing saved, no media left, the message's words); a file of the
+  same name and size but other content refused, the same content taken;
+  the fingerprint reading both ends; an old project re-linking; `nextFrame`
+  ending on abort with no frame. Each fails with its fix taken out (five
+  mutations of `projects.ts`). e2e: hiding the tab once recording is under
+  way (frames held back, as a hidden tab does) stops the export with the
+  message, no file after the edit's length; fails without the listener or
+  without the abortable `nextFrame`.
+- **Not covered:** how a real browser reports storage full (Chrome, and
+  Safari and Firefox not at all): the tests make a commit fail the way it
+  can there. A fingerprint misses a change of the same size in a file's
+  middle only.
 
 ---
 
