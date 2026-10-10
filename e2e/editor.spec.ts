@@ -844,3 +844,47 @@ test('an export that comes out empty says so plainly, and offers no file', async
 	await expect(page.getByText('Export finished', { exact: true })).toHaveCount(0)
 	expect(downloads).toEqual([])
 })
+
+test('hiding the tab during an export stops it with a clear message, and offers no file', async ({
+	page
+}) => {
+	await mockActions(page, { words: [] })
+	await openEditorWithVideo(page)
+	const downloads: string[] = []
+	page.on('download', (download) => downloads.push(download.suggestedFilename()))
+	// A hidden tab draws no frames, not even those already asked for: frames held back once hidden.
+	await page.evaluate(() => {
+		const draw = window.requestAnimationFrame.bind(window)
+		window.requestAnimationFrame = (callback) =>
+			draw((time) => {
+				if (document.visibilityState !== 'hidden') callback(time)
+			})
+	})
+	await page.getByRole('button', { name: 'Export video' }).click()
+	const cancel = page.getByRole('button', { name: 'Cancel' })
+	await expect(cancel).toBeVisible()
+	// Recording under way: the export is waiting on frames, not still opening the video.
+	await expect(page.getByText(/^Exporting… [1-9]\d?%$/)).toBeVisible({ timeout: 10_000 })
+	// Hidden as a real background tab is: it says so, and from now on draws no frames.
+	await page.evaluate(() => {
+		Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })
+		Object.defineProperty(document, 'hidden', { configurable: true, get: () => true })
+		document.dispatchEvent(new Event('visibilitychange'))
+	})
+	await expect(
+		page.getByText('Export stopped: this tab was hidden.', { exact: true }).first()
+	).toBeVisible({ timeout: 10_000 })
+	await expect(
+		page
+			.getByText(
+				'A hidden tab stops recording the video, so nothing was saved. Export again, and keep this tab open and in front until it finishes.'
+			)
+			.first()
+	).toBeVisible()
+	await expect(cancel).toHaveCount(0)
+	await expect(page.getByRole('button', { name: 'Export video' })).toBeVisible()
+	// Longer than the whole 3 s edit would have taken to record: still nothing.
+	await page.waitForTimeout(4_000)
+	await expect(page.getByText('Export finished', { exact: true })).toHaveCount(0)
+	expect(downloads).toEqual([])
+})

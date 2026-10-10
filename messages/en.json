@@ -515,6 +515,10 @@
 				"description": "This export came out {seconds} s too {direction, select, long {long} other {short}}, probably because the computer ran low on memory. Close other apps and export again."
 			},
 			"failed": "The export didn't finish.",
+			"hidden": {
+				"title": "Export stopped: this tab was hidden.",
+				"description": "A hidden tab stops recording the video, so nothing was saved. Export again, and keep this tab open and in front until it finishes."
+			},
 			"empty": {
 				"title": "The export came out empty.",
 				"description": "Nothing was recorded, so there is no file to download. Export again, and keep this tab open and in front while it runs."
@@ -677,6 +681,7 @@
 			"deleteYes": "Delete",
 			"deleteNo": "Keep",
 			"saveFailed": "Couldn’t save the project",
+			"storageFull": "Your browser’s storage is full. Delete a project or free some space, then save again.",
 			"cantOpen": "Couldn’t open that project",
 			"wrongFile": "{name} isn’t {wanted}: pick that file.",
 			"relinkLabel": "Find the missing files",

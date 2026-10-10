@@ -4,15 +4,15 @@ import type { ReplacementTake } from './re-record'
 import type { AddedVideo } from './sources'
 import type { Transcript } from './transcript'
 
-// Saved projects, in this browser (IndexedDB): nothing leaves it, as nothing
-// else in the editor does. A project is its name, its edit (the undo
-// snapshot: everything that defines the edit, not the history of how it
-// got there), the main video's transcript, and references to its media.
-// Media is kept apart, each piece once, by a key from the file's name,
-// size and modification time: the videos (copied in on first save), and
-// added audio files. Re-recorded takes are short and stored as their
-// samples. An extracted clip's sound is decoded from its video again.
-// PROGRESS_NOTES.md section 3r.
+// Saved projects, in this browser (IndexedDB): projects and their media are
+// never uploaded. A project is its name, its edit (the undo snapshot:
+// everything that defines the edit, not the history of how it got there),
+// the main video's transcript, and references to its media. Media is kept
+// apart, each piece once, by a key from the file's name, size and
+// modification time: the videos (copied in on first save), and added audio
+// files. Re-recorded takes are short and stored as their samples. An
+// extracted clip's sound is decoded from its video again. A save is one
+// transaction, done only once it commits. PROGRESS_NOTES.md sections 3r, 3zu.
 
 /** Bumped when what's stored changes shape: a project of another version is refused, not half-loaded. */
 export const PROJECT_VERSION = 1
@@ -21,8 +21,18 @@ const DATABASE = 'retake'
 const PROJECTS = 'projects'
 const MEDIA = 'media'
 
-/** A piece of media a project uses: where it's kept, and what it was, to find it again. */
-export type MediaRef = { key: string; name: string; type: string; size: number }
+/**
+ * A piece of media a project uses: where it's kept, and what it was, to find
+ * it again. `fingerprint` (mediaFingerprint) is absent in projects saved
+ * before it existed.
+ */
+export type MediaRef = {
+	key: string
+	name: string
+	type: string
+	size: number
+	fingerprint?: string
+}
 
 type StoredBuffer = { sampleRate: number; channels: Float32Array[] }
 type StoredTake = Omit<ReplacementTake, 'audio'> & { audio: StoredBuffer }
@@ -53,18 +63,60 @@ export function mediaKey(file: { name: string; size: number; lastModified?: numb
 	return `${file.name}|${file.size}|${file.lastModified ?? 0}`
 }
 
-function refFor(file: Blob & { name?: string; lastModified?: number }, name: string): MediaRef {
+/** How much of each end of a file its fingerprint reads. */
+const FINGERPRINT_END_BYTES = 1024 * 1024
+// Fingerprinted once per file: an autosave after each change doesn't read it again.
+const fingerprints = new WeakMap<Blob, Promise<string>>()
+
+/**
+ * What tells one file from another of the same name and size: a SHA-256 of
+ * its size, its first megabyte and its last. Reads at most 2 MB, whatever
+ * the file's length.
+ */
+export function mediaFingerprint(file: Blob): Promise<string> {
+	const known = fingerprints.get(file)
+	if (known) return known
+	const size = new TextEncoder().encode(String(file.size))
+	const ends =
+		file.size <= FINGERPRINT_END_BYTES * 2
+			? [file]
+			: [file.slice(0, FINGERPRINT_END_BYTES), file.slice(file.size - FINGERPRINT_END_BYTES)]
+	const hashing = new Blob([size, ...ends])
+		.arrayBuffer()
+		.then((bytes) => crypto.subtle.digest('SHA-256', bytes))
+		.then((digest) =>
+			Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
+		)
+	fingerprints.set(file, hashing)
+	return hashing
+}
+
+async function refFor(
+	file: Blob & { name?: string; lastModified?: number },
+	name: string
+): Promise<MediaRef> {
 	return {
 		key: mediaKey({ name, size: file.size, lastModified: file.lastModified }),
 		name,
 		type: file.type,
-		size: file.size
+		size: file.size,
+		fingerprint: await mediaFingerprint(file)
 	}
 }
 
-/** Whether a file picked to stand in for missing media is the same one: its name and size. */
-export function fileMatches(ref: MediaRef, file: { name: string; size: number }): boolean {
-	return file.name === ref.name && file.size === ref.size
+/**
+ * Whether a file picked to stand in for missing media is the same one: its
+ * name and size, and its fingerprint when the project saved one (older
+ * projects have only the name and size to go on).
+ */
+export async function fileMatches(ref: MediaRef, file: File): Promise<boolean> {
+	if (file.name !== ref.name || file.size !== ref.size) return false
+	return ref.fingerprint === undefined || (await mediaFingerprint(file)) === ref.fingerprint
+}
+
+/** Whether a save failed because the browser's storage for this site is full. */
+export function isStorageFull(error: unknown): boolean {
+	return error instanceof DOMException && error.name === 'QuotaExceededError'
 }
 
 /**
@@ -93,6 +145,18 @@ function request<T>(req: IDBRequest<T>): Promise<T> {
 	})
 }
 
+/**
+ * Settles when `tx` has committed, or fails with why it was aborted: a
+ * write's request can succeed and the transaction still be aborted when it
+ * commits (the browser's storage being full, for one).
+ */
+function committed(tx: IDBTransaction): Promise<void> {
+	return new Promise((resolve, reject) => {
+		tx.oncomplete = () => resolve()
+		tx.onabort = () => reject(tx.error ?? new DOMException('The save was aborted', 'AbortError'))
+	})
+}
+
 function open(): Promise<IDBDatabase> {
 	const req = indexedDB.open(DATABASE, 1)
 	req.onupgradeneeded = () => {
@@ -109,16 +173,12 @@ async function withStore<T>(
 ): Promise<T> {
 	const db = await open()
 	try {
-		return await request(run(db.transaction(name, mode).objectStore(name)))
+		const tx = db.transaction(name, mode)
+		const [result] = await Promise.all([request(run(tx.objectStore(name))), committed(tx)])
+		return result
 	} finally {
 		db.close()
 	}
-}
-
-/** Keeps a piece of media unless it's kept already (a video is written once, on first save). */
-async function keepMedia(ref: MediaRef, blob: Blob) {
-	const kept = await withStore(MEDIA, 'readonly', (store) => store.count(ref.key))
-	if (kept === 0) await withStore(MEDIA, 'readwrite', (store) => store.put(blob, ref.key))
 }
 
 function storeBuffer(buffer: AudioBuffer): StoredBuffer {
@@ -156,19 +216,23 @@ export async function saveProject(project: {
 	edit: EditSnapshot
 }): Promise<number> {
 	const { edit } = project
-	const main = refFor(project.main, project.main.name)
-	await keepMedia(main, project.main)
+	// Every file the project uses, each kept once (a video is written on first save only).
+	const files: { ref: MediaRef; blob: Blob }[] = []
+	const keep = async (blob: Blob & { lastModified?: number }, name: string) => {
+		const ref = await refFor(blob, name)
+		files.push({ ref, blob })
+		return ref
+	}
+	const main = await keep(project.main, project.main.name)
 	const addedVideos: StoredAdded[] = []
 	for (const added of edit.addedVideos) {
-		const media = refFor(added.file, added.file.name)
-		await keepMedia(media, added.file)
 		addedVideos.push({
 			id: added.id,
 			name: added.name,
 			durationSeconds: added.durationSeconds,
 			width: added.width,
 			height: added.height,
-			media
+			media: await keep(added.file, added.file.name)
 		})
 	}
 	const audioItems: StoredAudioItem[] = []
@@ -185,9 +249,10 @@ export async function saveProject(project: {
 			muted: item.muted
 		}
 		if (origin.kind === 'file') {
-			const media = refFor(origin.file, item.name)
-			await keepMedia(media, origin.file)
-			audioItems.push({ ...rest, origin: { kind: 'file', media } })
+			audioItems.push({
+				...rest,
+				origin: { kind: 'file', media: await keep(origin.file, item.name) }
+			})
 		} else {
 			audioItems.push({ ...rest, origin })
 		}
@@ -206,12 +271,27 @@ export async function saveProject(project: {
 			addedVideos
 		}
 	}
-	await withStore(PROJECTS, 'readwrite', (store) => store.put(stored))
+	// The media and the project in one transaction: saved together once it
+	// commits, or not at all, so a failed save leaves no media behind.
+	const db = await open()
+	try {
+		const tx = db.transaction([MEDIA, PROJECTS], 'readwrite')
+		const media = tx.objectStore(MEDIA)
+		for (const { ref, blob } of files) {
+			const kept = media.count(ref.key)
+			kept.onsuccess = () => {
+				if (kept.result === 0) media.put(blob, ref.key)
+			}
+		}
+		tx.objectStore(PROJECTS).put(stored)
+		await committed(tx)
+	} finally {
+		db.close()
+	}
 	void navigator.storage?.persist?.()
 	return stored.savedAt
 }
 
-/** The saved projects, most recent first. */
 export async function listProjects(): Promise<ProjectSummary[]> {
 	const all = await withStore<StoredProject[]>(PROJECTS, 'readonly', (store) => store.getAll())
 	return all
@@ -242,7 +322,7 @@ export async function missingMedia(id: string): Promise<MediaRef[]> {
 
 /** A file picked to stand in for missing media, kept under its key once it matches. */
 export async function relinkMedia(ref: MediaRef, file: File): Promise<boolean> {
-	if (!fileMatches(ref, file)) return false
+	if (!(await fileMatches(ref, file))) return false
 	await withStore(MEDIA, 'readwrite', (store) => store.put(file, ref.key))
 	return true
 }
