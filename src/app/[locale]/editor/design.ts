@@ -49,14 +49,21 @@ export function cardRect(frame: Size, picture: Size): Rect {
 /** The captions' middle line, as a fraction of the frame's height: below the titles, above the card. */
 export const DESIGN_CAPTION_Y = 0.6
 
-/** How much a word grows as it's said, and how quickly it settles. */
+/** How much a word grows as it's said, how quickly it grows, and how quickly it settles. */
 const POP_SCALE = 0.3
+const POP_RISE_SECONDS = 0.05
 const POP_SECONDS = 0.18
 
-/** A caption word's size at `seconds`, said at `start`: popping up, then settling to 1. */
+/**
+ * A caption word's size at `seconds`, said at `start`: growing quickly,
+ * then settling to 1. It never jumps, so the words making room for it
+ * move smoothly.
+ */
 export function wordPop(start: number, seconds: number): number {
-	const p = Math.min(1, Math.max(0, (seconds - start) / POP_SECONDS))
-	return seconds < start ? 1 : 1 + POP_SCALE * (1 - p)
+	const into = seconds - start
+	if (into <= 0 || into >= POP_RISE_SECONDS + POP_SECONDS) return 1
+	if (into < POP_RISE_SECONDS) return 1 + POP_SCALE * (into / POP_RISE_SECONDS)
+	return 1 + POP_SCALE * (1 - (into - POP_RISE_SECONDS) / POP_SECONDS)
 }
 
 /** The progress bar along the bottom and the wave at the lower right, as fractions of the frame. */

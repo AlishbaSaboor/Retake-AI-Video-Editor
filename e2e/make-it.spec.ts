@@ -4,6 +4,7 @@ import type { MakeReply } from '../src/app/[locale]/(app)/make/make-plan'
 import { openTool, recordTestVideo, seekTo, w } from './editor-helpers'
 import { exportVideo, readExportFrames, readToneLevels } from './export-frames'
 import { makeReply, mockMakeActions, NOTHING_TO_FIX } from './make-helpers'
+import { recordTextBoxes, textBoxReport } from './text-boxes'
 
 // Make it: a video and a request in, a whole edit planned, shown, and
 // applied in the editor. The transcript and Gemini's replies are canned
@@ -1345,4 +1346,123 @@ test('a screen recording: the whole screen by default, designed with no picture 
 	await makeGreen(page, 'make a promo reel of this')
 	const unknown = await exportedFrame(page, 'unknown')
 	await expectWholeScreen(page, unknown.png, 9 / 16, 'unknown label')
+})
+
+test('a brief part the user never gave is shown as chosen for them, not as their brief', async ({
+	page
+}) => {
+	// Gemini fills a tone in whether or not anyone gave one.
+	const energetic = reply({ brief: { ...reply().brief, tone: 'energetic' } })
+	await mockMakeActions(page, WORDS, [energetic])
+	await startMaking(page, 'make a promo ad')
+	await expect(plan(page)).toContainText('Chosen for a promo: energetic tone', { timeout: 60_000 })
+	await expect(plan(page)).not.toContainText('From your brief')
+
+	await mockMakeActions(page, WORDS, [energetic])
+	await startMaking(page, 'make it energetic')
+	await expect(plan(page)).toContainText('From your brief: energetic tone', { timeout: 60_000 })
+	await expect(plan(page)).not.toContainText('Chosen for')
+})
+
+// Five sentences, the first one full caption line of long words; a short pause between each.
+const TALK_TONE: Array<[number, boolean]> = [
+	[0.95, true],
+	[0.45, false],
+	[1.6, true],
+	[0.5, false],
+	[1.6, true],
+	[0.5, false],
+	[1.6, true],
+	[0.5, false],
+	[1.6, true]
+]
+const TALK_WORDS = [
+	w('Remarkably', 0.05, 0.4),
+	w('good', 0.4, 0.6),
+	w('results.', 0.6, 0.9),
+	w('This', 1.4, 1.7),
+	w('is', 1.7, 1.9),
+	w('the', 1.9, 2.1),
+	w('key', 2.1, 2.5),
+	w('point.', 2.5, 3),
+	w('Here', 3.5, 3.9),
+	w('is', 3.9, 4.2),
+	w('another', 4.2, 4.7),
+	w('one.', 4.7, 5.1),
+	w('We', 5.6, 5.9),
+	w('love', 5.9, 6.3),
+	w('how', 6.3, 6.6),
+	w('it', 6.6, 6.9),
+	w('works.', 6.9, 7.2),
+	w('Try', 7.7, 8.1),
+	w('it', 8.1, 8.4),
+	w('free', 8.4, 8.8),
+	w('today.', 8.8, 9.3)
+]
+
+test("a designed promo's text never overlaps, in every shape: popping words make room inside the margins, cards sit clear of the captions", async ({
+	page
+}) => {
+	test.setTimeout(480_000)
+	await recordTextBoxes(page)
+	// A screen recording made a designed ad: a long title, a key line and a
+	// call to action over large captions, popping each word.
+	const ad = (shape: MakeReply['shape']) =>
+		reply({
+			style: 'ad',
+			format: 'other',
+			subject: 'screen',
+			pictureMatters: false,
+			faces: [],
+			zoomSentences: [],
+			captions: 'large',
+			fit: 'bars',
+			shape,
+			title: 'Remarkably good results for every single team here',
+			keyLines: [{ sentence: 3, text: 'Here is another one' }],
+			brief: { ...reply().brief, callToAction: 'Try it free today' }
+		})
+	const shapes: Array<[string, MakeReply['shape'], [number, number]]> = [
+		['9:16', 'vertical', [180, 320]],
+		['1:1', 'square', [320, 320]],
+		['4:5', 'portrait', [256, 320]],
+		['16:9', 'horizontal', [320, 180]]
+	]
+	for (const [label, shape, size] of shapes) {
+		await mockMakeActions(page, TALK_WORDS, [ad(shape)])
+		await page.goto('/make')
+		const video = await recordTestVideo(page, TALK_TONE, 0, GREEN_SOURCE, GREEN)
+		await page
+			.getByLabel('Video to make into something')
+			.setInputFiles({ name: 'screen.webm', mimeType: 'video/webm', buffer: video })
+		await page.getByRole('textbox', { name: 'What should it become?' }).fill('make a promo ad')
+		await page.getByRole('button', { name: 'Make it', exact: true }).click()
+		await expect(plan(page)).toContainText('designed around what’s said', { timeout: 60_000 })
+		await applyAndEditManually(page)
+		await expect(page.getByRole('button', { name: 'Export video' })).toBeEnabled({
+			timeout: 30_000
+		})
+		const bytes = await exportVideo(page)
+		const report = await textBoxReport(page)
+		// Every frame drawn, the preview's and the export's: nothing overlapping, nothing past the margins.
+		expect.soft(report.problems, label).toEqual([])
+		// And what was checked was there: captions, cards, both at once, and words popping.
+		expect.soft(report.frames, `${label}: frames checked`).toBeGreaterThan(100)
+		expect.soft(report.withBoth, `${label}: a card over captions`).toBeGreaterThan(0)
+		expect.soft(report.popped, `${label}: words popping`).toBeGreaterThan(0)
+		// The full-width first line popping, the title over it, the key line, the call to action.
+		const { videoWidth, videoHeight, frames } = await readExportFrames(
+			page,
+			bytes,
+			[0.5, 2.2, 4.2, 8.5],
+			({ context }) => ({ png: context.canvas.toDataURL('image/png') })
+		)
+		expect.soft([videoWidth, videoHeight], label).toEqual(size)
+		if (process.env.SHOT_DIR) {
+			for (const frame of frames) {
+				const png = Buffer.from(String(frame.png).split(',')[1] ?? '', 'base64')
+				await writeFile(`${process.env.SHOT_DIR}/${label.replace(':', 'x')}-${frame.at}s.png`, png)
+			}
+		}
+	}
 })

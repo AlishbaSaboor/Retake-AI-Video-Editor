@@ -180,6 +180,93 @@ export const CAPTION_BOTTOM_FRACTION = 0.06
 export const CAPTION_LINE_SCALE = 1.4
 /** Space either side of a caption line's text, as a multiple of the text height. */
 export const CAPTION_PADDING_SCALE = 0.3
+/** The frame's safe margin on each side, as a fraction of its width (or height): captions and cards stay inside it. */
+export const SAFE_MARGIN_FRACTION = 0.05
+
+/**
+ * A caption's text height: `base`, or smaller when its widest line
+ * (`widest` wide at `base`), with its band's padding, would pass the
+ * safe margins of a frame `frameWidth` wide.
+ */
+export function captionFontPixels(base: number, widest: number, frameWidth: number): number {
+	const room = frameWidth * (1 - 2 * SAFE_MARGIN_FRACTION)
+	return Math.min(base, room / (widest / base + 2 * CAPTION_PADDING_SCALE))
+}
+
+/**
+ * A caption line's words laid out, each `widths[i]` wide at rest and drawn
+ * at `pops[i]` its size, the words beside it making room. Their growth is
+ * cut back evenly so the line stays within `maxWidth` (none, when it is
+ * already that wide). Each word's left edge (from the line's), its scale,
+ * and the line's width.
+ */
+export function popLayout(
+	widths: readonly number[],
+	space: number,
+	pops: readonly number[],
+	maxWidth: number
+): { lefts: number[]; scales: number[]; width: number } {
+	const rest = widths.reduce((sum, width) => sum + width, 0) + space * (widths.length - 1)
+	const growth = widths.reduce((sum, width, i) => sum + width * ((pops[i] ?? 1) - 1), 0)
+	const room = Math.max(0, maxWidth - rest)
+	const share = growth > room ? room / growth : 1
+	const scales = widths.map((_, i) => 1 + ((pops[i] ?? 1) - 1) * share)
+	const lefts: number[] = []
+	let left = 0
+	for (const [i, width] of widths.entries()) {
+		lefts.push(left)
+		left += width * (scales[i] ?? 1) + space
+	}
+	return { lefts, scales, width: rest + growth * share }
+}
+
+/** Room under a designed frame's card, of its text height: for words rising in, and a pop's overshoot. */
+const CARD_ROOM_BELOW = 0.5
+/** Each step smaller a card takes, when it doesn't fit. */
+const CARD_SHRINK = 0.9
+
+/** Where a designed frame's text card goes: its text height, lines, and middle (px); `fits`: clear of the captions. */
+export type CardLayout = { fontPixels: number; lines: string[]; y: number; fits: boolean }
+
+/**
+ * A designed frame's text card (the title, a key line, the call to action):
+ * as near `preferredY` (of the frame's height) as it can be, inside the
+ * safe margins and above the captions, whose top is `captionTop` (px; null
+ * with no captions). Too tall at its own size, it's made smaller, down to
+ * `minFontPixels`; still too tall, `fits` is false and the captions wait
+ * while it shows. `measure` gives text's width at a text height.
+ */
+export function designedCardLayout(
+	text: string,
+	frame: { width: number; height: number },
+	preferredY: number,
+	fontPixels: number,
+	minFontPixels: number,
+	captionTop: number | null,
+	measure: (text: string, fontPixels: number) => number
+): CardLayout {
+	const top = frame.height * SAFE_MARGIN_FRACTION
+	const floor = frame.height * (1 - SAFE_MARGIN_FRACTION)
+	const want = preferredY * frame.height
+	let px = fontPixels
+	for (;;) {
+		const pad = px * TITLE_CARD_PADDING
+		const maxWidth = frame.width * TITLE_MAX_WIDTH_FRACTION - pad * 2
+		const lines = cardLines(text, maxWidth, (line) => measure(line, px))
+		const half = (lines.length * TITLE_CARD_LINE + TITLE_CARD_INSET * 2) * px * 0.5
+		const bottom = (captionTop ?? floor) - px * CARD_ROOM_BELOW
+		if (bottom - top >= half * 2) {
+			return { fontPixels: px, lines, y: clampTo(want, top + half, bottom - half), fits: true }
+		}
+		if (px <= minFontPixels) {
+			return { fontPixels: px, lines, y: clampTo(want, top + half, floor - half), fits: false }
+		}
+		px = Math.max(minFontPixels, px * CARD_SHRINK)
+	}
+}
+
+/** `value` within `min` to `max`; `min` when they cross. */
+const clampTo = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
 /** The watermark's width, and its distance from the edges, as fractions of the picture's width. */
 export const WATERMARK_WIDTH_FRACTION = 0.15
 const WATERMARK_MARGIN_FRACTION = 0.03
@@ -698,62 +785,111 @@ function drawFrameOverlays(
 ) {
 	const { width, height } = context.canvas
 	const shorter = Math.min(width, height)
-	const { title, watermark, captions, captionStyle } = overlays
-	const caption = captionAt(captions, seconds)
+	const { title, watermark, captions, captionStyle, designed } = overlays
+	const captionBase = shorter * CAPTION_FONT_FRACTION * captionStyle.size
+	// A designed frame's cards sit above the captions (two lines at their
+	// full size); one that can't fit there has the captions wait for it.
+	const cards = [title, ...(overlays.autoTitles ?? [])].flatMap((card) =>
+		card && titleShownAt(card, seconds) ? [card] : []
+	)
+	const captionTop =
+		captions.length > 0 ? height * DESIGN_CAPTION_Y - captionBase * CAPTION_LINE_SCALE : null
+	const layouts = cards.map((card) => {
+		if (!designed) return null
+		const style = card.style ?? DEFAULT_TEXT_STYLE
+		return designedCardLayout(
+			card.text,
+			{ width, height },
+			titleCentre(card).y,
+			Math.round(shorter * TITLE_FONT_FRACTION * style.size),
+			captionBase,
+			captionTop,
+			(text, px) => {
+				context.font = canvasFont(style, px)
+				return context.measureText(text).width
+			}
+		)
+	})
+	const caption = layouts.some((layout) => layout?.fits === false)
+		? undefined
+		: captionAt(captions, seconds)
 	if (caption) {
-		const fontPixels = Math.round(shorter * CAPTION_FONT_FRACTION * captionStyle.size)
+		// Smaller when its widest line, measured word by word as it's laid
+		// out, would pass the safe margins: rounded down then, as canvasFont
+		// rounds sizes and rounding up would put it past them.
+		const base = Math.round(captionBase)
+		context.font = canvasFont(captionStyle, base)
+		const baseSpace = context.measureText(' ').width
+		const widest = Math.max(
+			...caption.lines.map((line) =>
+				line
+					.split(' ')
+					.reduce((sum, word) => sum + context.measureText(word).width + baseSpace, -baseSpace)
+			)
+		)
+		const fitted = captionFontPixels(base, widest, width)
+		const fontPixels = fitted < base ? Math.floor(fitted) : base
 		const lineHeight = fontPixels * CAPTION_LINE_SCALE
 		const padding = fontPixels * CAPTION_PADDING_SCALE
+		const maxWidth = width * (1 - 2 * SAFE_MARGIN_FRACTION) - padding * 2
 		context.font = canvasFont(captionStyle, fontPixels)
 		context.textAlign = 'center'
 		context.textBaseline = 'middle'
-		const { designed } = overlays
 		const bottom = height * (1 - CAPTION_BOTTOM_FRACTION)
 		const said = saidWordAt(caption, seconds, Boolean(designed))
 		const spoken = said?.index ?? null
 		const highlight =
 			overlays.captionMode === 'highlight' ? highlightColor(captionStyle.color) : captionStyle.color
-		const pop = said && designed ? wordPop(said.start, seconds) : 1
+		// In a designed frame each word pops as it's said (a one-word caption at its own start).
+		const starts = designed ? (caption.spoken ?? (said ? [said.start] : [])) : []
+		const space = context.measureText(' ').width
 		// Words counted across the lines, for which one is being said.
 		let wordIndex = 0
 		for (const [index, line] of caption.lines.entries()) {
 			const middle = designed
 				? height * DESIGN_CAPTION_Y + (index - (caption.lines.length - 1) / 2) * lineHeight
 				: bottom - (caption.lines.length - index - 0.5) * lineHeight
-			const textWidth = context.measureText(line).width
-			const lineWidth = textWidth + padding * 2
+			const words = line.split(' ')
+			const widths = words.map((word) => context.measureText(word).width)
+			const pops = words.map((_, i) => {
+				const start = starts[wordIndex + i]
+				return start === undefined ? 1 : wordPop(start, seconds)
+			})
+			const laid = popLayout(widths, space, pops, maxWidth)
+			const lineWidth = laid.width + padding * 2
 			if (captionStyle.background) {
 				context.fillStyle = bandColor(captionStyle.background)
 				context.fillRect((width - lineWidth) / 2, middle - lineHeight / 2, lineWidth, lineHeight)
 			}
 			context.fillStyle = captionStyle.color
-			if (spoken === null) {
+			if (spoken === null && laid.scales.every((scale) => scale === 1)) {
 				context.fillText(line, width / 2, middle)
+				wordIndex += words.length
 				continue
 			}
-			// Word by word from the line's left edge, the one being said in its colour.
+			// Word by word from the line's left edge, the one being said in its
+			// colour, each grown about its own middle as it pops.
 			context.textAlign = 'left'
-			let left = (width - textWidth) / 2
-			for (const word of line.split(' ')) {
-				const isSaid = wordIndex === spoken
-				context.fillStyle = isSaid ? highlight : captionStyle.color
-				if (isSaid && pop !== 1) {
-					// Grown about its own middle.
-					const half = context.measureText(word).width / 2
+			const left = (width - laid.width) / 2
+			for (const [i, word] of words.entries()) {
+				const scale = laid.scales[i] ?? 1
+				const wordLeft = left + (laid.lefts[i] ?? 0)
+				context.fillStyle = wordIndex === spoken ? highlight : captionStyle.color
+				if (scale !== 1) {
+					const half = (widths[i] ?? 0) / 2
 					context.save()
-					context.translate(left + half, middle)
-					context.scale(pop, pop)
+					context.translate(wordLeft + half * scale, middle)
+					context.scale(scale, scale)
 					context.fillText(word, -half, 0)
 					context.restore()
-				} else context.fillText(word, left, middle)
-				left += context.measureText(`${word} `).width
+				} else context.fillText(word, wordLeft, middle)
 				wordIndex++
 			}
 			context.textAlign = 'center'
 		}
 	}
-	for (const card of [title, ...(overlays.autoTitles ?? [])]) {
-		if (card) drawTitle(context, card, seconds, Boolean(overlays.designed))
+	for (const [index, card] of cards.entries()) {
+		drawTitle(context, card, seconds, layouts[index] ?? null)
 	}
 	if (overlays.lowerThird) drawLowerThird(context, overlays.lowerThird, seconds)
 	if (watermark && logo) {
@@ -766,12 +902,15 @@ function drawFrameOverlays(
 	}
 }
 
-/** A title card (the title, or a key line), while it's on screen, with its band and motion. */
+/**
+ * A title card (the title, or a key line), while it's on screen, with its
+ * band and motion; in a designed frame, a card as `layout` places it.
+ */
 function drawTitle(
 	context: CanvasRenderingContext2D,
 	title: TitleCard,
 	seconds: number,
-	asCard: boolean
+	layout: CardLayout | null
 ) {
 	const { width, height } = context.canvas
 	const shorter = Math.min(width, height)
@@ -783,20 +922,18 @@ function drawTitle(
 	)
 	if (titleMotion) {
 		const style = title.style ?? DEFAULT_TEXT_STYLE
-		const fontPixels = Math.round(shorter * TITLE_FONT_FRACTION * style.size)
+		const fontPixels = layout?.fontPixels ?? Math.round(shorter * TITLE_FONT_FRACTION * style.size)
 		const band = fontPixels * TITLE_BAND_SCALE
-		const centre = titleCentre(title)
-		const x = centre.x * width
-		const y = centre.y * height
+		const x = titleCentre(title).x * width
+		const y = layout?.y ?? titleCentre(title).y * height
 		context.save()
 		applyMotion(context, titleMotion, { x: width, y: height }, { x, y })
 		context.font = canvasFont(style, fontPixels)
-		if (asCard) {
-			// In a designed frame: a rounded card just around the words, wrapped
-			// to fit the frame, its lines centred on the title's place.
+		if (layout) {
+			// A rounded card just around the words, its lines centred on its place.
+			const { lines } = layout
 			const pad = fontPixels * TITLE_CARD_PADDING
 			const maxWidth = width * TITLE_MAX_WIDTH_FRACTION - pad * 2
-			const lines = cardLines(title.text, maxWidth, (text) => context.measureText(text).width)
 			const lineHeight = fontPixels * TITLE_CARD_LINE
 			const cardHeight = lines.length * lineHeight + fontPixels * TITLE_CARD_INSET * 2
 			const textWidth = Math.min(

@@ -1827,6 +1827,7 @@
 			},
 			"brief": {
 				"used": "From your brief: {parts}",
+				"chosen": "Chosen for {for, select, promo {a promo} other {you}}: {parts}",
 				"audience": "for {text}",
 				"tone": "{text} tone",
 				"length": "at most {seconds} s",

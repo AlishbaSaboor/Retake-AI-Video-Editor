@@ -50,6 +50,7 @@ import {
 	describePlan,
 	PAGE_GRACE_MS,
 	PLAN_TIMEOUT_MS,
+	type BriefPart,
 	type CheckReply,
 	type MakeAnswer,
 	type MakeReply,
@@ -737,18 +738,33 @@ function PlanView({
 				]
 		}
 	}
-	// The parts of a brief the plan used, each in the request's own words.
-	const brief = [
-		...(summary.brief.audience ? [t('brief.audience', { text: summary.brief.audience })] : []),
-		...(summary.brief.tone ? [t('brief.tone', { text: summary.brief.tone })] : []),
-		...(summary.brief.lengthSeconds !== null
-			? [t('brief.length', { seconds: Math.round(summary.brief.lengthSeconds) })]
+	// The parts of a brief the plan used: those the user's words gave, and those it chose.
+	const { brief: parts } = summary
+	const briefParts: { part: BriefPart; text: string }[] = [
+		...(parts.audience
+			? [{ part: 'audience' as const, text: t('brief.audience', { text: parts.audience }) }]
 			: []),
-		...(summary.brief.show ? [t('brief.show', { text: summary.brief.show })] : []),
-		...(summary.brief.callToAction
-			? [t('brief.callToAction', { text: summary.brief.callToAction })]
+		...(parts.tone ? [{ part: 'tone' as const, text: t('brief.tone', { text: parts.tone }) }] : []),
+		...(parts.lengthSeconds !== null
+			? [
+					{
+						part: 'lengthSeconds' as const,
+						text: t('brief.length', { seconds: Math.round(parts.lengthSeconds) })
+					}
+				]
+			: []),
+		...(parts.show ? [{ part: 'show' as const, text: t('brief.show', { text: parts.show }) }] : []),
+		...(parts.callToAction
+			? [
+					{
+						part: 'callToAction' as const,
+						text: t('brief.callToAction', { text: parts.callToAction })
+					}
+				]
 			: [])
 	]
+	const briefSaid = briefParts.filter(({ part }) => parts.said[part]).map(({ text }) => text)
+	const briefChosen = briefParts.filter(({ part }) => !parts.said[part]).map(({ text }) => text)
 	// Each line of the plan, under the row of the plan card it belongs to; the
 	// lines themselves are the same words as ever.
 	const entries: { row: PlanRow | 'note'; text: string }[] = [
@@ -816,8 +832,16 @@ function PlanView({
 			: []),
 		...(summary.titleDropped ? [{ row: 'screen' as const, text: t('titleDropped') }] : []),
 		...(summary.pictureMatters ? [] : [{ row: 'note' as const, text: t('speechOnly') }]),
-		...(brief.length > 0
-			? [{ row: 'note' as const, text: t('brief.used', { parts: brief.join(' · ') }) }]
+		...(briefSaid.length > 0
+			? [{ row: 'note' as const, text: t('brief.used', { parts: briefSaid.join(' · ') }) }]
+			: []),
+		...(briefChosen.length > 0
+			? [
+					{
+						row: 'note' as const,
+						text: t('brief.chosen', { for: parts.chosenFor, parts: briefChosen.join(' · ') })
+					}
+				]
 			: [])
 	]
 	const shortNote = summary.short ? t(`short.${summary.short}`, { length }) : null

@@ -7,6 +7,12 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-10.
+> - **Make it: an honest brief, and designed text that never overlaps**
+>   (section 3zt): a brief part is "From your brief" only in the user's own
+>   words, else "Chosen for a promo / for you"; a popping caption word's
+>   neighbours make room inside the safe margins; a designed frame's title,
+>   key lines and call to action sit above the captions, smaller to fit, or
+>   the captions wait.
 > - **Make it: the user's words decide a screen recording's treatment**
 >   (section 3zs): Gemini's filled-in `treatment` and `fitAsked` count only
 >   when the request (or a follow-up) really asks; the plan card says "As
@@ -2954,6 +2960,58 @@ fill`. So Gemini doesn't call it a screen, and 3zo only excluded the label
   ignored, an unknown value ignored, close variants, fit words); fails
   with Gemini deciding. e2e: the treatments test with the new reasons.
 
+## 3zt. Make it: an honest brief, and designed text that never overlaps (2026-10-10)
+
+- **Found in a real run** (approved) of the owner's 4:41 recording with
+  "make a promo ad" on main: the plan and export were right, but the card
+  said "From your brief: energetic tone" (Gemini's `brief.tone`, not the
+  user's), the popping caption word overlapped its neighbours, and the
+  title overlapped the captions. The reply is kept as
+  `e2e/fixtures/real-run3-reply.json`.
+- **Brief (owner's decision):** like the treatment (3zs), a part is the
+  user's only when every word of it is in the request or a follow-up
+  (`saidInBrief`; a length when they give one in numbers). The rest still
+  show, as "Chosen for a promo: …" for a promo's wording, else "Chosen for
+  you: …" (`summary.brief.said`, `chosenFor`).
+- **Pop (cause):** the said word was drawn 1.3× about its own middle while
+  its neighbours stayed put, so it ran into them. **Fix (owner's choice):**
+  each word pops on its own (`wordPop` now rises over 0.05 s, so nothing
+  jumps) and the line is laid out at the words' popped widths
+  (`popLayout`): the neighbours slide apart and back. The growth is cut back
+  so the line stays inside a 5% safe margin each side; a line already at
+  its widest pops less.
+- **Also found:** captions were wrapped by characters, never by width, so
+  a full line of large captions ran off a 9:16 (or 1:1, 4:5) frame's edges.
+  A line that would pass the margins is now drawn smaller to fit
+  (`captionFontPixels`); captions in a vertical designed reel can be
+  smaller than before.
+- **Title (cause):** in a designed frame of the video's own shape the title
+  sat 40% down at 1.25× and wrapped into the captions at 60%, for its whole
+  3 s, not just the fade. Key lines and the call to action could do the
+  same. **Fix (owner's choice):** every designed card is laid out between
+  the top margin and the captions' top (two lines at full size), with room
+  for its entrance (`designedCardLayout`); too tall, it's made smaller, down
+  to the captions' size; still too tall, the captions wait while it shows.
+  With large captions that happens in 1:1 for the owner's title ("Fathom AI
+  meeting notetaker") and in 1:1 and 4:5 for a long one; 9:16 and 16:9 fit.
+- Tests: unit (the brief with run 3's real reply: "make a promo ad" chosen
+  for a promo, "make it energetic" the user's, follow-ups, every word,
+  audience, show, length; the pop curve never jumps; `popLayout` never
+  overlaps, moves no faster than a word grows, a full line pops less;
+  `captionFontPixels` inside the margins in each shape; `designedCardLayout`
+  per shape and title, and the captions waiting). e2e: the plan card's two
+  labels; and a designed promo exported in 9:16, 1:1, 4:5 and 16:9 with
+  every drawn frame checked through its canvas calls (`e2e/text-boxes.ts`):
+  no text overlapping, no caption past the margins, no caption into a card.
+  It fails on main's drawing code (pops into neighbours, lines past the
+  edges, title into captions).
+- **The owner's recording** (cached transcript, run 3's real plan and check
+  through the fake AI, no paid call), exported 16:9 and 9:16: every frame
+  checked the same way, 6,204 and 6,258 frames, no problem; the title and
+  captions both show for the first 3 s; 3,499 and 3,548 frames with a word
+  popping; both exports 3:11.38 for a 3:11 plan ("Export finished"). The
+  card says "Chosen for a promo: energetic tone".
+
 ---
 
 ## 4. Unresolved issues
@@ -3481,6 +3539,15 @@ Not changed.
   `re-record-by-ear.spec.ts:27` failed (an element not found in time) with
   four tests at once and passed run alone; that change touches no
   re-record code.
+
+- 2026-10-10, the brief-and-overlaps branch, local full run on a production
+  build (~2.3 GB free): `projects.spec.ts:465` (save and open as commands)
+  failed once with `route.fetch: read ECONNRESET` (the server dropped a
+  request under four workers) and passed on a rerun; that change touches
+  no projects code. In the second full run the machine's network dropped
+  (`net::ERR_NETWORK_IO_SUSPENDED`): `projects.spec.ts:371` and the new
+  `make-it.spec.ts:1403` failed on a page load, and `multi-video.spec.ts:239`
+  got a 2.0 s recording for 3 s; all three passed on a rerun.
 
 ### 4d. Low memory on this machine (observed 2026-10-02)
 

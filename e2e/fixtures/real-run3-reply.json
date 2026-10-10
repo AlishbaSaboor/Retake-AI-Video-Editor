@@ -1,0 +1,53 @@
+{
+	"questions": [],
+	"style": "ad",
+	"format": "other",
+	"subject": "screen",
+	"summary": "Shortened to a punchy promotional ad by highlighting the app introduction, key features, and AI meeting summary capabilities while cutting repetitive explanation and loading pauses.",
+	"pictureMatters": false,
+	"moments": [
+		{
+			"first": 4,
+			"last": 6
+		},
+		{
+			"first": 40,
+			"last": 43
+		}
+	],
+	"removeSentences": [
+		1, 2, 3, 18, 19, 22, 23, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 64, 65, 66, 67,
+		68, 69, 70, 78, 79
+	],
+	"removeSpans": [],
+	"captions": "large",
+	"zoomSentences": [4, 40],
+	"transition": "slide",
+	"keyLines": [
+		{
+			"sentence": 4,
+			"text": "Fathom AI notetaker"
+		},
+		{
+			"sentence": 40,
+			"text": "Executive summary and action items"
+		}
+	],
+	"shape": "original",
+	"fit": "bars",
+	"fitAsked": false,
+	"treatment": "whole",
+	"maxSeconds": null,
+	"brief": {
+		"audience": null,
+		"tone": "energetic",
+		"length": null,
+		"show": null,
+		"callToAction": null
+	},
+	"faces": [],
+	"card": "corner",
+	"music": null,
+	"title": "Fathom AI meeting notetaker",
+	"cannotDo": []
+}
