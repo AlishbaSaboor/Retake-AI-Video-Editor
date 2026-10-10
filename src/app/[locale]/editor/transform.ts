@@ -24,9 +24,17 @@ export type CropKey = { seconds: number; x: number }
  * changes shape. `follow` (Make it's crop that follows a face) moves the
  * crop across the frame over the main video's own time, from key to key.
  * `fit`: the rect holds the whole frame, reaching past it where the shape
- * needs (black bars there), so nothing of the picture is cut off.
+ * needs (black bars there), so nothing of the picture is cut off. `blur`
+ * (with `fit`): those bars show a blurred, darkened copy of the picture
+ * filling the frame instead of black.
  */
-export type Crop = { rect: Rect; aspect: CropAspect; follow?: CropKey[]; fit?: true }
+export type Crop = {
+	rect: Rect
+	aspect: CropAspect
+	follow?: CropKey[]
+	fit?: true
+	blur?: true
+}
 
 export type PictureTransform = {
 	/** Degrees clockwise, in (-180, 180]. */
@@ -95,6 +103,31 @@ export function exportSize(picture: Size, transform: PictureTransform): Size {
 	const longest = Math.max(frame.width, frame.height)
 	const scale = Math.min(1, longest / Math.max(output.width, output.height))
 	return evenPixels({ width: output.width * scale, height: output.height * scale })
+}
+
+/**
+ * A blurred backdrop is the picture drawn this many pixels wide (its own
+ * shape), then stretched with smoothing to cover the frame: a blur that the
+ * preview (a canvas scaled by CSS) and the export (drawImage) draw alike.
+ */
+export const BLUR_SAMPLE_WIDTH = 16
+/** How much the backdrop is darkened, so the picture over it stands out. */
+export const BLUR_DIM = 0.35
+
+/** The small size a blurred backdrop samples `picture` at. */
+export function blurSampleSize(picture: Size): Size {
+	return {
+		width: BLUR_SAMPLE_WIDTH,
+		height: Math.max(1, Math.round((BLUR_SAMPLE_WIDTH * picture.height) / picture.width))
+	}
+}
+
+/** `inner` scaled to cover `outer`, centred (CSS object-fit: cover), in `outer`'s pixels. */
+export function coverRect(inner: Size, outer: Size): Rect {
+	const scale = Math.max(outer.width / inner.width, outer.height / inner.height)
+	const width = inner.width * scale
+	const height = inner.height * scale
+	return { x: (outer.width - width) / 2, y: (outer.height - height) / 2, width, height }
 }
 
 /** A canvas-sized version of a size: whole, even pixels (video encoders want even sizes), at least 2. */
@@ -221,7 +254,9 @@ export function refitCrop(crop: Crop | null, frame: Size): Crop | null {
 	const still: Crop = { rect: crop.rect, aspect: crop.aspect }
 	const ratio = aspectRatio(crop.aspect)
 	if (ratio === null) return still
-	if (crop.fit) return { ...still, rect: fittedCrop(ratio, frame), fit: true }
+	if (crop.fit) {
+		return { ...still, rect: fittedCrop(ratio, frame), fit: true, ...(crop.blur && { blur: true }) }
+	}
 	return { ...still, rect: centredCrop(ratio, frame) }
 }
 

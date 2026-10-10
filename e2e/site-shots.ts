@@ -94,7 +94,7 @@ const STYLES: Record<'reel' | 'funny' | 'professional' | 'ad', Partial<MakeReply
 		style: 'professional',
 		summary: 'A calm, wide cut with the filler words and the pause gone.',
 		captions: 'classic',
-		vertical: false,
+		shape: 'original',
 		zoomSentences: []
 	},
 	ad: {

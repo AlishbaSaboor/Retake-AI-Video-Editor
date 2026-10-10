@@ -107,7 +107,7 @@ test('a reel is planned, shown, applied as one undo step, and exported vertical 
 		'Checked against your request: nothing to fix.',
 		'1 zoom on key lines',
 		'No music: there are no tracks in public/music yet',
-		'Vertical 9:16, following the face'
+		'Vertical 9:16, zoomed in to follow the face; the edges are cut off'
 	]) {
 		await expect(plan(page)).toContainText(line)
 	}
@@ -183,7 +183,7 @@ test('an unclear request asks first; the plan says what it left out; Cancel chan
 			style: 'professional',
 			format: 'other',
 			captions: 'classic',
-			vertical: false,
+			shape: 'original',
 			zoomSentences: [],
 			title: 'Meet Jordan from the team',
 			cannotDo: ["Adding stock footage isn't something Retake can do."]
@@ -248,7 +248,7 @@ test('the music picked plays under the whole edit, turned down while someone spe
 	await mockMakeActions(
 		page,
 		WORDS,
-		[reply({ music: 'tone.wav', vertical: false, zoomSentences: [], captions: 'off' })],
+		[reply({ music: 'tone.wav', shape: 'original', zoomSentences: [], captions: 'off' })],
 		['tone.wav']
 	)
 	await page.route('**/music/tone.wav', (route) =>
@@ -397,10 +397,9 @@ test('a screen recording made vertical keeps all of its picture, with black bars
 		reply({ subject: 'screen', pictureMatters: true, zoomSentences: [] })
 	])
 	await startMaking(page, 'make this an Instagram reel')
-	await expect(plan(page)).toContainText(
-		'Vertical 9:16, the whole picture kept, with black bars above and below',
-		{ timeout: 60_000 }
-	)
+	await expect(plan(page)).toContainText('Vertical 9:16, the whole picture with black bars', {
+		timeout: 60_000
+	})
 	expect(seen.plans).toHaveLength(1)
 	await applyAndEditManually(page)
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
@@ -601,7 +600,7 @@ test("the plan's summary shows whole, with the edit's real length; a check's too
 	const seen = await mockMakeActions(
 		page,
 		WORDS,
-		[reply({ format: 'other', style: 'professional', vertical: false, summary })],
+		[reply({ format: 'other', style: 'professional', shape: 'original', summary })],
 		[],
 		[{ ...NOTHING_TO_FIX, tooShort: true }]
 	)
@@ -711,7 +710,7 @@ const REGIONS: Record<string, Region> = {
 }
 
 /** Each region's average red, green and blue in an image (PNG bytes), read in the page. */
-async function regionColours(page: Page, png: Buffer) {
+async function regionColours(page: Page, png: Buffer, regions: Record<string, Region> = REGIONS) {
 	return page.evaluate(
 		async ({ bytes, regions }) => {
 			const image = await createImageBitmap(
@@ -740,7 +739,7 @@ async function regionColours(page: Page, png: Buffer) {
 				})
 			) as Record<string, number[]>
 		},
-		{ bytes: [...png], regions: REGIONS }
+		{ bytes: [...png], regions }
 	)
 }
 
@@ -830,7 +829,7 @@ test('the plan comes beside the video; Apply opens the edited video with only th
 	await expect(page.getByRole('tab', { name: 'Text & logo' })).toBeHidden()
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toHaveCount(0)
 	await expect(page.getByRole('region', { name: 'What was applied' })).toContainText(
-		'Vertical 9:16, following the face'
+		'Vertical 9:16, zoomed in to follow the face; the edges are cut off'
 	)
 
 	// The full editor, on the same edit: two pieces, the long pause gone.
@@ -954,4 +953,148 @@ test('a follow-up in the chat changes the plan: questions first, what changed, C
 	await expect(cannot).not.toContainText('changed by hand')
 	expect(seen.followUps[3]).toContain('"removeSentences":[]')
 	expect(seen.followUps[3]).toContain('"earlier":["make it shorter"]')
+})
+
+test('shape and fit: wide made vertical over a blur, tall made horizontal with bars, a match left whole, then made square; each export the preview, at its own size', async ({
+	page
+}) => {
+	test.setTimeout(300_000)
+	const WIDE = { width: 320, height: 180 }
+	const TALL = { width: 180, height: 320 }
+	// An ad of a screen demo: its picture carries it, so nothing is designed or followed.
+	const ad = (fields: Partial<MakeReply>) =>
+		reply({
+			style: 'ad',
+			format: 'other',
+			subject: 'screen',
+			pictureMatters: true,
+			faces: [],
+			captions: 'off',
+			zoomSentences: [],
+			...fields
+		})
+
+	/** Makes `request` of a video `size`, opens the plan in the full editor, and returns the plan's text. */
+	async function make(size: typeof WIDE, request: string) {
+		await page.goto('/make')
+		const video = await recordTestVideo(page, TONE, 0, size)
+		await page
+			.getByLabel('Video to make into something')
+			.setInputFiles({ name: 'talk.webm', mimeType: 'video/webm', buffer: video })
+		await page.getByRole('textbox', { name: 'What should it become?' }).fill(request)
+		await page.getByRole('button', { name: 'Make it', exact: true }).click()
+		await expect(plan(page)).toBeVisible({ timeout: 60_000 })
+		return (await plan(page).textContent()) ?? ''
+	}
+
+	/**
+	 * The preview's frame is `ratio`; at 1 s its `regions` have the export's
+	 * colours; the export is `width` × `height`. Returns the export's colours.
+	 */
+	async function matches(
+		ratio: number,
+		size: { width: number; height: number },
+		regions: Record<string, Region>
+	) {
+		const frame = page.getByTestId('output-frame')
+		const box = await frame.boundingBox()
+		if (!box) throw new Error('no output frame')
+		expect(box.width / box.height).toBeCloseTo(ratio, 1)
+		await seekTo(page, 1)
+		await page.waitForTimeout(300)
+		const preview = await regionColours(page, await frame.screenshot(), regions)
+		const bytes = await exportVideo(page)
+		const { videoWidth, videoHeight, frames } = await readExportFrames(
+			page,
+			bytes,
+			[1],
+			({ context }) => ({ png: context.canvas.toDataURL('image/png') })
+		)
+		expect([videoWidth, videoHeight], 'the exported file’s own size').toEqual([
+			size.width,
+			size.height
+		])
+		const exported = await regionColours(
+			page,
+			Buffer.from(String(frames[0]?.png).split(',')[1] ?? '', 'base64'),
+			regions
+		)
+		for (const name of Object.keys(regions)) {
+			const a = preview[name] ?? []
+			const b = exported[name] ?? []
+			const off = Math.max(...a.map((value, c) => Math.abs(value - (b[c] ?? 0))))
+			expect(off, `${name}: preview ${a}, export ${b}`).toBeLessThan(25)
+		}
+		return exported
+	}
+	const brightest = (colour: number[] | undefined) => Math.max(...(colour ?? [0]))
+	// Above the picture in a tall frame; beside it in a wide one; and its middle.
+	const TOP = { top: { x: 0.1, y: 0.03, width: 0.8, height: 0.12 } }
+	const SIDE = { side: { x: 0.02, y: 0.3, width: 0.08, height: 0.4 } }
+	const MIDDLE = { middle: { x: 0.42, y: 0.15, width: 0.16, height: 0.1 } }
+
+	// 1. Wide made a vertical ad over a blur, from a brief.
+	await mockMakeActions(page, WORDS, [
+		ad({
+			shape: 'vertical',
+			fit: 'blur',
+			brief: { ...reply().brief, audience: 'small business owners', callToAction: 'Try it free' }
+		})
+	])
+	const first = await make(WIDE, 'A vertical ad for small business owners. End with: Try it free')
+	expect(first).toContain('Vertical 9:16, the whole picture over a blurred copy of itself')
+	expect(first).toContain('So nothing of the picture is cut off')
+	expect(first).toContain('From your brief: for small business owners · ends with “Try it free”')
+	await applyAndEditManually(page)
+	await expect(page.getByTestId('blur-backdrop')).toBeVisible({ timeout: 30_000 })
+	const blurred = await matches(9 / 16, { width: 180, height: 320 }, { ...TOP, ...MIDDLE })
+	// Above the picture: the blurred, darkened picture, not black.
+	expect(brightest(blurred.top), `blurred, not black: ${blurred.top}`).toBeGreaterThan(14)
+
+	// 2. Tall made a horizontal ad, with black bars.
+	await mockMakeActions(page, WORDS, [ad({ shape: 'horizontal', fit: 'bars' })])
+	const second = await make(TALL, 'a horizontal ad, keep the black bars')
+	expect(second).toContain('Horizontal 16:9, the whole picture with black bars')
+	await applyAndEditManually(page)
+	await expect(page.getByTestId('blur-backdrop')).toHaveCount(0)
+	const barred = await matches(16 / 9, { width: 320, height: 180 }, { ...SIDE, ...MIDDLE })
+	expect(brightest(barred.side), `black bars: ${barred.side}`).toBeLessThan(12)
+	expect(brightest(barred.middle), `the picture: ${barred.middle}`).toBeGreaterThan(30)
+
+	// 3. Wide asked horizontal: already that shape, nothing cropped or barred.
+	await mockMakeActions(
+		page,
+		WORDS,
+		[ad({ shape: 'horizontal', fit: 'fill', fitAsked: true })],
+		[],
+		undefined,
+		// Then "make it square", over a blur.
+		[ad({ shape: 'square', fit: 'blur', fitAsked: true })]
+	)
+	const third = await make(WIDE, 'a horizontal ad')
+	expect(third).toContain('Horizontal 16:9: the video is already this shape, so nothing is cropped')
+	await applyAndEditManually(page)
+	const whole = await matches(16 / 9, WIDE, { ...SIDE, ...MIDDLE })
+	expect(brightest(whole.side), `the picture to the edge: ${whole.side}`).toBeGreaterThan(30)
+
+	// The follow-up: square, over a blur; what changes, then the export 320 × 320.
+	await page
+		.getByRole('group', { name: 'Editor mode' })
+		.getByRole('button', { name: 'Edit with AI' })
+		.click()
+	const chat = page.getByRole('region', { name: 'Chat' })
+	const box = chat.getByRole('textbox', { name: 'Edit command' })
+	await box.fill('make it square')
+	await box.press('Enter')
+	const answer = chat.getByRole('status', { name: 'The changed plan' })
+	await expect(answer).toContainText('Shape: horizontal 16:9 to square 1:1', { timeout: 60_000 })
+	await expect(answer).toContainText('Fit: none (already that shape) to a blurred background')
+	await answer.getByRole('button', { name: 'Apply changes' }).click()
+	await page
+		.getByRole('group', { name: 'Editor mode' })
+		.getByRole('button', { name: 'Edit manually' })
+		.click()
+	await expect(page.getByTestId('blur-backdrop')).toBeVisible()
+	const square = await matches(1, { width: 320, height: 320 }, { ...TOP, ...MIDDLE })
+	expect(brightest(square.top), `blurred, not black: ${square.top}`).toBeGreaterThan(14)
 })
