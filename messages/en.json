@@ -963,6 +963,7 @@
 				"sentences": "Sentences kept {from} to {to}",
 				"captions": "Captions: {from} to {to}",
 				"shape": "Shape: {from} to {to}",
+				"fit": "Fit: {from} to {to}",
 				"title": "Title: {from} to {to}",
 				"keyLines": "Key lines on screen {from} to {to}",
 				"zooms": "Zooms {from} to {to}",
@@ -977,11 +978,18 @@
 				"off": "off"
 			},
 			"shape": {
-				"face": "vertical, following the face",
-				"fit": "vertical, the whole picture",
-				"designed": "vertical, designed around the speech",
-				"already": "vertical",
-				"none": "as filmed"
+				"vertical": "vertical 9:16",
+				"square": "square 1:1",
+				"portrait": "portrait 4:5",
+				"horizontal": "horizontal 16:9",
+				"original": "its own shape"
+			},
+			"fit": {
+				"bars": "black bars",
+				"blur": "a blurred background",
+				"fill": "zoomed in to fill",
+				"designed": "designed around the speech",
+				"none": "none (already that shape)"
 			},
 			"unclear": "Retake couldn’t update the plan just now. Try again in a moment.",
 			"noPlan": "Retake couldn’t change the plan from that. Try saying it another way.",
@@ -1780,12 +1788,35 @@
 			"music": "Music: {name}, quieter while someone speaks",
 			"noMusic": "No music",
 			"noMusicFolder": "No music: there are no tracks in public/music yet",
-			"vertical": {
-				"face": "Vertical 9:16, following the face",
-				"fit": "Vertical 9:16, the whole picture kept, with black bars above and below",
-				"already": "Already vertical",
+			"shape": {
+				"names": {
+					"vertical": "Vertical 9:16",
+					"square": "Square 1:1",
+					"portrait": "Portrait 4:5",
+					"horizontal": "Horizontal 16:9",
+					"original": "Its own shape"
+				},
+				"kept": "Keeps the video’s own shape: nothing cropped, no bars",
+				"matches": "{shape}: the video is already this shape, so nothing is cropped",
+				"bars": "{shape}, the whole picture with black bars",
+				"blur": "{shape}, the whole picture over a blurred copy of itself",
+				"face": "{shape}, zoomed in to follow the face; the edges are cut off",
+				"centred": "{shape}, zoomed in to fill the frame; the edges are cut off",
 				"designed": "Vertical 9:16, designed around the speech: a moving background, big text, and the picture as a small card in the corner",
-				"designedHidden": "Vertical 9:16, designed around the speech: a moving background and big text; the picture is left out, as it shows nothing to keep"
+				"designedHidden": "Vertical 9:16, designed around the speech: a moving background and big text; the picture is left out, as it shows nothing to keep",
+				"why": {
+					"asked": "As you asked",
+					"whole": "So nothing of the picture is cut off",
+					"face": "Zoomed in because one person on camera is the subject"
+				}
+			},
+			"brief": {
+				"used": "From your brief: {parts}",
+				"audience": "for {text}",
+				"tone": "{text} tone",
+				"length": "at most {seconds} s",
+				"show": "showing {text}",
+				"callToAction": "ends with “{text}”"
 			},
 			"title": "Title at the start: “{text}”",
 			"titleDropped": "Left out a title that named someone or something not in the video",

@@ -66,7 +66,7 @@ export async function planFollowUp(ask: FollowUpAsk): Promise<FollowUpOutcome> {
 				earlier: ask.earlier,
 				followUp: ask.text,
 				answers: ask.answers,
-				plan: { ...base.reply, maxSeconds: base.maxSeconds },
+				plan: base.reply,
 				durationSeconds: basis.durationSeconds,
 				editedSeconds: base.summary.editedSeconds,
 				sentences: (transcript?.segments ?? []).map(({ startSeconds, endSeconds, text }) => ({
@@ -93,16 +93,9 @@ export async function planFollowUp(ask: FollowUpAsk): Promise<FollowUpOutcome> {
 			: reply.music === base.music?.name
 				? base.music
 				: await loadTrack(reply.music)
-	const made = planMake({
-		...basis,
-		reply,
-		transcript,
-		music,
-		maxSeconds: answer.maxSeconds
-	})
+	const made = planMake({ ...basis, reply, transcript, music })
 	const plan = {
 		reply: made.used,
-		maxSeconds: answer.maxSeconds,
 		summary: made.summary,
 		edit: made.edit,
 		music
@@ -148,10 +141,9 @@ export function FollowUpAnswer({
 					to: t(`captions.${change.to}`)
 				})
 			case 'shape':
-				return t('changes.shape', {
-					from: t(`shape.${change.from ?? 'none'}`),
-					to: t(`shape.${change.to ?? 'none'}`)
-				})
+				return t('changes.shape', { from: t(`shape.${change.from}`), to: t(`shape.${change.to}`) })
+			case 'fit':
+				return t('changes.fit', { from: t(`fit.${change.from}`), to: t(`fit.${change.to}`) })
 			case 'title':
 			case 'music':
 				return t(`changes.${change.kind}`, {

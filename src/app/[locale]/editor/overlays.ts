@@ -30,7 +30,15 @@ import {
 	type ZoomView
 } from './motion'
 import { bandColor, canvasFont, DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
-import { outputSize, pictureMatrix, type PictureTransform, type Size } from './transform'
+import {
+	BLUR_DIM,
+	blurSampleSize,
+	coverRect,
+	outputSize,
+	pictureMatrix,
+	type PictureTransform,
+	type Size
+} from './transform'
 
 // Motion graphics, v1: one title card, one watermark and captions, laid over the
 // edited video. Both are part of the edit (undoable, cleared by reset) and
@@ -571,6 +579,11 @@ export function drawFrame(
 		drawFrameOverlays(context, overlays, seconds, logo)
 		return
 	}
+	// Fitted over a blur: the picture, small and stretched to cover the frame,
+	// darkened, behind the whole picture (not zoomed with it, as in the preview).
+	if (transform.crop?.fit && transform.crop.blur) {
+		drawBlurBackdrop(context, source, picture, scratch)
+	}
 	context.setTransform(z.a, z.b, z.c, z.d, z.e, z.f)
 	// The grade only where there is one: an ungraded frame costs nothing extra.
 	if (filter) context.filter = filter
@@ -603,6 +616,29 @@ export function drawFrame(
 		context.fillRect(0, 0, width, height)
 	}
 	drawFrameOverlays(context, overlays, seconds, logo)
+}
+
+/** A blurred backdrop, as the preview's BlurBackdrop draws it: the picture sampled small, covering the frame, darkened. */
+function drawBlurBackdrop(
+	context: CanvasRenderingContext2D,
+	source: CanvasImageSource,
+	picture: Size,
+	scratch: HTMLCanvasElement
+) {
+	const { width, height } = context.canvas
+	const sample = blurSampleSize(picture)
+	scratch.width = sample.width
+	scratch.height = sample.height
+	const small = scratch.getContext('2d')
+	if (!small) return
+	small.drawImage(source, 0, 0, sample.width, sample.height)
+	const cover = coverRect(sample, { width, height })
+	context.setTransform(1, 0, 0, 1, 0, 0)
+	context.imageSmoothingEnabled = true
+	context.imageSmoothingQuality = 'high'
+	context.drawImage(scratch, cover.x, cover.y, cover.width, cover.height)
+	context.fillStyle = `rgba(0, 0, 0, ${BLUR_DIM})`
+	context.fillRect(0, 0, width, height)
 }
 
 /** The lower third, while it shows: its band at the frame's lower left, sliding in and out. */

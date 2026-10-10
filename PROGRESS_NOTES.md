@@ -10,6 +10,11 @@ session with no memory of it can carry on. Read this whole file, then
 > - **Export waits for the transcript** (section 3zr): the Export
 >   button says "Getting ready…" until the editor has its transcript, and an
 >   export that comes out empty is reported, not downloaded.
+> - **Make it: shapes, fit and briefs** (section 3zn): the plan picks a
+>   shape (9:16, 1:1, 4:5, 16:9 or the video's own) and a fit (bars, blur,
+>   fill) and says why; ads keep their own shape and the whole picture
+>   unless asked. A brief's parts are listed on the plan; its length limits
+>   the edit and its call to action closes it.
 > - **Make it: follow-ups in the chat** (section 3zm): after Apply, the
 >   chat beside the edited video changes the plan ("make it shorter",
 >   "remove the intro"): what would change is listed against the plan
@@ -2765,6 +2770,50 @@ Found in the real Make it runs (a 3-minute walkthrough and a short clip).
   the whole flow with the fake AI (questions, changes, Cancel, Apply, Undo,
   can't do; the request carries no pictures). Breaking the after-Undo base
   (always the last plan) fails it. Not tested against real Gemini.
+
+## 3zn. Make it: shapes, fit and briefs (2026-10-09)
+
+- **Shape** (`reply.shape`): vertical 9:16, square 1:1, portrait 4:5,
+  horizontal 16:9, or original (the video's own). Reels, TikToks and Shorts
+  are always 9:16 (the 59 s limit stays). The prompt keeps an ad's own
+  shape unless the request names one. A video within 2% of the shape is
+  left alone (`how: 'matches'`).
+- **Fit** (`reply.fit`, `fitAsked`): bars (`Crop.fit`, as before), blur
+  (`Crop.fit` + `Crop.blur`, new) or fill (a centred crop, or the crop
+  following one person's face). Fill only when asked, or for one person on
+  camera in a reel, never in an ad unless asked; otherwise bars or blur.
+  A designed vertical (meeting reels) only when no fit was asked. The plan
+  card's Shape row says the shape and fit, then why ("So nothing of the
+  picture is cut off", "Zoomed in because one person on camera is the
+  subject", "As you asked").
+- **Blur** draws the picture 16 px wide (`blurSampleSize`), stretched to
+  cover the frame (`coverRect`), darkened 35%: the preview with a canvas
+  scaled by CSS (`BlurBackdrop` in `picture-frame.tsx`, drawn from the
+  editor's own video every frame), the export with `drawImage` in
+  `drawFrame`, so the two match. Not zoomed with the picture; drawn from the
+  main video only (an added clip from another file would show the main
+  one's frame blurred in the preview).
+- **Export sizes** come from `exportSize` as before; checked for each:
+  1920×1080 to 9:16 bars or blur 1080×1920, filled 608×1080; 1080×1920 to
+  16:9 bars 1920×1080, filled 1080×608; square 1920×1920; portrait
+  1536×1920; a match, its own size.
+- **Brief** (`reply.brief`): audience, tone, length, what to show and a
+  call to action, each in the request's own words. Used: the length as
+  `maxSeconds` (now on the first plan too, not only follow-ups; the
+  follow-up reply is the plan's own shape), the call to action as text over
+  the last 3 s (words from the video or request only; a key line it meets
+  goes). The plan card lists what it used ("From your brief: …").
+- **Follow-ups**: "make it square", "keep the black bars", "zoom in on the
+  speaker" change shape and fit; the chat lists "Shape: … to …" and "Fit:
+  … to …".
+- Tests: unit for every shape and fit on a wide, a tall and a matching
+  video (crop and export size), the fill and design rules, the brief and
+  call to action, and the blur's maths; e2e: a wide video made a vertical
+  ad over a blur, a tall one made horizontal with bars, a wide one that
+  already matches then made square by a follow-up, each export's real size
+  read from the file and its colours compared with the preview's. Turning
+  the export's blur off fails it (preview blurred, export black). Fake AI
+  only; not tested against real Gemini.
 
 ## 3zr. Export waits for the transcript (2026-10-10)
 

@@ -1,12 +1,19 @@
 'use client'
 
-import type { RefObject } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 import { cn } from '@/lib/cn'
 import type { Rect } from './annotations'
 import { CARD_RADIUS } from './design'
 import { NO_ZOOM, type ZoomView } from './motion'
 import { fitInside } from './overlays'
-import { outputSize, rotatedFrame, type PictureTransform, type Size } from './transform'
+import {
+	BLUR_DIM,
+	blurSampleSize,
+	outputSize,
+	rotatedFrame,
+	type PictureTransform,
+	type Size
+} from './transform'
 
 /** The editor's player box, `aspect-video`. */
 const PLAYER_RATIO = 16 / 9
@@ -38,6 +45,50 @@ type PictureFrameProps = {
 	 * picture in its card (fractions of the frame), or hidden when null.
 	 */
 	design?: { background: React.ReactNode; card: Rect | null } | null
+	/** The player a blurred backdrop is drawn from, when the crop is fitted over a blur. */
+	blurSource?: RefObject<HTMLVideoElement | null>
+}
+
+/**
+ * Behind a picture fitted over a blur: the playing video drawn small every
+ * frame and stretched to cover the frame by CSS, darkened, as the export
+ * draws it (drawBlurBackdrop).
+ */
+function BlurBackdrop({ source }: { source: RefObject<HTMLVideoElement | null> }) {
+	const canvasRef = useRef<HTMLCanvasElement>(null)
+	useEffect(() => {
+		let frame = 0
+		const draw = () => {
+			const video = source.current
+			const canvas = canvasRef.current
+			if (video && canvas && video.videoWidth > 0) {
+				const size = blurSampleSize({ width: video.videoWidth, height: video.videoHeight })
+				if (canvas.width !== size.width || canvas.height !== size.height) {
+					canvas.width = size.width
+					canvas.height = size.height
+				}
+				canvas.getContext('2d')?.drawImage(video, 0, 0, size.width, size.height)
+			}
+			frame = requestAnimationFrame(draw)
+		}
+		frame = requestAnimationFrame(draw)
+		return () => cancelAnimationFrame(frame)
+	}, [source])
+	return (
+		<>
+			<canvas
+				ref={canvasRef}
+				data-testid="blur-backdrop"
+				aria-hidden
+				className="absolute inset-0 size-full object-cover"
+			/>
+			<div
+				aria-hidden
+				className="absolute inset-0"
+				style={{ background: `rgba(0, 0, 0, ${BLUR_DIM})` }}
+			/>
+		</>
+	)
 }
 
 /**
@@ -54,7 +105,8 @@ export function PictureFrame({
 	onPicture,
 	onFrame,
 	zoom = NO_ZOOM,
-	design = null
+	design = null,
+	blurSource
 }: PictureFrameProps) {
 	const output = outputSize(picture, transform)
 	const frame = rotatedFrame(picture, transform.rotation)
@@ -83,6 +135,9 @@ export function PictureFrame({
 				}}
 			>
 				{design?.background}
+				{!design && blurSource && transform.crop?.fit && transform.crop.blur && (
+					<BlurBackdrop source={blurSource} />
+				)}
 				{/* The zoom: the picture (and what's pinned to it) magnified, its centre moved to the middle. */}
 				<div
 					data-testid="zoom"
