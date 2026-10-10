@@ -6,7 +6,10 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **Read this first: where things stand right now**
 >
-> - Branch `main`. Updated 2026-10-09.
+> - Branch `main`. Updated 2026-10-10.
+> - **Export waits for the transcript** (section 3zr): the Export
+>   button says "Getting ready…" until the editor has its transcript, and an
+>   export that comes out empty is reported, not downloaded.
 > - **Make it: only a meeting is ever a corner card** (section 3zp): the
 >   card no longer rests on Gemini's label being right; the owner's real
 >   recording (screen + webcam bubble) is labelled `one_person`.
@@ -2864,6 +2867,25 @@ fill`. So Gemini doesn't call it a screen, and 3zo only excluded the label
   designed unless a fit was asked for; fails with 3zo's condition. e2e: the
   exported frame of a one-colour recording for screen in every shape, and
   for slides, other and an unknown label at 9:16.
+
+## 3zr. Export waits for the transcript (2026-10-10)
+
+- **Bug:** clicking Export straight after the editor opened a long video
+  (Make it's Apply on a 4:41 recording) started before the editor had its
+  transcript: the export had no captions, and once came out an empty
+  110-byte WebM (a header, no frames), downloaded as if it were the video.
+- **Fix:** `useVideoExport` takes `ready` (the editor passes: the
+  transcript is in, or known not to come: no audio, too long, failed). Until
+  then the Export button is disabled and reads "Getting ready…"; the typed
+  "export" command says the same and doesn't start. Highlight downloads
+  (no captions) are always ready. An export under `MIN_EXPORT_BYTES` (1 KB)
+  is reported to Sentry and shown as "The export came out empty.", with no
+  file offered.
+- Tests: unit (`isUsableExport`); e2e: the transcript held back as a long
+  video's would be, Export clicked at once (nothing downloads, "Getting
+  ready…"), then a real export once it's in; and a recorder made to hand
+  over nothing (the error shown, no download). Both fail with the guards
+  taken out.
 
 ---
 
