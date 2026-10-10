@@ -17,18 +17,20 @@ export const RECORDING_SECONDS = 3
 // With a tone schedule — [seconds, toneOn] pieces laid end to end — the clip
 // also gets an audio track: a 440 Hz tone, switched on and off on cue, so
 // silences land at known times. Those silences are digital silence unless
-// `quietLevel` gives them a faint tone instead, like a real room's.
+// `quietLevel` gives them a faint tone instead, like a real room's. `solid`
+// records the whole picture one colour instead, with no square.
 export async function recordTestVideo(
 	page: Page,
 	toneSchedule?: Array<[number, boolean]>,
 	quietLevel = 0,
-	size: { width: number; height: number } = { width: 320, height: 180 }
+	size: { width: number; height: number } = { width: 320, height: 180 },
+	solid: string | null = null
 ): Promise<Buffer> {
 	const seconds = toneSchedule
 		? toneSchedule.reduce((total, [length]) => total + length, 0)
 		: RECORDING_SECONDS
 	const bytes = await page.evaluate(
-		async ({ seconds, toneSchedule, quietLevel, size }) => {
+		async ({ seconds, toneSchedule, quietLevel, size, solid }) => {
 			const canvas = Object.assign(document.createElement('canvas'), size)
 			const context = canvas.getContext('2d')
 			if (!context) throw new Error('no 2d context')
@@ -57,8 +59,9 @@ export async function recordTestVideo(
 			const startedAt = performance.now()
 			const draw = setInterval(() => {
 				const elapsed = (performance.now() - startedAt) / 1000
-				context.fillStyle = '#112233'
+				context.fillStyle = solid ?? '#112233'
 				context.fillRect(0, 0, size.width, size.height)
+				if (solid) return
 				context.fillStyle = '#ee6633'
 				context.fillRect(20 + elapsed * 80, 60, 60, 60)
 			}, 1000 / 30)
@@ -69,7 +72,7 @@ export async function recordTestVideo(
 			clearInterval(draw)
 			return [...new Uint8Array(await new Blob(chunks).arrayBuffer())]
 		},
-		{ seconds, toneSchedule, quietLevel, size }
+		{ seconds, toneSchedule, quietLevel, size, solid }
 	)
 	return Buffer.from(bytes)
 }
