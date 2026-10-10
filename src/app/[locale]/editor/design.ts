@@ -2,13 +2,14 @@ import type { Rect } from './annotations'
 import type { Size } from './transform'
 
 // A designed vertical frame, for videos whose picture doesn't carry them (a
-// static meeting; never a screen recording, whose screen shows whole):
-// instead of the picture in black bars, a full-frame animated background in
-// the request's colours, the picture as a small rounded card in a corner (or
-// hidden), a progress bar and a sound-wave that moves while someone speaks. The captions sit in
-// the middle and the titles become cards (overlays.ts). Everything is drawn
-// from the edited video's time by the functions here, on the export's
-// canvas and on the preview's own canvas alike, so the two match.
+// static meeting, and only a meeting: anything else shows whole): instead of
+// the picture in black bars, a full-frame animated background in the
+// request's colours, the picture as a small rounded card in a corner (or
+// hidden), a progress bar and a sound-wave that moves while someone speaks.
+// The captions sit in the middle and the titles become cards (overlays.ts).
+// Everything is drawn from the edited video's time by the functions here, on
+// the export's canvas and on the preview's own canvas alike, so the two
+// match.
 
 export const DESIGN_PALETTES = ['reel', 'professional', 'funny', 'ad'] as const
 export type DesignPalette = (typeof DESIGN_PALETTES)[number]
