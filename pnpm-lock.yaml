@@ -98,6 +98,9 @@ importers:
       eslint-config-next:
         specifier: ^16.3.0
         version: 16.3.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
+      fake-indexeddb:
+        specifier: 6.2.5
+        version: 6.2.5
       prettier:
         specifier: ^3
         version: 3.9.6
@@ -3531,6 +3534,13 @@ packages:
       {
         integrity: sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g==
       }
+
+  fake-indexeddb@6.2.5:
+    resolution:
+      {
+        integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==
+      }
+    engines: { node: '>=18' }
 
   fast-check@3.23.2:
     resolution:
@@ -8050,6 +8060,8 @@ snapshots:
   exsolve@1.1.1: {}
 
   extend@3.0.2: {}
+
+  fake-indexeddb@6.2.5: {}
 
   fast-check@3.23.2:
     dependencies:

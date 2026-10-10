@@ -136,7 +136,24 @@ function nextEvent(target: EventTarget, type: string): Promise<void> {
 	})
 }
 
-const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve))
+/**
+ * The next animation frame, or `signal`'s reason once it's aborted: a hidden
+ * tab draws no frames, so an export waiting on one would wait until the tab
+ * came back.
+ */
+export function nextFrame(signal: AbortSignal): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const stop = () => {
+			cancelAnimationFrame(frame)
+			reject(signal.reason)
+		}
+		const frame = requestAnimationFrame(() => {
+			signal.removeEventListener('abort', stop)
+			resolve()
+		})
+		signal.addEventListener('abort', stop, { once: true })
+	})
+}
 
 /** Starts a re-recorded take playing into `destination`; `ended` turns true once it has played out. */
 function playTake(audio: AudioContext, destination: AudioNode, take: ReplacementTake) {
@@ -410,7 +427,7 @@ export async function recordEdit(
 					scheduleSound(dissolving, index + 1)
 					incoming = dissolving
 				}
-				await nextFrame()
+				await nextFrame(signal)
 			}
 			playing.video.pause()
 			if (take) {
@@ -419,7 +436,7 @@ export async function recordEdit(
 				editedSeconds = () => segmentStart + span + (performance.now() - holdStart) / 1000
 				while (!take.ended) {
 					signal.throwIfAborted()
-					await nextFrame()
+					await nextFrame(signal)
 				}
 			}
 			if (incoming) {

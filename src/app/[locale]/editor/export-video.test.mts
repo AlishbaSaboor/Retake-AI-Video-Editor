@@ -5,6 +5,7 @@ import {
 	isUsableExport,
 	lengthMismatch,
 	MIN_EXPORT_BYTES,
+	nextFrame,
 	pickMimeType,
 	totalSeconds
 } from './export-video'
@@ -63,4 +64,22 @@ test('an export with nothing recorded in it is not offered', () => {
 	// The smallest real export, a second of a small picture, is tens of kilobytes.
 	assert.equal(isUsableExport({ size: MIN_EXPORT_BYTES }), true)
 	assert.equal(isUsableExport({ size: 40_000 }), true)
+})
+
+test("waiting for the next frame ends when the export is stopped, though no frame ever comes (a hidden tab's)", async () => {
+	// A hidden tab: frames are asked for and never drawn.
+	const cancelled: number[] = []
+	globalThis.requestAnimationFrame = () => 7
+	globalThis.cancelAnimationFrame = (id) => void cancelled.push(id)
+	const controller = new AbortController()
+	const waiting = nextFrame(controller.signal)
+	controller.abort('tab hidden')
+	await assert.rejects(waiting, (reason) => reason === 'tab hidden')
+	assert.deepEqual(cancelled, [7])
+	// A frame that does come: it's waited for as before.
+	globalThis.requestAnimationFrame = (draw) => {
+		queueMicrotask(() => draw(0))
+		return 8
+	}
+	await nextFrame(new AbortController().signal)
 })
