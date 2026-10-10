@@ -1807,16 +1807,16 @@
 				"screenDesigned": "{shape}, designed around what’s said: a palette background, big captions and text; no picture of the screen",
 				"screenWhy": {
 					"whole": {
-						"default": "A screen recording shows whole: nothing of the screen is cut off",
+						"default": "Showing the whole screen so the product stays visible",
 						"asked": "As you asked: the whole screen",
 						"unchecked": "The plan couldn’t be checked, so the screen shows whole",
-						"promo": "A screen recording shows whole: nothing of the screen is cut off"
+						"promo": "Showing the whole screen so the product stays visible"
 					},
 					"designed": {
 						"default": "Designed around what’s said",
 						"asked": "As you asked: text only",
 						"unchecked": "Designed around what’s said",
-						"promo": "Designed, as your request is for an ad, promo, teaser or highlights reel"
+						"promo": "It’s a promo, so it’s text and captions"
 					}
 				},
 				"why": {

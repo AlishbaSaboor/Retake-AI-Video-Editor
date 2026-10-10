@@ -93,7 +93,13 @@ export async function planFollowUp(ask: FollowUpAsk): Promise<FollowUpOutcome> {
 			: reply.music === base.music?.name
 				? base.music
 				: await loadTrack(reply.music)
-	const made = planMake({ ...basis, reply, transcript, music })
+	const made = planMake({
+		...basis,
+		reply,
+		transcript,
+		music,
+		followUps: [...ask.earlier, ask.text]
+	})
 	const plan = {
 		reply: made.used,
 		summary: made.summary,

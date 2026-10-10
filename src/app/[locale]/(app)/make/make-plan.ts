@@ -60,6 +60,29 @@ export type ScreenTreatment = (typeof SCREEN_TREATMENTS)[number]
 /** A request for an ad, a promo, a teaser or a highlights reel: a screen recording is designed for it. */
 const PROMO_REQUEST =
 	/\b(ads?|adverts?|advertisements?|promos?|promotional|teasers?|highlights?)\b/i
+/** The user's own words asking for a screen recording as text and captions only. */
+const TEXT_ONLY_REQUEST =
+	/\b(text[ -]?only|only (the )?text|just (the )?text|captions? only|only (the )?captions|no screen|without (the |my )?screen|hide (the |my )?screen|leave (out )?(the |my )?screen( out)?)\b/i
+/** The user's own words asking for the screen itself to show. */
+const SHOW_SCREEN_REQUEST =
+	/\b(show (me )?(the |my )?(whole |full |entire )?screen|keep (the |my )?(whole |full )?screen|(whole|full|entire) screen|screen (visible|showing)|with (the |my )?screen)\b/i
+/** The user's own words naming how the video fits its shape: bars, a blur, a zoom or a crop. */
+const FIT_REQUEST =
+	/\b(black bars?|bars|blur(red|ry)?|zoom(ed|s)?|crop(ped|s)?|fill(s|ing)? the (frame|screen)|close[- ]?ups?)\b/i
+
+/**
+ * The treatment the user's own words ask for, latest first: text only, or
+ * the screen shown; null when they ask for neither (or both at once).
+ * Gemini's reply never decides this on its own.
+ */
+export function askedTreatment(texts: readonly string[]): ScreenTreatment | null {
+	for (const text of [...texts].reverse()) {
+		const textOnly = TEXT_ONLY_REQUEST.test(text)
+		const showScreen = SHOW_SCREEN_REQUEST.test(text)
+		if (textOnly !== showScreen) return textOnly ? 'designed' : 'whole'
+	}
+	return null
+}
 /** What the picture shows: only one person as the clear subject gets a crop that follows a face. */
 export const MAKE_SUBJECTS = ['one_person', 'screen', 'meeting', 'slides', 'other'] as const
 
@@ -185,7 +208,8 @@ export const makeReplySchema = z.object({
 	/** The request (or a follow-up) named the fit: black bars, a blurred background, a zoom. */
 	fitAsked: z.boolean(),
 	/** A screen recording's treatment, when the request (or a follow-up) asked for one; null when not. */
-	treatment: z.enum(SCREEN_TREATMENTS).nullable(),
+	// A value outside the list is read as not asked: it never stops a plan.
+	treatment: z.enum(SCREEN_TREATMENTS).nullable().catch(null),
 	/** The most it may run, when a length was asked for; null when none was. */
 	maxSeconds: z.number().positive().max(MAX_MAKE_SECONDS).nullable(),
 	/** A request written as a brief: the parts it gives, in its own words. */
@@ -863,6 +887,11 @@ export type MakeInput<Sound> = {
 	tooShort?: { keepOut: number[] } | null
 	/** The second check couldn't run: a screen recording then shows whole, never designed. */
 	unchecked?: boolean
+	/**
+	 * What the user asked after the request (follow-ups, in order): read with
+	 * it for what they asked of the treatment and the fit.
+	 */
+	followUps?: readonly string[]
 }
 
 /**
@@ -1083,11 +1112,20 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	// at all (the palette, captions and text), for an ad, promo, teaser or
 	// highlights reel or when asked. Whole whenever the second check
 	// couldn't run.
+	//
+	// Only the user's own words count as asking (Gemini fills its fields in
+	// whether or not anyone asked): text only, or the screen shown; else a
+	// promo's wording; else the whole screen.
+	const said = [input.request, ...(input.followUps ?? [])]
+	const askedScreen = askedTreatment(said)
+	const promo = said.some((text) => PROMO_REQUEST.test(text))
 	const treatment: ScreenTreatment | null = !screen
 		? null
 		: input.unchecked
 			? 'whole'
-			: (reply.treatment ?? (PROMO_REQUEST.test(input.request) ? 'designed' : 'whole'))
+			: (askedScreen ?? (promo ? 'designed' : 'whole'))
+	// A fit is asked for only in the user's own words too.
+	const fitAsked = reply.fitAsked && said.some((text) => FIT_REQUEST.test(text))
 	const shape: MakeShape = shortForm ? 'vertical' : reply.shape
 	const designable =
 		(shortForm || reply.style === 'ad') &&
@@ -1117,7 +1155,7 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 			).size
 			const clearly = reply.subject === 'one_person' && faceFrames >= times.length / 2
 			const zoomed =
-				!screen && reply.fit === 'fill' && (reply.fitAsked || (clearly && reply.style !== 'ad'))
+				!screen && reply.fit === 'fill' && (fitAsked || (clearly && reply.style !== 'ad'))
 			// A face is followed across: only where the crop is narrower than the picture.
 			const follow =
 				zoomed && clearly && rect.width < 1 ? faceFollow(reply.faces, times, rect.width) : null
@@ -1132,7 +1170,7 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 							? { aspect, rect: { ...rect, x: first.x }, ...(follow.length > 1 && { follow }) }
 							: { aspect, rect }
 				}
-			} else if (shape === 'vertical' && designable && !reply.fitAsked) {
+			} else if (shape === 'vertical' && designable && !fitAsked) {
 				design = { palette: reply.style, picture: reply.card }
 				how = 'designed'
 				transform = { ...transform, crop: { aspect, rect: fittedCrop(ratio, picture), fit: true } }
@@ -1337,7 +1375,7 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 			transitions,
 			music: audioItems.length > 0 ? (music?.name ?? null) : null,
 			musicMissing: !input.musicAvailable,
-			shape: { target: shape, fit, how, asked: reply.fitAsked && fit !== null },
+			shape: { target: shape, fit, how, asked: fitAsked && fit !== null },
 			screen:
 				treatment === null
 					? null
@@ -1345,7 +1383,7 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 							treatment,
 							why: input.unchecked
 								? 'unchecked'
-								: reply.treatment
+								: askedScreen
 									? 'asked'
 									: treatment === 'designed'
 										? 'promo'

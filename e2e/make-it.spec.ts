@@ -1305,7 +1305,7 @@ test('a screen recording: the whole screen by default, designed with no picture 
 	await mockMakeActions(page, WORDS, [screen()], [], undefined, [screen({ treatment: 'designed' })])
 	const first = await makeGreen(page, 'make this an Instagram reel')
 	expect(first).toContain('Vertical 9:16, the whole picture with black bars')
-	expect(first).toContain('A screen recording shows whole: nothing of the screen is cut off')
+	expect(first).toContain('Showing the whole screen so the product stays visible')
 	const byDefault = await exportedFrame(page, 'default')
 	expect.soft(byDefault.size).toEqual([180, 320])
 	await expectWholeScreen(page, byDefault.png, 9 / 16, 'default')
@@ -1333,9 +1333,7 @@ test('a screen recording: the whole screen by default, designed with no picture 
 	expect(promo).toContain(
 		'Vertical 9:16, designed around what’s said: a palette background, big captions and text; no picture of the screen'
 	)
-	expect(promo).toContain(
-		'Designed, as your request is for an ad, promo, teaser or highlights reel'
-	)
+	expect(promo).toContain('It’s a promo, so it’s text and captions')
 	const designed = await exportedFrame(page, 'promo')
 	expect.soft(designed.size).toEqual([180, 320])
 	await expectNoScreen(page, designed.png, 'promo')
