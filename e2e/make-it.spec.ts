@@ -962,12 +962,13 @@ test('shape and fit: wide made vertical over a blur, tall made horizontal with b
 	test.setTimeout(300_000)
 	const WIDE = { width: 320, height: 180 }
 	const TALL = { width: 180, height: 320 }
-	// An ad of a screen demo: its picture carries it, so nothing is designed or followed.
+	// An ad of a product demo filmed (not a screen recording, which has its
+	// own treatments): its picture carries it, so nothing is designed or followed.
 	const ad = (fields: Partial<MakeReply>) =>
 		reply({
 			style: 'ad',
 			format: 'other',
-			subject: 'screen',
+			subject: 'other',
 			pictureMatters: true,
 			faces: [],
 			captions: 'off',
@@ -1100,15 +1101,135 @@ test('shape and fit: wide made vertical over a blur, tall made horizontal with b
 	expect(brightest(square.top), `blurred, not black: ${square.top}`).toBeGreaterThan(14)
 })
 
+// A screen recording of one known colour, 16:9: where it lands in an export is plain to read.
+const GREEN = '#20c040'
+const GREEN_SOURCE = { width: 320, height: 180 }
+const isGreen = (r: number, g: number, b: number) =>
+	Math.abs(r - 0x20) < 45 && g > 140 && Math.abs(b - 0x40) < 50
+
+/** Makes `request` of the green screen recording, and opens the plan in the full editor. */
+async function makeGreen(page: Page, request: string) {
+	await page.goto('/make')
+	const video = await recordTestVideo(page, TONE, 0, GREEN_SOURCE, GREEN)
+	await page
+		.getByLabel('Video to make into something')
+		.setInputFiles({ name: 'screen.webm', mimeType: 'video/webm', buffer: video })
+	await page.getByRole('textbox', { name: 'What should it become?' }).fill(request)
+	await page.getByRole('button', { name: 'Make it', exact: true }).click()
+	await expect(plan(page)).toBeVisible({ timeout: 60_000 })
+	const text = (await plan(page).textContent()) ?? ''
+	await applyAndEditManually(page)
+	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
+		timeout: 30_000
+	})
+	return text
+}
+
+/** The export's frame at 1 s (saved as `name` under SHOT_DIR when set), and the file's own size. */
+async function exportedFrame(page: Page, name: string) {
+	const bytes = await exportVideo(page)
+	const { videoWidth, videoHeight, frames } = await readExportFrames(
+		page,
+		bytes,
+		[1],
+		({ context }) => ({ png: context.canvas.toDataURL('image/png') })
+	)
+	const png = Buffer.from(String(frames[0]?.png).split(',')[1] ?? '', 'base64')
+	if (process.env.SHOT_DIR) {
+		await writeFile(`${process.env.SHOT_DIR}/${process.env.SHOT_LABEL ?? 'frame'}-${name}.png`, png)
+	}
+	return { png, size: [videoWidth, videoHeight] }
+}
+
+/** The share of each region (fractions of the image) that is the screen's green. */
+async function greenShares(page: Page, png: Buffer, regions: Record<string, Region>) {
+	return page.evaluate(
+		async ({ bytes, regions, isGreenSource }) => {
+			const green = new Function(`return (${isGreenSource})`)() as (
+				r: number,
+				g: number,
+				b: number
+			) => boolean
+			const image = await createImageBitmap(
+				new Blob([new Uint8Array(bytes)], { type: 'image/png' })
+			)
+			const canvas = Object.assign(document.createElement('canvas'), {
+				width: image.width,
+				height: image.height
+			})
+			const context = canvas.getContext('2d')
+			if (!context) throw new Error('no 2d context')
+			context.drawImage(image, 0, 0)
+			return Object.fromEntries(
+				Object.entries(regions).map(([name, r]) => {
+					const data = context.getImageData(
+						Math.round(r.x * image.width),
+						Math.round(r.y * image.height),
+						Math.max(1, Math.round(r.width * image.width)),
+						Math.max(1, Math.round(r.height * image.height))
+					).data
+					let count = 0
+					for (let i = 0; i < data.length; i += 4) {
+						if (green(data[i] ?? 0, data[i + 1] ?? 0, data[i + 2] ?? 0)) count++
+					}
+					return [name, count / (data.length / 4)]
+				})
+			) as Record<string, number>
+		},
+		{ bytes: [...png], regions, isGreenSource: isGreen.toString() }
+	)
+}
+
+/**
+ * Checks the green screen is as wide as a frame of `ratio`, centred: green
+ * over the middle of where it should be, none in the frame's corners above
+ * and below it (or green to the edges, when it fills the frame).
+ */
+async function expectWholeScreen(page: Page, png: Buffer, ratio: number, label: string) {
+	const height = Math.min(1, ratio / (GREEN_SOURCE.width / GREEN_SOURCE.height))
+	const top = (1 - height) / 2
+	const inner = { x: 0.1, y: top + height * 0.1, width: 0.8, height: height * 0.8 }
+	const corner = (x: number, y: number) => ({
+		x,
+		y,
+		width: 0.08,
+		height: Math.min(0.08, top * 0.8)
+	})
+	const bottom = 0.99 - Math.min(0.08, top * 0.8)
+	const regions: Record<string, Region> =
+		height < 1
+			? {
+					inner,
+					topLeft: corner(0.01, 0.01),
+					topRight: corner(0.91, 0.01),
+					bottomLeft: corner(0.01, bottom),
+					bottomRight: corner(0.91, bottom)
+				}
+			: { inner, whole: { x: 0, y: 0, width: 1, height: 1 } }
+	const shares = await greenShares(page, png, regions)
+	expect.soft(shares.inner, `${label}: the screen fills the middle`).toBeGreaterThan(0.95)
+	for (const [name, share] of Object.entries(shares)) {
+		if (name === 'inner') continue
+		if (name === 'whole')
+			expect.soft(share, `${label}: the screen fills the frame`).toBeGreaterThan(0.95)
+		else expect.soft(share, `${label}: no screen in the ${name} corner`).toBeLessThan(0.05)
+	}
+}
+
+/** Checks no part of the green screen shows anywhere: no picture, and no card in a corner. */
+async function expectNoScreen(page: Page, png: Buffer, label: string) {
+	const shares = await greenShares(page, png, {
+		whole: { x: 0, y: 0, width: 1, height: 1 },
+		bottomLeft: { x: 0, y: 0.6, width: 0.6, height: 0.4 }
+	})
+	expect.soft(shares.whole, `${label}: no picture of the screen`).toBeLessThan(0.005)
+	expect.soft(shares.bottomLeft, `${label}: no card in the corner`).toBeLessThan(0.005)
+}
+
 test('a screen recording, slides or any other label fills the frame’s width, centred, in every shape: never a card in a corner', async ({
 	page
 }) => {
 	test.setTimeout(300_000)
-	// A screen recording of one known colour, 16:9.
-	const GREEN = '#20c040'
-	const SOURCE = { width: 320, height: 180 }
-	const isGreen = (r: number, g: number, b: number) =>
-		Math.abs(r - 0x20) < 45 && g > 140 && Math.abs(b - 0x40) < 50
 	// Each shape, the request that asks for it, and the exported file's size.
 	const VERTICAL = {
 		shape: 'vertical',
@@ -1120,12 +1241,18 @@ test('a screen recording, slides or any other label fills the frame’s width, c
 	// labels Gemini might give it, and one that isn't on the list at all.
 	const CASES = [
 		{ ...VERTICAL, subject: 'screen' },
-		{ shape: 'square', ratio: 1, request: 'a square ad', size: [320, 320], subject: 'screen' },
-		{ shape: 'portrait', ratio: 4 / 5, request: 'a 4:5 ad', size: [256, 320], subject: 'screen' },
+		{ shape: 'square', ratio: 1, request: 'a square video', size: [320, 320], subject: 'screen' },
+		{
+			shape: 'portrait',
+			ratio: 4 / 5,
+			request: 'a 4:5 video',
+			size: [256, 320],
+			subject: 'screen'
+		},
 		{
 			shape: 'horizontal',
 			ratio: 16 / 9,
-			request: 'a horizontal ad',
+			request: 'a horizontal video',
 			size: [320, 180],
 			subject: 'screen'
 		},
@@ -1150,103 +1277,74 @@ test('a screen recording, slides or any other label fills the frame’s width, c
 				fit: 'bars'
 			})
 		])
-		await page.goto('/make')
-		const video = await recordTestVideo(page, TONE, 0, SOURCE, GREEN)
-		await page
-			.getByLabel('Video to make into something')
-			.setInputFiles({ name: 'screen.webm', mimeType: 'video/webm', buffer: video })
-		await page.getByRole('textbox', { name: 'What should it become?' }).fill(request)
-		await page.getByRole('button', { name: 'Make it', exact: true }).click()
-		await expect(plan(page)).toBeVisible({ timeout: 60_000 })
-		await applyAndEditManually(page)
-		await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
-			timeout: 30_000
-		})
-		const bytes = await exportVideo(page)
-		const { videoWidth, videoHeight, frames } = await readExportFrames(
-			page,
-			bytes,
-			[1],
-			({ context }) => ({ png: context.canvas.toDataURL('image/png') })
-		)
-		const png = Buffer.from(String(frames[0]?.png).split(',')[1] ?? '', 'base64')
-		if (process.env.SHOT_DIR) {
-			await writeFile(
-				`${process.env.SHOT_DIR}/${process.env.SHOT_LABEL ?? 'frame'}-${subject}-${shape}.png`,
-				png
-			)
-		}
-		expect
-			.soft([videoWidth, videoHeight], `${subject}, ${shape}: the exported file's size`)
-			.toEqual([...size])
-
-		// The screen as the frame's width allows, centred: green inside, and not
-		// in the frame's corners above or below it (unless it fills the frame).
-		const height = Math.min(1, ratio / (SOURCE.width / SOURCE.height))
-		const top = (1 - height) / 2
-		const inner = { x: 0.1, y: top + height * 0.1, width: 0.8, height: height * 0.8 }
-		const corner = (x: number, y: number) => ({
-			x,
-			y,
-			width: 0.08,
-			height: Math.min(0.08, top * 0.8)
-		})
-		const regions =
-			height < 1
-				? {
-						inner,
-						topLeft: corner(0.01, 0.01),
-						topRight: corner(0.91, 0.01),
-						bottomLeft: corner(0.01, 0.99 - Math.min(0.08, top * 0.8)),
-						bottomRight: corner(0.91, 0.99 - Math.min(0.08, top * 0.8))
-					}
-				: { inner, whole: { x: 0, y: 0, width: 1, height: 1 } }
-		const shares = await page.evaluate(
-			async ({ bytes, regions, isGreenSource }) => {
-				const green = new Function(`return (${isGreenSource})`)() as (
-					r: number,
-					g: number,
-					b: number
-				) => boolean
-				const image = await createImageBitmap(
-					new Blob([new Uint8Array(bytes)], { type: 'image/png' })
-				)
-				const canvas = Object.assign(document.createElement('canvas'), {
-					width: image.width,
-					height: image.height
-				})
-				const context = canvas.getContext('2d')
-				if (!context) throw new Error('no 2d context')
-				context.drawImage(image, 0, 0)
-				return Object.fromEntries(
-					Object.entries(regions).map(([name, r]) => {
-						const data = context.getImageData(
-							Math.round(r.x * image.width),
-							Math.round(r.y * image.height),
-							Math.max(1, Math.round(r.width * image.width)),
-							Math.max(1, Math.round(r.height * image.height))
-						).data
-						let count = 0
-						for (let i = 0; i < data.length; i += 4) {
-							if (green(data[i] ?? 0, data[i + 1] ?? 0, data[i + 2] ?? 0)) count++
-						}
-						return [name, count / (data.length / 4)]
-					})
-				) as Record<string, number>
-			},
-			{ bytes: [...png], regions, isGreenSource: isGreen.toString() }
-		)
-		expect
-			.soft(shares.inner, `${subject}, ${shape}: the screen fills the middle`)
-			.toBeGreaterThan(0.95)
-		for (const [name, share] of Object.entries(shares)) {
-			if (name === 'inner') continue
-			if (name === 'whole')
-				expect.soft(share, `${subject}, ${shape}: the screen fills the frame`).toBeGreaterThan(0.95)
-			else
-				expect
-					.soft(share, `${subject}, ${shape}: no screen in the ${name} corner`)
-					.toBeLessThan(0.05)
-		}
+		await makeGreen(page, request)
+		const { png, size: exported } = await exportedFrame(page, `${subject}-${shape}`)
+		expect.soft(exported, `${subject}, ${shape}: the exported file's size`).toEqual([...size])
+		await expectWholeScreen(page, png, ratio, `${subject}, ${shape}`)
 	}
+})
+
+test('a screen recording: the whole screen by default, designed with no picture for a promo or text only, whole for an unknown label', async ({
+	page
+}) => {
+	test.setTimeout(300_000)
+	// A screen recording, judged by its speech, asking for everything that would zoom into it.
+	const screen = (fields: Partial<MakeReply> = {}) =>
+		reply({
+			subject: 'screen',
+			pictureMatters: false,
+			faces: [],
+			captions: 'off',
+			fit: 'fill',
+			zoomSentences: [2],
+			transition: 'zoom_cut',
+			...fields
+		})
+
+	// 1. The default: the whole screen, full width and centred; then "text only".
+	await mockMakeActions(page, WORDS, [screen()], [], undefined, [screen({ treatment: 'designed' })])
+	const first = await makeGreen(page, 'make this an Instagram reel')
+	expect(first).toContain('Vertical 9:16, the whole picture with black bars')
+	expect(first).toContain('A screen recording shows whole: nothing of the screen is cut off')
+	const byDefault = await exportedFrame(page, 'default')
+	expect.soft(byDefault.size).toEqual([180, 320])
+	await expectWholeScreen(page, byDefault.png, 9 / 16, 'default')
+
+	await page
+		.getByRole('group', { name: 'Editor mode' })
+		.getByRole('button', { name: 'Edit with AI' })
+		.click()
+	const chat = page.getByRole('region', { name: 'Chat' })
+	const box = chat.getByRole('textbox', { name: 'Edit command' })
+	await box.fill('text only')
+	await box.press('Enter')
+	const answer = chat.getByRole('status', { name: 'The changed plan' })
+	await expect(answer).toContainText('Fit: black bars to designed around the speech', {
+		timeout: 60_000
+	})
+	await answer.getByRole('button', { name: 'Apply changes' }).click()
+	const textOnly = await exportedFrame(page, 'text-only')
+	expect.soft(textOnly.size).toEqual([180, 320])
+	await expectNoScreen(page, textOnly.png, 'text only')
+
+	// 2. A promo: designed, no picture of the screen and no card in a corner.
+	await mockMakeActions(page, WORDS, [screen()])
+	const promo = await makeGreen(page, 'make a promo reel of this')
+	expect(promo).toContain(
+		'Vertical 9:16, designed around what’s said: a palette background, big captions and text; no picture of the screen'
+	)
+	expect(promo).toContain(
+		'Designed, as your request is for an ad, promo, teaser or highlights reel'
+	)
+	const designed = await exportedFrame(page, 'promo')
+	expect.soft(designed.size).toEqual([180, 320])
+	await expectNoScreen(page, designed.png, 'promo')
+
+	// 3. A label not on the list, for the same promo: whole, never designed.
+	await mockMakeActions(page, WORDS, [
+		screen({ subject: 'screencast_with_webcam' as MakeReply['subject'], fit: 'bars' })
+	])
+	await makeGreen(page, 'make a promo reel of this')
+	const unknown = await exportedFrame(page, 'unknown')
+	await expectWholeScreen(page, unknown.png, 9 / 16, 'unknown label')
 })

@@ -182,7 +182,11 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 				return { kind: 'questions', questions: reply.questions } as const
 			}
 			const music = reply.music ? await loadTrack(reply.music) : null
-			const plan = (planned: MakeReply, tooShort: { keepOut: number[] } | null = null) =>
+			const plan = (
+				planned: MakeReply,
+				tooShort: { keepOut: number[] } | null = null,
+				unchecked = false
+			) =>
 				planMake({
 					reply: planned,
 					request: ask.request,
@@ -192,21 +196,28 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 					fillerCuts,
 					music,
 					musicAvailable: tracks.length > 0,
-					tooShort
+					tooShort,
+					unchecked
 				})
 			const musicAvailable = tracks.length > 0
 			// The plan as made, then checked against the request and made again
 			// with the check's fixes, if it found anything to fix (lengthened,
-			// when it found the edit too short).
+			// when it found the edit too short); made again unchecked when the
+			// check couldn't run (a screen recording then shows whole).
 			const first = plan(reply)
 			const check = await checkPlan(
 				ask.request,
 				describePlan(reply, first.summary, first.edit.clips ?? [], transcript?.segments ?? [])
 			)
 			const made =
-				check && checkFound(check)
-					? plan(applyCheck(reply, check), check.tooShort ? { keepOut: check.dropSentences } : null)
-					: first
+				check === null
+					? plan(reply, null, true)
+					: checkFound(check)
+						? plan(
+								applyCheck(reply, check),
+								check.tooShort ? { keepOut: check.dropSentences } : null
+							)
+						: first
 			return {
 				kind: 'plan',
 				...made,
@@ -691,8 +702,20 @@ function PlanView({
 	const shortened = summary.removedParts > 0 || summary.fillerCuts > 0
 
 	/** The Shape row: the shape and how the video goes into it, then why. */
-	function shapeLines({ shape, card }: MakeSummary): string[] {
+	function shapeLines({ shape, card, screen }: MakeSummary): string[] {
 		const name = t(`shape.names.${shape.target}`)
+		// A screen recording: its treatment, then why.
+		if (screen) {
+			const how =
+				screen.treatment === 'designed'
+					? t('shape.screenDesigned', { shape: name })
+					: shape.how === 'whole'
+						? t(shape.fit === 'blur' ? 'shape.blur' : 'shape.bars', { shape: name })
+						: shape.how === 'matches'
+							? t('shape.matches', { shape: name })
+							: t('shape.kept')
+			return [how, t(`shape.screenWhy.${screen.treatment}.${screen.why}`)]
+		}
 		switch (shape.how) {
 			case 'kept':
 				return [t('shape.kept')]
