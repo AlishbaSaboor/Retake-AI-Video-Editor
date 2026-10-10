@@ -1100,7 +1100,7 @@ test('shape and fit: wide made vertical over a blur, tall made horizontal with b
 	expect(brightest(square.top), `blurred, not black: ${square.top}`).toBeGreaterThan(14)
 })
 
-test('a screen recording fills the frame’s width, centred, in every shape: never a card in a corner', async ({
+test('a screen recording, slides or any other label fills the frame’s width, centred, in every shape: never a card in a corner', async ({
 	page
 }) => {
 	test.setTimeout(300_000)
@@ -1110,20 +1110,38 @@ test('a screen recording fills the frame’s width, centred, in every shape: nev
 	const isGreen = (r: number, g: number, b: number) =>
 		Math.abs(r - 0x20) < 45 && g > 140 && Math.abs(b - 0x40) < 50
 	// Each shape, the request that asks for it, and the exported file's size.
-	const SHAPES = [
-		{ shape: 'vertical', ratio: 9 / 16, request: 'make this an Instagram reel', size: [180, 320] },
-		{ shape: 'square', ratio: 1, request: 'a square ad', size: [320, 320] },
-		{ shape: 'portrait', ratio: 4 / 5, request: 'a 4:5 ad', size: [256, 320] },
-		{ shape: 'horizontal', ratio: 16 / 9, request: 'a horizontal ad', size: [320, 180] }
+	const VERTICAL = {
+		shape: 'vertical',
+		ratio: 9 / 16,
+		request: 'make this an Instagram reel',
+		size: [180, 320]
+	} as const
+	// A screen recording in every shape; then, as a 9:16 reel, the other
+	// labels Gemini might give it, and one that isn't on the list at all.
+	const CASES = [
+		{ ...VERTICAL, subject: 'screen' },
+		{ shape: 'square', ratio: 1, request: 'a square ad', size: [320, 320], subject: 'screen' },
+		{ shape: 'portrait', ratio: 4 / 5, request: 'a 4:5 ad', size: [256, 320], subject: 'screen' },
+		{
+			shape: 'horizontal',
+			ratio: 16 / 9,
+			request: 'a horizontal ad',
+			size: [320, 180],
+			subject: 'screen'
+		},
+		{ ...VERTICAL, subject: 'slides' },
+		{ ...VERTICAL, subject: 'other' },
+		{ ...VERTICAL, subject: 'webcam_over_screen' }
 	] as const
-	for (const { shape, ratio, request, size } of SHAPES) {
-		// The screen's own talk, judged by its speech (as Gemini judges a static
-		// screen): the case that was designed around a card in the corner.
+	for (const { shape, ratio, request, size, subject } of CASES) {
+		// Judged by its speech (the picture doesn't carry it): the case that was
+		// designed around a card in the corner. The fake reply reaches the page
+		// as given, so an unknown label does too.
 		await mockMakeActions(page, WORDS, [
 			reply({
 				style: shape === 'vertical' ? 'reel' : 'ad',
 				format: shape === 'vertical' ? 'instagram_reel' : 'other',
-				subject: 'screen',
+				subject: subject as MakeReply['subject'],
 				pictureMatters: false,
 				faces: [],
 				captions: 'off',
@@ -1154,11 +1172,13 @@ test('a screen recording fills the frame’s width, centred, in every shape: nev
 		const png = Buffer.from(String(frames[0]?.png).split(',')[1] ?? '', 'base64')
 		if (process.env.SHOT_DIR) {
 			await writeFile(
-				`${process.env.SHOT_DIR}/${process.env.SHOT_LABEL ?? 'frame'}-${shape}.png`,
+				`${process.env.SHOT_DIR}/${process.env.SHOT_LABEL ?? 'frame'}-${subject}-${shape}.png`,
 				png
 			)
 		}
-		expect.soft([videoWidth, videoHeight], `${shape}: the exported file's size`).toEqual([...size])
+		expect
+			.soft([videoWidth, videoHeight], `${subject}, ${shape}: the exported file's size`)
+			.toEqual([...size])
 
 		// The screen as the frame's width allows, centred: green inside, and not
 		// in the frame's corners above or below it (unless it fills the frame).
@@ -1216,12 +1236,17 @@ test('a screen recording fills the frame’s width, centred, in every shape: nev
 			},
 			{ bytes: [...png], regions, isGreenSource: isGreen.toString() }
 		)
-		expect.soft(shares.inner, `${shape}: the screen fills the middle`).toBeGreaterThan(0.95)
+		expect
+			.soft(shares.inner, `${subject}, ${shape}: the screen fills the middle`)
+			.toBeGreaterThan(0.95)
 		for (const [name, share] of Object.entries(shares)) {
 			if (name === 'inner') continue
 			if (name === 'whole')
-				expect.soft(share, `${shape}: the screen fills the frame`).toBeGreaterThan(0.95)
-			else expect.soft(share, `${shape}: no screen in the ${name} corner`).toBeLessThan(0.05)
+				expect.soft(share, `${subject}, ${shape}: the screen fills the frame`).toBeGreaterThan(0.95)
+			else
+				expect
+					.soft(share, `${subject}, ${shape}: no screen in the ${name} corner`)
+					.toBeLessThan(0.05)
 		}
 	}
 })
