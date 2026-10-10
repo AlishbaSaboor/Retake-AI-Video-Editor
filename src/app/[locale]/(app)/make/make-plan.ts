@@ -597,15 +597,28 @@ export function chooseSentences(
 	return chosen
 }
 
+/** A text's words, lower case, its punctuation aside. */
+const wordsOf = (value: string) => value.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? []
+
+/**
+ * Whether the user's own words give `part` of a brief: every word of it is
+ * in the request or a follow-up (Gemini fills a brief in whether or not
+ * anyone asked).
+ */
+export function saidInBrief(part: string, said: readonly string[]): boolean {
+	const words = new Set(said.flatMap(wordsOf))
+	const partWords = wordsOf(part)
+	return partWords.length > 0 && partWords.every((word) => words.has(word))
+}
+
 /**
  * The words of a key line, if it quotes its sentence: every word of it is
  * in the sentence (case and punctuation aside), and it's short. Null
  * otherwise: Make it shows no words that weren't said.
  */
 export function quotedLine(text: string, sentence: string): string | null {
-	const words = (value: string) => value.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? []
-	const said = new Set(words(sentence))
-	const line = words(text)
+	const said = new Set(wordsOf(sentence))
+	const line = wordsOf(text)
 	if (line.length === 0 || line.length > MAX_KEY_LINE_WORDS) return null
 	return line.every((word) => said.has(word)) ? text.trim() : null
 }
@@ -689,6 +702,8 @@ export function inventedNames(text: string, known: string): string[] {
 
 /** A length in words: 0:55, 55 s, 55s, 55 sec, 55 seconds, 55-second, 1 minute, 1.5 min. */
 const LENGTH = String.raw`(\d+):([0-5]\d)\b|(\d+(?:\.\d+)?)(\s*-?\s*)(s|secs?|seconds?|mins?|minutes?)\b`
+/** A length in the user's own words ("30 seconds", "1:30"). */
+const LENGTH_REQUEST = new RegExp(LENGTH, 'i')
 /** A length that is the result's: "to 55 seconds", "now 0:55", "a 55-second reel", "55 s long". */
 const RESULT_LENGTH = new RegExp(
 	String.raw`(\b(?:to|into|now|is|of|runs|running)\s+(?:(?:about|around|roughly|just|under|over|a|an)\s+)*)(?:${LENGTH})|(?:${LENGTH})(?=\s*(?:long|reels?|videos?|edits?|shorts?)\b)`,
@@ -727,6 +742,9 @@ export function summaryWithLength(summary: string, editedSeconds: number): strin
 
 /** Music the folder offers, decoded, to lay under the edit. */
 export type MusicTrack<Sound> = { name: string; file: Blob; buffer: Sound; seconds: number }
+
+/** The parts of a brief the plan card names. */
+export type BriefPart = 'audience' | 'tone' | 'show' | 'lengthSeconds' | 'callToAction'
 
 /** What the plan does, in words for the person deciding whether to apply it. */
 export type MakeSummary = {
@@ -800,6 +818,10 @@ export type MakeSummary = {
 		show: string | null
 		lengthSeconds: number | null
 		callToAction: string | null
+		/** Which of them the user's own words gave; the plan chose the rest. */
+		said: Record<BriefPart, boolean>
+		/** What the plan chose the rest for: a promo, when the request reads as one, else the user. */
+		chosenFor: 'promo' | 'you'
 	}
 	/** A designed frame's picture: a small card in a corner, or hidden; null when not designed. */
 	card: Design['picture'] | null
@@ -1266,8 +1288,8 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 							}
 						: TEXT_STYLE[reply.style],
 					animation: TEXT_MOTION[reply.style],
-					// Above the captions; near the top of a tall frame.
-					at: tall ? TOP_TEXT : MIDDLE_TEXT
+					// Above the captions; near the top of a tall frame or a designed one.
+					at: tall || design ? TOP_TEXT : MIDDLE_TEXT
 				}
 			: null
 
@@ -1394,7 +1416,16 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 				tone: reply.brief.tone,
 				show: reply.brief.show,
 				lengthSeconds: asked,
-				callToAction
+				callToAction,
+				// Like the treatment: only the user's own words make a part theirs.
+				said: {
+					audience: saidInBrief(reply.brief.audience ?? '', said),
+					tone: saidInBrief(reply.brief.tone ?? '', said),
+					show: saidInBrief(reply.brief.show ?? '', said),
+					lengthSeconds: said.some((text) => LENGTH_REQUEST.test(text)),
+					callToAction: saidInBrief(callToAction ?? '', said)
+				},
+				chosenFor: promo ? 'promo' : 'you'
 			},
 			card: design?.picture ?? null,
 			title: title?.text ?? null,
