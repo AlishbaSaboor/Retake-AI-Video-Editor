@@ -1,15 +1,20 @@
 // Messages sent from the Contact us page, kept in this project's own
 // database: nothing is emailed or sent to an outside service. Read them with
 // Prisma Studio or the sql-preview skill. Anyone can send one, signed in or
-// not, so no user is attached.
+// not, so no user is attached: only a keyed hash of the sender's IP, to
+// limit how many one sender can send (contact/contact-limit.ts).
 model ContactMessage {
 	id        String   @id @default(cuid())
 	/// Optional on the form; null when left empty.
 	name      String?
 	email     String
 	message   String
+	/// HMAC-SHA256 of the sender's IP with CONTACT_IP_SECRET; never the IP
+	/// itself. Null when the IP or the secret isn't known (a shared limit).
+	ipHash    String?  @map("ip_hash")
 	createdAt DateTime @default(now()) @db.Timestamptz(6)
 
 	@@index([createdAt])
+	@@index([ipHash, createdAt])
 	@@map("contact_messages")
 }

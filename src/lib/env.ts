@@ -53,6 +53,12 @@ const envSchema = z.object({
 	// Required by cron routes only; an unset secret must not break unrelated pages.
 	CRON_SECRET: z.string().optional(),
 
+	// The key the contact form hashes a sender's IP with (contact-limit.ts),
+	// so no IP is ever stored. Required for a production server
+	// (production-settings.ts); without it elsewhere, every sender shares one
+	// cautious limit. At least 32 characters: generate one, never type one.
+	CONTACT_IP_SECRET: z.string().min(32).optional().or(z.literal('')),
+
 	NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
 
 	// Attached as the app_version property on every analytics event — optional,
