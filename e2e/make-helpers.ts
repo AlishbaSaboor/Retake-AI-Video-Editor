@@ -24,6 +24,7 @@ export const makeReply = (fields: Partial<MakeReply> = {}): MakeReply => ({
 	shape: 'vertical',
 	fit: 'fill',
 	fitAsked: false,
+	treatment: null,
 	maxSeconds: null,
 	brief: { audience: null, tone: null, length: null, show: null, callToAction: null },
 	faces: [],
