@@ -124,6 +124,7 @@ import { ZoomBox } from './zoom-box'
 import { ProjectList, ProjectPanel, RelinkPanel, type SaveStatus } from './project-panel'
 import {
 	deleteProject,
+	isStorageFull,
 	listProjects,
 	missingMedia,
 	openProject,
@@ -663,7 +664,11 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		} catch (error) {
 			const { userMessage } = captureClientError(error, { feature: 'save_project' })
 			setSaveStatus('failed')
-			toast({ variant: 'destructive', title: t('projects.saveFailed'), description: userMessage })
+			toast({
+				variant: 'destructive',
+				title: t('projects.saveFailed'),
+				description: isStorageFull(error) ? t('projects.storageFull') : userMessage
+			})
 		}
 	}
 

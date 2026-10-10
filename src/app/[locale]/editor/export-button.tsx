@@ -49,6 +49,8 @@ type ExportSource = {
 
 const PERCENT = 100
 const NO_SPEECH: SourceRange[] = []
+/** Why an export was stopped when its tab was hidden: a hidden tab draws no frames. */
+const TAB_HIDDEN = 'tab hidden'
 
 function download(blob: Blob, fileName: string) {
 	const href = URL.createObjectURL(blob)
@@ -116,6 +118,11 @@ export function useVideoExport({
 		}
 		const controller = new AbortController()
 		controllerRef.current = controller
+		// Hidden, the tab stops drawing the export's frames: it's stopped, not left to go wrong.
+		const onHidden = () => {
+			if (document.visibilityState === 'hidden') controller.abort(TAB_HIDDEN)
+		}
+		document.addEventListener('visibilitychange', onHidden)
 		setPercent(0)
 		try {
 			const { blob, mimeType } = await recordEdit(
@@ -131,6 +138,8 @@ export function useVideoExport({
 					signal: controller.signal
 				}
 			)
+			// Recorded: hiding the tab from here on harms nothing.
+			document.removeEventListener('visibilitychange', onHidden)
 			const fileName = exportFileName(videoName, mimeType, fileLabel)
 			// Nothing recorded (a header, no frames): said plainly, and no file offered.
 			if (!isUsableExport(blob)) {
@@ -158,7 +167,14 @@ export function useVideoExport({
 				})
 			}
 		} catch (error) {
-			if (!controller.signal.aborted) {
+			document.removeEventListener('visibilitychange', onHidden)
+			if (controller.signal.reason === TAB_HIDDEN) {
+				toast({
+					variant: 'destructive',
+					title: t('hidden.title'),
+					description: t('hidden.description')
+				})
+			} else if (!controller.signal.aborted) {
 				const { userMessage } = captureClientError(error, { feature: 'export' })
 				toast({ variant: 'destructive', title: t('failed'), description: userMessage })
 			}
