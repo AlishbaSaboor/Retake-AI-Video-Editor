@@ -178,6 +178,7 @@ const MAX_PLAN_LENGTH = 40_000
  * doesn't fit the shape, which the page treats as no check made.
  */
 export const checkMakePlan = validatedAction({
+	signedIn: true,
 	input: z.object({
 		request: z.string().trim().min(1).max(MAX_REQUEST_LENGTH),
 		planText: z.string().min(1).max(MAX_PLAN_LENGTH)
@@ -230,6 +231,7 @@ const FOLLOW_UP_INSTRUCTION = [
  * checked against the folder); null when the reply doesn't fit the shape.
  */
 export const followUpMakeIt = validatedAction({
+	signedIn: true,
 	input: z.object({
 		request: z.string().trim().min(1).max(MAX_REQUEST_LENGTH),
 		earlier: z.array(z.string().max(MAX_REQUEST_LENGTH)).max(MAX_FOLLOW_UPS),
@@ -293,6 +295,7 @@ export const followUpMakeIt = validatedAction({
  * reply doesn't fit the shape, which the page reports as no plan made.
  */
 export const planMakeIt = validatedAction({
+	signedIn: true,
 	input: z.object({
 		request: z.string().trim().min(1).max(MAX_REQUEST_LENGTH),
 		answers: z

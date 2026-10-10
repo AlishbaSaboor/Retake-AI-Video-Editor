@@ -1,4 +1,5 @@
 import 'server-only'
+import { AppError } from '@/lib/errors/app-error'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 export type SessionUser = { id: string; email: string }
@@ -23,4 +24,15 @@ export async function currentUser(): Promise<SessionUser | null> {
 	} catch {
 		return null
 	}
+}
+
+/**
+ * The signed-in user, or a 401: for anything that spends money (every paid AI
+ * action). Fails closed: no session, accounts off, or Supabase unreachable
+ * all refuse, whatever the page's redirect did (docs/rules/auth.md).
+ */
+export async function requireUser(): Promise<SessionUser> {
+	const user = await currentUser()
+	if (!user) throw new AppError('Sign in to use this.', { status: 401, code: 'unauthorized' })
+	return user
 }

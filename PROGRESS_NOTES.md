@@ -7,6 +7,10 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-11.
+> - **Paid AI actions need a signed-in user** (section 3zv): each of the
+>   seven checks the session itself and fails closed (401), whatever the
+>   page redirect does; production won't start without the Supabase
+>   settings; Deepgram and the editor's Gemini calls have time limits.
 > - **Saves, exports and re-linking you can trust** (section 3zu): a save
 >   is done only once its one transaction commits (storage full says so
 >   plainly, nothing left behind); hiding the tab stops an export with a
@@ -3058,6 +3062,61 @@ From the whole-repo review (three reliability gaps):
   can there. A fingerprint misses a change of the same size in a file's
   middle only.
 
+## 3zv. Paid AI actions need a signed-in user (2026-10-11)
+
+From the whole-repo review: the paid actions had no session check of their
+own; the only guard was proxy.ts's sign-in redirect, which lets a request
+through when Supabase can't be reached (or isn't configured).
+
+- **Guard:** `requireUser()` (`session.ts`, a 401 `AppError`) and a
+  `signedIn: true` option on `validatedAction` (run before the input is
+  parsed; `authorize` is the admin console's and needs a staff seat). On all
+  seven paid actions: the four editor ones and Make it's plan, check and
+  follow-up. Fails closed: no session, a bad one, Supabase unreachable, or
+  accounts not configured all refuse. Login, contact and the admin flag
+  actions are unchanged. `docs/rules/auth.md` says so.
+- **Production:** `missingProductionSettings` (`env.ts`): with
+  `NODE_ENV=production` and the Supabase URL or key unset or empty, the
+  server refuses to start (instrumentation loads env.ts at boot): "Accounts
+  aren't set up: … must be set in production, or every paid AI action
+  refuses. Set them, then start again." Not during `next build` (CI's build
+  has no Supabase). Checked by hand: a build without them passes; `next
+start` without them logs the message, and every request is a 500. Next
+  keeps the process up ("Failed to prepare server") rather than exiting.
+- **Time limits:** Deepgram's request now runs under `withTimeout` (its
+  `timeoutMs` required): 60 s for a take, 30 s for a voice command. The
+  editor's Gemini calls: 30 s for a command, 60 s for highlights (Make it's
+  were already 60/30 s).
+- **Found while testing:** `withTimeout` aborted the call before rejecting,
+  so a call that fails at once on abort (an AbortError) won the race and
+  showed "Something went wrong" instead of the time-out message. It now
+  rejects first.
+- **Test runner:** `pnpm test` adds `--experimental-test-module-mocks`
+  (works on Node 22.23 and 24; owner's choice of no test bypass in the app).
+  `scripts/ts-resolve-hooks.mjs`: the `@/` alias built `file:///C:/C:/…` on
+  Windows (fine on Linux), now `new URL('../src/', import.meta.url)`;
+  `server-only` resolves to Next's own empty module, as on the server; a
+  package path with no `exports` (`next/navigation`) is retried with `.js`.
+  `DeepgramError`'s parameter property became a field (Node can't strip it).
+- **Hand check** (local server, no session): `POST /editor` with the
+  voice-command action was redirected to /login (Supabase up, with or
+  without a made-up session cookie); posted to `/pricing` or `/` it's
+  "Server action not found" (Next only runs an action on a page that has
+  it); with the auth service stopped and a made-up cookie, the redirect let
+  it through (200) and the action answered `{"ok":false,"error":"Sign in to
+use this.","status":401}`; no `ai_usage` row was written.
+- Tests: unit, each paid action refused for no session, Supabase
+  unreachable, a throwing lookup, a bad session and accounts off (no
+  provider call), and reaching its provider when signed in; each editor
+  call given up at its limit with its request aborted (fake timers);
+  `withTimeout` with an immediate AbortError; the production check. Seven
+  mutations (the guard, the options on either file, each timeout, the
+  ordering, the env check) each fail their tests. e2e unchanged: its mocks
+  answer every paid action (transcripts, highlights, commands, Make it's
+  plan, check and follow-up), so CI needs no sign-in.
+- **Not covered:** real Supabase sign-in in unit tests or CI (local e2e
+  signs in for real; CI runs with accounts off).
+
 ---
 
 ## 4. Unresolved issues
@@ -3594,6 +3653,13 @@ Not changed.
   (`net::ERR_NETWORK_IO_SUSPENDED`): `projects.spec.ts:371` and the new
   `make-it.spec.ts:1403` failed on a page load, and `multi-video.spec.ts:239`
   got a 2.0 s recording for 3 s; all three passed on a rerun.
+
+- 2026-10-11, the paid-actions sign-in branch, a full local run with
+  accounts off (as CI), on `pnpm dev` with four workers: `motion.spec.ts:196`
+  (an export 5.49 s for 4.5 s), `re-record.spec.ts:22` and
+  `re-record-by-ear.spec.ts:27` (a fake-mic take not the expected length)
+  failed, and all three passed on a rerun. Real-time recording under load;
+  none of them calls a server action.
 
 ### 4d. Low memory on this machine (observed 2026-10-02)
 
