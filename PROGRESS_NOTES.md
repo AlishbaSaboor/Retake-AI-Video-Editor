@@ -7,6 +7,10 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-10.
+> - **Make it: the user's words decide a screen recording's treatment**
+>   (section 3zs): Gemini's filled-in `treatment` and `fitAsked` count only
+>   when the request (or a follow-up) really asks; the plan card says "As
+>   you asked" only then.
 > - **Export waits for the transcript** (section 3zr): the Export
 >   button says "Getting ready…" until the editor has its transcript, and an
 >   export that comes out empty is reported, not downloaded.
@@ -2920,6 +2924,35 @@ fill`. So Gemini doesn't call it a screen, and 3zo only excluded the label
   ready…"), then a real export once it's in; and a recorder made to hand
   over nothing (the error shown, no download). Both fail with the guards
   taken out.
+
+## 3zs. Make it: the user's words decide a screen recording's treatment (2026-10-10)
+
+- **Found in two real runs** (approved) of the owner's 4:41 recording on
+  main: "shorten this walkthrough" and "make a promo ad" both came back
+  `subject: screen` with `treatment: "whole"` filled in, so the promo came
+  out the whole screen, and both plan cards said "As you asked". Their
+  replies are kept as fixtures (`e2e/fixtures/real-run{1,2}-reply.json`).
+- **Fix:** `planMake` reads the user's own words (`request` and, from a
+  follow-up, `followUps`): `askedTreatment` finds text only ("text only",
+  "just the text", "captions only", "no screen"…) or the screen shown
+  ("show the screen", "keep my screen", "full screen"…), the latest ask
+  winning; Gemini's `treatment` is ignored otherwise (and a value off the
+  list is read as none). Then the promo wording (ad, promo, teaser,
+  highlights) makes it designed; else whole. `fitAsked` likewise counts
+  only with fit words (bars, blur, zoom, crop, fill the frame). Reasons:
+  "Showing the whole screen so the product stays visible", "It's a promo,
+  so it's text and captions"; "As you asked" only when asked.
+- **Export longer than the plan** (run 1: 3:56 → 4:01, run 2: 3:11 → 3:20):
+  not reproduced. Replaying both replies on the same recording with a
+  synthetic transcript, and a probe with 49 plain joins, exported within
+  0.05 s of the plan (recorder resume → video playing about 4 ms a join).
+  What those lacked is the real transcript (its 12 filler cuts); not
+  confirmed without one (a paid transcription, not yet approved).
+- Tests: unit with the two real replies (run 2 + "make a promo ad" →
+  designed, run 1 + "shorten this walkthrough" → whole, "text only" / "show
+  the screen" win in a request or a follow-up, Gemini's own "designed"
+  ignored, an unknown value ignored, close variants, fit words); fails
+  with Gemini deciding. e2e: the treatments test with the new reasons.
 
 ---
 
