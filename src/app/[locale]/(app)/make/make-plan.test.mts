@@ -255,7 +255,21 @@ test('a reply is planned into one edit: clips, transitions, word captions, zooms
 			musicMissing: false,
 			shape: { target: 'vertical', fit: 'fill', how: 'face', asked: false },
 			screen: null,
-			brief: { audience: null, tone: null, show: null, lengthSeconds: null, callToAction: null },
+			brief: {
+				audience: null,
+				tone: null,
+				show: null,
+				lengthSeconds: null,
+				callToAction: null,
+				said: {
+					audience: false,
+					tone: false,
+					show: false,
+					lengthSeconds: false,
+					callToAction: false
+				},
+				chosenFor: 'you'
+			},
 			card: null,
 			title: null,
 			titleDropped: true,
@@ -705,10 +719,15 @@ test("a designed frame's card sits low on the left in the picture's own shape, a
 	// 0.44 of 1080 wide, 16:9: 267.3 px high of 1920.
 	near(card.height * 1920, 0.44 * 1080 * (9 / 16))
 	near(card.y + card.height, 0.92)
+	// A word grows to 1.3× within 0.05 s of being said, then settles; never a jump.
 	assert.equal(wordPop(2, 1.9), 1)
-	near(wordPop(2, 2), 1.3)
+	assert.equal(wordPop(2, 2), 1)
+	near(wordPop(2, 2.05), 1.3)
 	assert.ok(wordPop(2, 2.1) < 1.3 && wordPop(2, 2.1) > 1)
 	assert.equal(wordPop(2, 2.5), 1)
+	for (let t = 1.9; t < 2.5; t += 0.001) {
+		assert.ok(Math.abs(wordPop(2, t + 0.001) - wordPop(2, t)) < 0.01, `a jump at ${t}`)
+	}
 })
 
 test('notes are cut at a word, never inside one; the summary has room for two sentences', () => {
@@ -1264,7 +1283,10 @@ test("a brief's parts are kept in its own words, and its call to action closes t
 		tone: 'friendly',
 		show: null,
 		lengthSeconds: 15,
-		callToAction: 'Try it free today'
+		callToAction: 'Try it free today',
+		// Each in the request's own words; none given to show.
+		said: { audience: true, tone: true, show: false, lengthSeconds: true, callToAction: true },
+		chosenFor: 'promo'
 	})
 	// The call to action over the last 3 s; the key line it would have met left out.
 	const end = plan.summary.editedSeconds
@@ -1571,4 +1593,62 @@ test("the owner's two real replies: Gemini's filled-in treatment never decides, 
 	const filled = { ...run1, fit: 'blur' as const, fitAsked: true, shape: 'vertical' as const }
 	assert.equal(make(filled, 'shorten this walkthrough').shape.asked, false)
 	assert.equal(make(filled, 'shorten this walkthrough, blurred background').shape.asked, true)
+})
+
+test("the owner's third real reply: a brief part is the user's only in their own words", () => {
+	// Gemini's reply to "make a promo ad" on the 4:41 screen recording, with
+	// a tone ("energetic") filled in though nobody gave one.
+	const run3 = makeReplySchema.parse(
+		JSON.parse(
+			readFileSync(
+				new URL('../../../../../e2e/fixtures/real-run3-reply.json', import.meta.url),
+				'utf-8'
+			)
+		)
+	)
+	assert.equal(run3.brief.tone, 'energetic')
+	const brief = (request: string, followUps: string[] = [], reply: MakeReply = run3) =>
+		planMake({
+			reply,
+			request,
+			durationSeconds: 281,
+			picture: { width: 1920, height: 1080 },
+			transcript: longTalk(79),
+			fillerCuts: [],
+			music: null,
+			musicAvailable: false,
+			followUps
+		}).summary.brief
+
+	// "make a promo ad": the tone is kept, but chosen for a promo, not the user's.
+	const promo = brief('make a promo ad')
+	assert.equal(promo.tone, 'energetic')
+	assert.equal(promo.said.tone, false)
+	assert.equal(promo.chosenFor, 'promo')
+	// "make it energetic": the user's own word.
+	const energetic = brief('make it energetic')
+	assert.equal(energetic.said.tone, true)
+	assert.equal(energetic.chosenFor, 'you')
+	// In a follow-up too, case and punctuation aside.
+	assert.equal(brief('make a promo ad', ['More ENERGETIC!']).said.tone, true)
+	// Every word of a part must be the user's: "energetic" alone doesn't give "upbeat, energetic".
+	const both = { ...run3, brief: { ...run3.brief, tone: 'upbeat, energetic' } }
+	assert.equal(brief('make it energetic', [], both).said.tone, false)
+	assert.equal(brief('make it upbeat and energetic', [], both).said.tone, true)
+	// Who it's for and what it shows, likewise; a length only when the user gives one.
+	const full = {
+		...run3,
+		maxSeconds: 30,
+		brief: { ...run3.brief, audience: 'small business owners', show: 'the dashboard' }
+	}
+	const filledIn = brief('make a promo ad', [], full)
+	assert.deepEqual(
+		[filledIn.said.audience, filledIn.said.show, filledIn.said.lengthSeconds],
+		[false, false, false]
+	)
+	const given = brief('a 30 second ad for small business owners showing the dashboard', [], full)
+	assert.deepEqual(
+		[given.said.audience, given.said.show, given.said.lengthSeconds],
+		[true, true, true]
+	)
 })
