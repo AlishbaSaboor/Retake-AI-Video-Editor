@@ -9,8 +9,9 @@ session with no memory of it can carry on. Read this whole file, then
 > - Branch `main`. Updated 2026-10-11.
 > - **Paid AI actions need a signed-in user** (section 3zv): each of the
 >   seven checks the session itself and fails closed (401), whatever the
->   page redirect does; production won't start without the Supabase
->   settings; Deepgram and the editor's Gemini calls have time limits.
+>   page redirect does; a production server without the Supabase settings
+>   logs which to set and exits with code 1; Deepgram and the editor's
+>   Gemini calls have time limits.
 > - **Saves, exports and re-linking you can trust** (section 3zu): a save
 >   is done only once its one transaction commits (storage full says so
 >   plainly, nothing left behind); hiding the tab stops an export with a
@@ -3083,6 +3084,15 @@ through when Supabase can't be reached (or isn't configured).
   has no Supabase). Checked by hand: a build without them passes; `next
 start` without them logs the message, and every request is a 500. Next
   keeps the process up ("Failed to prepare server") rather than exiting.
+- **Then it exits (follow-up PR, owner's decision):** the check moved to
+  `src/lib/production-settings.ts`, and `instrumentation.ts` runs it first
+  at boot: missing settings are logged (an error naming them) and the
+  process exits with code 1 once the log is out. Only for a production
+  server: never in the build, development or tests; env.ts still throws on
+  it as a backstop. Checked by hand: a build without them passes; `next
+start` without them exits 1 after ~3 s with the message; a build made
+  without them starts and serves (200) when they're set at runtime (the
+  boot check reads them then, not from the build).
 - **Time limits:** Deepgram's request now runs under `withTimeout` (its
   `timeoutMs` required): 60 s for a take, 30 s for a voice command. The
   editor's Gemini calls: 30 s for a command, 60 s for highlights (Make it's
@@ -3660,6 +3670,10 @@ Not changed.
   `re-record-by-ear.spec.ts:27` (a fake-mic take not the expected length)
   failed, and all three passed on a rerun. Real-time recording under load;
   none of them calls a server action.
+
+- 2026-10-11, the boot-exit follow-up, a full local run with accounts off:
+  `commands.spec.ts:62` failed once with `route.fetch: read ECONNRESET` (the
+  dev server dropped a request under four workers) and passed on a rerun.
 
 ### 4d. Low memory on this machine (observed 2026-10-02)
 

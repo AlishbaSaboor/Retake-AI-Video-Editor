@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { missingProductionSettings, missingSettingsMessage } from './production-settings'
 
 // Single source of truth for every environment variable the app reads.
 // Fails fast at boot with a clear message instead of a runtime `undefined`
@@ -15,7 +16,7 @@ const envSchema = z.object({
 
 	// Optional in development, tests and the build (CI runs without
 	// accounts). Required for a production server: see
-	// missingProductionSettings.
+	// production-settings.ts.
 	NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional().or(z.literal('')),
 	NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().optional().or(z.literal('')),
 	SUPABASE_SECRET_KEY: z.string().optional(),
@@ -61,34 +62,16 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>
 
-/** What a production server needs to have accounts: without them every paid AI action refuses. */
-const PRODUCTION_AUTH = [
-	'NEXT_PUBLIC_SUPABASE_URL',
-	'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'
-] as const
-
-/**
- * The settings a production server is missing: the Supabase ones, so a
- * deployment without accounts stops at boot rather than serving an app
- * nobody can use. Not while Next builds: the build never signs anyone in.
- */
-export function missingProductionSettings(vars: NodeJS.ProcessEnv): string[] {
-	if (vars.NODE_ENV !== 'production' || vars.NEXT_PHASE === 'phase-production-build') return []
-	return PRODUCTION_AUTH.filter((name) => !vars[name])
-}
-
 function loadEnv(): Env {
 	const parsed = envSchema.safeParse(process.env)
 	if (!parsed.success) {
 		console.error('Invalid environment variables:', parsed.error.flatten().fieldErrors)
 		throw new Error('Invalid environment variables — see console output above')
 	}
+	// Instrumentation stops the server on this at boot; this backs it up for
+	// anything that loads env.ts first.
 	const missing = missingProductionSettings(process.env)
-	if (missing.length > 0) {
-		throw new Error(
-			`Accounts aren't set up: ${missing.join(' and ')} must be set in production, or every paid AI action refuses. Set them, then start again.`
-		)
-	}
+	if (missing.length > 0) throw new Error(missingSettingsMessage(missing))
 	return parsed.data
 }
 

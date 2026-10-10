@@ -2,6 +2,16 @@ import * as Sentry from '@sentry/nextjs'
 
 export async function register() {
 	if (process.env.NEXT_RUNTIME === 'nodejs') {
+		// A production server without accounts would refuse every paid action:
+		// it stops here, saying which settings to set, once that line is out.
+		const { stopWithoutProductionSettings } = await import('./src/lib/production-settings')
+		const { log } = await import('./src/server/lib/logger')
+		const stopped = stopWithoutProductionSettings(process.env, {
+			error: log.error,
+			exit: (code) => process.stdout.write('', () => process.exit(code))
+		})
+		if (stopped) return
+
 		await import('./sentry.server.config')
 
 		// Sentry silently no-ops without a DSN, so a deployment that forgot to
@@ -9,7 +19,6 @@ export async function register() {
 		// runtime only, so it's one line per instance, not one per runtime)
 		// rather than discovering it the first time an error goes missing.
 		if (!process.env.NEXT_PUBLIC_SENTRY_DSN) {
-			const { log } = await import('./src/server/lib/logger')
 			log.warn('error reporting disabled: NEXT_PUBLIC_SENTRY_DSN is unset')
 		}
 
