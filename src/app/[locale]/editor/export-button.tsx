@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-import { DownloadIcon } from '@/components/ui/icons'
+import { DownloadIcon, SpinnerIcon } from '@/components/ui/icons'
 import { toast } from '@/lib/toast'
 import { captureClientError } from '@/lib/observability/capture-client-error'
 import {
 	canExport,
 	exportFileName,
 	fileSeconds,
+	isUsableExport,
 	lengthMismatch,
 	recordEdit,
 	totalSeconds
@@ -38,6 +39,12 @@ type ExportSource = {
 	addedUrls: Readonly<Record<string, string>>
 	/** What the file's name says it is, after the video's own name; "edited" unless given. */
 	fileLabel?: string
+	/**
+	 * Whether the editor has what the export draws: its transcript (for the
+	 * captions), once it has come or is known not to. Until then the export
+	 * waits. Ready unless given.
+	 */
+	ready?: boolean
 }
 
 const PERCENT = 100
@@ -85,7 +92,8 @@ export function useVideoExport({
 	laneItems,
 	speech = NO_SPEECH,
 	addedUrls,
-	fileLabel
+	fileLabel,
+	ready = true
 }: ExportSource) {
 	const t = useTranslations('Editor.export')
 	const [percent, setPercent] = useState<number | null>(null)
@@ -93,6 +101,11 @@ export function useVideoExport({
 	useEffect(() => () => controllerRef.current?.abort(), [])
 
 	async function start() {
+		// The typed "export" command, asked before the editor is ready: said, not started.
+		if (!ready) {
+			toast({ title: t('gettingReady'), description: t('gettingReadyHint') })
+			return
+		}
 		if (!canExport()) {
 			toast({
 				variant: 'destructive',
@@ -119,6 +132,17 @@ export function useVideoExport({
 				}
 			)
 			const fileName = exportFileName(videoName, mimeType, fileLabel)
+			// Nothing recorded (a header, no frames): said plainly, and no file offered.
+			if (!isUsableExport(blob)) {
+				captureClientError(new Error(`export came out ${blob.size} bytes`), { feature: 'export' })
+				toast({
+					variant: 'destructive',
+					title: t('empty.title'),
+					description: t('empty.description')
+				})
+				setPercent(null)
+				return
+			}
 			download(blob, fileName)
 			setPercent(null)
 			const off = await measuredMismatch(blob, totalSeconds(segments))
@@ -146,7 +170,8 @@ export function useVideoExport({
 		percent,
 		start,
 		cancel: () => controllerRef.current?.abort(),
-		canStart: percent === null && totalSeconds(segments) > 0
+		ready,
+		canStart: ready && percent === null && totalSeconds(segments) > 0
 	}
 }
 
@@ -171,6 +196,15 @@ export function ExportButton({ exporter }: { exporter: ReturnType<typeof useVide
 					{t('cancel')}
 				</Button>
 			</div>
+		)
+	}
+	// Until the editor has its transcript: disabled, saying why.
+	if (!exporter.ready) {
+		return (
+			<Button size="sm" title={t('gettingReadyHint')} aria-label={t('button')} disabled>
+				<SpinnerIcon />
+				{t('gettingReady')}
+			</Button>
 		)
 	}
 	return (
