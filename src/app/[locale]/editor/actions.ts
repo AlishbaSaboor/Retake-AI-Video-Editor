@@ -27,6 +27,13 @@ const MAX_COMMAND_LENGTH = 300
 const MAX_SENTENCES = 400
 const MAX_SENTENCE_LENGTH = 1000
 
+// How long each provider call may take before it's given up (and recorded as
+// timed out): a sentence or a few spoken seconds, or up to 5 minutes' worth.
+const COMMAND_TIMEOUT_MS = 30_000
+const HIGHLIGHTS_TIMEOUT_MS = 60_000
+const TAKE_TIMEOUT_MS = 60_000
+const VOICE_TIMEOUT_MS = 30_000
+
 const UNSUPPORTED: EditCommand = {
 	action: 'unsupported',
 	startSeconds: null,
@@ -107,6 +114,7 @@ function systemInstruction(durationSeconds: number, clipCount: number): string {
  * not "something went wrong".
  */
 export const parseEditCommand = validatedAction({
+	signedIn: true,
 	input: z.object({
 		command: z.string().trim().min(1).max(MAX_COMMAND_LENGTH),
 		durationSeconds: z.number().positive(),
@@ -114,7 +122,11 @@ export const parseEditCommand = validatedAction({
 	}),
 	handler: async ({ command, durationSeconds, clipCount }): Promise<EditCommand> => {
 		const response = await generateContent(
-			{ feature: 'parse_edit_command', model: 'gemini-3.5-flash-lite' },
+			{
+				feature: 'parse_edit_command',
+				model: 'gemini-3.5-flash-lite',
+				timeoutMs: COMMAND_TIMEOUT_MS
+			},
 			{
 				contents: command,
 				config: {
@@ -154,6 +166,7 @@ const HIGHLIGHTS_INSTRUCTION = [
  * picks, which the dialog reports as none found.
  */
 export const findHighlights = validatedAction({
+	signedIn: true,
 	input: z.object({
 		sentences: z
 			.array(
@@ -168,7 +181,11 @@ export const findHighlights = validatedAction({
 	}),
 	handler: async ({ sentences }): Promise<HighlightPick[]> => {
 		const response = await generateContent(
-			{ feature: 'find_highlights', model: 'gemini-3.5-flash-lite' },
+			{
+				feature: 'find_highlights',
+				model: 'gemini-3.5-flash-lite',
+				timeoutMs: HIGHLIGHTS_TIMEOUT_MS
+			},
 			{
 				contents: numberedSentences(sentences),
 				config: {
@@ -195,10 +212,11 @@ export const findHighlights = validatedAction({
  * wrapper and surface as an error, never as an empty "no speech" transcript.
  */
 export const transcribeTake = validatedAction({
+	signedIn: true,
 	input: z.object({ audioBase64: z.string().min(1).max(MAX_AUDIO_BASE64_LENGTH) }),
 	handler: async ({ audioBase64 }): Promise<Transcript> => {
 		const response = await transcribeAudio(
-			{ feature: 'transcribe_take', model: 'nova-3' },
+			{ feature: 'transcribe_take', model: 'nova-3', timeoutMs: TAKE_TIMEOUT_MS },
 			Buffer.from(audioBase64, 'base64'),
 			'audio/wav'
 		).catch(rethrowAiError('deepgram', 'transcribe_take'))
@@ -211,10 +229,11 @@ export const transcribeTake = validatedAction({
  * words, punctuated, in order; empty when nothing was said.
  */
 export const transcribeVoiceCommand = validatedAction({
+	signedIn: true,
 	input: z.object({ audioBase64: z.string().min(1).max(MAX_VOICE_BASE64_LENGTH) }),
 	handler: async ({ audioBase64 }): Promise<string> => {
 		const response = await transcribeAudio(
-			{ feature: 'voice_command', model: 'nova-3' },
+			{ feature: 'voice_command', model: 'nova-3', timeoutMs: VOICE_TIMEOUT_MS },
 			Buffer.from(audioBase64, 'base64'),
 			'audio/wav'
 		).catch(rethrowAiError('deepgram', 'voice_command'))

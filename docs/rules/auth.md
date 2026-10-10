@@ -70,6 +70,14 @@ For any handler / action / loader that touches user-scoped data:
 3. Never scope a query by a client-supplied id alone — scope it to the
    authenticated user server-side.
 
+The same goes for any action that spends money on a provider (every AI
+call): give its `validatedAction` `signedIn: true`, which runs
+`requireUser()` (`src/server/auth/session.ts`) before the input is parsed.
+It fails closed — no session, accounts not configured, or Supabase
+unreachable all return 401 — because the sign-in redirect in `src/proxy.ts`
+fails open and is not a guard. A production server won't start without the
+Supabase settings (`missingProductionSettings` in `src/lib/env.ts`).
+
 ### RLS on, no policies — the deny-by-default backstop
 
 Two settings, together, make it structurally impossible for anything but

@@ -24,8 +24,10 @@ export async function withTimeout<T>(
 	let timer: ReturnType<typeof setTimeout> | undefined
 	const deadline = new Promise<never>((_, reject) => {
 		timer = setTimeout(() => {
-			controller.abort()
+			// Settled first, so the time-out is what's reported even when the
+			// call fails at once on being aborted (an AbortError of its own).
 			reject(new TimeoutError(ms))
+			controller.abort()
 		}, ms)
 	})
 	try {
