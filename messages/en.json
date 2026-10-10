@@ -1316,6 +1316,8 @@
 				"messagePlaceholder": "Tell us what's on your mind",
 				"send": "Send message",
 				"invalid": "Check your email and message, then try again.",
+				"refused": "Your message couldn’t be sent right now. Please try again later.",
+				"honeypot": "Leave this empty",
 				"sentTitle": "Message sent",
 				"sentBody": "Thanks, we have it.",
 				"another": "Send another"
@@ -1637,7 +1639,7 @@
 			"metaTitle": "Privacy",
 			"eyebrow": "Privacy",
 			"title": "Your videos, <em>your call.</em>",
-			"updated": "Privacy policy · Last updated: 8 October 2026",
+			"updated": "Privacy policy · Last updated: 11 October 2026",
 			"description": "What Retake collects when you use it, why, and the choices you have, in plain language.",
 			"sections": {
 				"who": {
@@ -1652,7 +1654,7 @@
 						"0": "<b>Account details:</b> your email address, and your password, kept by our sign-in service (Supabase).",
 						"1": "<b>Your videos:</b> they stay on your computer. Editing, previews and export run in your browser, and saved projects, with their video, are kept in this browser, not on our servers.",
 						"2": "<b>Usage information:</b> which pages are visited and what is clicked (PostHog), and reports of errors so we can fix them (Sentry). Never your videos.",
-						"3": "<b>Messages:</b> what you send through the contact page, with your name and email, so we can reply."
+						"3": "<b>Messages:</b> what you send through the contact page, with your name and email, so we can reply. With each message we keep a coded form of your network address (a one-way code, never the address itself), only to stop the form being flooded."
 					}
 				},
 				"use": {

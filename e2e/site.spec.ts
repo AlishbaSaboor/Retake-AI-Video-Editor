@@ -187,6 +187,49 @@ test('a contact message is checked, sent, and thanked', async ({ page }) => {
 	await expect(page.getByRole('heading', { name: 'Message sent' })).toBeVisible()
 })
 
+test('a person never sees the hidden field and sends it empty; a refused message says so plainly', async ({
+	page
+}) => {
+	// The form's action, answered as the server does when a sender is over the
+	// limit (or the hidden field is filled): the request still reaches the real
+	// server, its input emptied, and only the result inside Next's reply is swapped.
+	const sent: string[] = []
+	await page.route(
+		(url) => url.pathname.endsWith('/contact'),
+		async (route) => {
+			const request = route.request()
+			if (!request.headers()['next-action']) return route.continue()
+			sent.push(request.postData() ?? '')
+			const response = await route.fetch({ postData: '[{}]' })
+			await route.fulfill({
+				response,
+				body: (await response.text()).replace(
+					/\{"ok":false[^\n]*\}/,
+					JSON.stringify({
+						ok: false,
+						error: "Your message couldn't be sent right now. Please try again later.",
+						status: 429
+					})
+				)
+			})
+		}
+	)
+	await page.goto('/contact')
+	const hidden = page.locator('input[name="website"]')
+	await expect(hidden).not.toBeInViewport()
+	expect(await hidden.getAttribute('tabindex')).toBe('-1')
+	// Not offered to a screen reader either (getByRole skips what's aria-hidden).
+	await expect(page.getByRole('textbox', { name: 'Leave this empty' })).toHaveCount(0)
+	await page.getByLabel('Email').fill('sam@example.com')
+	await page.getByLabel('Message').fill('Hello')
+	await page.getByRole('button', { name: 'Send message' }).click()
+	await expect(
+		page.getByText('Your message couldn’t be sent right now. Please try again later.')
+	).toBeVisible()
+	await expect(page.getByRole('heading', { name: 'Message sent' })).toHaveCount(0)
+	expect(JSON.parse(sent[0] ?? '[]')[0]?.website).toBe('')
+})
+
 test('the app pages ask a signed-out visitor to log in, when accounts are on', async ({ page }) => {
 	await page.goto('/projects')
 	const url = new URL(page.url())
