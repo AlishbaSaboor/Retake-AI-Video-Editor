@@ -5,7 +5,12 @@ import { useTranslations } from 'next-intl'
 import { ChevronDownIcon, SpinnerIcon, SuccessIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { sendContactMessage } from './actions'
-import { CONTACT_TOPICS, MAX_MESSAGE_LENGTH, MAX_NAME_LENGTH } from './contact-schema'
+import {
+	CONTACT_TOPICS,
+	HONEYPOT_FIELD,
+	MAX_MESSAGE_LENGTH,
+	MAX_NAME_LENGTH
+} from './contact-schema'
 
 const field =
 	'border-border-strong bg-surface-inset text-text placeholder:text-text-faint hover:border-text-faint focus-visible:outline-accent w-full rounded-[14px] border px-4 text-base transition-colors focus-visible:outline-2 focus-visible:-outline-offset-1'
@@ -47,13 +52,23 @@ export function ContactForm() {
 						name: form.get('name'),
 						email: form.get('email'),
 						topic: form.get('topic'),
-						message: form.get('message')
+						message: form.get('message'),
+						website: form.get(HONEYPOT_FIELD)
 					})
 					if (result.ok) setSent(true)
-					else setError(result.status === 400 ? t('invalid') : result.error)
+					else if (result.status === 400) setError(t('invalid'))
+					else if (result.status === 429) setError(t('refused'))
+					else setError(result.error)
 				})
 			}}
 		>
+			{/* Out of sight and out of the tab order, so only a bot fills it in. */}
+			<div aria-hidden className="absolute -left-[10000px] h-px w-px overflow-hidden">
+				<label>
+					{t('honeypot')}
+					<input type="text" name={HONEYPOT_FIELD} tabIndex={-1} autoComplete="off" />
+				</label>
+			</div>
 			<div className="grid gap-5 sm:grid-cols-2">
 				<div className="flex flex-col gap-2">
 					<label htmlFor="contact-name" className={label}>
