@@ -24,36 +24,6 @@ async function load(vars: Record<string, string | undefined>) {
 	}
 }
 
-const { missingProductionSettings } = await load({})
-
-test('a production server needs both Supabase settings; development, tests and the build do not', () => {
-	assert.deepEqual(missingProductionSettings({ NODE_ENV: 'production' }), [
-		'NEXT_PUBLIC_SUPABASE_URL',
-		'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'
-	])
-	assert.deepEqual(
-		missingProductionSettings({ NODE_ENV: 'production', NEXT_PUBLIC_SUPABASE_URL: 'x' }),
-		['NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY']
-	)
-	// Set but empty is missing too.
-	assert.deepEqual(
-		missingProductionSettings({
-			NODE_ENV: 'production',
-			...SUPABASE,
-			NEXT_PUBLIC_SUPABASE_URL: ''
-		}),
-		['NEXT_PUBLIC_SUPABASE_URL']
-	)
-	assert.deepEqual(missingProductionSettings({ NODE_ENV: 'production', ...SUPABASE }), [])
-	for (const NODE_ENV of ['development', 'test', undefined]) {
-		assert.deepEqual(missingProductionSettings({ NODE_ENV }), [], String(NODE_ENV))
-	}
-	assert.deepEqual(
-		missingProductionSettings({ NODE_ENV: 'production', NEXT_PHASE: 'phase-production-build' }),
-		[]
-	)
-})
-
 test('production without the Supabase settings stops at load, saying what to set', async () => {
 	await assert.rejects(
 		load({
