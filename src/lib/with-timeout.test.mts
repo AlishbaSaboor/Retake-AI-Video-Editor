@@ -26,3 +26,17 @@ test('an answer in time comes through, and its own failure is its own', async ()
 		/refused/
 	)
 })
+
+test('a call that fails at once on being told to stop is still reported as timed out', async () => {
+	await assert.rejects(
+		withTimeout(
+			50,
+			(abort) =>
+				// As an SDK does: aborting its request rejects it straight away.
+				new Promise<string>((_, reject) =>
+					abort.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+				)
+		),
+		(error) => error instanceof TimeoutError && error.ms === 50
+	)
+})

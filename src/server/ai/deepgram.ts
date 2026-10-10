@@ -1,6 +1,7 @@
 import 'server-only'
 import { z } from 'zod'
 import { env } from '@/lib/env'
+import { withTimeout } from '@/lib/with-timeout'
 import { trackAiCall } from '@/server/lib/ai-usage/sink'
 import type { AudioMinuteModel } from '@/server/lib/ai-usage/models'
 import type { AiUsageMeta } from '@/server/lib/ai-usage/track'
@@ -36,9 +37,11 @@ export type DeepgramWord = z.infer<typeof wordSchema>
 
 /** A non-2xx reply, carrying its HTTP status so callers can tell "busy" from broken. */
 export class DeepgramError extends Error {
-	constructor(readonly status: number) {
+	readonly status: number
+	constructor(status: number) {
 		super(`Deepgram responded ${status}`)
 		this.name = 'DeepgramError'
+		this.status = status
 	}
 }
 
@@ -46,6 +49,8 @@ export type TranscribeContext = {
 	feature: string
 	model: AudioMinuteModel
 	meta?: AiUsageMeta
+	/** Give up after this long: the request is aborted and the call fails with a TimeoutError (recorded). */
+	timeoutMs: number
 }
 
 /**
@@ -58,21 +63,25 @@ export function transcribeAudio(
 	audio: Uint8Array,
 	mimeType: string
 ): Promise<DeepgramResponse> {
-	return trackAiCall({ provider: 'deepgram', ...context }, async () => {
-		if (!env.DEEPGRAM_API_KEY) throw new Error('DEEPGRAM_API_KEY is not set')
-		const params = new URLSearchParams({
-			model: context.model,
-			filler_words: 'true',
-			punctuate: 'true'
+	const { timeoutMs, ...tracked } = context
+	return trackAiCall({ provider: 'deepgram', ...tracked }, () =>
+		withTimeout(timeoutMs, async (signal) => {
+			if (!env.DEEPGRAM_API_KEY) throw new Error('DEEPGRAM_API_KEY is not set')
+			const params = new URLSearchParams({
+				model: context.model,
+				filler_words: 'true',
+				punctuate: 'true'
+			})
+			const response = await fetch(`${LISTEN_URL}?${params}`, {
+				method: 'POST',
+				headers: { Authorization: `Token ${env.DEEPGRAM_API_KEY}`, 'Content-Type': mimeType },
+				body: new Blob([audio.slice()], { type: mimeType }),
+				signal
+			})
+			if (!response.ok) throw new DeepgramError(response.status)
+			return responseSchema.parse(await response.json())
 		})
-		const response = await fetch(`${LISTEN_URL}?${params}`, {
-			method: 'POST',
-			headers: { Authorization: `Token ${env.DEEPGRAM_API_KEY}`, 'Content-Type': mimeType },
-			body: new Blob([audio.slice()], { type: mimeType })
-		})
-		if (!response.ok) throw new DeepgramError(response.status)
-		return responseSchema.parse(await response.json())
-	})
+	)
 }
 
 /** The word list of the first channel's best alternative. */
