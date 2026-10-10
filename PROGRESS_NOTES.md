@@ -10,6 +10,9 @@ session with no memory of it can carry on. Read this whole file, then
 > - **Export waits for the transcript** (section 3zr): the Export
 >   button says "Getting ready…" until the editor has its transcript, and an
 >   export that comes out empty is reported, not downloaded.
+> - **Make it: a screen recording is never a corner card** (section 3zo): a
+>   reel of a screen recording showed a palette background and the screen
+>   tiny in the lower left; it now shows whole, full width and centred.
 > - **Make it: shapes, fit and briefs** (section 3zn): the plan picks a
 >   shape (9:16, 1:1, 4:5, 16:9 or the video's own) and a fit (bars, blur,
 >   fill) and says why; ads keep their own shape and the whole picture
@@ -2814,6 +2817,27 @@ Found in the real Make it runs (a 3-minute walkthrough and a short clip).
   read from the file and its colours compared with the preview's. Turning
   the export's blur off fails it (preview blurred, export black). Fake AI
   only; not tested against real Gemini.
+
+## 3zo. Make it: a screen recording is never a corner card (2026-10-09)
+
+- **Bug:** a reel made from a screen recording came out as the designed
+  vertical frame (section 3zg): the palette over the whole frame, the screen
+  a card 44% wide in the lower left. Cause: `planMake` designs a reel or ad
+  whose picture "doesn't carry it" (`pictureMatters: false`), and the prompt
+  told Gemini a screen recording is judged by its speech (and named "a
+  still screen" as a designed case). Not a scaling or offset bug: the card
+  is placed in the corner on purpose, for meetings.
+- **Fix:** `designable` excludes `subject: 'screen'`, so a screen recording
+  takes the fit path (bars or blur, `how: 'whole'`): full width, centred,
+  nothing cut off. The prompt no longer names a screen as a card case.
+  Meetings are designed as before. Only 9:16 was affected; 1:1, 4:5 and 16:9
+  already showed it whole.
+- Tests: unit (each shape: no design, the crop full width and centred;
+  a meeting still designed; fails without the fix); e2e: a one-colour
+  (green) screen recording made 9:16, 1:1, 4:5 and 16:9, each export's own
+  size checked and its frame read: green over the middle 80% of the
+  centred, full-width area, none in the frame's corners (fails before the
+  fix on 9:16: nothing green in the middle).
 
 ## 3zr. Export waits for the transcript (2026-10-10)
 

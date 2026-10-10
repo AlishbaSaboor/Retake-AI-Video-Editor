@@ -1041,10 +1041,16 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	// person on camera in a reel in view (never in an ad unless asked), with a
 	// crop that follows their face. Otherwise the whole picture shows, with
 	// bars or over a blur; or, for a reel or an ad whose picture doesn't carry
-	// it (a static meeting, a still screen), in a frame designed around the
-	// speech, the picture a small card. A video already the shape is kept.
+	// it (a static meeting), in a frame designed around the speech, the
+	// picture a small card. Never a screen recording: its screen is what's
+	// read, so it shows whole, as wide as the frame. A video already the shape
+	// is kept.
 	const shape: MakeShape = shortForm ? 'vertical' : reply.shape
-	const designable = (shortForm || reply.style === 'ad') && !pictureMatters && words.length > 0
+	const designable =
+		(shortForm || reply.style === 'ad') &&
+		!pictureMatters &&
+		reply.subject !== 'screen' &&
+		words.length > 0
 	let fit: MakeFit | null = null
 	let how: MakeSummary['shape']['how'] = 'kept'
 	let design: Design | null = null

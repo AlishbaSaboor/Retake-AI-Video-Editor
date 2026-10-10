@@ -1273,3 +1273,55 @@ test("a brief's parts are kept in its own words, and its call to action closes t
 	assert.equal(parsed.audience, null)
 	assert.ok((parsed.show ?? '').length <= 120 && parsed.show?.endsWith('…'))
 })
+
+test('a screen recording is never a card in a corner: as wide as the frame, centred, in every shape', () => {
+	const make = (shape: MakeReply['shape'], request: string, fields: Partial<MakeReply> = {}) =>
+		planMake({
+			// Judged by its speech, as a static screen is: what used to be designed around a card.
+			reply: {
+				...REPLY,
+				style: shape === 'vertical' ? 'reel' : 'ad',
+				format: 'other',
+				subject: 'screen',
+				pictureMatters: false,
+				faces: [],
+				fit: 'bars',
+				shape,
+				...fields
+			},
+			request,
+			durationSeconds: DURATION,
+			picture: { width: 1920, height: 1080 },
+			transcript,
+			fillerCuts: [],
+			music: null,
+			musicAvailable: false
+		})
+	for (const [shape, request, ratio] of [
+		['vertical', 'make this an Instagram reel', 9 / 16],
+		['square', 'a square ad', 1],
+		['portrait', 'a 4:5 ad', 4 / 5]
+	] as const) {
+		const { edit, summary } = make(shape, request)
+		assert.equal(edit.design, null, shape)
+		assert.equal(summary.shape.how, 'whole', shape)
+		// The whole picture across the frame's width, the same space above as below it.
+		const rect = edit.transform.crop?.rect
+		assert.ok(rect && edit.transform.crop?.fit, shape)
+		assert.equal(rect.x, 0, shape)
+		assert.equal(rect.width, 1, shape)
+		near(rect.height, 16 / 9 / ratio)
+		near(rect.y, -(rect.height - 1) / 2)
+	}
+	// Over a blur, the same place; and 16:9 is already its shape.
+	assert.equal(
+		make('vertical', 'make this an Instagram reel', { fit: 'blur' }).edit.transform.crop?.blur,
+		true
+	)
+	assert.equal(make('horizontal', 'a horizontal ad').summary.shape.how, 'matches')
+	// A meeting is still designed around the speech.
+	assert.equal(
+		make('vertical', 'make this an Instagram reel', { subject: 'meeting' }).summary.shape.how,
+		'designed'
+	)
+})
