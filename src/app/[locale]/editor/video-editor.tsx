@@ -441,7 +441,10 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		color,
 		laneItems: audioItems,
 		speech,
-		addedUrls
+		addedUrls,
+		// The captions need the transcript: no export until it's in, or known not to come.
+		ready:
+			analysis.transcript.status !== 'analyzing' && analysis.transcript.status !== 'transcribing'
 	})
 	const segments =
 		preview && cutWindow && cutEditor

@@ -1,6 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { exportFileName, lengthMismatch, pickMimeType, totalSeconds } from './export-video'
+import {
+	exportFileName,
+	isUsableExport,
+	lengthMismatch,
+	MIN_EXPORT_BYTES,
+	pickMimeType,
+	totalSeconds
+} from './export-video'
 
 test('the export uses the best format the browser can record', () => {
 	assert.equal(
@@ -46,4 +53,14 @@ test('an export more than 0.25 s off the edit is flagged, with its direction', (
 	// The misses measured under memory pressure (PROGRESS_NOTES.md 4f, 4c).
 	assert.ok(Math.abs((lengthMismatch(2.4, 2.92) ?? 0) + 0.52) < 1e-9)
 	assert.ok(Math.abs((lengthMismatch(3.35, 2.96) ?? 0) - 0.39) < 1e-9)
+})
+
+test('an export with nothing recorded in it is not offered', () => {
+	// A recorder that stopped as it began: a WebM header, no frames (110 bytes, as seen).
+	assert.equal(isUsableExport({ size: 0 }), false)
+	assert.equal(isUsableExport({ size: 110 }), false)
+	assert.equal(isUsableExport({ size: MIN_EXPORT_BYTES - 1 }), false)
+	// The smallest real export, a second of a small picture, is tens of kilobytes.
+	assert.equal(isUsableExport({ size: MIN_EXPORT_BYTES }), true)
+	assert.equal(isUsableExport({ size: 40_000 }), true)
 })

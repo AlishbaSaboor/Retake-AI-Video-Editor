@@ -52,6 +52,17 @@ export function pickMimeType(isSupported: (mimeType: string) => boolean): string
 	return MIME_TYPES.find(isSupported) ?? null
 }
 
+/**
+ * A file this small holds no picture: a recording that stopped as it began
+ * (a header, no frames). It's reported, never offered as the export.
+ */
+export const MIN_EXPORT_BYTES = 1024
+
+/** Whether an exported file has anything in it worth offering. */
+export function isUsableExport(file: { size: number }): boolean {
+	return file.size >= MIN_EXPORT_BYTES
+}
+
 /** "take.mov" exported as WebM becomes "take-edited.webm"; with `label` "highlight-2", "take-highlight-2.webm". */
 export function exportFileName(sourceName: string, mimeType: string, label = 'edited'): string {
 	const base = sourceName.replace(/\.[^.]*$/, '') || 'video'
