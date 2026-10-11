@@ -1,0 +1,14 @@
+{
+	"problems": ["Key line contains words not said in sentence 4"],
+	"title": "Fathom AI",
+	"keyLines": [
+		{
+			"sentence": 4,
+			"text": "For the edX assignment, I have chose the Fathom AI, an AI meeting notetaker."
+		}
+	],
+	"captions": "large",
+	"transition": "slide",
+	"dropSentences": [],
+	"tooShort": false
+}
