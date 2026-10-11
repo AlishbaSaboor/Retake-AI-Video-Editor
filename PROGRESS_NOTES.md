@@ -7,6 +7,10 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-11.
+> - **Make it asks a few quick questions** (section 3zzb): only what the
+>   request leaves open, fixed choices, no AI call; clicked answers are
+>   the user's words and win over Gemini's, skipped ones are labelled as
+>   chosen. A request can be up to 1,000 characters.
 > - **planMake is a short list of named, tested steps** (section 3zza):
 >   63 lines instead of 510, the same plans for the same inputs (100
 >   captured scenarios and the owner's real runs replayed).
@@ -3373,6 +3377,56 @@ splitting the file is a follow-up). No decision changed.
   byte-identical before and after.
 - **Counts:** unit tests 531 to 649 (101 replay, 17 steps); e2e 121, all
   passing.
+
+## 3zzb. Make it's quick questions, and room for a whole brief (2026-10-11)
+
+Someone with a clear vision can describe it, or answer a few quick
+questions, and the plan follows. Question list, skip rules and the request
+limit agreed with the owner.
+
+- **The questions** (`make/make-questions.ts`, the screen in
+  `quick-questions.tsx`): fixed choices on one screen, no AI call, each
+  with "You decide" (picked by default) and a Skip all. In order: what it
+  is (Instagram reel, TikTok, YouTube Short, ad, other); an ad's shape
+  (vertical, horizontal, keep the video's shape), shown once it's an ad;
+  the voice-or-music choice and the music's genre or mood, **defined but
+  hidden until music is built**; tone and call to action (optional text,
+  120 characters, the brief parts' limit).
+- **Skip rules**, in code from the request's own words, whole words only
+  ("add captions", "advice" and "adjust" are no ad; "short" and "story"
+  never match inside a word, and "short" alone isn't a YouTube Short):
+  what it is, when the request names a reel, TikTok, Short(s), story or an
+  ad/advert/promo/commercial; an ad's shape, unless it's an ad with no
+  shape (vertical, 9:16, square, "keep its own shape"…) and no short-video
+  platform named; tone and call to action, each when the request gives
+  one. A long brief that says it all asks nothing.
+- **The answers count as the user's own words** (`choiceWords`, read with
+  the request by Gemini and by the honesty rules), and `planMake` puts
+  them in place of Gemini's guess first (`applyChoices`): what it is, an
+  ad's shape, the tone and the call to action. A later chat follow-up
+  naming the same thing still wins. A screen recording clicked as an ad is
+  designed, as a promo. On the plan card, what was clicked reads "From
+  your brief", what was left to "You decide" "Chosen for you"; only the
+  questions shown are labelled (`summary.questions`, absent when none
+  were, so earlier plans are unchanged).
+- **Planning waits for the answers:** the video is read and transcribed
+  behind the questions, and planning starts only on "Make the plan" or
+  Skip all.
+- **The request limit is 1,000 characters** (was 300), in the box and in
+  `planMakeIt`, `checkMakePlan` and `followUpMakeIt` (which carries the
+  original request back); new follow-ups keep 300 (`MAX_FOLLOW_UP_LENGTH`),
+  answers to Gemini's own questions 300 (`MAX_ANSWER_LENGTH`). Measured on
+  the local `ai_usage`: about $0.00005 more per call at the most (+0.3% of
+  a plan). The box counts what's left and, past 1,000, keeps the text as
+  typed, says so plainly and holds Make it back. The request and the
+  answers stay in the prompt's contents, never its instruction.
+- **Tests (fake AI only):** 11 unit tests of the skip rules, the answers
+  and the plan following them (each rule removed on purpose, 16 breaks,
+  each made a test fail, then restored); 2 server tests of the limits;
+  7 e2e tests of the flow (`e2e/make-questions.spec.ts`). The existing
+  Make it e2e tests press Make it through `submitMake`, which takes Skip
+  all when the request leaves questions open: what they assert is
+  unchanged.
 
 ---
 

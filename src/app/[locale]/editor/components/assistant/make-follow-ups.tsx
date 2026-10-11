@@ -63,6 +63,7 @@ export async function planFollowUp(ask: FollowUpAsk): Promise<FollowUpOutcome> {
 		result = await withTimeout(PLAN_TIMEOUT_MS + PAGE_GRACE_MS, () =>
 			followUpMakeIt({
 				request: basis.request,
+				...(basis.choices && { choices: basis.choices }),
 				earlier: ask.earlier,
 				followUp: ask.text,
 				answers: ask.answers,

@@ -41,6 +41,7 @@ import { captureFrames } from './frames'
 import {
 	FRAME_SEPARATOR,
 	frameTimes,
+	MAX_ANSWER_LENGTH,
 	MAX_MAKE_SECONDS,
 	MAX_REQUEST_LENGTH,
 	planMake,
@@ -56,6 +57,8 @@ import {
 	type MakeReply,
 	type MakeSummary
 } from './make-plan'
+import { questionsToAsk, type MakeChoices, type QuestionId } from './make-questions'
+import { QuickQuestions } from './quick-questions'
 
 /** The starting points, each with its dot's colour. */
 const EXAMPLES = [
@@ -76,8 +79,11 @@ function firstWords(text: string, count: number): string {
 
 /** The picked video, read: where it plays from, how long it is, its picture's size. */
 type Video = { file: File; url: string; durationSeconds: number; picture: Size }
-/** What's being planned: the request, and the answers to any questions asked about it. */
-type Ask = { request: string; answers: MakeAnswer[] }
+/**
+ * What's being planned: the request, the answers to the quick questions
+ * (null when none were shown), and the answers to any Gemini asked.
+ */
+type Ask = { request: string; choices: MakeChoices | null; answers: MakeAnswer[] }
 
 /**
  * Asks the server for a plan. A failure comes back as what to tell the
@@ -102,10 +108,14 @@ async function requestPlan(input: Parameters<typeof planMakeIt>[0], unclear: str
  * The second check of a plan against its request. Its failure never stops
  * the plan: it's reported, and the plan shows as first made, saying so.
  */
-async function checkPlan(request: string, planText: string): Promise<CheckReply | null> {
+async function checkPlan(
+	request: string,
+	choices: MakeChoices | null,
+	planText: string
+): Promise<CheckReply | null> {
 	try {
 		const result = await withTimeout(CHECK_TIMEOUT_MS + PAGE_GRACE_MS, () =>
-			checkMakePlan({ request, planText })
+			checkMakePlan({ request, ...(choices && { choices }), planText })
 		)
 		return result.ok ? result.data : null
 	} catch (error) {
@@ -128,10 +138,14 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 	const [request, setRequest] = useState(() => peekMakeStart()?.request ?? '')
 	const [video, setVideo] = useState<Video | null>(null)
 	const [ask, setAsk] = useState<Ask | null>(null)
+	// The quick questions on screen for the request, if any: planning waits for them.
+	const [asking, setAsking] = useState<{ request: string; shown: QuestionId[] } | null>(null)
 	const [problem, setProblem] = useState<'notVideo' | 'tooLong' | null>(null)
 	const [reading, setReading] = useState(false)
 	const [dragging, setDragging] = useState(false)
 	const analysis = useTakeAnalysis(video)
+	// Past the limit, the request is kept as typed and Make it waits for it to be shortened.
+	const overLimit = request.length > MAX_REQUEST_LENGTH
 
 	// Taken once: a later visit to the page starts empty.
 	useEffect(() => clearMakeStart(), [])
@@ -167,6 +181,7 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 			const { reply, tracks } = await requestPlan(
 				{
 					request: ask.request,
+					...(ask.choices && { choices: ask.choices }),
 					answers: ask.answers,
 					durationSeconds: video.durationSeconds,
 					sentences: (transcript?.segments ?? []).map(({ startSeconds, endSeconds, text }) => ({
@@ -198,7 +213,8 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 					music,
 					musicAvailable: tracks.length > 0,
 					tooShort,
-					unchecked
+					unchecked,
+					choices: ask.choices
 				})
 			const musicAvailable = tracks.length > 0
 			// The plan as made, then checked against the request and made again
@@ -208,6 +224,7 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 			const first = plan(reply)
 			const check = await checkPlan(
 				ask.request,
+				ask.choices,
 				describePlan(reply, first.summary, first.edit.clips ?? [], transcript?.segments ?? [])
 			)
 			const made =
@@ -236,12 +253,19 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 		setFile(next)
 		setVideo(null)
 		setAsk(null)
+		setAsking(null)
 		setProblem(null)
 	}
 
-	/** Reads the video (once per pick), then asks for a plan. */
-	async function start(answers: MakeAnswer[] = []) {
-		if (!file || !request.trim()) return
+	/**
+	 * Reads the video (once per pick), then shows the quick questions the
+	 * request leaves open, or plans straight away when it answers them all.
+	 * The video is read and transcribed while they're answered; planning
+	 * waits for the answers, or Skip all.
+	 */
+	async function start() {
+		const text = request.trim()
+		if (!file || !text || overLimit) return
 		setProblem(null)
 		if (!video) {
 			setReading(true)
@@ -263,7 +287,16 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 				picture: { width: probed.width, height: probed.height }
 			})
 		}
-		setAsk({ request: request.trim(), answers })
+		const shown = questionsToAsk(text)
+		if (shown.length > 0) setAsking({ request: text, shown })
+		else setAsk({ request: text, choices: null, answers: [] })
+	}
+
+	/** The quick questions answered (each left to "You decide" is Retake's): plan now. */
+	function answered(choices: MakeChoices) {
+		if (!asking) return
+		setAsking(null)
+		setAsk({ request: asking.request, choices, answers: [] })
 	}
 
 	/**
@@ -295,6 +328,7 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 						},
 						basis: {
 							request: ask.request,
+							choices: ask.choices,
 							durationSeconds: video.durationSeconds,
 							picture: video.picture,
 							fillerCuts,
@@ -371,7 +405,7 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 			1,
 			<Questions
 				questions={plan.data.questions}
-				onAnswer={(answers) => void start(answers)}
+				onAnswer={(answers) => setAsk({ ...ask, answers })}
 				onCancel={() => setAsk(null)}
 			/>
 		)
@@ -398,6 +432,18 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 				<Button type="button" variant="outline" className="self-start" onClick={() => setAsk(null)}>
 					{t('back')}
 				</Button>
+			</Card>
+		)
+	}
+	if (asking) {
+		return frame(
+			1,
+			<Card>
+				<QuickQuestions
+					request={asking.request}
+					onDone={answered}
+					onCancel={() => setAsking(null)}
+				/>
 			</Card>
 		)
 	}
@@ -490,10 +536,26 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 							}
 						}}
 						rows={2}
-						maxLength={MAX_REQUEST_LENGTH}
+						aria-describedby="make-request-count"
+						aria-invalid={overLimit}
 						placeholder={t('placeholder')}
 						className="text-text placeholder:text-text-faint -mt-2 w-full resize-none bg-transparent px-1 text-[22px] font-semibold focus-visible:outline-none"
 					/>
+					<p
+						id="make-request-count"
+						role={overLimit ? 'alert' : undefined}
+						className={cn(
+							'-mt-2 px-1 text-[12.5px]',
+							overLimit ? 'text-danger font-bold' : 'text-text-faint'
+						)}
+					>
+						{overLimit
+							? t('requestOver', {
+									count: request.length - MAX_REQUEST_LENGTH,
+									max: MAX_REQUEST_LENGTH
+								})
+							: t('requestLeft', { count: MAX_REQUEST_LENGTH - request.length })}
+					</p>
 					<div className="flex items-center gap-2">
 						<button
 							type="button"
@@ -513,7 +575,7 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 							type="submit"
 							size="lg"
 							className="ml-auto rounded-[14px] px-6"
-							disabled={!file || !request.trim()}
+							disabled={!file || !request.trim() || overLimit}
 						>
 							<AiIcon />
 							{t('makeIt')}
@@ -647,7 +709,7 @@ function Questions({
 							onChange={(event) =>
 								setAnswers((all) => all.map((a, i) => (i === index ? event.target.value : a)))
 							}
-							maxLength={MAX_REQUEST_LENGTH}
+							maxLength={MAX_ANSWER_LENGTH}
 							className="border-border-strong bg-surface-inset text-text focus-visible:border-accent/60 focus-visible:ring-accent-soft h-12 rounded-[14px] border px-4 text-base focus-visible:ring-4 focus-visible:outline-none"
 						/>
 					</label>
@@ -739,7 +801,16 @@ function PlanView({
 		}
 	}
 	// The parts of a brief the plan used: those the user's words gave, and those it chose.
-	const { brief: parts } = summary
+	const { brief: parts, questions } = summary
+	// Asked on the quick questions: the user's when picked, chosen for them when not.
+	const asked: { text: string; said: boolean }[] = [
+		...(questions?.kind
+			? [{ text: t('brief.kind', { kind: questions.kind.value }), said: questions.kind.said }]
+			: []),
+		...(questions?.shape
+			? [{ text: t('brief.shape', { shape: questions.shape.value }), said: questions.shape.said }]
+			: [])
+	]
 	const briefParts: { part: BriefPart; text: string }[] = [
 		...(parts.audience
 			? [{ part: 'audience' as const, text: t('brief.audience', { text: parts.audience }) }]
@@ -763,8 +834,15 @@ function PlanView({
 				]
 			: [])
 	]
-	const briefSaid = briefParts.filter(({ part }) => parts.said[part]).map(({ text }) => text)
-	const briefChosen = briefParts.filter(({ part }) => !parts.said[part]).map(({ text }) => text)
+	// The brief's own parts first, then what the quick questions asked.
+	const briefSaid = [
+		...briefParts.filter(({ part }) => parts.said[part]).map(({ text }) => text),
+		...asked.filter(({ said }) => said).map(({ text }) => text)
+	]
+	const briefChosen = [
+		...briefParts.filter(({ part }) => !parts.said[part]).map(({ text }) => text),
+		...asked.filter(({ said }) => !said).map(({ text }) => text)
+	]
 	// Each line of the plan, under the row of the plan card it belongs to; the
 	// lines themselves are the same words as ever.
 	const entries: { row: PlanRow | 'note'; text: string }[] = [
