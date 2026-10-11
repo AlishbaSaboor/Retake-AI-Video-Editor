@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import type { CheckReply, MakeReply } from '../src/app/[locale]/(app)/make/make-plan'
-import { toTranscript } from '../src/app/[locale]/editor/transcript'
+import { toTranscript } from '../src/app/[locale]/editor/audio/transcript'
 import type { TimedWord } from './editor-helpers'
 
 // Make it's AI, answered with canned results: shared by the Make it tests

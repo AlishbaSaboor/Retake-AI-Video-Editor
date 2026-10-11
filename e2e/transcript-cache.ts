@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { APIResponse, Page, Route } from '@playwright/test'
-import type { Transcript } from '../src/app/[locale]/editor/transcript'
+import type { Transcript } from '../src/app/[locale]/editor/audio/transcript'
 
 // For tests and scripts run against a real recording: its transcript is paid
 // for once (a real Deepgram call) and every later run is answered from that,

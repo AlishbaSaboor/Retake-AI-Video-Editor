@@ -1,4 +1,4 @@
-import { decodeAudio } from '@/app/[locale]/editor/take-audio'
+import { decodeAudio } from '@/app/[locale]/editor/audio/take-audio'
 import { captureClientError } from '@/lib/observability/capture-client-error'
 import type { MusicTrack } from './make-plan'
 

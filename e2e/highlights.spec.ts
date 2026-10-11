@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
-import type { HighlightPick } from '../src/app/[locale]/editor/highlights'
+import type { HighlightPick } from '../src/app/[locale]/editor/assistant/highlights'
 import { editCommand, mockActions, openEditorWithVideo, openTool, w } from './editor-helpers'
 import { readExportFrames } from './export-frames'
 

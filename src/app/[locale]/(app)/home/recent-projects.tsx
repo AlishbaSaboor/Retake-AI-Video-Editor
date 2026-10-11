@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useFormatter, useTranslations } from 'next-intl'
 import { ArrowRightIcon } from '@/components/ui/icons'
-import { listProjects } from '@/app/[locale]/editor/projects'
+import { listProjects } from '@/app/[locale]/editor/projects/projects'
 import { Link } from '@/i18n/routing'
 import { ProjectThumbnail } from '../projects/project-thumbnail'
 
