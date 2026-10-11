@@ -1,0 +1,22 @@
+{
+	"problems": ["the key line mentions a clone which was not said"],
+	"title": null,
+	"keyLines": [
+		{
+			"sentence": 4,
+			"text": "For the edX assignment, I have chose the Fathom AI, an AI meeting notetaker."
+		},
+		{
+			"sentence": 15,
+			"text": "So here, I have added the real Google authentication."
+		},
+		{
+			"sentence": 40,
+			"text": "It has given, like, hold the executive summary, action items, and, uh, transcription."
+		}
+	],
+	"captions": "classic",
+	"transition": "dissolve",
+	"dropSentences": [],
+	"tooShort": false
+}

@@ -20,6 +20,7 @@ import {
 	fittedCrop,
 	type CropAspect,
 	type CropKey,
+	type PictureTransform,
 	type Size
 } from '../../editor/model/transform'
 import type { Transcript, TranscriptSegment } from '../../editor/audio/transcript'
@@ -916,123 +917,191 @@ export type MakeInput<Sound> = {
 	followUps?: readonly string[]
 }
 
-/**
- * The edit a Make it reply describes, as a snapshot for the editor, and a
- * summary of it. Everything the reply names is checked: sentences and
- * frames that don't exist are ignored, a title naming anyone never
- * mentioned is left out. A short-form edit (a reel, TikTok or Short) is cut
- * to under a minute here, whatever the reply planned. Vertical follows a
- * face only when one person is the subject; anything else keeps the whole
- * picture, with black bars.
- */
-export function planMake<Sound>(input: MakeInput<Sound>): {
-	edit: PlannedEdit<Sound>
-	summary: MakeSummary
-	/** The reply as used: its sentences taken out as they were cut to fit or lengthened. */
-	used: MakeReply
-} {
-	const { reply, durationSeconds, picture, transcript, music } = input
+/** What every cut of one plan is made from: the reply, the transcript's sentences, the video. */
+export type PlanContext = {
+	reply: MakeReply
+	sentences: readonly TranscriptSegment[]
+	durationSeconds: number
+	picture: Size
+	/** The times the pictures Gemini saw were taken at. */
+	times: readonly number[]
+	/** Filler words with a clean pause either side: those in what's kept are cut. */
+	fillerCuts: Cut[]
+	/** The picture carries the video, or there's no speech to plan by. */
+	pictureMatters: boolean
+	/** A screen recording (a demo, a walkthrough, a shared screen): never zoomed into. */
+	screen: boolean
+	/** The transition as planned: a screen recording gets no zoom cuts. */
+	transition: MakeReply['transition']
+	hasWords: boolean
+	/**
+	 * The user's own words, the request and each follow-up: only they count
+	 * as asking (Gemini fills its fields in whether or not anyone asked).
+	 */
+	said: readonly string[]
+	/** The request reads as an ad, a promo, a teaser or a highlights reel. */
+	promo: boolean
+	/** Every word said in the video, and the request: all that words on screen may use. */
+	known: string
+}
+
+/** What a cut is made from. */
+export type CutBasis = Pick<
+	PlanContext,
+	'reply' | 'sentences' | 'durationSeconds' | 'fillerCuts' | 'pictureMatters' | 'transition'
+>
+
+/** What every step of one plan reads, worked out once from its input. */
+export function planContext(input: MakeInput<unknown>): PlanContext {
+	const { reply, durationSeconds, picture, transcript } = input
 	const sentences = transcript?.segments ?? []
 	const words = transcript?.words ?? []
-	const times = frameTimes(durationSeconds)
-	const whole = { startSeconds: 0, endSeconds: durationSeconds }
-	const pictureMatters = reply.pictureMatters || sentences.length === 0
-	// A screen recording (a demo, a walkthrough, a shared screen) is never
-	// zoomed into: no crop of one part of it, no push-ins, no zoom cuts.
 	const screen = reply.subject === 'screen'
-	const transition = screen && reply.transition === 'zoom_cut' ? 'none' : reply.transition
+	const said = [input.request, ...(input.followUps ?? [])]
+	return {
+		reply,
+		sentences,
+		durationSeconds,
+		picture,
+		times: frameTimes(durationSeconds),
+		fillerCuts: input.fillerCuts,
+		pictureMatters: reply.pictureMatters || sentences.length === 0,
+		screen,
+		transition: screen && reply.transition === 'zoom_cut' ? 'none' : reply.transition,
+		hasWords: words.length > 0,
+		said,
+		promo: said.some((text) => PROMO_REQUEST.test(text)),
+		known: `${words.map((word) => word.text).join(' ')} ${input.request}`
+	}
+}
 
-	/**
-	 * The cut with these sentences (numbered from 1) taken out, at most `cap`
-	 * seconds of source, and the piece holding sentence `opener` (an index)
-	 * moved to the start.
-	 */
-	const cutWith = (
-		removeSentences: number[],
-		cap: number | null = null,
-		opener: { from: number; to: number } | null = null
-	) => {
-		const ranges = keptRanges(
-			{ ...reply, removeSentences, pictureMatters },
-			sentences,
-			durationSeconds
-		)
-		const timeOrder = cap === null ? ranges : firstSeconds(ranges, cap)
-		// The opening moment, cut out of the piece it's in (at the pauses
-		// around it) and moved to the start.
-		const from = opener ? sentences[opener.from] : undefined
-		const to = opener ? sentences[opener.to] : undefined
-		const moment =
-			opener && from && to
-				? {
-						startSeconds: padded(from, opener.from, sentences, durationSeconds).startSeconds,
-						endSeconds: padded(to, opener.to, sentences, durationSeconds).endSeconds
-					}
-				: null
-		const pieces = moment ? timeOrder.flatMap((range) => around(range, moment)) : timeOrder
-		const opening = moment
-			? pieces.find(
-					(range) =>
-						range.startSeconds >= moment.startSeconds && range.endSeconds <= moment.endSeconds
-				)
-			: undefined
-		const kept = opening ? [opening, ...pieces.filter((range) => range !== opening)] : pieces
-		const clips: Clip[] = kept.map((range, index) => ({ id: `make-${index + 1}`, ranges: [range] }))
-		const cuts = input.fillerCuts.filter((cut) => kept.some((range) => overlaps(range, cut)))
-		// Joins where a real stretch was taken out (or the order jumps), the
-		// most taken out first: only the first few get a transition.
-		const joins = clips
-			.flatMap((clip, index) => {
-				const prior = clips[index - 1]?.ranges.at(-1)
-				const [range] = clip.ranges
-				if (!prior || !range) return []
-				const gap = range.startSeconds - prior.endSeconds
-				const jump = gap < 0 ? Number.POSITIVE_INFINITY : gap
-				return jump >= TRANSITION_GAP_SECONDS ? [{ index, jump }] : []
-			})
-			.sort((a, b) => b.jump - a.jump)
-			.slice(0, MAX_TRANSITIONS)
-			.map(({ index }) => index)
-		const kind = transition
-		if (kind === 'fade' || kind === 'dissolve' || kind === 'slide') {
-			for (const index of joins) {
-				const clip = clips[index]
-				const before = clips[index - 1]
-				const range = clip?.ranges[0]
-				const prior = before?.ranges.at(-1)
-				if (!clip || !before || !range || !prior) continue
-				const limit = transitionLimit(
-					prior.endSeconds - prior.startSeconds,
-					range.endSeconds - range.startSeconds
-				)
-				const seconds = Math.min(TRANSITION_SECONDS[kind], limit)
-				if (seconds >= TRANSITION_SECONDS[kind] / 2) {
-					clip.transition = { kind, seconds, after: before.id }
+/** The sentences (indexes, first to last) of the moment a short-form edit opens with. */
+export type Opener = { from: number; to: number }
+
+/** A cut: what's kept, as clips, with the filler cuts in it, its joins and how long it plays. */
+export type MadeCut = ReturnType<typeof cutEdit>
+
+/**
+ * The cut with these sentences (numbered from 1) taken out, at most `cap`
+ * seconds of source, and the piece holding sentence `opener` (an index)
+ * moved to the start.
+ */
+export function cutEdit(
+	basis: CutBasis,
+	removeSentences: number[],
+	cap: number | null = null,
+	opener: Opener | null = null
+) {
+	const { reply, sentences, durationSeconds, pictureMatters, transition } = basis
+	const whole = { startSeconds: 0, endSeconds: durationSeconds }
+	const ranges = keptRanges(
+		{ ...reply, removeSentences, pictureMatters },
+		sentences,
+		durationSeconds
+	)
+	const timeOrder = cap === null ? ranges : firstSeconds(ranges, cap)
+	// The opening moment, cut out of the piece it's in (at the pauses
+	// around it) and moved to the start.
+	const from = opener ? sentences[opener.from] : undefined
+	const to = opener ? sentences[opener.to] : undefined
+	const moment =
+		opener && from && to
+			? {
+					startSeconds: padded(from, opener.from, sentences, durationSeconds).startSeconds,
+					endSeconds: padded(to, opener.to, sentences, durationSeconds).endSeconds
 				}
+			: null
+	const pieces = moment ? timeOrder.flatMap((range) => around(range, moment)) : timeOrder
+	const opening = moment
+		? pieces.find(
+				(range) =>
+					range.startSeconds >= moment.startSeconds && range.endSeconds <= moment.endSeconds
+			)
+		: undefined
+	const kept = opening ? [opening, ...pieces.filter((range) => range !== opening)] : pieces
+	const clips: Clip[] = kept.map((range, index) => ({ id: `make-${index + 1}`, ranges: [range] }))
+	const cuts = basis.fillerCuts.filter((cut) => kept.some((range) => overlaps(range, cut)))
+	const joins = transitionJoins(clips, transition)
+	const segments = playableSegments(clips, { trim: whole, cuts })
+	const transitions =
+		transition === 'zoom_cut' ? joins.length : clips.filter((clip) => clip.transition).length
+	return {
+		kept,
+		clips,
+		cuts,
+		joins,
+		transitions,
+		segments,
+		editedSeconds: editedLength(segments)
+	}
+}
+
+/**
+ * Joins where a real stretch was taken out (or the order jumps), the most
+ * taken out first: only the first few get a transition. A fade, dissolve or
+ * slide is set on each (as long as both clips have room for half of it);
+ * returns the joins (the index of the clip after), for zoom cuts too.
+ */
+export function transitionJoins(clips: Clip[], transition: MakeReply['transition']): number[] {
+	const joins = clips
+		.flatMap((clip, index) => {
+			const prior = clips[index - 1]?.ranges.at(-1)
+			const [range] = clip.ranges
+			if (!prior || !range) return []
+			const gap = range.startSeconds - prior.endSeconds
+			const jump = gap < 0 ? Number.POSITIVE_INFINITY : gap
+			return jump >= TRANSITION_GAP_SECONDS ? [{ index, jump }] : []
+		})
+		.sort((a, b) => b.jump - a.jump)
+		.slice(0, MAX_TRANSITIONS)
+		.map(({ index }) => index)
+	const kind = transition
+	if (kind === 'fade' || kind === 'dissolve' || kind === 'slide') {
+		for (const index of joins) {
+			const clip = clips[index]
+			const before = clips[index - 1]
+			const range = clip?.ranges[0]
+			const prior = before?.ranges.at(-1)
+			if (!clip || !before || !range || !prior) continue
+			const limit = transitionLimit(
+				prior.endSeconds - prior.startSeconds,
+				range.endSeconds - range.startSeconds
+			)
+			const seconds = Math.min(TRANSITION_SECONDS[kind], limit)
+			if (seconds >= TRANSITION_SECONDS[kind] / 2) {
+				clip.transition = { kind, seconds, after: before.id }
 			}
 		}
-		const segments = playableSegments(clips, { trim: whole, cuts })
-		const transitions =
-			kind === 'zoom_cut' ? joins.length : clips.filter((clip) => clip.transition).length
-		return {
-			kept,
-			clips,
-			cuts,
-			joins,
-			transitions,
-			segments,
-			editedSeconds: editedLength(segments)
-		}
 	}
+	return joins
+}
 
-	// Short-form opens with its strongest moment, and, when it runs over a
-	// minute, is made of whole moments (best first, then single sentences)
-	// chosen to fill 50 to 59 seconds. Whatever still runs over (one long
-	// sentence, a stretch with no speech) keeps only its first part. Filler
-	// cuts and overlapping transitions only ever make it shorter.
-	const shortForm = isShortForm(reply.format, input.request)
-	// A length asked for (in the request, or a follow-up) limits it further
-	// (any edit), and is what it fills towards; it is never called short.
+/** How long a plan may run, and what it fills towards. */
+export type LengthLimits = {
+	/** A reel, TikTok or Short: under a minute, vertical, opening with its strongest moment. */
+	shortForm: boolean
+	/** A length asked for (in the request, or a follow-up); null when none was. */
+	asked: number | null
+	/** The most it may run; null when nothing limits it. */
+	limitSeconds: number | null
+	/** What a cut to fit is filled towards. */
+	target: number
+}
+
+/**
+ * Short-form opens with its strongest moment, and, when it runs over a
+ * minute, is made of whole moments (best first, then single sentences)
+ * chosen to fill 50 to 59 seconds. Whatever still runs over (one long
+ * sentence, a stretch with no speech) keeps only its first part. Filler
+ * cuts and overlapping transitions only ever make it shorter. A length
+ * asked for (in the request, or a follow-up) limits it further (any edit),
+ * and is what it fills towards; it is never called short.
+ */
+export function lengthLimits(
+	reply: Pick<MakeReply, 'format' | 'maxSeconds'>,
+	request: string
+): LengthLimits {
+	const shortForm = isShortForm(reply.format, request)
 	const asked = reply.maxSeconds
 	const limitSeconds =
 		asked !== null
@@ -1041,111 +1110,191 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 				? SHORT_FORM_MAX_SECONDS
 				: null
 	const target = asked !== null ? (limitSeconds ?? asked) * ASKED_FILL : SHORT_FORM_TARGET_SECONDS
+	return { shortForm, asked, limitSeconds, target }
+}
+
+/** The strongest moment (the reply's first), which a short-form edit opens with; null otherwise. */
+export function openingMoment(
+	moments: MakeReply['moments'],
+	count: number,
+	shortForm: boolean
+): Opener | null {
+	const strongest = moments[0]
+	return shortForm && strongest
+		? {
+				from: Math.min(strongest.first, strongest.last) - 1,
+				to: Math.min(Math.max(strongest.first, strongest.last), count) - 1
+			}
+		: null
+}
+
+/** The sentence numbers (from 1) to take out so only `chosen` (indexes) stay. */
+const allBut = (sentences: readonly TranscriptSegment[], chosen: ReadonlySet<number>) =>
+	sentences.flatMap((_, index) => (chosen.has(index) ? [] : [index + 1]))
+
+/** A cut, and the sentences taken out to make it. */
+export type FittedCut = {
+	removeSentences: number[]
+	cut: MadeCut
+	trimmedToFit: boolean
+}
+
+/**
+ * The reply's cut, and when it runs over the limit, the one made of whole
+ * moments (then single sentences, never dead ones) that fits and fills
+ * towards the target; still over, it keeps only its first part.
+ */
+export function fitToLimit(
+	basis: CutBasis,
+	limits: LengthLimits,
+	opener: Opener | null
+): FittedCut {
+	const { reply, sentences } = basis
+	const { limitSeconds, target } = limits
 	const dead = sentenceIndexes(reply.removeSentences, sentences.length)
-	const strongest = reply.moments[0]
-	const opener =
-		shortForm && strongest
-			? {
-					from: Math.min(strongest.first, strongest.last) - 1,
-					to: Math.min(Math.max(strongest.first, strongest.last), sentences.length) - 1
-				}
-			: null
 	let removeSentences = reply.removeSentences
-	let cut = cutWith(removeSentences, null, opener)
+	let cut = cutEdit(basis, removeSentences, null, opener)
 	let trimmedToFit = false
 	if (limitSeconds !== null && cut.editedSeconds > limitSeconds) {
 		trimmedToFit = true
-		const keepOnly = (chosen: ReadonlySet<number>) =>
-			sentences.flatMap((_, index) => (chosen.has(index) ? [] : [index + 1]))
 		const chosen = chooseSentences(reply.moments, sentences.length, dead, (trial) => {
-			const length = cutWith(keepOnly(trial), null, opener).editedSeconds
+			const length = cutEdit(basis, allBut(sentences, trial), null, opener).editedSeconds
 			return { fits: length <= limitSeconds, enough: length >= target }
 		})
-		if (chosen.size > 0) removeSentences = keepOnly(chosen)
-		cut = cutWith(removeSentences, null, opener)
-		if (cut.editedSeconds > limitSeconds) cut = cutWith(removeSentences, limitSeconds, opener)
+		if (chosen.size > 0) removeSentences = allBut(sentences, chosen)
+		cut = cutEdit(basis, removeSentences, null, opener)
+		if (cut.editedSeconds > limitSeconds)
+			cut = cutEdit(basis, removeSentences, limitSeconds, opener)
 	}
-	// Too short, the check said: a short-form edit takes back sentences the
-	// plan had left out (its moments first, then in order, never the check's
-	// own drops), until it fills 50 seconds or nothing more fits.
+	return { removeSentences, cut, trimmedToFit }
+}
+
+/**
+ * Too short, the check said: a short-form edit takes back sentences the
+ * plan had left out (its moments first, then in order, never the check's
+ * own drops), until it fills 50 seconds or nothing more fits.
+ */
+export function lengthenForCheck(
+	basis: CutBasis,
+	fitted: FittedCut,
+	limits: LengthLimits,
+	tooShort: MakeInput<unknown>['tooShort'],
+	opener: Opener | null
+): FittedCut & { lengthened: boolean } {
+	const { reply, sentences } = basis
+	const { asked, limitSeconds } = limits
+	let { removeSentences, cut } = fitted
 	let lengthened = false
 	if (
 		asked === null &&
 		limitSeconds !== null &&
-		input.tooShort &&
+		tooShort &&
 		cut.editedSeconds < SHORT_FORM_TARGET_SECONDS &&
 		sentences.length > 0
 	) {
-		const keepOut = sentenceIndexes(input.tooShort.keepOut, sentences.length)
+		const keepOut = sentenceIndexes(tooShort.keepOut, sentences.length)
 		const removed = sentenceIndexes(removeSentences, sentences.length)
 		const inIt = new Set(sentences.flatMap((_, index) => (removed.has(index) ? [] : [index])))
-		const keepOnly = (chosen: ReadonlySet<number>) =>
-			sentences.flatMap((_, index) => (chosen.has(index) ? [] : [index + 1]))
 		const chosen = chooseSentences(
 			reply.moments,
 			sentences.length,
 			keepOut,
 			(trial) => {
-				const length = cutWith(keepOnly(trial), null, opener).editedSeconds
+				const length = cutEdit(basis, allBut(sentences, trial), null, opener).editedSeconds
 				return { fits: length <= limitSeconds, enough: length >= SHORT_FORM_TARGET_SECONDS }
 			},
 			inIt
 		)
 		if (chosen.size > inIt.size) {
-			const longer = cutWith(keepOnly(chosen), null, opener)
+			const longer = cutEdit(basis, allBut(sentences, chosen), null, opener)
 			if (longer.editedSeconds > cut.editedSeconds) {
-				removeSentences = keepOnly(chosen)
+				removeSentences = allBut(sentences, chosen)
 				cut = longer
 				lengthened = true
 			}
 		}
 	}
-	const { kept, clips, cuts, joins, transitions, segments, editedSeconds } = cut
-	// Rounded as the plan shows it, so "50 seconds" is never called short.
-	const short =
-		asked !== null
-			? null
-			: limitSeconds !== null
-				? Math.round(editedSeconds) < SHORT_FORM_TARGET_SECONDS &&
-					durationSeconds >= SHORT_FORM_TARGET_SECONDS
-					? 'short_form'
-					: null
-				: input.tooShort
-					? 'asked'
-					: null
-	const starts = editedStarts(segments)
-	const keptSentences = sentences.filter((sentence) =>
-		kept.some((range) => overlaps(range, sentence))
-	).length
+	return { removeSentences, cut, trimmedToFit: fitted.trimmedToFit, lengthened }
+}
 
-	// The shape (short-form is always vertical) and how the video goes into
-	// it. Nothing is cut off unless a zoom is wanted: asked for, or to keep one
-	// person on camera in a reel in view (never in an ad unless asked), with a
-	// crop that follows their face. Otherwise the whole picture shows, with
-	// bars or over a blur; or, only for a reel or an ad of a meeting whose
-	// picture doesn't carry it, in a frame designed around the speech, the
-	// picture a small card. Any other label (a screen recording, slides, one
-	// person, other, one not on the list) shows whole, as wide as the frame:
-	// the label is Gemini's guess, and a guess must never shrink the picture
-	// to a corner. A video already the shape is kept.
-	//
-	// A screen recording has exactly two treatments: the whole screen (the
-	// default), or designed around what's said with no picture of the screen
-	// at all (the palette, captions and text), for an ad, promo, teaser or
-	// highlights reel or when asked. Whole whenever the second check
-	// couldn't run.
-	//
-	// Only the user's own words count as asking (Gemini fills its fields in
-	// whether or not anyone asked): text only, or the screen shown; else a
-	// promo's wording; else the whole screen.
-	const said = [input.request, ...(input.followUps ?? [])]
-	const askedScreen = askedTreatment(said)
-	const promo = said.some((text) => PROMO_REQUEST.test(text))
-	const treatment: ScreenTreatment | null = !screen
+/**
+ * Whether the plan is still short: a reel, TikTok or Short under 50 s of a
+ * video that runs longer, or (no limit) shorter than the check says the
+ * request wants. Never with a length asked for. Rounded as the plan shows
+ * it, so "50 seconds" is never called short.
+ */
+export function shortLabel(
+	limits: Pick<LengthLimits, 'asked' | 'limitSeconds'>,
+	editedSeconds: number,
+	durationSeconds: number,
+	tooShort: MakeInput<unknown>['tooShort']
+): MakeSummary['short'] {
+	const { asked, limitSeconds } = limits
+	return asked !== null
 		? null
-		: input.unchecked
-			? 'whole'
-			: (askedScreen ?? (promo ? 'designed' : 'whole'))
+		: limitSeconds !== null
+			? Math.round(editedSeconds) < SHORT_FORM_TARGET_SECONDS &&
+				durationSeconds >= SHORT_FORM_TARGET_SECONDS
+				? 'short_form'
+				: null
+			: tooShort
+				? 'asked'
+				: null
+}
+
+/**
+ * A screen recording's treatment, and why: exactly two, the whole screen
+ * (the default), or designed around what's said with no picture of the
+ * screen at all (the palette, captions and text), for an ad, promo, teaser
+ * or highlights reel or when asked. Only the user's own words ask (text
+ * only, or the screen shown), then a promo's wording, else the whole
+ * screen. Whole whenever the second check couldn't run. Null for any other
+ * video.
+ */
+export function screenTreatment(
+	{ screen, said, promo }: Pick<PlanContext, 'screen' | 'said' | 'promo'>,
+	unchecked: boolean | undefined
+): MakeSummary['screen'] {
+	if (!screen) return null
+	const askedScreen = askedTreatment(said)
+	const treatment: ScreenTreatment = unchecked
+		? 'whole'
+		: (askedScreen ?? (promo ? 'designed' : 'whole'))
+	return {
+		treatment,
+		why: unchecked
+			? 'unchecked'
+			: askedScreen
+				? 'asked'
+				: treatment === 'designed'
+					? 'promo'
+					: 'default'
+	}
+}
+
+/**
+ * The shape (short-form is always vertical) and how the video goes into
+ * it. Nothing is cut off unless a zoom is wanted: asked for, or to keep one
+ * person on camera in a reel in view (never in an ad unless asked), with a
+ * crop that follows their face. Otherwise the whole picture shows, with
+ * bars or over a blur; or, only for a reel or an ad of a meeting whose
+ * picture doesn't carry it, in a frame designed around the speech, the
+ * picture a small card. Any other label (a screen recording, slides, one
+ * person, other, one not on the list) shows whole, as wide as the frame:
+ * the label is Gemini's guess, and a guess must never shrink the picture
+ * to a corner. A video already the shape is kept. A screen recording
+ * designed (its treatment) has no picture of the screen at all; one shown
+ * whole is never zoomed into.
+ */
+export function shapeAndFit(
+	context: Pick<
+		PlanContext,
+		'reply' | 'picture' | 'screen' | 'said' | 'pictureMatters' | 'hasWords' | 'times'
+	>,
+	shortForm: boolean,
+	treatment: ScreenTreatment | null
+): { shape: MakeSummary['shape']; design: Design | null; transform: PictureTransform } {
+	const { reply, picture, screen, said, pictureMatters, hasWords, times } = context
 	// A fit is asked for only in the user's own words too.
 	const fitAsked = reply.fitAsked && said.some((text) => FIT_REQUEST.test(text))
 	const shape: MakeShape = shortForm ? 'vertical' : reply.shape
@@ -1153,7 +1302,7 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 		(shortForm || reply.style === 'ad') &&
 		reply.subject === 'meeting' &&
 		!pictureMatters &&
-		words.length > 0
+		hasWords
 	let fit: MakeFit | null = null
 	let how: MakeSummary['shape']['how'] = 'kept'
 	let design: Design | null = null
@@ -1211,10 +1360,26 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 			}
 		}
 	}
-	// Text sits near the top of a frame taller than wide, clear of the captions.
-	const tall = (shape === 'original' ? picture.width / picture.height : SHAPE_RATIO[shape]) < 1
+	return { shape: { target: shape, fit, how, asked: fitAsked && fit !== null }, design, transform }
+}
 
-	// Zoom cuts at the chosen joins: the clip after starts a little closer and settles.
+/**
+ * Zoom cuts at the chosen joins: the clip after starts a little closer and
+ * settles. Then zooms on the sentences named, where they still play, never
+ * overlapping, at most MAX_ZOOMS; none in a designed frame, whose picture
+ * isn't what's being said, nor on a screen. A followed face is zoomed
+ * towards.
+ */
+export function planZooms(
+	context: Pick<PlanContext, 'reply' | 'transition' | 'sentences' | 'screen' | 'times'>,
+	cut: Pick<MadeCut, 'joins' | 'segments' | 'editedSeconds'>,
+	/** Where each segment starts in the edit. */
+	starts: number[],
+	design: Design | null,
+	how: MakeSummary['shape']['how']
+): Zoom[] {
+	const { reply, transition, sentences, screen, times } = context
+	const { joins, segments, editedSeconds } = cut
 	const autoZooms: Zoom[] =
 		transition === 'zoom_cut'
 			? joins.map((index) => {
@@ -1227,8 +1392,6 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 					}
 				})
 			: []
-	// Zooms on the sentences named, where they still play, never overlapping;
-	// none in a designed frame, whose picture isn't what's being said, nor on a screen.
 	for (const index of [
 		...sentenceIndexes(design || screen ? [] : reply.zoomSentences, sentences.length)
 	].sort((a, b) => a - b)) {
@@ -1248,8 +1411,14 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 			...(faceY !== null && { focus: { x: 0.5, y: faceY } })
 		})
 	}
+	return autoZooms
+}
 
-	// Music under the whole edit, repeated to fill it, ducking under speech.
+/** Music under the whole edit, repeated to fill it, ducking under speech; none without a track. */
+export function musicBed<Sound>(
+	music: MusicTrack<Sound> | null,
+	editedSeconds: number
+): AudioItem<Sound>[] {
 	const audioItems: AudioItem<Sound>[] = []
 	if (music && music.seconds > 0) {
 		for (let at = 0, n = 1; at < editedSeconds - MIN_PIECE_SECONDS; at += music.seconds, n++) {
@@ -1269,10 +1438,22 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 			})
 		}
 	}
+	return audioItems
+}
 
-	// A title only with words the video or the request gave it.
+/**
+ * A title only with words the video or the request gave it (`known`); one
+ * naming anyone or anything never said is dropped. Bigger in a designed
+ * frame, and near the top of a tall frame or a designed one.
+ */
+export function planTitle(
+	{ reply, known }: Pick<PlanContext, 'reply' | 'known'>,
+	editedSeconds: number,
+	design: Design | null,
+	/** The frame is taller than wide. */
+	tall: boolean
+): { title: TitleCard | null; titleDropped: boolean } {
 	const titleText = reply.title?.trim().slice(0, MAX_TITLE_LENGTH) ?? ''
-	const known = `${words.map((word) => word.text).join(' ')} ${input.request}`
 	const titleDropped = titleText !== '' && inventedNames(titleText, known).length > 0
 	const title: TitleCard | null =
 		titleText && !titleDropped
@@ -1292,9 +1473,20 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 					at: tall || design ? TOP_TEXT : MIDDLE_TEXT
 				}
 			: null
+	return { title, titleDropped }
+}
 
-	// Key lines: words quoted from their sentence, over it where it plays,
-	// after the title and never two at once.
+/**
+ * Key lines: words quoted from their sentence, over it where it plays,
+ * after the title and never two at once; at most MAX_KEY_LINES.
+ */
+export function keyLineTitles(
+	{ reply, sentences }: Pick<PlanContext, 'reply' | 'sentences'>,
+	{ segments, editedSeconds }: Pick<MadeCut, 'segments' | 'editedSeconds'>,
+	/** Where each segment starts in the edit. */
+	starts: number[],
+	title: TitleCard | null
+): TitleCard[] {
 	const autoTitles: TitleCard[] = []
 	for (const line of reply.keyLines) {
 		if (autoTitles.length === MAX_KEY_LINES) break
@@ -1319,9 +1511,21 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 			at: TOP_TEXT
 		})
 	}
-	// A brief's call to action, over the last seconds: only with words the
-	// video or the request gave it, after the title, any key line it would
-	// meet left out.
+	return autoTitles
+}
+
+/**
+ * A brief's call to action, over the last seconds: only with words the
+ * video or the request gave it, after the title, any key line it would
+ * meet left out. The words on screen, in the order they show.
+ */
+export function withCallToAction(
+	{ reply, known }: Pick<PlanContext, 'reply' | 'known'>,
+	keyLines: readonly TitleCard[],
+	editedSeconds: number,
+	title: TitleCard | null
+): { autoTitles: TitleCard[]; callToAction: string | null } {
+	const autoTitles = [...keyLines]
 	const actionText = reply.brief.callToAction?.trim().slice(0, MAX_TITLE_LENGTH) ?? ''
 	const actionFrom = Math.max(
 		editedSeconds - CALL_TO_ACTION_SECONDS,
@@ -1348,92 +1552,191 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 		})
 	}
 	autoTitles.sort((a, b) => a.startSeconds - b.startSeconds)
+	return { autoTitles, callToAction }
+}
 
-	const captions = words.length > 0 ? reply.captions : 'off'
+/** The caption look asked for, as the editor's caption settings; off with no words to caption. */
+export function captionSettings(reply: Pick<MakeReply, 'captions' | 'style'>, hasWords: boolean) {
+	const captions = hasWords ? reply.captions : 'off'
 	const look = captions === 'off' ? null : CAPTION_LOOK[captions]
+	return {
+		captions,
+		captionsOn: look !== null,
+		captionMode: look?.mode ?? 'lines',
+		captionStyle: look
+			? { ...DEFAULT_TEXT_STYLE, color: TEXT_STYLE[reply.style].color, size: look.size }
+			: DEFAULT_TEXT_STYLE
+	}
+}
+
+/**
+ * What the plan does, in words for the person deciding whether to apply it:
+ * its length and what was cut, its shape and treatment, what's on screen,
+ * and which parts of a brief were the user's own words (Gemini fills a
+ * brief in whether or not anyone asked).
+ */
+export function planSummary<Sound>(
+	context: Pick<
+		PlanContext,
+		'reply' | 'durationSeconds' | 'sentences' | 'transition' | 'said' | 'promo' | 'pictureMatters'
+	>,
+	{
+		limits,
+		made,
+		short,
+		opener,
+		captions,
+		edit,
+		callToAction,
+		titleDropped,
+		music,
+		musicAvailable,
+		shape,
+		screen
+	}: {
+		limits: LengthLimits
+		made: FittedCut & { lengthened: boolean }
+		short: MakeSummary['short']
+		opener: Opener | null
+		captions: CaptionLook
+		edit: Pick<PlannedEdit<Sound>, 'autoZooms' | 'autoTitles' | 'audioItems' | 'title' | 'design'>
+		callToAction: string | null
+		titleDropped: boolean
+		music: MusicTrack<Sound> | null
+		musicAvailable: boolean
+		shape: MakeSummary['shape']
+		screen: MakeSummary['screen']
+	}
+): MakeSummary {
+	const { reply, durationSeconds, sentences, transition, said, promo, pictureMatters } = context
+	const { kept, cuts, joins, transitions, editedSeconds } = made.cut
+	const { autoZooms, autoTitles, audioItems, title, design } = edit
+	const whole = { startSeconds: 0, endSeconds: durationSeconds }
+	const keptSentences = sentences.filter((sentence) =>
+		kept.some((range) => overlaps(range, sentence))
+	).length
 	const opening = opener === null ? null : (sentences[opener.from]?.text ?? null)
+	return {
+		style: reply.style,
+		making: reply.format === 'other' ? reply.style : reply.format,
+		summary: summaryWithLength(reply.summary, editedSeconds),
+		limitSeconds: limits.limitSeconds,
+		maxSeconds: limits.asked,
+		trimmedToFit: made.trimmedToFit,
+		lengthened: made.lengthened,
+		short,
+		keptSentences,
+		totalSentences: sentences.length,
+		originalSeconds: durationSeconds,
+		editedSeconds,
+		removedParts: without(whole, kept).length,
+		fillerCuts: cuts.length,
+		captions,
+		keyLines: autoTitles.length - (callToAction ? 1 : 0),
+		// Said when it moved: the strongest line opens, before what came first in the video.
+		opensWith: (kept[0]?.startSeconds ?? 0) > (kept[1]?.startSeconds ?? Infinity) ? opening : null,
+		zooms: autoZooms.length - (transition === 'zoom_cut' ? joins.length : 0),
+		transition,
+		transitions,
+		music: audioItems.length > 0 ? (music?.name ?? null) : null,
+		musicMissing: !musicAvailable,
+		shape,
+		screen,
+		brief: {
+			audience: reply.brief.audience,
+			tone: reply.brief.tone,
+			show: reply.brief.show,
+			lengthSeconds: limits.asked,
+			callToAction,
+			// Like the treatment: only the user's own words make a part theirs.
+			said: {
+				audience: saidInBrief(reply.brief.audience ?? '', said),
+				tone: saidInBrief(reply.brief.tone ?? '', said),
+				show: saidInBrief(reply.brief.show ?? '', said),
+				lengthSeconds: said.some((text) => LENGTH_REQUEST.test(text)),
+				callToAction: saidInBrief(callToAction ?? '', said)
+			},
+			chosenFor: promo ? 'promo' : 'you'
+		},
+		card: design?.picture ?? null,
+		title: title?.text ?? null,
+		titleDropped,
+		pictureMatters,
+		cannotDo: reply.cannotDo
+	}
+}
+
+/**
+ * The edit a Make it reply describes, as a snapshot for the editor, and a
+ * summary of it. Everything the reply names is checked: sentences and
+ * frames that don't exist are ignored, a title naming anyone never
+ * mentioned is left out. A short-form edit (a reel, TikTok or Short) is cut
+ * to under a minute here, whatever the reply planned. Vertical follows a
+ * face only when one person is the subject; anything else keeps the whole
+ * picture, with black bars.
+ */
+export function planMake<Sound>(input: MakeInput<Sound>): {
+	edit: PlannedEdit<Sound>
+	summary: MakeSummary
+	/** The reply as used: its sentences taken out as they were cut to fit or lengthened. */
+	used: MakeReply
+} {
+	const context = planContext(input)
+	const { reply, sentences, durationSeconds, picture } = context
+
+	// What's kept, and how long it runs.
+	const limits = lengthLimits(reply, input.request)
+	const opener = openingMoment(reply.moments, sentences.length, limits.shortForm)
+	const fitted = fitToLimit(context, limits, opener)
+	const made = lengthenForCheck(context, fitted, limits, input.tooShort, opener)
+	const { clips, cuts, segments, editedSeconds } = made.cut
+	const starts = editedStarts(segments)
+
+	// How it looks: the treatment, the shape, zooms, music, words on screen, captions.
+	const screen = screenTreatment(context, input.unchecked)
+	const { shape, design, transform } = shapeAndFit(
+		context,
+		limits.shortForm,
+		screen?.treatment ?? null
+	)
+	// Text sits near the top of a frame taller than wide, clear of the captions.
+	const tall =
+		(shape.target === 'original' ? picture.width / picture.height : SHAPE_RATIO[shape.target]) < 1
+	const autoZooms = planZooms(context, made.cut, starts, design, shape.how)
+	const audioItems = musicBed(input.music, editedSeconds)
+	const { title, titleDropped } = planTitle(context, editedSeconds, design, tall)
+	const keyLines = keyLineTitles(context, made.cut, starts, title)
+	const { autoTitles, callToAction } = withCallToAction(context, keyLines, editedSeconds, title)
+	const { captions, ...captionFields } = captionSettings(reply, context.hasWords)
+
 	const edit = {
 		...ORIGINAL_EDIT,
 		replacements: [],
 		clips,
 		cuts,
 		title,
-		captionsOn: look !== null,
-		captionMode: look?.mode ?? 'lines',
-		captionStyle: look
-			? { ...DEFAULT_TEXT_STYLE, color: TEXT_STYLE[reply.style].color, size: look.size }
-			: DEFAULT_TEXT_STYLE,
+		...captionFields,
 		transform,
 		audioItems,
 		autoZooms,
 		autoTitles,
 		design
 	}
-	return {
+	const summary = planSummary(context, {
+		limits,
+		made,
+		short: shortLabel(limits, editedSeconds, durationSeconds, input.tooShort),
+		opener,
+		captions,
 		edit,
-		used: { ...reply, removeSentences },
-		summary: {
-			style: reply.style,
-			making: reply.format === 'other' ? reply.style : reply.format,
-			summary: summaryWithLength(reply.summary, editedSeconds),
-			limitSeconds,
-			maxSeconds: asked,
-			trimmedToFit,
-			lengthened,
-			short,
-			keptSentences,
-			totalSentences: sentences.length,
-			originalSeconds: durationSeconds,
-			editedSeconds,
-			removedParts: without(whole, kept).length,
-			fillerCuts: cuts.length,
-			captions,
-			keyLines: autoTitles.length - (callToAction ? 1 : 0),
-			// Said when it moved: the strongest line opens, before what came first in the video.
-			opensWith:
-				(kept[0]?.startSeconds ?? 0) > (kept[1]?.startSeconds ?? Infinity) ? opening : null,
-			zooms: autoZooms.length - (transition === 'zoom_cut' ? joins.length : 0),
-			transition,
-			transitions,
-			music: audioItems.length > 0 ? (music?.name ?? null) : null,
-			musicMissing: !input.musicAvailable,
-			shape: { target: shape, fit, how, asked: fitAsked && fit !== null },
-			screen:
-				treatment === null
-					? null
-					: {
-							treatment,
-							why: input.unchecked
-								? 'unchecked'
-								: askedScreen
-									? 'asked'
-									: treatment === 'designed'
-										? 'promo'
-										: 'default'
-						},
-			brief: {
-				audience: reply.brief.audience,
-				tone: reply.brief.tone,
-				show: reply.brief.show,
-				lengthSeconds: asked,
-				callToAction,
-				// Like the treatment: only the user's own words make a part theirs.
-				said: {
-					audience: saidInBrief(reply.brief.audience ?? '', said),
-					tone: saidInBrief(reply.brief.tone ?? '', said),
-					show: saidInBrief(reply.brief.show ?? '', said),
-					lengthSeconds: said.some((text) => LENGTH_REQUEST.test(text)),
-					callToAction: saidInBrief(callToAction ?? '', said)
-				},
-				chosenFor: promo ? 'promo' : 'you'
-			},
-			card: design?.picture ?? null,
-			title: title?.text ?? null,
-			titleDropped,
-			pictureMatters,
-			cannotDo: reply.cannotDo
-		}
-	}
+		callToAction,
+		titleDropped,
+		music: input.music,
+		musicAvailable: input.musicAvailable,
+		shape,
+		screen
+	})
+	return { edit, used: { ...reply, removeSentences: made.removeSentences }, summary }
 }
 
 /** One way a follow-up's plan differs from the plan before it, for the chat to say. */
