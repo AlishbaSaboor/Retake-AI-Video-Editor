@@ -7,6 +7,10 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-11.
+> - **README and ARCHITECTURE.md describe main as it is** (section 3zy):
+>   what Retake is, how to run it, the production settings, the tests and
+>   CI; the architecture with a diagram, the decisions and their trade-offs,
+>   the known limits and what to do next.
 > - **A daily AI allowance per user** (section 3zx): each of the seven paid
 >   AI actions takes one of the user's daily allowance by kind (set in
 >   `src/lib/ai-limits.ts`) before the provider is called; at the ceiling a
@@ -3254,6 +3258,42 @@ could spend without limit.
   non-empty AI keys; the real `ai_usage` stayed at 374 rows throughout.
 - **Not covered:** the allowance under a real host's load, and real
   Supabase sign-in in CI (CI runs with accounts off).
+
+## 3zy. README and ARCHITECTURE.md describe main as it is (2026-10-11)
+
+From the whole-repo review: the README was the template's (it never named
+Gemini, Deepgram, IndexedDB, browser export or Make it, called
+`e2e/smoke.spec.ts` the only coverage, and said `pnpm test` ran only
+`scripts/*.test.mjs`), and a comment in `video-editor.tsx` said projects
+weren't saved yet.
+
+- **README:** what Retake is, the stack, the architecture in short, how to
+  run it locally (Docker and local Supabase), the production settings
+  (`CONTACT_IP_SECRET` and how to make it), the tests, what CI checks, and
+  the scripts. The template's skills table and "Still open" list are gone
+  (they described the template); `AGENTS.md` and `CLAUDE.md` are linked.
+- **ARCHITECTURE.md:** a Mermaid diagram of how a video moves through the
+  app (rendered with Mermaid 11 to check it: no errors, 15 nodes, 17
+  links), a module map, each decision with its reason, trade-off and the
+  file that shows it, the known limits, deployment notes and what to do
+  next. No score or rating.
+- **Gemini's timing:** the "250-700 ms off" figure is not given, by the
+  owner's decision: section 3 retracts it (its ground truth was invalid).
+  ARCHITECTURE.md says the timestamps drifted too much to cut by, and gives
+  Deepgram's measured 25-105 ms against fillers of 170-315 ms. The figure
+  appears nowhere else in the docs or code (only in the verbatim session
+  logs).
+- **Comments:** the `VideoEditor` doc comment said projects would be
+  persisted "(storage + a Prisma row) once the database is wired up" and
+  that everything stays on the machine; it now says the file stays, the
+  audio goes to Deepgram and commands to Gemini, and projects are saved in
+  IndexedDB. No other comment found contradicting the code (searched for
+  not-yet/TODO/later/never-leaves claims).
+- **Checked against the code:** every figure (2,557-line `VideoEditor`,
+  510-line `planMake`, 1,342 lines of scaffolding, the 5-minute caps, the
+  request sizes, the models and prices, the time limits, the daily limits)
+  was measured on main; Vercel's 4.5 MB request limit is from its own
+  documentation.
 
 ---
 
