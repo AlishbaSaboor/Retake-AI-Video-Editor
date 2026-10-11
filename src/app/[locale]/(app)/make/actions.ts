@@ -15,6 +15,8 @@ import {
 	makeReplySchema,
 	MAX_FRAMES,
 	MAX_MAKE_SECONDS,
+	MAX_ANSWER_LENGTH,
+	MAX_FOLLOW_UP_LENGTH,
 	MAX_QUESTIONS,
 	MAX_REQUEST_LENGTH,
 	CHECK_TIMEOUT_MS,
@@ -22,6 +24,7 @@ import {
 	type CheckReply,
 	type MakeReply
 } from './make-plan'
+import { choiceWords, makeChoicesSchema, type MakeChoices } from './make-questions'
 
 /** The free-licence tracks Make it may lay under an edit (see LICENSES there). */
 const MUSIC_FOLDER = path.join(process.cwd(), 'public', 'music')
@@ -30,7 +33,6 @@ const MUSIC_FILE = /\.(mp3|m4a|ogg|opus|wav|webm)$/i
 const MAX_FRAME_BASE64_LENGTH = 60_000
 const MAX_SENTENCES = 400
 const MAX_SENTENCE_LENGTH = 1000
-const MAX_ANSWER_LENGTH = 300
 /** Follow-ups already made, given again as what the plan has been through. */
 const MAX_FOLLOW_UPS = 20
 
@@ -44,6 +46,16 @@ const sentencesInput = z
 		})
 	)
 	.max(MAX_SENTENCES)
+
+/**
+ * The answers to Make it's quick questions as the user's own words, read
+ * with the request: as untrusted as the request is, so in the contents,
+ * never the instruction. Nothing when none were picked.
+ */
+function chosenLine(choices: MakeChoices | undefined): string[] {
+	const words = choiceWords(choices)
+	return words.length > 0 ? [`Chosen by the user: ${words.join(' ')}`] : []
+}
 
 /** The tracks in public/music, by file name; none when it's empty or missing. */
 async function musicTracks(): Promise<string[]> {
@@ -133,6 +145,7 @@ const MAKE_INSTRUCTION = [
 /** The request and what's known about the video, as the model reads it before the pictures. */
 function describe(input: {
 	request: string
+	choices?: MakeChoices
 	answers: Array<{ question: string; answer: string }>
 	durationSeconds: number
 	sentences: Array<{ startSeconds: number; endSeconds: number; text: string }>
@@ -140,6 +153,7 @@ function describe(input: {
 }): string {
 	return [
 		`Request: ${input.request}`,
+		...chosenLine(input.choices),
 		...input.answers.map(({ question, answer }) => `Asked: ${question} Answer: ${answer}`),
 		`Music files: ${input.tracks.length > 0 ? input.tracks.join(', ') : 'none'}`,
 		`The video is ${input.durationSeconds.toFixed(1)} s long.`,
@@ -182,13 +196,14 @@ export const checkMakePlan = validatedAction({
 	allowance: 'make_it',
 	input: z.object({
 		request: z.string().trim().min(1).max(MAX_REQUEST_LENGTH),
+		choices: makeChoicesSchema.optional(),
 		planText: z.string().min(1).max(MAX_PLAN_LENGTH)
 	}),
-	handler: async ({ request, planText }): Promise<CheckReply | null> => {
+	handler: async ({ request, choices, planText }): Promise<CheckReply | null> => {
 		const response = await generateContent(
 			{ feature: 'make_it_check', model: 'gemini-3.5-flash-lite', timeoutMs: CHECK_TIMEOUT_MS },
 			{
-				contents: `Request: ${request}\n${planText}`,
+				contents: [`Request: ${request}`, ...chosenLine(choices), planText].join('\n'),
 				config: {
 					systemInstruction: CHECK_INSTRUCTION,
 					responseMimeType: 'application/json',
@@ -236,8 +251,9 @@ export const followUpMakeIt = validatedAction({
 	allowance: 'make_it',
 	input: z.object({
 		request: z.string().trim().min(1).max(MAX_REQUEST_LENGTH),
-		earlier: z.array(z.string().max(MAX_REQUEST_LENGTH)).max(MAX_FOLLOW_UPS),
-		followUp: z.string().trim().min(1).max(MAX_REQUEST_LENGTH),
+		choices: makeChoicesSchema.optional(),
+		earlier: z.array(z.string().max(MAX_FOLLOW_UP_LENGTH)).max(MAX_FOLLOW_UPS),
+		followUp: z.string().trim().min(1).max(MAX_FOLLOW_UP_LENGTH),
 		answers: z
 			.array(
 				z.object({
@@ -258,6 +274,7 @@ export const followUpMakeIt = validatedAction({
 			{
 				contents: [
 					`Request: ${input.request}`,
+					...chosenLine(input.choices),
 					...input.earlier.map((text) => `Follow-up already made: ${text}`),
 					`Plan now: ${JSON.stringify(input.plan)}`,
 					`The edit is now ${input.editedSeconds.toFixed(1)} s long; the video is ${input.durationSeconds.toFixed(1)} s.`,
@@ -301,6 +318,7 @@ export const planMakeIt = validatedAction({
 	allowance: 'make_it',
 	input: z.object({
 		request: z.string().trim().min(1).max(MAX_REQUEST_LENGTH),
+		choices: makeChoicesSchema.optional(),
 		answers: z
 			.array(
 				z.object({

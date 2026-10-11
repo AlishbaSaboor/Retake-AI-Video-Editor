@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test'
 import type { MakeReply } from '../src/app/[locale]/(app)/make/make-plan'
 import { openTool, recordTestVideo, seekTo, w } from './editor-helpers'
 import { exportVideo, readExportFrames, readToneLevels } from './export-frames'
-import { makeReply, mockMakeActions, NOTHING_TO_FIX } from './make-helpers'
+import { makeReply, mockMakeActions, NOTHING_TO_FIX, submitMake } from './make-helpers'
 import { recordTextBoxes, textBoxReport } from './text-boxes'
 
 // Make it: a video and a request in, a whole edit planned, shown, and
@@ -47,7 +47,7 @@ async function startMaking(page: Page, request: string) {
 		.getByLabel('Video to make into something')
 		.setInputFiles({ name: 'talk.webm', mimeType: 'video/webm', buffer: video })
 	await page.getByRole('textbox', { name: 'What should it become?' }).fill(request)
-	await page.getByRole('button', { name: 'Make it', exact: true }).click()
+	await submitMake(page, request)
 }
 
 const plan = (page: Page) => page.getByRole('status', { name: 'The plan' })
@@ -361,7 +361,7 @@ test("a long, busy video's pictures reach the server whole, and its reel comes o
 	await pickNoiseVideo(page, 'Video to make into something', 70)
 	await expect(page.getByText('busy.webm')).toBeVisible()
 	await page.getByRole('textbox', { name: 'What should it become?' }).fill('make it a reel')
-	await page.getByRole('button', { name: 'Make it', exact: true }).click()
+	await submitMake(page, 'make it a reel')
 
 	// Sent as an array of strings, these pictures were refused by the server
 	// before the action ran: in production, "Minified React error #441".
@@ -985,7 +985,7 @@ test('shape and fit: wide made vertical over a blur, tall made horizontal with b
 			.getByLabel('Video to make into something')
 			.setInputFiles({ name: 'talk.webm', mimeType: 'video/webm', buffer: video })
 		await page.getByRole('textbox', { name: 'What should it become?' }).fill(request)
-		await page.getByRole('button', { name: 'Make it', exact: true }).click()
+		await submitMake(page, request)
 		await expect(plan(page)).toBeVisible({ timeout: 60_000 })
 		return (await plan(page).textContent()) ?? ''
 	}
@@ -1116,7 +1116,7 @@ async function makeGreen(page: Page, request: string) {
 		.getByLabel('Video to make into something')
 		.setInputFiles({ name: 'screen.webm', mimeType: 'video/webm', buffer: video })
 	await page.getByRole('textbox', { name: 'What should it become?' }).fill(request)
-	await page.getByRole('button', { name: 'Make it', exact: true }).click()
+	await submitMake(page, request)
 	await expect(plan(page)).toBeVisible({ timeout: 60_000 })
 	const text = (await plan(page).textContent()) ?? ''
 	await applyAndEditManually(page)
@@ -1361,7 +1361,15 @@ test('a brief part the user never gave is shown as chosen for them, not as their
 	await mockMakeActions(page, WORDS, [energetic])
 	await startMaking(page, 'make it energetic')
 	await expect(plan(page)).toContainText('From your brief: energetic tone', { timeout: 60_000 })
-	await expect(plan(page)).not.toContainText('Chosen for')
+	// The tone was the user's: no "Chosen for" line names it.
+	await expect(
+		plan(page)
+			.getByRole('listitem')
+			.filter({ hasText: /^Chosen for/ })
+			.filter({ hasText: 'energetic tone' })
+	).toHaveCount(0)
+	// What it is was asked and skipped (Skip all): chosen for the user, and labelled so.
+	await expect(plan(page)).toContainText('Chosen for you: an Instagram Reel')
 })
 
 // Five sentences, the first one full caption line of long words; a short pause between each.
@@ -1436,7 +1444,7 @@ test("a designed promo's text never overlaps, in every shape: popping words make
 			.getByLabel('Video to make into something')
 			.setInputFiles({ name: 'screen.webm', mimeType: 'video/webm', buffer: video })
 		await page.getByRole('textbox', { name: 'What should it become?' }).fill('make a promo ad')
-		await page.getByRole('button', { name: 'Make it', exact: true }).click()
+		await submitMake(page, 'make a promo ad')
 		await expect(plan(page)).toContainText('designed around what’s said', { timeout: 60_000 })
 		await applyAndEditManually(page)
 		await expect(page.getByRole('button', { name: 'Export video' })).toBeEnabled({
