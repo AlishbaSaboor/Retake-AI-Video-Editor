@@ -29799,7 +29799,7 @@
 					"audience": false,
 					"tone": false,
 					"show": false,
-					"lengthSeconds": false,
+					"lengthSeconds": true,
 					"callToAction": false
 				},
 				"chosenFor": "you"

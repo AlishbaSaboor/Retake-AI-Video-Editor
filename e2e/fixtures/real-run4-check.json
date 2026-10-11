@@ -1,0 +1,18 @@
+{
+	"problems": [],
+	"title": "Fathom AI Notetaker",
+	"keyLines": [
+		{
+			"sentence": 4,
+			"text": "Fathom AI meeting notetaker"
+		},
+		{
+			"sentence": 40,
+			"text": "Executive summary and action items"
+		}
+	],
+	"captions": "large",
+	"transition": "slide",
+	"dropSentences": [],
+	"tooShort": false
+}

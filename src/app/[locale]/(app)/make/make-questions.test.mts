@@ -1,20 +1,22 @@
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { toTranscript } from '../../editor/audio/transcript'
-import { planMake, type MakeReply } from './make-plan'
+import { askedLength, makeReplySchema, planMake, type MakeReply } from './make-plan'
 import {
 	applyChoices,
 	choiceWords,
 	decideAll,
 	namesAd,
 	namesKind,
+	namesLength,
 	namesShortVideo,
 	QUESTIONS,
 	questionsToAsk,
 	type MakeChoices
 } from './make-questions'
 
-const ALL_ASKED = ['kind', 'tone', 'callToAction']
+const ALL_ASKED = ['kind', 'length', 'tone', 'callToAction']
 
 test('a request that says nothing gets every built question; one that says it all gets none', () => {
 	assert.deepEqual(questionsToAsk('shorten this walkthrough'), ALL_ASKED)
@@ -25,7 +27,9 @@ test('a request that says nothing gets every built question; one that says it al
 		[]
 	)
 	assert.deepEqual(
-		questionsToAsk('An ad in 16:9 for new users, calm tone, close with "Sign up today"'),
+		questionsToAsk(
+			'An ad in 16:9 for new users, 20 seconds, calm tone, close with "Sign up today"'
+		),
 		[]
 	)
 })
@@ -107,6 +111,7 @@ test("an ad's shape: asked for an ad only, unless a shape or a short-video platf
 	assert.deepEqual(questionsToAsk('tidy it up', { kind: 'ad' }), [
 		'kind',
 		'adShape',
+		'length',
 		'tone',
 		'callToAction'
 	])
@@ -136,8 +141,8 @@ test('tone and call to action: each asked only when the request gives none', () 
 		assert.equal(questionsToAsk(request).includes('callToAction'), false, request)
 	}
 	// One of the two given: only the other asked.
-	assert.deepEqual(questionsToAsk('an energetic reel'), ['callToAction'])
-	assert.deepEqual(questionsToAsk('a reel, end with "Follow us"'), ['tone'])
+	assert.deepEqual(questionsToAsk('an energetic reel'), ['length', 'callToAction'])
+	assert.deepEqual(questionsToAsk('a reel, end with "Follow us"'), ['length', 'tone'])
 })
 
 test('the voice and music questions are defined but never shown until music is built', () => {
@@ -305,4 +310,214 @@ test('a screen recording clicked as an ad is designed, as a promo; skipped, it s
 	assert.deepEqual(ad.summary.screen, { treatment: 'designed', why: 'promo' })
 	const skipped = plan(screen, 'tidy up this walkthrough', decideAll(['kind']))
 	assert.deepEqual(skipped.summary.screen, { treatment: 'whole', why: 'default' })
+})
+
+// The length: asked only when the request states none; a click is the
+// plan's most, a follow-up's later ask wins, and Gemini's own number counts
+// only when the user's words asked for a length.
+
+test('length: asked only when the request states none, in whole words', () => {
+	for (const request of [
+		'make a 30 second ad',
+		'a 45-second reel',
+		'make it 0:45',
+		'keep it to 1 minute',
+		'under 1.5 min',
+		'30s please',
+		'a 15 s teaser'
+	]) {
+		assert.equal(namesLength(request), true, request)
+		assert.equal(questionsToAsk(request).includes('length'), false, request)
+	}
+	for (const request of [
+		'make an ad',
+		'make it short',
+		'a short reel',
+		'make it 30',
+		'every second counts'
+	]) {
+		assert.equal(questionsToAsk(request).includes('length'), true, request)
+	}
+	// Shown after what it is and an ad's shape, before tone and call to action.
+	assert.deepEqual(questionsToAsk('tidy it up', { kind: 'ad' }), [
+		'kind',
+		'adShape',
+		'length',
+		'tone',
+		'callToAction'
+	])
+	// Clicked, it's the user's own words.
+	assert.deepEqual(choiceWords({ ...decideAll(['length']), length: '30' }), ['At most 30 seconds.'])
+})
+
+const asked = (fields: Partial<MakeChoices> = {}): MakeChoices => ({
+	...decideAll(['kind', 'adShape', 'length', 'tone', 'callToAction']),
+	...fields
+})
+const ad = { maxSeconds: null, style: 'ad' as const, format: 'other' as const }
+
+test('askedLength: a click, the default by type, and Gemini’s number only when the user asked', () => {
+	// Clicked: the user's.
+	assert.deepEqual(askedLength(ad, 'make an ad', asked({ length: '30' })), {
+		seconds: 30,
+		said: true
+	})
+	assert.deepEqual(askedLength(ad, 'make an ad', asked({ length: '15' })), {
+		seconds: 15,
+		said: true
+	})
+	// Left to "You decide": an ad's default, chosen for the user.
+	assert.deepEqual(askedLength(ad, 'make an ad', asked()), { seconds: 30, said: false })
+	// A reel, TikTok or Short keeps its own rule; anything else, no length.
+	const reel = { ...ad, style: 'reel' as const, format: 'instagram_reel' as const }
+	assert.deepEqual(askedLength(reel, 'make a reel', asked()), { seconds: null, said: false })
+	assert.deepEqual(askedLength(ad, 'a TikTok ad', asked()), { seconds: null, said: false })
+	const pro = { ...ad, style: 'professional' as const }
+	assert.deepEqual(askedLength(pro, 'tidy it up', asked()), { seconds: null, said: false })
+	// Gemini's own number, nobody having asked: not a length.
+	assert.deepEqual(askedLength({ ...ad, maxSeconds: 59 }, 'make an ad', asked()), {
+		seconds: 30,
+		said: false
+	})
+	assert.deepEqual(askedLength({ ...pro, maxSeconds: 59 }, 'tidy it up', null), {
+		seconds: null,
+		said: false
+	})
+	// The request states one: Gemini's reading of it, the user's.
+	assert.deepEqual(askedLength({ ...ad, maxSeconds: 45 }, 'a 45 second ad', null), {
+		seconds: 45,
+		said: true
+	})
+})
+
+test('a later follow-up wins: 45 s after clicking 30, and "make it shorter" with no number is the user’s ask', () => {
+	// Clicked 30, then "make it 45 seconds" in the chat: Gemini's 45 for it.
+	assert.deepEqual(
+		askedLength({ ...ad, maxSeconds: 45 }, 'make an ad', asked({ length: '30' }), [
+			'make it 45 seconds'
+		]),
+		{ seconds: 45, said: true }
+	)
+	// "Make it shorter": no number, but asked; Gemini's shorter length counts, as the user's.
+	assert.deepEqual(
+		askedLength({ ...ad, maxSeconds: 20 }, 'make an ad', asked(), ['make it shorter']),
+		{ seconds: 20, said: true }
+	)
+	assert.deepEqual(askedLength({ ...ad, maxSeconds: 50 }, 'make an ad', null, ['a bit longer']), {
+		seconds: 50,
+		said: true
+	})
+	// A follow-up about something else leaves the click as it was.
+	assert.deepEqual(
+		askedLength({ ...ad, maxSeconds: 59 }, 'make an ad', asked({ length: '30' }), [
+			'make it square'
+		]),
+		{ seconds: 30, said: true }
+	)
+	// Through the whole plan: 45 is the most, the user's.
+	const made = planMake({
+		reply: { ...REPLY, style: 'ad', maxSeconds: 45 },
+		request: 'make an ad',
+		durationSeconds: 71,
+		picture: { width: 1920, height: 1080 },
+		transcript: talk,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false,
+		choices: asked({ length: '30' }),
+		followUps: ['make it 45 seconds']
+	})
+	assert.equal(made.summary.maxSeconds, 45)
+	assert.ok(made.summary.editedSeconds <= 45 && made.summary.editedSeconds > 30)
+	assert.equal(made.summary.brief.said.lengthSeconds, true)
+})
+
+test('the plan follows the length clicked: at most 30 s, a reel capped at 59, a shorter recording never padded', () => {
+	const ad30 = plan({ ...REPLY, style: 'ad' }, 'make an ad', asked({ length: '30' }))
+	assert.equal(ad30.summary.maxSeconds, 30)
+	assert.equal(ad30.summary.limitSeconds, 30)
+	assert.ok(ad30.summary.editedSeconds <= 30, `${ad30.summary.editedSeconds}`)
+	assert.ok(ad30.summary.editedSeconds >= 30 * 0.85, `${ad30.summary.editedSeconds}`)
+	assert.equal(ad30.summary.brief.said.lengthSeconds, true)
+	// Skip all on an ad: 30 s, chosen for the user.
+	const skipped = plan({ ...REPLY, style: 'ad' }, 'make an ad', asked())
+	assert.deepEqual(
+		[skipped.summary.maxSeconds, skipped.summary.brief.said.lengthSeconds],
+		[30, false]
+	)
+	// A reel clicked at 60: at most 59, its rule, while the user's 60 is kept to say so.
+	const reel60 = plan(REPLY, 'tidy it up', asked({ kind: 'instagram_reel', length: '60' }))
+	assert.deepEqual([reel60.summary.maxSeconds, reel60.summary.limitSeconds], [60, 59])
+	// A recording shorter than the choice: as it is, nothing added.
+	const short = toTranscript([
+		{ word: 'One.', start: 0.2, end: 2 },
+		{ word: 'Two.', start: 2.4, end: 5 },
+		{ word: 'Three.', start: 5.4, end: 8 }
+	])
+	const of = (picked: MakeChoices | null) =>
+		planMake({
+			reply: { ...REPLY, style: 'ad' },
+			request: 'make an ad',
+			durationSeconds: 9,
+			picture: { width: 1920, height: 1080 },
+			transcript: short,
+			fillerCuts: [],
+			music: null,
+			musicAvailable: false,
+			choices: picked
+		}).summary
+	const free = of(null)
+	const thirty = of(asked({ length: '30' }))
+	assert.ok(thirty.editedSeconds < 30)
+	assert.equal(thirty.editedSeconds, free.editedSeconds)
+	assert.equal(thirty.trimmedToFit, false)
+	assert.equal(thirty.lengthened, false)
+})
+
+test('the owner’s fourth real reply: Gemini’s unasked 59 s no longer limits; left to You decide, an ad runs at most 30 s', () => {
+	// Gemini's reply to "make an ad" on the 4:41 screen recording, with a
+	// 59 s limit nobody asked for.
+	const run4 = makeReplySchema.parse(
+		JSON.parse(
+			readFileSync(
+				new URL('../../../../../e2e/fixtures/real-run4-reply.json', import.meta.url),
+				'utf-8'
+			)
+		)
+	)
+	assert.equal(run4.maxSeconds, 59)
+	const longTalk = toTranscript(
+		Array.from({ length: 79 }, (_, i) => ({
+			word: `Step${i + 1}.`,
+			start: i * 3.5,
+			end: i * 3.5 + 3
+		}))
+	)
+	const make = (picked: MakeChoices | null) =>
+		planMake({
+			reply: run4,
+			request: 'make an ad',
+			durationSeconds: 281,
+			picture: { width: 1920, height: 1080 },
+			transcript: longTalk,
+			fillerCuts: [],
+			music: null,
+			musicAvailable: false,
+			choices: picked
+		}).summary
+	// No question shown, nothing asked: no length at all, 59 or otherwise.
+	const none = make(null)
+	assert.deepEqual([none.maxSeconds, none.limitSeconds], [null, null])
+	// The question left to "You decide": an ad's 30 s, chosen for the user.
+	const decided = make(asked({ adShape: 'vertical', callToAction: 'Follow for more' }))
+	assert.deepEqual([decided.maxSeconds, decided.limitSeconds], [30, 30])
+	assert.equal(decided.brief.said.lengthSeconds, false)
+	assert.ok(decided.editedSeconds <= 30)
+	// Clicked 15: at most 15, the user's.
+	const fifteen = make(asked({ adShape: 'vertical', length: '15' }))
+	assert.ok(fifteen.editedSeconds <= 15)
+	assert.equal(fifteen.brief.said.lengthSeconds, true)
+	// Everything else as before: designed, vertical, a promo.
+	assert.deepEqual(decided.screen, { treatment: 'designed', why: 'promo' })
+	assert.equal(decided.shape.target, 'vertical')
 })
