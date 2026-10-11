@@ -7,6 +7,9 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-11.
+> - **planMake is a short list of named, tested steps** (section 3zza):
+>   63 lines instead of 510, the same plans for the same inputs (100
+>   captured scenarios and the owner's real runs replayed).
 > - **The editor's files are grouped into folders** (section 3zz): logic
 >   in `model/`, `overlays/`, `audio/`, `assistant/`, `export/` and
 >   `projects/`, the interface in `components/`; a move only, every test
@@ -3334,6 +3337,42 @@ renames and no logic changes.
   reply not shown in 5 s, a recorded take not ready in 10 s), different
   tests each run, before the move as well as after; each passed on one
   rerun alone. CI runs one worker per shard.
+
+## 3zza. planMake split into named steps, same plans (2026-10-11)
+
+From the architecture review: `planMake` was one 510-line function. It is
+now 63 lines that call named steps, each its own exported function in
+`make-plan.ts` (placement A: the shared constants and helpers stay put;
+splitting the file is a follow-up). No decision changed.
+
+- **Finding:** `planMake` was already pure. Reading the request, calling
+  Gemini, validating the reply and the second check live in `actions.ts`
+  (`planMakeIt`, `checkMakePlan`) and `make-it.tsx` (`checkFound`,
+  `applyCheck`), so the split covers what `planMake` does.
+- **The steps:** `planContext` (what every step reads, once: the user's
+  own words, `promo`, the words on screen may use), `cutEdit` with
+  `transitionJoins`, `lengthLimits`, `openingMoment`, `fitToLimit`,
+  `lengthenForCheck`, `shortLabel`, `screenTreatment` (the treatment and
+  its plan-card reason, now decided in one place), `shapeAndFit`,
+  `planZooms`, `musicBed`, `planTitle`, `keyLineTitles`,
+  `withCallToAction`, `captionSettings`, `planSummary`.
+- **Behaviour locked first:** `make-plan-replay.test.mts` plans 100
+  scenarios (the owner's three real replies with their second-check
+  replies, planned, checked and unchecked as the Make it page does; the
+  four screen-recording asks checked and unchecked; and variants reaching
+  every branch) and compares each whole plan with
+  `e2e/fixtures/make-plan-replay.json`, written once from the unchanged
+  code. The check replies are `e2e/fixtures/real-run{1,2,3}-check.json`.
+  It passed on the old code and after every step.
+- **Steps tested alone:** `make-plan-steps.test.mts`, 17 tests. Each step's
+  logic was broken on purpose, one at a time (17 breaks), and each made at
+  least one test fail; `make-plan.ts` was restored after each (same
+  SHA-256), and none is in the diff.
+- **Real transcript replay (local only):** runs 1 to 3 over the real
+  transcript of the 4:41 recording (kept outside the repo), 25 plans,
+  byte-identical before and after.
+- **Counts:** unit tests 531 to 649 (101 replay, 17 steps); e2e 121, all
+  passing.
 
 ---
 

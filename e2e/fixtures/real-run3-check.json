@@ -1,0 +1,18 @@
+{
+	"problems": ["Key line 4 quotes words not said in the sentence"],
+	"title": "Fathom AI meeting notetaker",
+	"keyLines": [
+		{
+			"sentence": 4,
+			"text": "For the edX assignment, I have chose the Fathom AI, an AI meeting notetaker."
+		},
+		{
+			"sentence": 40,
+			"text": "It has given, like, hold the executive summary, action items, and, uh, transcription."
+		}
+	],
+	"captions": "large",
+	"transition": "slide",
+	"dropSentences": [],
+	"tooShort": false
+}
