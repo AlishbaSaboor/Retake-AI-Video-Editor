@@ -1,0 +1,53 @@
+{
+	"questions": [],
+	"style": "ad",
+	"format": "other",
+	"subject": "screen",
+	"summary": "Cut out the lengthy silent and rambling sections of the walkthrough to create an energetic ad focusing on the core AI meeting notetaker features.",
+	"pictureMatters": true,
+	"moments": [
+		{
+			"first": 4,
+			"last": 6
+		},
+		{
+			"first": 40,
+			"last": 43
+		}
+	],
+	"removeSentences": [
+		1, 2, 3, 18, 19, 22, 23, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 64, 65, 66, 67, 68, 69,
+		70, 78, 79
+	],
+	"removeSpans": [],
+	"captions": "large",
+	"zoomSentences": [4, 40],
+	"transition": "slide",
+	"keyLines": [
+		{
+			"sentence": 4,
+			"text": "Fathom AI meeting notetaker"
+		},
+		{
+			"sentence": 40,
+			"text": "Executive summary and action items"
+		}
+	],
+	"shape": "vertical",
+	"fit": "blur",
+	"fitAsked": false,
+	"treatment": "whole",
+	"maxSeconds": 59,
+	"brief": {
+		"audience": null,
+		"tone": "energetic",
+		"length": null,
+		"show": "Fathom AI meeting notetaker features",
+		"callToAction": "Follow for more"
+	},
+	"faces": [],
+	"card": "corner",
+	"music": null,
+	"title": "Fathom AI Notetaker",
+	"cannotDo": []
+}

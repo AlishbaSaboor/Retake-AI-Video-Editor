@@ -917,6 +917,7 @@ test('a follow-up asking for a length cuts the plan to it, fills most of it, and
 		zoomSentences: [],
 		keyLines: []
 	}
+	// The follow-up's own words ask the length (Gemini's number only counts then).
 	const make = (maxSeconds: number | null, request = 'make this an Instagram reel') =>
 		planMake({
 			reply: { ...reply, maxSeconds },
@@ -926,7 +927,8 @@ test('a follow-up asking for a length cuts the plan to it, fills most of it, and
 			transcript: talk,
 			fillerCuts: [],
 			music: null,
-			musicAvailable: false
+			musicAvailable: false,
+			followUps: maxSeconds === null ? [] : [`make it ${maxSeconds} seconds`]
 		})
 	const reel = make(null)
 	assert.ok(reel.summary.editedSeconds >= SHORT_FORM_TARGET_SECONDS)
@@ -950,7 +952,8 @@ test('a follow-up asking for a length cuts the plan to it, fills most of it, and
 		transcript: talk,
 		fillerCuts: [],
 		music: null,
-		musicAvailable: false
+		musicAvailable: false,
+		followUps: ['make it 30 seconds']
 	})
 	near(again.summary.editedSeconds, asked.summary.editedSeconds)
 
@@ -963,7 +966,8 @@ test('a follow-up asking for a length cuts the plan to it, fills most of it, and
 		transcript: talk,
 		fillerCuts: [],
 		music: null,
-		musicAvailable: false
+		musicAvailable: false,
+		followUps: ['make it 40 seconds']
 	})
 	assert.ok(pro.summary.editedSeconds <= 40 && pro.summary.editedSeconds >= 34)
 	// A length over a minute doesn't lift a reel's limit.
