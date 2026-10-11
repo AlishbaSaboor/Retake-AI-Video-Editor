@@ -1769,6 +1769,10 @@
 				"horizontal": "Horizontal",
 				"original": "Keep the video’s shape"
 			},
+			"length": {
+				"label": "How long, at most?",
+				"option": "{seconds} s"
+			},
 			"tone": {
 				"label": "Tone",
 				"placeholder": "Energetic, calm, friendly…"
@@ -1803,6 +1807,10 @@
 			"fillers": "{count, plural, one {# filler word} other {# filler words}} cut",
 			"fitOk": "Under 60 seconds, as reels, TikToks and Shorts need",
 			"fitCut": "Cut further to stay under 60 seconds, keeping the key moments",
+			"lengthAsked": "As you asked: at most {seconds} s",
+			"lengthChosen": "Chosen for you: at most {seconds} s",
+			"lengthCapped": "Capped at {seconds} s: reels, TikToks and Shorts run under a minute",
+			"fitCutTo": "Cut to fit within {seconds} s, keeping the key moments",
 			"lengthened": "The check found it too short, so sentences it had left out were put back",
 			"short": {
 				"short_form": "Shorter than the 50 to 59 seconds a reel, TikTok or Short usually runs: {length}. Nothing more in the video was kept as worth it. Edit manually to add more.",
@@ -1872,7 +1880,6 @@
 				"chosen": "Chosen for {for, select, promo {a promo} other {you}}: {parts}",
 				"audience": "for {text}",
 				"tone": "{text} tone",
-				"length": "at most {seconds} s",
 				"show": "showing {text}",
 				"callToAction": "ends with “{text}”"
 			},

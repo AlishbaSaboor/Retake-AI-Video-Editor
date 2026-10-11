@@ -816,14 +816,6 @@ function PlanView({
 			? [{ part: 'audience' as const, text: t('brief.audience', { text: parts.audience }) }]
 			: []),
 		...(parts.tone ? [{ part: 'tone' as const, text: t('brief.tone', { text: parts.tone }) }] : []),
-		...(parts.lengthSeconds !== null
-			? [
-					{
-						part: 'lengthSeconds' as const,
-						text: t('brief.length', { seconds: Math.round(parts.lengthSeconds) })
-					}
-				]
-			: []),
 		...(parts.show ? [{ part: 'show' as const, text: t('brief.show', { text: parts.show }) }] : []),
 		...(parts.callToAction
 			? [
@@ -869,9 +861,38 @@ function PlanView({
 		...(summary.fillerCuts > 0
 			? [{ row: 'length' as const, text: t('fillers', { count: summary.fillerCuts }) }]
 			: []),
-		...(summary.limitSeconds === null
-			? []
-			: [{ row: 'length' as const, text: t(summary.trimmedToFit ? 'fitCut' : 'fitOk') }]),
+		// A length asked (typed, clicked or in a follow-up) or chosen: said so, and
+		// whether a reel's under-a-minute rule caps it. Otherwise the reel rule, if any.
+		...(summary.maxSeconds !== null
+			? [
+					{
+						row: 'length' as const,
+						text: t(parts.said.lengthSeconds ? 'lengthAsked' : 'lengthChosen', {
+							seconds: Math.round(summary.maxSeconds)
+						})
+					},
+					...(summary.limitSeconds !== null && summary.limitSeconds < summary.maxSeconds
+						? [
+								{
+									row: 'length' as const,
+									text: t('lengthCapped', { seconds: summary.limitSeconds })
+								}
+							]
+						: []),
+					...(summary.trimmedToFit
+						? [
+								{
+									row: 'length' as const,
+									text: t('fitCutTo', {
+										seconds: summary.limitSeconds ?? Math.round(summary.maxSeconds)
+									})
+								}
+							]
+						: [])
+				]
+			: summary.limitSeconds === null
+				? []
+				: [{ row: 'length' as const, text: t(summary.trimmedToFit ? 'fitCut' : 'fitOk') }]),
 		...(summary.lengthened ? [{ row: 'length' as const, text: t('lengthened') }] : []),
 		...(summary.opensWith
 			? [

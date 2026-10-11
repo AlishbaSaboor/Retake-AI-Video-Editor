@@ -315,7 +315,11 @@ function scenarios(): Record<string, unknown> {
 		long(40, { moments, maxSeconds: 30 }, { request: 'a 30 s reel' })
 	)
 	out['asked length, check too short'] = planned(
-		long(40, { moments, maxSeconds: 30, format: 'other' }, { tooShort: { keepOut: [] } })
+		long(
+			40,
+			{ moments, maxSeconds: 30, format: 'other' },
+			{ request: 'make this a 30 second Instagram reel', tooShort: { keepOut: [] } }
+		)
 	)
 	out['reel too short, lengthened'] = planned(
 		long(

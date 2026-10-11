@@ -40,7 +40,7 @@ const questions = (page: Page) => page.getByRole('form', { name: 'A few quick qu
 const plan = (page: Page) => page.getByRole('status', { name: 'The plan' })
 const group = (page: Page, name: string) => questions(page).getByRole('group', { name })
 
-test('a one-line reel request asks only its tone and call to action; a typed tone beats Gemini’s, a skipped one is chosen', async ({
+test('a one-line reel request asks only its length, tone and call to action; a typed tone beats Gemini’s, a skipped one is chosen', async ({
 	page
 }) => {
 	// Gemini fills a tone and a call to action in whether or not anyone gave them.
@@ -53,6 +53,8 @@ test('a one-line reel request asks only its tone and call to action; a typed ton
 	// It's a reel: what it is, and an ad's shape, aren't asked.
 	await expect(group(page, 'What is it?')).toHaveCount(0)
 	await expect(group(page, 'What shape should the ad be?')).toHaveCount(0)
+	// It states no length: that's asked.
+	await expect(group(page, 'How long, at most?')).toBeVisible()
 	await questions(page).getByLabel('Tone').fill('energetic')
 	await questions(page).getByRole('button', { name: 'Make the plan' }).click()
 
@@ -107,9 +109,11 @@ test('a long brief that answers every question asks none, and its parts read as 
 	await pickVideo(page, request)
 	await makeIt(page).click()
 	await expect(plan(page)).toContainText(
-		'From your brief: for small business owners · energetic tone · at most 45 s · ends with “Bye”',
+		'From your brief: for small business owners · energetic tone · ends with “Bye”',
 		{ timeout: 60_000 }
 	)
+	// The length the brief states: its own line, as the user's.
+	await expect(plan(page)).toContainText('As you asked: at most 45 s')
 	await expect(questions(page)).toHaveCount(0)
 	await expect(plan(page)).not.toContainText('Chosen for')
 	expect(seen.plans[0]).not.toContain('"choices"')
@@ -192,4 +196,63 @@ test('the request box takes 1,000 characters, counts what is left, and holds a l
 	await box.fill('x'.repeat(990))
 	await expect(page.getByText('10 characters left')).toBeVisible()
 	await expect(makeIt(page)).toBeEnabled()
+})
+
+test('a one-line ad asks how long; 30 s is the plan’s most, as asked, and Gemini’s own 59 s never counts', async ({
+	page
+}) => {
+	// Gemini fills in a 59 s limit nobody asked for, as it did on a real run.
+	const seen = await mockMakeActions(page, WORDS, [
+		makeReply({ style: 'ad', format: 'other', shape: 'original', maxSeconds: 59 })
+	])
+	await pickVideo(page, 'make an ad')
+	await makeIt(page).click()
+	await expect(questions(page)).toBeVisible({ timeout: 30_000 })
+	await group(page, 'How long, at most?').getByLabel('30 s').check()
+	await questions(page).getByRole('button', { name: 'Make the plan' }).click()
+	await expect(plan(page)).toContainText('As you asked: at most 30 s', { timeout: 60_000 })
+	await expect(plan(page)).not.toContainText('59 s')
+	expect(seen.plans[0]).toContain('"length":"30"')
+})
+
+test('left to "You decide", an ad runs at most 30 s, chosen for the user', async ({ page }) => {
+	await mockMakeActions(page, WORDS, [
+		makeReply({ style: 'ad', format: 'other', shape: 'original', maxSeconds: 59 })
+	])
+	await pickVideo(page, 'make an ad')
+	await makeIt(page).click()
+	await expect(group(page, 'How long, at most?').getByLabel('You decide')).toBeChecked({
+		timeout: 30_000
+	})
+	await questions(page).getByRole('button', { name: 'Skip all' }).click()
+	await expect(plan(page)).toContainText('Chosen for you: at most 30 s', { timeout: 60_000 })
+	await expect(plan(page)).not.toContainText('59 s')
+})
+
+test('a request that states a length asks no length question, and the length reads as the user’s', async ({
+	page
+}) => {
+	await mockMakeActions(page, WORDS, [
+		makeReply({ style: 'ad', format: 'other', shape: 'original', maxSeconds: 30 })
+	])
+	await pickVideo(page, 'make a 30 second ad')
+	await makeIt(page).click()
+	await expect(questions(page)).toBeVisible({ timeout: 30_000 })
+	await expect(group(page, 'What shape should the ad be?')).toBeVisible()
+	await expect(group(page, 'How long, at most?')).toHaveCount(0)
+	await questions(page).getByRole('button', { name: 'Skip all' }).click()
+	await expect(plan(page)).toContainText('As you asked: at most 30 s', { timeout: 60_000 })
+})
+
+test('a reel asked for 60 s says it’s capped at 59 s, and why', async ({ page }) => {
+	await mockMakeActions(page, WORDS, [makeReply()])
+	await pickVideo(page, 'make this an Instagram reel')
+	await makeIt(page).click()
+	await expect(questions(page)).toBeVisible({ timeout: 30_000 })
+	await group(page, 'How long, at most?').getByLabel('60 s').check()
+	await questions(page).getByRole('button', { name: 'Make the plan' }).click()
+	await expect(plan(page)).toContainText('As you asked: at most 60 s', { timeout: 60_000 })
+	await expect(plan(page)).toContainText(
+		'Capped at 59 s: reels, TikToks and Shorts run under a minute'
+	)
 })

@@ -9,6 +9,7 @@ import {
 	AD_SHAPES,
 	decideAll,
 	MAKE_KINDS,
+	MAKE_LENGTHS,
 	MAX_BRIEF_PART_LENGTH,
 	questionsToAsk,
 	type MakeChoices
@@ -115,6 +116,7 @@ export function QuickQuestions({
 	const t = useTranslations('Make.ask')
 	const [kind, setKind] = useState<MakeChoices['kind']>(null)
 	const [adShape, setAdShape] = useState<MakeChoices['adShape']>(null)
+	const [length, setLength] = useState<MakeChoices['length']>(null)
 	const [tone, setTone] = useState('')
 	const [callToAction, setCallToAction] = useState('')
 	// Asked again as answers come in: an ad's shape once it's an ad.
@@ -131,6 +133,7 @@ export function QuickQuestions({
 					...decideAll(shown),
 					kind: has('kind') ? kind : null,
 					adShape: has('adShape') ? adShape : null,
+					length: has('length') ? length : null,
 					tone: has('tone') ? text(tone) : null,
 					callToAction: has('callToAction') ? text(callToAction) : null
 				})
@@ -162,6 +165,16 @@ export function QuickQuestions({
 					value={adShape}
 					onChange={setAdShape}
 					label={(option) => t(`adShape.${option}`)}
+					decide={t('decide')}
+				/>
+			)}
+			{has('length') && (
+				<Choices
+					legend={t('length.label')}
+					options={MAKE_LENGTHS}
+					value={length}
+					onChange={setLength}
+					label={(option) => t('length.option', { seconds: option })}
 					decide={t('decide')}
 				/>
 			)}
