@@ -6,7 +6,7 @@ import type { HighlightPick } from '../src/app/[locale]/editor/assistant/highlig
 import type { MakeReply } from '../src/app/[locale]/(app)/make/make-plan'
 import { editCommand, mockActions, openTool, w, type TimedWord } from './editor-helpers'
 import { exportVideo } from './export-frames'
-import { makeReply, mockMakeActions } from './make-helpers'
+import { makeReply, mockMakeActions, submitMake } from './make-helpers'
 
 // The site's pictures of the app, taken from the app itself, for the slots
 // the design gives them: the story's and How it works' device frames and the
@@ -243,7 +243,7 @@ for (const theme of THEMES) {
 		await settle(page)
 		await page.screenshot({ path: shotPath('say', theme) })
 
-		await page.getByRole('button', { name: 'Make it', exact: true }).click()
+		await submitMake(page, 'Make this an Instagram reel')
 		const plan = page.getByRole('status', { name: 'The plan' })
 		await expect(plan).toBeVisible({ timeout: 120_000 })
 		await settle(page)
@@ -327,7 +327,7 @@ test('Make it, each style applied and exported through the app: the "after" vide
 		await page.goto('/make')
 		await page.getByLabel('Video to make into something').setInputFiles(join(WORK, 'clip.webm'))
 		await page.getByRole('textbox', { name: 'What should it become?' }).fill(`make it ${style}`)
-		await page.getByRole('button', { name: 'Make it', exact: true }).click()
+		await submitMake(page, `make it ${style}`)
 		const plan = page.getByRole('status', { name: 'The plan' })
 		await expect(plan).toBeVisible({ timeout: 120_000 })
 		await plan.getByRole('button', { name: 'Apply' }).click()
