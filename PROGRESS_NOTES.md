@@ -7,6 +7,10 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-11.
+> - **The editor's files are grouped into folders** (section 3zz): logic
+>   in `model/`, `overlays/`, `audio/`, `assistant/`, `export/` and
+>   `projects/`, the interface in `components/`; a move only, every test
+>   unchanged and passing.
 > - **README and ARCHITECTURE.md describe main as it is** (section 3zy):
 >   what Retake is, how to run it, the production settings, the tests and
 >   CI; the architecture with a diagram, the decisions and their trade-offs,
@@ -1788,7 +1792,7 @@ atSeconds (edited time), volume (0–2), muted }`, in the snapshot
   `provisionUser`, the template's convention). **The server actions
   themselves are not gated** (the AI ones included): pages are. Worth
   adding if this is ever hosted.
-- **Home → editor:** `editor/editor-start.ts` holds the picked file and the
+- **Home → editor:** `editor/projects/editor-start.ts` holds the picked file and the
   typed command in memory across the client-side navigation; the editor
   takes it once on mount and loads the file; `CommandBar`'s
   `initialCommand` asks it once the video is ready (one ask, guarded against
@@ -3294,6 +3298,42 @@ weren't saved yet.
   request sizes, the models and prices, the time limits, the daily limits)
   was measured on main; Vercel's 4.5 MB request limit is from its own
   documentation.
+
+## 3zz. The editor's files grouped into folders by concern (2026-10-11)
+
+From the architecture review: `src/app/[locale]/editor/` was one flat
+folder of 115 files. Grouping confirmed by the owner; a move only, with no
+renames and no logic changes.
+
+- **At the root:** only `page.tsx`, `layout.tsx`, `actions.ts` (a route's
+  server actions stay at its root, as in `make/` and `contact/`) and
+  `video-editor.tsx`.
+- **Folders:** `model/` (the edit: clips, cuts, speed, transitions,
+  transform, color, the audio lane, added videos, undo), `overlays/`,
+  `audio/` (transcript, audio analysis, filler cuts, re-recording),
+  `assistant/` (commands and highlights), `export/`, `projects/` (saving,
+  opening and the hand-off from Home or Make it), and `components/` split
+  into `shell/`, `preview/`, `timeline/`, `panels/` and `assistant/`. Each
+  test moved with its file; `clip-speed.test.mts` (no `clip-speed.ts`) is
+  in `model/`. The map is in ARCHITECTURE.md.
+- **How:** `git mv` for all 111 moved files (git detects every one as a
+  rename), and a script that rewrote each import that pointed at a moved
+  file, keeping its style (relative stayed relative, `@/` stayed `@/`):
+  332 specifiers in 90 files, including e2e, `next.config.ts` and
+  `make-plan.ts`. Prettier then re-wrapped the imports that grew longer.
+  One path wasn't an import: `projects.test.mts` reads `messages/en.json`
+  through `new URL('…', import.meta.url)`, so it gained one `../`.
+- **Checked:** with import specifiers blanked, every changed code file is
+  identical to before except that `new URL` line; no import, string or
+  docs path names an old location; lint, typecheck, Prettier,
+  check:standards/env/secrets and the build pass, and the build's route
+  list is unchanged (no folder became a route). Unit tests: 531 before and
+  after (530 pass, the Windows-only skip), same names. E2E: 121 before and
+  after, all passing.
+- **Local e2e at 4 workers:** each full run had 2 timing failures (a chat
+  reply not shown in 5 s, a recorded take not ready in 10 s), different
+  tests each run, before the move as well as after; each passed on one
+  rerun alone. CI runs one worker per shard.
 
 ---
 

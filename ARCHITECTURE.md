@@ -51,15 +51,32 @@ picture every 2 seconds (to Gemini).
 
 ## Module map
 
+The editor (`src/app/[locale]/editor/`) is grouped by concern. At its root
+are only the route (`page.tsx`, `layout.tsx`), its server actions
+(`actions.ts`) and `video-editor.tsx`, the component that wires the rest
+together. Each test sits next to the file it tests.
+
+| Folder        | What's in it                                                                                                                                                                             |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `model/`      | The edit itself, as plain TypeScript: clips and their order, cuts, speed, transitions, picture transforms, color, the audio lane, added videos, undo history.                            |
+| `overlays/`   | What's drawn over the picture: titles, lower thirds, captions, logos, annotations, motion, designed frames, text styles.                                                                 |
+| `audio/`      | Reading the recording: the transcript, silences and audio problems, filler cuts, and re-recording a sentence.                                                                            |
+| `assistant/`  | Typed and spoken commands and highlights: the shapes Gemini must reply in, and the plans they become.                                                                                    |
+| `export/`     | Turning the edit into a video file.                                                                                                                                                      |
+| `projects/`   | Saving and opening projects, and the hand-off from Home or Make it into the editor.                                                                                                      |
+| `components/` | The interface, by area: `shell/` (top bar, tool rail, save state), `preview/` (the player and what is dragged on it), `timeline/`, `panels/` (the tool panels), `assistant/` (the chat). |
+
+The files a reviewer is most likely to want:
+
 | Module                                                 | What it does                                                                                                                                                                                                                                                                    |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/app/[locale]/editor/sequence.ts`                  | The edit as an ordered sequence of clips, each one or more ranges of a source file. Split, reorder, merge, delete and duplicate only rearrange it; trim and cuts decide what's removed. What plays is tracked by segment, never inferred from a time.                           |
-| `src/app/[locale]/editor/transitions.ts`               | Fades through black (the edit keeps its length), and dissolves and slides (the clips overlap, the edit gets shorter), stored on the join into a clip so moving or deleting a clip drops them with no bookkeeping.                                                               |
-| `src/app/[locale]/editor/transform.ts`                 | Flip, rotate to any angle, then crop, as one matrix from the source picture to the output frame. The preview and the export both use it, so they match.                                                                                                                         |
-| `src/app/[locale]/editor/audio-lane.ts`                | Sounds of their own on the edited timeline: added files (music, a voice-over) or a clip's own sound taken out of it, moved, trimmed and mixed over the video.                                                                                                                   |
-| `src/app/[locale]/editor/edit-command.ts`              | The shape a typed or spoken command must have (`editCommandSchema`, checked on every reply, and `EDIT_COMMAND_JSON_SCHEMA`, the shape Gemini is asked for) and `commandToPlan`, which turns a parsed command into a plan for the user to confirm, or a refusal with the reason. |
-| `src/app/[locale]/editor/export-video.ts`              | Real-time export: an offscreen copy of each video plays the kept segments in order while a `MediaRecorder` records a canvas (30 fps) and the Web Audio mix. Stops cleanly if the tab is hidden.                                                                                 |
-| `src/app/[locale]/editor/projects.ts`                  | Saved projects in IndexedDB: the edit, the transcript, and each media file once. A save is one transaction, done only when it commits; re-linking a missing file checks a fingerprint of its ends.                                                                              |
+| `src/app/[locale]/editor/model/sequence.ts`            | The edit as an ordered sequence of clips, each one or more ranges of a source file. Split, reorder, merge, delete and duplicate only rearrange it; trim and cuts decide what's removed. What plays is tracked by segment, never inferred from a time.                           |
+| `src/app/[locale]/editor/model/transitions.ts`         | Fades through black (the edit keeps its length), and dissolves and slides (the clips overlap, the edit gets shorter), stored on the join into a clip so moving or deleting a clip drops them with no bookkeeping.                                                               |
+| `src/app/[locale]/editor/model/transform.ts`           | Flip, rotate to any angle, then crop, as one matrix from the source picture to the output frame. The preview and the export both use it, so they match.                                                                                                                         |
+| `src/app/[locale]/editor/model/audio-lane.ts`          | Sounds of their own on the edited timeline: added files (music, a voice-over) or a clip's own sound taken out of it, moved, trimmed and mixed over the video.                                                                                                                   |
+| `src/app/[locale]/editor/assistant/edit-command.ts`    | The shape a typed or spoken command must have (`editCommandSchema`, checked on every reply, and `EDIT_COMMAND_JSON_SCHEMA`, the shape Gemini is asked for) and `commandToPlan`, which turns a parsed command into a plan for the user to confirm, or a refusal with the reason. |
+| `src/app/[locale]/editor/export/export-video.ts`       | Real-time export: an offscreen copy of each video plays the kept segments in order while a `MediaRecorder` records a canvas (30 fps) and the Web Audio mix. Stops cleanly if the tab is hidden.                                                                                 |
+| `src/app/[locale]/editor/projects/projects.ts`         | Saved projects in IndexedDB: the edit, the transcript, and each media file once. A save is one transaction, done only when it commits; re-linking a missing file checks a fingerprint of its ends.                                                                              |
 | `src/server/ai/google.ts`, `src/server/ai/deepgram.ts` | The only places an AI SDK or API is called. Each call has a time limit and goes through `trackAiCall`, which writes one priced row to `ai_usage`.                                                                                                                               |
 | `src/server/actions/validated-action.ts`               | Every server action's wrapper: the sign-in check (`signedIn`), input validation (Zod), the daily allowance (`allowance`), and errors turned into a plain `{ ok: false, error, status }`.                                                                                        |
 | `src/lib/ai-limits.ts`                                 | `DAILY_AI_LIMITS`: each user's daily number per kind of AI action. The one place to change them; the Pricing page reads them too.                                                                                                                                               |
@@ -77,7 +94,7 @@ is shown as a plan the user confirms before anything changes.
 _Trade-off:_ a network round trip and a small cost per command, and
 wording the schema doesn't cover is refused rather than guessed.
 Proof: `src/app/[locale]/editor/actions.ts` (`parseEditCommand`),
-`edit-command.ts`.
+`assistant/edit-command.ts`.
 
 ### Deepgram for the transcript
 
@@ -88,7 +105,7 @@ with `filler_words=true` reports "um" and "uh" as timed words. Even so, on
 an exact-timing benchmark it was 25–105 ms off, against fillers lasting
 170–315 ms, so its times are never cut at directly (next decision).
 _Trade-off:_ a second provider and key. Proof: `src/server/ai/deepgram.ts`,
-`src/app/[locale]/editor/use-take-analysis.ts`.
+`src/app/[locale]/editor/audio/use-take-analysis.ts`.
 
 ### Gap detection for filler cuts
 
@@ -98,7 +115,7 @@ it, and the cut never leaves those gaps. A filler that runs straight into a
 word has no such gap and is left for review, where the user sets the cut by
 ear. Silences come from measured loudness, not from any model.
 _Trade-off:_ some fillers stay in; speech is never clipped.
-Proof: `src/app/[locale]/editor/filler-cuts.ts`, `audio-gaps.ts`.
+Proof: `src/app/[locale]/editor/audio/filler-cuts.ts`, `audio-gaps.ts`.
 
 ### Export in the browser
 
@@ -109,7 +126,7 @@ _Trade-off:_ it takes as long as the edit runs, the tab must stay in front
 (hiding it stops the export with a message and offers no file), and under
 heavy memory pressure a file can come out a little long or short, which
 the app measures and says.
-Proof: `src/app/[locale]/editor/export-video.ts`, `export-button.tsx`.
+Proof: `src/app/[locale]/editor/export/export-video.ts`, `export-button.tsx`.
 
 ### Projects in IndexedDB
 
@@ -117,7 +134,7 @@ Saved projects (the edit, the transcript and the media) are kept in the
 browser, so videos are never uploaded and nothing is stored on a server.
 _Trade-off:_ a project lives in one browser on one machine, and how many
 fit depends on that browser's storage; a full store says so plainly.
-Proof: `src/app/[locale]/editor/projects.ts`.
+Proof: `src/app/[locale]/editor/projects/projects.ts`.
 
 ### Local Supabase
 
@@ -148,7 +165,7 @@ Transcripts, Make it and highlights work on videos up to 5 minutes. That
 bounds what one request can send (about 12.8 MB of audio, or up to 150
 small pictures) and what one call can cost.
 _Trade-off:_ longer videos are refused for those features, with a plain
-message. Proof: `src/app/[locale]/editor/take-audio.ts`
+message. Proof: `src/app/[locale]/editor/audio/take-audio.ts`
 (`MAX_TRANSCRIBE_SECONDS`), `src/app/[locale]/(app)/make/make-plan.ts`
 (`MAX_MAKE_SECONDS`).
 

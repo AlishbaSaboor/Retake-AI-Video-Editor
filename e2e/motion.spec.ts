@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { zoomedPoint, zoomViewAt } from '../src/app/[locale]/editor/motion'
+import { zoomedPoint, zoomViewAt } from '../src/app/[locale]/editor/overlays/motion'
 import { editCommand, mockActions, seekTo, openTool } from './editor-helpers'
 import { exportVideo, rangeOverLag, readExportFrames, surelyAfter } from './export-frames'
 

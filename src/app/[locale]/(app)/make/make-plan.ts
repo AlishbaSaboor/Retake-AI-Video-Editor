@@ -1,11 +1,11 @@
 import { z } from 'zod'
-import { availableSeconds, type AudioItem } from '../../editor/audio-lane'
-import type { Cut } from '../../editor/cleanup'
-import type { Design } from '../../editor/design'
-import { ORIGINAL_EDIT, type EditSnapshot } from '../../editor/edit-snapshot'
-import type { CaptionMode } from '../../editor/captions'
-import type { Animation, Zoom } from '../../editor/motion'
-import type { TitleCard } from '../../editor/overlays'
+import { availableSeconds, type AudioItem } from '../../editor/model/audio-lane'
+import type { Cut } from '../../editor/model/cleanup'
+import type { Design } from '../../editor/overlays/design'
+import { ORIGINAL_EDIT, type EditSnapshot } from '../../editor/model/edit-snapshot'
+import type { CaptionMode } from '../../editor/overlays/captions'
+import type { Animation, Zoom } from '../../editor/overlays/motion'
+import type { TitleCard } from '../../editor/overlays/overlays'
 import {
 	editedLength,
 	editedStarts,
@@ -13,17 +13,17 @@ import {
 	type Clip,
 	type Segment,
 	type SourceRange
-} from '../../editor/sequence'
-import { DEFAULT_TEXT_STYLE, type TextStyle } from '../../editor/text-style'
+} from '../../editor/model/sequence'
+import { DEFAULT_TEXT_STYLE, type TextStyle } from '../../editor/overlays/text-style'
 import {
 	centredCrop,
 	fittedCrop,
 	type CropAspect,
 	type CropKey,
 	type Size
-} from '../../editor/transform'
-import type { Transcript, TranscriptSegment } from '../../editor/transcript'
-import { transitionLimit, type TransitionKind } from '../../editor/transitions'
+} from '../../editor/model/transform'
+import type { Transcript, TranscriptSegment } from '../../editor/audio/transcript'
+import { transitionLimit, type TransitionKind } from '../../editor/model/transitions'
 
 // Make it: a whole edit planned from one request ("make this a reel").
 // Gemini reads the transcript and small pictures of the video and answers

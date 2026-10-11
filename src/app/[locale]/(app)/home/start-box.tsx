@@ -13,9 +13,9 @@ import {
 	TextIcon,
 	UploadIcon
 } from '@/components/ui/icons'
-import { handOffStart } from '@/app/[locale]/editor/editor-start'
-import { setSideOpen } from '@/app/[locale]/editor/editor-layout-store'
-import { VoiceCommandButton } from '@/app/[locale]/editor/voice-command-button'
+import { handOffStart } from '@/app/[locale]/editor/projects/editor-start'
+import { setSideOpen } from '@/app/[locale]/editor/components/shell/editor-layout-store'
+import { VoiceCommandButton } from '@/app/[locale]/editor/components/assistant/voice-command-button'
 import { useRouter } from '@/i18n/routing'
 import { cn } from '@/lib/cn'
 import { handOffMake } from '../make/make-start'
