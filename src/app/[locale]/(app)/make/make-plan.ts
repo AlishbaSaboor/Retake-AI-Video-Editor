@@ -25,6 +25,13 @@ import {
 } from '../../editor/model/transform'
 import type { Transcript, TranscriptSegment } from '../../editor/audio/transcript'
 import { transitionLimit, type TransitionKind } from '../../editor/model/transitions'
+import {
+	applyChoices,
+	choiceWords,
+	MAX_BRIEF_PART_LENGTH,
+	type MakeChoices,
+	type MakeKind
+} from './make-questions'
 
 // Make it: a whole edit planned from one request ("make this a reel").
 // Gemini reads the transcript and small pictures of the video and answers
@@ -119,7 +126,12 @@ export const PLAN_TIMEOUT_MS = 60_000
 export const CHECK_TIMEOUT_MS = 30_000
 /** The page's own limit past the server's: room for the request to travel. */
 export const PAGE_GRACE_MS = 5_000
-export const MAX_REQUEST_LENGTH = 300
+/** A request, a brief at its longest: platform, shape, genre, tone, audience, call to action, length. */
+export const MAX_REQUEST_LENGTH = 1000
+/** A follow-up in the chat, and each earlier one sent back with it. */
+export const MAX_FOLLOW_UP_LENGTH = 300
+/** An answer to a question Gemini asked. */
+export const MAX_ANSWER_LENGTH = 300
 const MAX_ZOOMS = 6
 /** Key lines on screen: a few, short, so they stay readable. */
 const MAX_KEY_LINES = 4
@@ -130,7 +142,6 @@ const MAX_NOTE_LENGTH = 200
 const MAX_SUMMARY_LENGTH = 400
 const MAX_TITLE_LENGTH = 60
 /** A part of a brief, as the reply quotes it from the request. */
-const MAX_BRIEF_PART_LENGTH = 120
 
 /**
  * The pictures, as they go to the server: one string, separated by spaces
@@ -831,6 +842,15 @@ export type MakeSummary = {
 	titleDropped: boolean
 	pictureMatters: boolean
 	cannotDo: string[]
+	/**
+	 * The quick questions shown before planning (absent when none were):
+	 * what it is and an ad's shape, as planned, and whether the user picked
+	 * it (`said`) or left it to "You decide", so it was chosen for them.
+	 */
+	questions?: {
+		kind?: { value: MakeKind | MakeSummary['making']; said: boolean }
+		shape?: { value: MakeShape; said: boolean }
+	}
 }
 
 /** The edit a plan makes, as the editor applies it. */
@@ -885,6 +905,8 @@ export function isPlanEdit<Sound>(
 /** What every plan of one video is made from, besides its reply: handed to the editor for follow-ups. */
 export type MakeBasis = {
 	request: string
+	/** The answers to the quick questions, when they were shown. */
+	choices?: MakeChoices | null
 	durationSeconds: number
 	picture: Size
 	fillerCuts: Cut[]
@@ -915,6 +937,8 @@ export type MakeInput<Sound> = {
 	 * it for what they asked of the treatment and the fit.
 	 */
 	followUps?: readonly string[]
+	/** The answers to the quick questions, when they were shown: the user's own words too. */
+	choices?: MakeChoices | null
 }
 
 /** What every cut of one plan is made from: the reply, the transcript's sentences, the video. */
@@ -957,7 +981,8 @@ export function planContext(input: MakeInput<unknown>): PlanContext {
 	const sentences = transcript?.segments ?? []
 	const words = transcript?.words ?? []
 	const screen = reply.subject === 'screen'
-	const said = [input.request, ...(input.followUps ?? [])]
+	const chosen = choiceWords(input.choices)
+	const said = [input.request, ...chosen, ...(input.followUps ?? [])]
 	return {
 		reply,
 		sentences,
@@ -971,7 +996,7 @@ export function planContext(input: MakeInput<unknown>): PlanContext {
 		hasWords: words.length > 0,
 		said,
 		promo: said.some((text) => PROMO_REQUEST.test(text)),
-		known: `${words.map((word) => word.text).join(' ')} ${input.request}`
+		known: [...words.map((word) => word.text), input.request, ...chosen].join(' ')
 	}
 }
 
@@ -1592,7 +1617,8 @@ export function planSummary<Sound>(
 		music,
 		musicAvailable,
 		shape,
-		screen
+		screen,
+		choices
 	}: {
 		limits: LengthLimits
 		made: FittedCut & { lengthened: boolean }
@@ -1606,6 +1632,8 @@ export function planSummary<Sound>(
 		musicAvailable: boolean
 		shape: MakeSummary['shape']
 		screen: MakeSummary['screen']
+		/** The answers to the quick questions, when they were shown. */
+		choices?: MakeChoices | null
 	}
 ): MakeSummary {
 	const { reply, durationSeconds, sentences, transition, said, promo, pictureMatters } = context
@@ -1616,9 +1644,11 @@ export function planSummary<Sound>(
 		kept.some((range) => overlaps(range, sentence))
 	).length
 	const opening = opener === null ? null : (sentences[opener.from]?.text ?? null)
+	const making = reply.format === 'other' ? reply.style : reply.format
+	const asked = new Set(choices?.asked ?? [])
 	return {
 		style: reply.style,
-		making: reply.format === 'other' ? reply.style : reply.format,
+		making,
 		summary: summaryWithLength(reply.summary, editedSeconds),
 		limitSeconds: limits.limitSeconds,
 		maxSeconds: limits.asked,
@@ -1662,7 +1692,18 @@ export function planSummary<Sound>(
 		title: title?.text ?? null,
 		titleDropped,
 		pictureMatters,
-		cannotDo: reply.cannotDo
+		cannotDo: reply.cannotDo,
+		// Only the questions shown, each the user's when picked, chosen for them when not.
+		...(choices && {
+			questions: {
+				...(asked.has('kind') && {
+					kind: { value: choices.kind === 'other' ? 'other' : making, said: choices.kind !== null }
+				}),
+				...(asked.has('adShape') && {
+					shape: { value: shape.target, said: choices.adShape !== null }
+				})
+			}
+		})
 	}
 }
 
@@ -1681,7 +1722,10 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	/** The reply as used: its sentences taken out as they were cut to fit or lengthened. */
 	used: MakeReply
 } {
-	const context = planContext(input)
+	const context = planContext({
+		...input,
+		reply: applyChoices(input.reply, input.choices, input.followUps)
+	})
 	const { reply, sentences, durationSeconds, picture } = context
 
 	// What's kept, and how long it runs.
@@ -1734,7 +1778,8 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 		music: input.music,
 		musicAvailable: input.musicAvailable,
 		shape,
-		screen
+		screen,
+		choices: input.choices
 	})
 	return { edit, used: { ...reply, removeSentences: made.removeSentences }, summary }
 }

@@ -19,8 +19,12 @@ let session: () => Promise<{
 }> = async () => ({ data: { user: null }, error: null })
 const SIGNED_IN = async () => ({ data: { user: { id: 'u1', email: 'a@b.c' } }, error: null })
 
-/** The Gemini calls made, each with the signal it was given; how each answers. */
-const geminiCalls: Array<{ abortSignal?: AbortSignal }> = []
+/** The Gemini calls made, each with the signal it was given and what it sent; how each answers. */
+const geminiCalls: Array<{
+	abortSignal?: AbortSignal
+	contents?: unknown
+	systemInstruction?: unknown
+}> = []
 let geminiAnswer: (signal?: AbortSignal) => Promise<{ text: string }> = async () => ({ text: '{}' })
 
 mock.module('next/navigation', { namedExports: { unstable_rethrow: () => {} } })
@@ -101,8 +105,15 @@ mock.module('@google/genai', {
 	namedExports: {
 		GoogleGenAI: class {
 			models = {
-				generateContent: (params: { config?: { abortSignal?: AbortSignal } }) => {
-					geminiCalls.push({ abortSignal: params.config?.abortSignal })
+				generateContent: (params: {
+					contents?: unknown
+					config?: { abortSignal?: AbortSignal; systemInstruction?: unknown }
+				}) => {
+					geminiCalls.push({
+						abortSignal: params.config?.abortSignal,
+						contents: params.contents,
+						systemInstruction: params.config?.systemInstruction
+					})
 					return geminiAnswer(params.config?.abortSignal)
 				}
 			}
@@ -421,4 +432,97 @@ test('a provider that fails or times out gives the call back; one that answers, 
 			metadata: { duration: 1 },
 			results: { channels: [{ alternatives: [{ words: [] }] }] }
 		})
+})
+
+// Make it's request: up to 1,000 characters (a whole brief), sent as the
+// user's text in the contents, never in the instruction; the quick questions'
+// answers with it. A follow-up's own text keeps its 300.
+
+const BRIEF = 'b'.repeat(1000)
+const CHOICES = {
+	kind: 'ad' as const,
+	adShape: 'vertical' as const,
+	voice: null,
+	music: null,
+	tone: 'energetic',
+	callToAction: 'Follow for more',
+	asked: ['kind' as const, 'adShape' as const, 'tone' as const, 'callToAction' as const]
+}
+const sent = () => JSON.stringify(geminiCalls.at(-1)?.contents)
+const instruction = () => String(geminiCalls.at(-1)?.systemInstruction)
+
+test('planMakeIt and checkMakePlan take a 1,000-character request, as text with the answers, and refuse 1,001 before any call', async () => {
+	session = SIGNED_IN
+	allowances.clear()
+	const before = geminiCalls.length
+	const planned = await make.planMakeIt({
+		request: BRIEF,
+		choices: CHOICES,
+		answers: [],
+		durationSeconds: 60,
+		sentences,
+		frames: 'AAAA'
+	})
+	assert.equal(planned.ok, true)
+	assert.ok(sent().includes(`Request: ${BRIEF}`))
+	assert.ok(
+		sent().includes(
+			'Chosen by the user: An ad. Vertical. Tone: energetic. Call to action: Follow for more.'
+		)
+	)
+	assert.ok(!instruction().includes(BRIEF), 'the request is never in the instruction')
+	assert.ok(!instruction().includes('Follow for more'), 'nor an answer')
+	const checked = await make.checkMakePlan({
+		request: BRIEF,
+		choices: CHOICES,
+		planText: 'A promo, 30 s.'
+	})
+	assert.equal(checked.ok, true)
+	assert.ok(sent().includes(`Request: ${BRIEF}`) && sent().includes('Chosen by the user: An ad.'))
+	assert.ok(!instruction().includes(BRIEF))
+	assert.equal(geminiCalls.length, before + 2)
+
+	const tooLong = `${BRIEF}b`
+	for (const result of [
+		await make.planMakeIt({
+			request: tooLong,
+			answers: [],
+			durationSeconds: 60,
+			sentences,
+			frames: 'AAAA'
+		}),
+		await make.checkMakePlan({ request: tooLong, planText: 'A promo, 30 s.' })
+	]) {
+		assert.equal(result.ok, false)
+		assert.equal(result.status, 400)
+	}
+	assert.equal(geminiCalls.length, before + 2, 'no call for a request too long')
+})
+
+test('followUpMakeIt carries a 1,000-character original request; a follow-up itself stays under 300', async () => {
+	session = SIGNED_IN
+	allowances.clear()
+	const followUp = (fields: { earlier?: string[]; followUp?: string }) =>
+		make.followUpMakeIt({
+			request: BRIEF,
+			choices: CHOICES,
+			earlier: fields.earlier ?? [],
+			followUp: fields.followUp ?? 'make it shorter',
+			answers: [],
+			plan,
+			durationSeconds: 60,
+			editedSeconds: 30,
+			sentences
+		})
+	const before = geminiCalls.length
+	const ok = await followUp({ earlier: ['e'.repeat(300)], followUp: 'f'.repeat(300) })
+	assert.equal(ok.ok, true)
+	assert.ok(sent().includes(`Request: ${BRIEF}`) && sent().includes('Chosen by the user: An ad.'))
+	assert.ok(!instruction().includes(BRIEF))
+	for (const fields of [{ followUp: 'f'.repeat(301) }, { earlier: ['e'.repeat(301)] }]) {
+		const refused = await followUp(fields)
+		assert.equal(refused.ok, false)
+		assert.equal(refused.status, 400)
+	}
+	assert.equal(geminiCalls.length, before + 1, 'no call for a follow-up too long')
 })

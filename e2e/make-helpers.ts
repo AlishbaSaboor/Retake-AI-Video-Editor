@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import type { CheckReply, MakeReply } from '../src/app/[locale]/(app)/make/make-plan'
+import { questionsToAsk } from '../src/app/[locale]/(app)/make/make-questions'
 import { toTranscript } from '../src/app/[locale]/editor/audio/transcript'
 import type { TimedWord } from './editor-helpers'
 
@@ -34,6 +35,20 @@ export const makeReply = (fields: Partial<MakeReply> = {}): MakeReply => ({
 	cannotDo: [],
 	...fields
 })
+
+/**
+ * Presses Make it, and when the request leaves quick questions open, Skip
+ * all: everything is then Retake's to choose, as before the questions.
+ * The page's own rule says whether they show, so nothing is waited for in vain.
+ */
+export async function submitMake(page: Page, request: string) {
+	await page.getByRole('button', { name: 'Make it', exact: true }).click()
+	if (questionsToAsk(request).length === 0) return
+	await page
+		.getByRole('form', { name: 'A few quick questions' })
+		.getByRole('button', { name: 'Skip all' })
+		.click({ timeout: 30_000 })
+}
 
 /** The second check's answer: nothing to fix, unless a test says otherwise. */
 export const NOTHING_TO_FIX: CheckReply = {

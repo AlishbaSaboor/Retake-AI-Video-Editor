@@ -1721,6 +1721,8 @@
 		"changeVideo": "Choose another video",
 		"requestLabel": "What should it become?",
 		"placeholder": "Make this an Instagram reel",
+		"requestLeft": "{count, plural, one {# character} other {# characters}} left",
+		"requestOver": "That's {count, plural, one {# character} other {# characters}} too long: a request can be up to {max, number} characters. Shorten it to make a plan.",
 		"examples": {
 			"reel": "Make this an Instagram reel",
 			"funny": "Make it funny",
@@ -1748,6 +1750,37 @@
 		"questions": {
 			"title": "A few questions first",
 			"submit": "Plan it"
+		},
+		"ask": {
+			"title": "A few quick questions",
+			"intro": "Answer what you like. Anything you leave to Retake is marked “chosen for you” on the plan.",
+			"decide": "You decide",
+			"kind": {
+				"label": "What is it?",
+				"instagram_reel": "Instagram reel",
+				"tiktok": "TikTok",
+				"youtube_shorts": "YouTube Short",
+				"ad": "Ad",
+				"other": "Other"
+			},
+			"adShape": {
+				"label": "What shape should the ad be?",
+				"vertical": "Vertical",
+				"horizontal": "Horizontal",
+				"original": "Keep the video’s shape"
+			},
+			"tone": {
+				"label": "Tone",
+				"placeholder": "Energetic, calm, friendly…"
+			},
+			"callToAction": {
+				"label": "Call to action",
+				"placeholder": "Follow for more tips"
+			},
+			"optional": "Both optional: leave one empty and Retake decides.",
+			"submit": "Make the plan",
+			"skipAll": "Skip all",
+			"cancel": "Cancel"
 		},
 		"plan": {
 			"label": "The plan",
@@ -1833,6 +1866,8 @@
 				}
 			},
 			"brief": {
+				"kind": "{kind, select, instagram_reel {an Instagram Reel} tiktok {a TikTok} youtube_shorts {a YouTube Short} ad {an ad} reel {a reel} professional {a professional edit} funny {a funny edit} other {another kind of video}}",
+				"shape": "{shape, select, vertical {vertical 9:16} square {square 1:1} portrait {portrait 4:5} horizontal {horizontal 16:9} other {its own shape}}",
 				"used": "From your brief: {parts}",
 				"chosen": "Chosen for {for, select, promo {a promo} other {you}}: {parts}",
 				"audience": "for {text}",
