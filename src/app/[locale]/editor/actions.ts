@@ -115,6 +115,7 @@ function systemInstruction(durationSeconds: number, clipCount: number): string {
  */
 export const parseEditCommand = validatedAction({
 	signedIn: true,
+	allowance: 'command',
 	input: z.object({
 		command: z.string().trim().min(1).max(MAX_COMMAND_LENGTH),
 		durationSeconds: z.number().positive(),
@@ -167,6 +168,7 @@ const HIGHLIGHTS_INSTRUCTION = [
  */
 export const findHighlights = validatedAction({
 	signedIn: true,
+	allowance: 'highlights',
 	input: z.object({
 		sentences: z
 			.array(
@@ -213,6 +215,7 @@ export const findHighlights = validatedAction({
  */
 export const transcribeTake = validatedAction({
 	signedIn: true,
+	allowance: 'transcript',
 	input: z.object({ audioBase64: z.string().min(1).max(MAX_AUDIO_BASE64_LENGTH) }),
 	handler: async ({ audioBase64 }): Promise<Transcript> => {
 		const response = await transcribeAudio(
@@ -230,6 +233,7 @@ export const transcribeTake = validatedAction({
  */
 export const transcribeVoiceCommand = validatedAction({
 	signedIn: true,
+	allowance: 'voice',
 	input: z.object({ audioBase64: z.string().min(1).max(MAX_VOICE_BASE64_LENGTH) }),
 	handler: async ({ audioBase64 }): Promise<string> => {
 		const response = await transcribeAudio(

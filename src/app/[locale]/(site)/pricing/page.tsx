@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server'
 import { ClosingBand } from '@/components/site/closing-band'
 import { Eyebrow, PageHero, emphasis } from '@/components/site/display'
 import { Link } from '@/i18n/routing'
+import { DAILY_AI_LIMITS } from '@/lib/ai-limits'
 import { cn } from '@/lib/cn'
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -13,6 +14,14 @@ export async function generateMetadata(): Promise<Metadata> {
 const FEATURE_COUNT = 8
 const BULLETS = ['bg-brand-violet', 'bg-brand-purple', 'bg-brand-blue', 'bg-brand-lilac'] as const
 const NOTES = ['after', 'limits'] as const
+/** The daily AI limits, as the limits note says them (from the one place they're set). */
+const LIMITS = {
+	command: DAILY_AI_LIMITS.command.perDay,
+	voice: DAILY_AI_LIMITS.voice.perDay,
+	transcript: DAILY_AI_LIMITS.transcript.perDay,
+	highlights: DAILY_AI_LIMITS.highlights.perDay,
+	makeIt: DAILY_AI_LIMITS.make_it.perDay
+}
 
 /** Pricing: free while in beta, with everything in it, and what comes after. */
 export default async function PricingPage() {
@@ -68,7 +77,7 @@ export default async function PricingPage() {
 							<h2 id={`pricing-${note}`} className="text-text text-[17px] font-extrabold">
 								{t(`${note}.title`)}
 							</h2>
-							<p className="text-text-muted text-[15px] leading-6">{t(`${note}.body`)}</p>
+							<p className="text-text-muted text-[15px] leading-6">{t(`${note}.body`, LIMITS)}</p>
 						</section>
 					))}
 				</div>

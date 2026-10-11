@@ -4,7 +4,9 @@ import { z } from 'zod'
 import { captureError } from '@/lib/observability/capture-error'
 import { enforceAuthorize, type AdminContext } from '@/lib/rbac/context'
 import type { Permission } from '@/lib/rbac/permissions'
+import type { AiAllowanceKind } from '@/lib/ai-limits'
 import { requireUser } from '@/server/auth/session'
+import { allowanceUsedUp, giveBackAllowance, takeAllowance } from '@/server/lib/ai-allowance'
 
 export type ActionResult<Output> =
 	{ ok: true; data: Output } | { ok: false; error: string; status: number }
@@ -27,6 +29,13 @@ export function validatedAction<InputSchema extends z.ZodType, Output>(config: {
 	// that spends money on a provider. Fails closed (requireUser); the page's
 	// redirect in proxy.ts is not a guard. See docs/rules/auth.md.
 	signedIn?: boolean
+	// The paid AI kind this action spends (src/lib/ai-limits.ts): implies
+	// signedIn. One of the user's daily allowance is taken AFTER input
+	// parsing (a malformed request costs nothing) and BEFORE the handler
+	// calls the provider; at the ceiling it refuses with the reset time and
+	// calls nothing. Given back if the handler fails (the provider failed or
+	// timed out), so only calls that were answered count.
+	allowance?: AiAllowanceKind
 	handler: (input: z.infer<InputSchema>) => Promise<Output>
 }) {
 	return async function (rawInput: unknown): Promise<ActionResult<Output>> {
@@ -34,13 +43,25 @@ export function validatedAction<InputSchema extends z.ZodType, Output>(config: {
 			if (config.authorize !== undefined) {
 				await enforceAuthorize(config.authorize)
 			}
-			if (config.signedIn) {
-				await requireUser()
-			}
+			const user = config.signedIn || config.allowance !== undefined ? await requireUser() : null
 
 			const input = config.input.parse(rawInput)
-			const data = await config.handler(input)
-			return { ok: true, data }
+			if (!user || config.allowance === undefined) {
+				return { ok: true, data: await config.handler(input) }
+			}
+			const kind = config.allowance
+			const now = new Date()
+			const day = await takeAllowance(user.id, kind, now)
+			if (!day) throw allowanceUsedUp(kind, now)
+			try {
+				return { ok: true, data: await config.handler(input) }
+			} catch (error) {
+				// A failed give-back only costs the user that one call.
+				await giveBackAllowance(user.id, kind, day).catch((giveBackError: unknown) =>
+					captureError(giveBackError, { feature: 'ai_allowance' })
+				)
+				throw error
+			}
 		} catch (error) {
 			// redirect()/notFound() called inside the handler are implemented
 			// as thrown errors — must run first, or a post-mutation redirect
