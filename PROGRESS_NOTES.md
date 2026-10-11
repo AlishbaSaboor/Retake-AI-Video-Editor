@@ -7,6 +7,11 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-11.
+> - **A daily AI allowance per user** (section 3zx): each of the seven paid
+>   AI actions takes one of the user's daily allowance by kind (set in
+>   `src/lib/ai-limits.ts`) before the provider is called; at the ceiling a
+>   plain message says when it resets. A failed or timed-out call is given
+>   back.
 > - **Contact form limit and a safe sign-in redirect** (section 3zw): the
 >   contact form has a hidden honeypot field and a per-sender limit (5 an
 >   hour by a keyed hash of the IP; 30 an hour shared when unknown);
@@ -3190,6 +3195,66 @@ browser reads the backslash as a slash).
   one sender (the count and the save aren't one transaction, so a burst can
   get a few past the limit).
 
+## 3zx. A daily AI allowance per user (2026-10-11)
+
+From the whole-repo review: the seven paid AI actions had no per-user
+ceiling, and sign-up is open with email confirmation off, so one account
+could spend without limit.
+
+- **What counts (owner's choice):** calls per kind per UTC day, set in one
+  place, `DAILY_AI_LIMITS` in `src/lib/ai-limits.ts`: typed edit commands
+  300, spoken commands 200, transcripts 30, highlight searches 30, Make it
+  60 (a plan, its check or a follow-up each count one). Changing a number
+  is a code change (PR, CI, merge, deploy) and applies to today's counts at
+  once. The Pricing page's limits note reads the same numbers.
+- **Worst case** (the highest cost each kind has been seen at in
+  `ai_usage`): about $4.58 a day for one account (Make it plans $3.69 of
+  it), so about $458 a day for 100 accounts. Sign-up is open and email
+  confirmation is off: that is the exposure before a public deploy.
+- **The table:** `ai_allowances` (new; `user_id`, `day` as a date,
+  `kind`, `used`; primary key on the first three). No foreign key to
+  `users`. Not `ai_usage`, which is MOAD's. Additive: CI writes the
+  `CREATE TABLE` migration, then a hand-written migration enables RLS with
+  no policies (as `contact_messages`: `d9f4788`, then `4152f73`), so the
+  first CI run's `check:rls` is red by design.
+- **Check and count:** `validatedAction`'s `allowance` option (implies
+  `signedIn`): after sign-in and input parsing, before the handler.
+  `takeAllowance` is one conditional `updateMany` (`used < perDay`,
+  increment); the day's first call creates the row, and a unique-key race
+  counts against the row the other request made. At the ceiling: 429,
+  "You've used today's 300 typed edit commands. They reset at midnight UTC,
+  in 14 h 0 min.", and no provider call.
+- **Fairness (owner's condition):** if the handler throws (the provider
+  failed, timed out, or answered unreadably at the wrapper), the call is
+  given back. An answered call counts even when its reply is unusable,
+  because the provider was paid. A malformed request costs nothing (it
+  fails parsing first).
+- Tests: unit, each of the seven actions counted under its ceiling,
+  refused at it with the plain message and no provider call, allowed again
+  the next UTC day; 50 simultaneous requests with 10 left take exactly 10,
+  and 20 first-of-the-day ones all count once; a provider failure and a
+  time-out are given back, an unusable answer counts. The database is an
+  in-memory stand-in that pauses on every call, as a round trip does.
+  Seven mutations each fail their tests, a check-then-count version among
+  them (only the simultaneous test catches it, as it should).
+- **Real Postgres, by hand** (a throwaway database, dropped after): the real
+  `takeAllowance`, 400 at once on a fresh day, took exactly 300; 50 at once
+  with 10 left took exactly 10; a give-back then one more reached 300 again.
+- **On a running server, by hand:** at 299 used, a typed command went
+  through and the count reached 300; at 300, two more were refused with the
+  message and no provider was called (no `ai_usage` row).
+- **An unplanned real call during that check:** one `parse_edit_command`
+  call to Gemini, about $0.0006 (646 micro-USD). I had set `GEMINI_API_KEY`
+  to an empty value to keep the provider out of reach, but Next's env loader
+  (`@next/env`) deletes an empty variable and then loads the real key from
+  `.env.local`. It was recorded in the throwaway database's `ai_usage`, not
+  the real one, so the real cost table doesn't include it. See the rule in
+  section 6.
+- **Also:** e2e (121 tests) ran against the branch with invalid,
+  non-empty AI keys; the real `ai_usage` stayed at 374 rows throughout.
+- **Not covered:** the allowance under a real host's load, and real
+  Supabase sign-in in CI (CI runs with accounts off).
+
 ---
 
 ## 4. Unresolved issues
@@ -3954,6 +4019,14 @@ Not yet queued by the user:
   something can't be reproduced, say so instead of inventing a cause.
   Nothing gets committed until failing tests pass and you know why they
   broke.
+- **Hand tests never reach a provider** (from 3zx, where one did: about
+  $0.0006 of Gemini). Next's env loader deletes an EMPTY variable and loads
+  the real one from `.env.local`, so `GEMINI_API_KEY=''` is not a block.
+  For any hand test against a running server, remove the key from its
+  environment entirely (run from a copy without `.env.local`, or set an
+  invalid non-empty value such as `invalid-key-for-tests`), and prove the
+  key is absent before the first call. Prefer checks that stop before the
+  provider (a refused or invalid request).
 - **Never guess on anything destructive.** Pick the simpler, safer option
   when unsure, and document why. Never delete or overwrite the user's
   recordings.

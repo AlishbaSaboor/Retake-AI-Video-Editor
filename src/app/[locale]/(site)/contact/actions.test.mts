@@ -29,6 +29,8 @@ mock.module('next/headers', {
 })
 mock.module(import.meta.resolve('@/server/db/client'), {
 	namedExports: {
+		// As the real module exports it (validatedAction's AI allowance reads it; contact never does).
+		Prisma: { PrismaClientKnownRequestError: class extends Error {} },
 		db: {
 			contactMessage: {
 				count: async ({ where }: { where: { ipHash: string | null; createdAt: { gt: Date } } }) =>

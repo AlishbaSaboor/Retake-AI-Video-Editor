@@ -1,14 +1,16 @@
 import { readFileSync } from 'node:fs'
 import { mock, test } from 'node:test'
 import assert from 'node:assert/strict'
+import { DAILY_AI_LIMITS, type AiAllowanceKind } from '@/lib/ai-limits'
 import { normalizeError } from '@/lib/errors/normalize-error'
 
 // The paid AI actions, run as the server runs them (validatedAction, the
 // session check, the AI wrappers, their time limits) with only what can't
 // run under `node --test` swapped out: Supabase's cookie client (its answers
 // scripted per test), the Gemini SDK and fetch (no real call is ever made),
-// the usage sink's database, Sentry, and Next's own runtime. Real Supabase
-// sign-in is not covered here.
+// the usage sink's database, the allowance table (kept in memory below),
+// Sentry, and Next's own runtime. Real Supabase sign-in, and Postgres itself,
+// are not covered here.
 
 /** What Supabase's getUser answers, per test: a user, no one, an error, or a throw. */
 let session: () => Promise<{
@@ -40,6 +42,61 @@ mock.module(import.meta.resolve('@/server/lib/ai-usage/sink'), {
 mock.module(import.meta.resolve('@/server/lib/logger'), {
 	namedExports: { log: { warn: () => {}, info: () => {} } }
 })
+/**
+ * ai_allowances, in memory, answering the calls the allowance makes. Each
+ * call pauses as a database round trip does, so simultaneous requests
+ * interleave between them; a single conditional update applies at once, as
+ * Postgres applies it under its row lock.
+ */
+type AllowanceRow = { userId: string; day: Date; kind: string; used: number }
+const allowances = new Map<string, AllowanceRow>()
+const allowanceKey = (where: { userId: string; day: Date; kind: string }) =>
+	`${where.userId}|${where.day.toISOString()}|${where.kind}`
+const roundTrip = () => new Promise((resolve) => setImmediate(resolve))
+class UniqueViolation extends Error {
+	code = 'P2002'
+}
+mock.module(import.meta.resolve('@/server/db/client'), {
+	namedExports: {
+		Prisma: { PrismaClientKnownRequestError: UniqueViolation },
+		db: {
+			aiAllowance: {
+				updateMany: async ({
+					where,
+					data
+				}: {
+					where: { userId: string; day: Date; kind: string; used: { lt?: number; gt?: number } }
+					data: { used: { increment?: number; decrement?: number } }
+				}) => {
+					await roundTrip()
+					const row = allowances.get(allowanceKey(where))
+					const matches =
+						row !== undefined &&
+						(where.used.lt === undefined || row.used < where.used.lt) &&
+						(where.used.gt === undefined || row.used > where.used.gt)
+					if (matches) row.used += (data.used.increment ?? 0) - (data.used.decrement ?? 0)
+					return { count: matches ? 1 : 0 }
+				},
+				findUnique: async ({
+					where
+				}: {
+					where: { userId_day_kind: { userId: string; day: Date; kind: string } }
+				}) => {
+					await roundTrip()
+					const row = allowances.get(allowanceKey(where.userId_day_kind))
+					return row ? { ...row } : null
+				},
+				create: async ({ data }: { data: AllowanceRow }) => {
+					await roundTrip()
+					if (allowances.has(allowanceKey(data))) throw new UniqueViolation('unique')
+					allowances.set(allowanceKey(data), { ...data })
+					return data
+				}
+			}
+		}
+	}
+})
+
 mock.module('@google/genai', {
 	namedExports: {
 		GoogleGenAI: class {
@@ -256,3 +313,112 @@ for (const action of TIMED) {
 		assert.equal(last?.aborted, true, 'the request itself was aborted')
 	})
 }
+
+// The daily allowance (src/lib/ai-limits.ts): checked and counted after the
+// sign-in check, before the provider is called.
+
+const KINDS: Record<string, AiAllowanceKind> = {
+	parseEditCommand: 'command',
+	findHighlights: 'highlights',
+	transcribeTake: 'transcript',
+	transcribeVoiceCommand: 'voice',
+	checkMakePlan: 'make_it',
+	followUpMakeIt: 'make_it',
+	planMakeIt: 'make_it'
+}
+const TODAY = Date.parse('2026-10-11T10:00:00Z')
+const DAY = 24 * 60 * 60 * 1000
+const used = (kind: AiAllowanceKind, at: number) =>
+	allowances.get(allowanceKey({ userId: 'u1', day: new Date(at - (at % DAY)), kind }))?.used ?? 0
+const setUsed = (kind: AiAllowanceKind, count: number, at: number) =>
+	allowances.set(allowanceKey({ userId: 'u1', day: new Date(at - (at % DAY)), kind }), {
+		userId: 'u1',
+		day: new Date(at - (at % DAY)),
+		kind,
+		used: count
+	})
+
+for (const action of PAID) {
+	const kind = KINDS[action.name] as AiAllowanceKind
+	const { perDay, what } = DAILY_AI_LIMITS[kind]
+	test(`${action.name}: counted under its daily ${what} limit (${perDay}); refused at it, plainly, with no ${action.provider} call; allowed again the next day`, async () => {
+		session = SIGNED_IN
+		allowances.clear()
+		mock.timers.enable({ apis: ['Date'], now: TODAY })
+		try {
+			// One short of the ceiling: this call reaches the provider and is counted.
+			setUsed(kind, perDay - 1, TODAY)
+			const before = calls(action.provider)
+			const under = await action.call()
+			assert.notEqual(under.status, 429)
+			assert.equal(calls(action.provider), before + 1, 'reached the provider')
+			assert.equal(used(kind, TODAY), perDay, 'counted')
+			// At the ceiling: refused with when it resets, and no provider call.
+			const at = await action.call()
+			assert.deepEqual(at, {
+				ok: false,
+				error: `You've used today's ${perDay} ${what}. They reset at midnight UTC, in 14 h 0 min.`,
+				status: 429
+			})
+			assert.equal(calls(action.provider), before + 1, 'no provider call')
+			assert.equal(used(kind, TODAY), perDay, 'not counted past the ceiling')
+			// The next UTC day: allowed again, counted afresh.
+			mock.timers.tick(14 * 60 * 60 * 1000)
+			const next = await action.call()
+			assert.notEqual(next.status, 429)
+			assert.equal(calls(action.provider), before + 2)
+			assert.equal(used(kind, TODAY + DAY), 1)
+		} finally {
+			mock.timers.reset()
+		}
+	})
+}
+
+test('simultaneous requests can never take more than the ceiling', async () => {
+	session = SIGNED_IN
+	allowances.clear()
+	mock.timers.enable({ apis: ['Date'], now: TODAY })
+	try {
+		// 10 left of the typed-command allowance, and 50 at once; then a fresh day's first 20 at once.
+		setUsed('command', DAILY_AI_LIMITS.command.perDay - 10, TODAY)
+		const before = calls('gemini')
+		const results = await Promise.all(Array.from({ length: 50 }, () => PAID[0]!.call()))
+		assert.equal(results.filter((result) => result.ok).length, 10)
+		assert.equal(results.filter((result) => result.status === 429).length, 40)
+		assert.equal(calls('gemini'), before + 10)
+		assert.equal(used('command', TODAY), DAILY_AI_LIMITS.command.perDay)
+		allowances.clear()
+		const first = await Promise.all(Array.from({ length: 20 }, () => PAID[0]!.call()))
+		assert.ok(first.every((result) => result.ok))
+		assert.equal(used('command', TODAY), 20, 'every first-of-the-day request counted once')
+	} finally {
+		mock.timers.reset()
+	}
+})
+
+test('a provider that fails or times out gives the call back; one that answers, even unusably, counts', async () => {
+	session = SIGNED_IN
+	allowances.clear()
+	const today = Date.now()
+	// Deepgram refuses (a 500): the transcript is given back.
+	deepgramAnswer = async () => new Response('busy', { status: 500 })
+	const failed = await PAID[2]!.call()
+	assert.equal(failed.ok, false)
+	assert.equal(used('transcript', today), 0)
+	// Gemini never answers: given up at its limit, and given back.
+	geminiAnswer = hangUntilAborted
+	const { result } = await settledAfter(30_000, PAID[0]!.call)
+	assert.equal((result as { status?: number }).status, 504)
+	assert.equal(used('command', today), 0)
+	// Gemini answers with something unusable: the provider was paid, so it counts.
+	geminiAnswer = async () => ({ text: 'not json' })
+	const answered = await PAID[0]!.call()
+	assert.equal(answered.ok, true)
+	assert.equal(used('command', today), 1)
+	geminiAnswer = async () => ({ text: '{}' })
+	deepgramAnswer = async () =>
+		Response.json({
+			metadata: { duration: 1 },
+			results: { channels: [{ alternatives: [{ words: [] }] }] }
+		})
+})

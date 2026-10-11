@@ -1,0 +1,19 @@
+// How many paid AI calls each signed-in user has made today, by kind
+// (src/lib/ai-limits.ts lists the kinds and their daily numbers). Checked and
+// counted in one statement before any provider is called
+// (src/server/lib/ai-allowance.ts), so simultaneous requests can't pass the
+// ceiling. A call whose provider fails or times out is given back. Kept
+// apart from ai_usage, which records spend and is read by MOAD.
+model AiAllowance {
+	/// The Supabase auth user's id (users.id); no foreign key, so a user
+	/// without a users row is still counted.
+	userId String   @map("user_id") @db.Uuid
+	/// The UTC day the calls were made on.
+	day    DateTime @db.Date
+	/// One of DAILY_AI_LIMITS's kinds.
+	kind   String
+	used   Int      @default(0)
+
+	@@id([userId, day, kind])
+	@@map("ai_allowances")
+}
