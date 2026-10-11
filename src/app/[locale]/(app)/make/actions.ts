@@ -179,6 +179,7 @@ const MAX_PLAN_LENGTH = 40_000
  */
 export const checkMakePlan = validatedAction({
 	signedIn: true,
+	allowance: 'make_it',
 	input: z.object({
 		request: z.string().trim().min(1).max(MAX_REQUEST_LENGTH),
 		planText: z.string().min(1).max(MAX_PLAN_LENGTH)
@@ -232,6 +233,7 @@ const FOLLOW_UP_INSTRUCTION = [
  */
 export const followUpMakeIt = validatedAction({
 	signedIn: true,
+	allowance: 'make_it',
 	input: z.object({
 		request: z.string().trim().min(1).max(MAX_REQUEST_LENGTH),
 		earlier: z.array(z.string().max(MAX_REQUEST_LENGTH)).max(MAX_FOLLOW_UPS),
@@ -296,6 +298,7 @@ export const followUpMakeIt = validatedAction({
  */
 export const planMakeIt = validatedAction({
 	signedIn: true,
+	allowance: 'make_it',
 	input: z.object({
 		request: z.string().trim().min(1).max(MAX_REQUEST_LENGTH),
 		answers: z

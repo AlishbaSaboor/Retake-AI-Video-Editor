@@ -1632,7 +1632,7 @@
 			},
 			"limits": {
 				"title": "Any limits during beta?",
-				"body": "Transcripts, Make it and highlights work on videos up to 5 minutes. Projects are saved in your browser, so how many you keep depends on its storage."
+				"body": "Transcripts, Make it and highlights work on videos up to 5 minutes. The AI has a daily limit for each account: {command} typed commands, {voice} spoken commands, {transcript} transcripts, {highlights} highlight searches and {makeIt} Make it requests a day, reset at midnight UTC. Projects are saved in your browser, so how many you keep depends on its storage."
 			}
 		},
 		"privacy": {
