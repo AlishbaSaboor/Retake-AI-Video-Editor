@@ -5,7 +5,11 @@ import { deepgramWords, transcribeAudio } from '@/server/ai/deepgram'
 import { generateContent } from '@/server/ai/google'
 import { validatedAction } from '@/server/actions/validated-action'
 import { rethrowAiError } from '@/server/lib/ai-busy'
-import { EDIT_COMMAND_JSON_SCHEMA, editCommandSchema, type EditCommand } from './edit-command'
+import {
+	EDIT_COMMAND_JSON_SCHEMA,
+	editCommandSchema,
+	type EditCommand
+} from './assistant/edit-command'
 import {
 	HIGHLIGHTS_JSON_SCHEMA,
 	highlightsReplySchema,
@@ -13,10 +17,10 @@ import {
 	MIN_HIGHLIGHTS,
 	numberedSentences,
 	type HighlightPick
-} from './highlights'
-import { MAX_AUDIO_BASE64_LENGTH } from './take-audio'
-import { toTranscript, type Transcript } from './transcript'
-import { MAX_VOICE_BASE64_LENGTH } from './voice-command'
+} from './assistant/highlights'
+import { MAX_AUDIO_BASE64_LENGTH } from './audio/take-audio'
+import { toTranscript, type Transcript } from './audio/transcript'
+import { MAX_VOICE_BASE64_LENGTH } from './assistant/voice-command'
 
 // A command is a sentence, not a document — this also caps what one request
 // can spend.

@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { generateContent, MEDIA_RESOLUTION_MEDIUM } from '@/server/ai/google'
 import { validatedAction } from '@/server/actions/validated-action'
 import { rethrowAiError } from '@/server/lib/ai-busy'
-import { numberedSentences } from '@/app/[locale]/editor/highlights'
+import { numberedSentences } from '@/app/[locale]/editor/assistant/highlights'
 import {
 	CHECK_REPLY_JSON_SCHEMA,
 	checkReplySchema,

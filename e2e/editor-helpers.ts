@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test'
-import type { EditCommand } from '../src/app/[locale]/editor/edit-command'
-import type { HighlightPick } from '../src/app/[locale]/editor/highlights'
-import { toTranscript } from '../src/app/[locale]/editor/transcript'
+import type { EditCommand } from '../src/app/[locale]/editor/assistant/edit-command'
+import type { HighlightPick } from '../src/app/[locale]/editor/assistant/highlights'
+import { toTranscript } from '../src/app/[locale]/editor/audio/transcript'
 
 // Shared by the editor's e2e specs: a recorded test video, canned AI
 // replies, and timeline helpers.

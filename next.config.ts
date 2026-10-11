@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next'
 import createNextIntlPlugin from 'next-intl/plugin'
 import { withSentryConfig } from '@sentry/nextjs'
-import { TRANSCRIBE_REQUEST_LIMIT_BYTES } from './src/app/[locale]/editor/take-audio'
+import { TRANSCRIBE_REQUEST_LIMIT_BYTES } from './src/app/[locale]/editor/audio/take-audio'
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
 

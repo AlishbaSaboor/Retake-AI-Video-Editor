@@ -1,4 +1,4 @@
-import type { ProjectSummary } from '@/app/[locale]/editor/projects'
+import type { ProjectSummary } from '@/app/[locale]/editor/projects/projects'
 
 export type Sort = 'edited' | 'name'
 
