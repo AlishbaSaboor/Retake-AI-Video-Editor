@@ -17,12 +17,25 @@ export type MakeKind = (typeof MAKE_KINDS)[number]
 /** An ad's shape: question 2. */
 export const AD_SHAPES = ['vertical', 'horizontal', 'original'] as const
 export type AdShape = (typeof AD_SHAPES)[number]
-/** A reel's sound: question 3, shown once music is built. */
+/** The most it may run, in seconds: question 3. */
+export const MAKE_LENGTHS = ['15', '30', '60'] as const
+export type MakeLength = (typeof MAKE_LENGTHS)[number]
+/** An ad's length when it's left to "You decide": short, as ads run. */
+export const DEFAULT_AD_SECONDS = 30
+/** A reel's sound: question 4, shown once music is built. */
 export const VOICE_CHOICES = ['voice', 'music_only', 'both'] as const
-/** The music's genre or mood: question 4, shown once music is built. */
+/** The music's genre or mood: question 5, shown once music is built. */
 export const MUSIC_MOODS = ['calm', 'upbeat', 'hip_hop', 'cinematic', 'none'] as const
 
-export const QUESTION_IDS = ['kind', 'adShape', 'voice', 'music', 'tone', 'callToAction'] as const
+export const QUESTION_IDS = [
+	'kind',
+	'adShape',
+	'length',
+	'voice',
+	'music',
+	'tone',
+	'callToAction'
+] as const
 export type QuestionId = (typeof QUESTION_IDS)[number]
 /**
  * Every question, in the order asked. One for a feature that isn't built
@@ -31,6 +44,7 @@ export type QuestionId = (typeof QUESTION_IDS)[number]
 export const QUESTIONS: ReadonlyArray<{ id: QuestionId; built: boolean }> = [
 	{ id: 'kind', built: true },
 	{ id: 'adShape', built: true },
+	{ id: 'length', built: true },
 	{ id: 'voice', built: false },
 	{ id: 'music', built: false },
 	{ id: 'tone', built: true },
@@ -43,6 +57,7 @@ const choiceText = z.string().trim().max(MAX_BRIEF_PART_LENGTH).nullable()
 export const makeChoicesSchema = z.object({
 	kind: z.enum(MAKE_KINDS).nullable(),
 	adShape: z.enum(AD_SHAPES).nullable(),
+	length: z.enum(MAKE_LENGTHS).nullable().default(null),
 	voice: z.enum(VOICE_CHOICES).nullable(),
 	music: z.enum(MUSIC_MOODS).nullable(),
 	tone: choiceText,
@@ -55,6 +70,7 @@ export type MakeChoices = z.infer<typeof makeChoicesSchema>
 export const decideAll = (asked: QuestionId[]): MakeChoices => ({
 	kind: null,
 	adShape: null,
+	length: null,
 	voice: null,
 	music: null,
 	tone: null,
@@ -75,6 +91,12 @@ const TONE =
 const CALL_TO_ACTION =
 	/\b(?:call[\s-]to[\s-]action|cta|end(?:s|ing)? (?:it )?with|close(?:s)? with|link in (?:the )?bio|subscribe|follow (?:us|me|for)|sign[\s-]?up|visit|shop now|buy now|book now|order now|download|learn more|dm (?:me|us))\b/i
 const MUSIC = /\b(?:music|song|track|soundtrack|beat|hip[\s-]?hop|cinematic)\b/i
+/** A length in words: 0:55, 55 s, 55s, 55 sec, 55 seconds, 55-second, 1 minute, 1.5 min. */
+export const LENGTH = String.raw`(\d+):([0-5]\d)\b|(\d+(?:\.\d+)?)(\s*-?\s*)(s|secs?|seconds?|mins?|minutes?)\b`
+/** A length in the user's own words ("30 seconds", "1:30"). */
+const LENGTH_REQUEST = new RegExp(LENGTH, 'i')
+/** A follow-up asking for it shorter or longer, with no number: a length asked all the same. */
+const LENGTH_CHANGE = /\b(?:shorter|longer)\b/i
 
 const SHORT_KINDS: ReadonlySet<MakeKind> = new Set(['instagram_reel', 'tiktok', 'youtube_shorts'])
 
@@ -86,6 +108,8 @@ export const namesShape = (text: string) => SHAPE.test(text)
 export const namesTone = (text: string) => TONE.test(text)
 export const namesCallToAction = (text: string) => CALL_TO_ACTION.test(text)
 export const namesMusic = (text: string) => MUSIC.test(text)
+export const namesLength = (text: string) => LENGTH_REQUEST.test(text)
+export const namesLengthChange = (text: string) => LENGTH_CHANGE.test(text)
 
 /**
  * The questions to show for a request, in order, given what's been picked
@@ -102,6 +126,7 @@ export function questionsToAsk(
 		kind: !namesKind(request),
 		// A reel, TikTok or Short is always vertical; a shape or platform named answers it.
 		adShape: ad && !namesShortVideo(request) && !namesShape(request),
+		length: !namesLength(request),
 		voice: short,
 		music: !namesMusic(request),
 		tone: !namesTone(request),
@@ -133,6 +158,7 @@ export function choiceWords(choices: MakeChoices | null | undefined): string[] {
 	return [
 		...(choices.kind ? [KIND_WORDS[choices.kind]] : []),
 		...(choices.adShape ? [SHAPE_WORDS[choices.adShape]] : []),
+		...(choices.length ? [`At most ${choices.length} seconds.`] : []),
 		...(choices.tone ? [`Tone: ${choices.tone}.`] : []),
 		...(choices.callToAction ? [`Call to action: ${choices.callToAction}.`] : [])
 	]
@@ -142,7 +168,8 @@ export function choiceWords(choices: MakeChoices | null | undefined): string[] {
  * The reply with what the user clicked put in place of Gemini's guess: what
  * it is, an ad's shape, the tone and the call to action. A later follow-up
  * naming the same thing ("make it square") wins over the click, as the
- * latest ask does everywhere.
+ * latest ask does everywhere. The length is the plan's own step
+ * (`askedLength` in make-plan.ts): its default depends on the type.
  */
 export function applyChoices(
 	reply: MakeReply,

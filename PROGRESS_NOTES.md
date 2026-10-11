@@ -7,6 +7,10 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-11.
+> - **The user decides how long it runs** (section 3zzc): a length question
+>   when the request states none; a click is the plan's most, an ad left to
+>   "You decide" runs at most 30 s, and a length Gemini invents never
+>   limits the plan.
 > - **Make it asks a few quick questions** (section 3zzb): only what the
 >   request leaves open, fixed choices, no AI call; clicked answers are
 >   the user's words and win over Gemini's, skipped ones are labelled as
@@ -3427,6 +3431,48 @@ limit agreed with the owner.
   Make it e2e tests press Make it through `submitMake`, which takes Skip
   all when the request leaves questions open: what they assert is
   unchanged.
+
+## 3zzc. The user decides how long it runs (2026-10-11)
+
+On a real run, "make an ad" on the 4:41 screen recording got a 59 s limit
+Gemini chose on its own (`maxSeconds: 59`), and the plan cut it to 56 s.
+Rules agreed with the owner before building.
+
+- **A length question:** "How long, at most?" 15 s · 30 s · 60 s · You
+  decide, after what it is and an ad's shape. Asked only when the request
+  states no length (the same whole-word length rule the plan uses, now in
+  `make-questions.ts`: "30 seconds", "45-second", "0:45", "1 minute").
+- **`askedLength`** (a `planMake` step): the length is the user's only. The
+  latest ask wins: a chat follow-up naming a length, or asking it shorter
+  or longer (Gemini's number for it); else the click; else a length the
+  request states (Gemini's reading). Left to You decide or Skip all, an ad
+  runs at most 30 s (`DEFAULT_AD_SECONDS`) and a reel, TikTok or Short
+  keeps its 50-59 s rule, labelled as chosen. **A length Gemini fills in on
+  its own never limits the plan.** It's a most, never padded.
+- **The plan card:** the length has its own line in the Length row, "As
+  you asked: at most 30 s" (clicked, typed or asked in a follow-up) or
+  "Chosen for you: at most 30 s", and it left the "From your brief" line.
+  A reel asked for 60 s says "Capped at 59 s: reels, TikToks and Shorts
+  run under a minute". With a length, "Cut to fit within N s" replaces the
+  reel-only "under 60 seconds" lines, which were wrong for any other limit.
+- **Real run replayed** over the real transcript (local only): main's code
+  gives 56.4 s under Gemini's 59; this branch, the question left to You
+  decide, 28.2 s under 30. Only length-driven outputs changed (the limit,
+  sentences kept 13 to 7, clips, the call to action's timing); shape,
+  treatment, captions, title, transitions and every label stayed the same.
+  The real run's replies are now fixtures (`real-run4-*.json`).
+- **Existing tests changed, each approved by the owner** (8 expectations or
+  inputs, listed side by side in the PR): the follow-up length test now
+  gives its follow-up words; one replay scenario states its length (one
+  captured field, `brief.said.lengthSeconds`, false to true); the long
+  brief's length moved to its own line; four question lists gained
+  `length`; one "says it all" brief gained "20 seconds"; one e2e title
+  names the length question.
+- **Tests:** 5 unit tests for the length (skip rule, each answer and the
+  default, a follow-up's 45 s beating a clicked 30, "make it shorter" as
+  the user's ask, no padding, the fourth real reply); 4 e2e tests of the
+  flow. Each length rule removed on purpose (11 breaks) made a test fail.
+  Unit 662 to 667; e2e 128 to 132.
 
 ---
 

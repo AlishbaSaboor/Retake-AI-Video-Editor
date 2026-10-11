@@ -28,7 +28,11 @@ import { transitionLimit, type TransitionKind } from '../../editor/model/transit
 import {
 	applyChoices,
 	choiceWords,
+	DEFAULT_AD_SECONDS,
+	LENGTH,
 	MAX_BRIEF_PART_LENGTH,
+	namesLength,
+	namesLengthChange,
 	type MakeChoices,
 	type MakeKind
 } from './make-questions'
@@ -712,10 +716,6 @@ export function inventedNames(text: string, known: string): string[] {
 	return out
 }
 
-/** A length in words: 0:55, 55 s, 55s, 55 sec, 55 seconds, 55-second, 1 minute, 1.5 min. */
-const LENGTH = String.raw`(\d+):([0-5]\d)\b|(\d+(?:\.\d+)?)(\s*-?\s*)(s|secs?|seconds?|mins?|minutes?)\b`
-/** A length in the user's own words ("30 seconds", "1:30"). */
-const LENGTH_REQUEST = new RegExp(LENGTH, 'i')
 /** A length that is the result's: "to 55 seconds", "now 0:55", "a 55-second reel", "55 s long". */
 const RESULT_LENGTH = new RegExp(
 	String.raw`(\b(?:to|into|now|is|of|runs|running)\s+(?:(?:about|around|roughly|just|under|over|a|an)\s+)*)(?:${LENGTH})|(?:${LENGTH})(?=\s*(?:long|reels?|videos?|edits?|shorts?)\b)`,
@@ -1136,6 +1136,35 @@ export function lengthLimits(
 				: null
 	const target = asked !== null ? (limitSeconds ?? asked) * ASKED_FILL : SHORT_FORM_TARGET_SECONDS
 	return { shortForm, asked, limitSeconds, target }
+}
+
+/** The most the plan may run, and whether the user's own words asked it. */
+export type AskedLength = { seconds: number | null; said: boolean }
+
+/**
+ * The most the plan may run, from the user's own words only (Gemini fills a
+ * length in whether or not anyone asked). The latest ask wins: a follow-up
+ * naming a length, or asking it shorter or longer (Gemini's number for it);
+ * else the length clicked; else one the request states (Gemini's reading of
+ * it). Left to "You decide", an ad runs at most DEFAULT_AD_SECONDS and a
+ * reel, TikTok or Short keeps its own under-a-minute rule, chosen for the
+ * user. Nothing asked and no question shown: no length at all. It's only
+ * ever a most: a shorter video stays as it is.
+ */
+export function askedLength(
+	reply: Pick<MakeReply, 'maxSeconds' | 'style' | 'format'>,
+	request: string,
+	choices: MakeChoices | null | undefined,
+	followUps: readonly string[] = []
+): AskedLength {
+	if (followUps.some((text) => namesLength(text) || namesLengthChange(text))) {
+		return { seconds: reply.maxSeconds, said: true }
+	}
+	if (choices?.length) return { seconds: Number(choices.length), said: true }
+	if (namesLength(request)) return { seconds: reply.maxSeconds, said: true }
+	const decided = choices?.asked.includes('length') ?? false
+	const ad = reply.style === 'ad' && !isShortForm(reply.format, request)
+	return { seconds: decided && ad ? DEFAULT_AD_SECONDS : null, said: false }
 }
 
 /** The strongest moment (the reply's first), which a short-form edit opens with; null otherwise. */
@@ -1618,7 +1647,8 @@ export function planSummary<Sound>(
 		musicAvailable,
 		shape,
 		screen,
-		choices
+		choices,
+		lengthSaid
 	}: {
 		limits: LengthLimits
 		made: FittedCut & { lengthened: boolean }
@@ -1634,6 +1664,8 @@ export function planSummary<Sound>(
 		screen: MakeSummary['screen']
 		/** The answers to the quick questions, when they were shown. */
 		choices?: MakeChoices | null
+		/** The length came from the user's own words: typed, clicked, or a follow-up. */
+		lengthSaid: boolean
 	}
 ): MakeSummary {
 	const { reply, durationSeconds, sentences, transition, said, promo, pictureMatters } = context
@@ -1683,7 +1715,7 @@ export function planSummary<Sound>(
 				audience: saidInBrief(reply.brief.audience ?? '', said),
 				tone: saidInBrief(reply.brief.tone ?? '', said),
 				show: saidInBrief(reply.brief.show ?? '', said),
-				lengthSeconds: said.some((text) => LENGTH_REQUEST.test(text)),
+				lengthSeconds: lengthSaid,
 				callToAction: saidInBrief(callToAction ?? '', said)
 			},
 			chosenFor: promo ? 'promo' : 'you'
@@ -1722,10 +1754,10 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	/** The reply as used: its sentences taken out as they were cut to fit or lengthened. */
 	used: MakeReply
 } {
-	const context = planContext({
-		...input,
-		reply: applyChoices(input.reply, input.choices, input.followUps)
-	})
+	// What was clicked in place of Gemini's guess, then a length only the user asked.
+	const applied = applyChoices(input.reply, input.choices, input.followUps)
+	const length = askedLength(applied, input.request, input.choices, input.followUps)
+	const context = planContext({ ...input, reply: { ...applied, maxSeconds: length.seconds } })
 	const { reply, sentences, durationSeconds, picture } = context
 
 	// What's kept, and how long it runs.
@@ -1779,7 +1811,8 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 		musicAvailable: input.musicAvailable,
 		shape,
 		screen,
-		choices: input.choices
+		choices: input.choices,
+		lengthSaid: length.said
 	})
 	return { edit, used: { ...reply, removeSentences: made.removeSentences }, summary }
 }
