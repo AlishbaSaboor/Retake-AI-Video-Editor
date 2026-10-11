@@ -205,12 +205,11 @@ const overlaps = (a: SourceRange, b: SourceRange) =>
 	a.startSeconds < b.endSeconds && a.endSeconds > b.startSeconds
 
 /**
- * Pick a video, watch it, scrub it on the timeline. Everything here is local
- * to the browser: the file is played from an object URL and never leaves the
- * machine. Persisting it (storage + a Prisma row) comes once the database is
- * wired up.
- */
-/**
+ * Pick a video, watch it, scrub it on the timeline and edit it. The file is
+ * played from an object URL and never leaves the machine: only its decoded
+ * audio goes out (to Deepgram, for the transcript), and commands as text (to
+ * Gemini). Projects are saved in this browser's IndexedDB (projects.ts).
+ *
  * `openProjectId`: a saved project to open (from the Projects page). Otherwise a
  * video handed over from the home page, with its command, is loaded.
  */

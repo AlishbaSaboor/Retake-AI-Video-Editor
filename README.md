@@ -1,203 +1,144 @@
 # Retake
 
-An AI video editor for fixing the flaws in an existing recording instead of
-re-shooting it — re-record one bad sentence and splice it back in, trim a
-stumble, cut a tangent. Every edit can be made either by typing a
-plain-English command or by hand on a manual timeline. Basic motion
-graphics (logos, watermarks, title cards) sit on top of the same timeline.
+A video editor in the browser for fixing an existing recording instead of
+shooting it again. Load a video and Retake transcribes it, finds filler
+words and long pauses, and lets you cut them, re-record one bad sentence and
+splice it back in, or rearrange the video on a timeline. Every edit can be
+made by hand or by a typed or spoken command, which is shown as a plan you
+confirm first. **Make it** turns a video into a reel, an ad or a cleaner cut
+from one request; **highlights** finds the best moments. The edit is
+exported as a video file, and projects can be saved, all in the browser.
+
+How it's built, why, and its known limits: **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 ## Stack
 
-| Layer           | Choice                                                        | Note                                                                                                                                                                               |
-| --------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Framework       | Next.js 16 (App Router, Turbopack, React Compiler) + React 19 | See `AGENTS.md` for the v13/14→16 breaking changes that matter                                                                                                                     |
-| Styling         | Tailwind CSS v4 (CSS-first, no `tailwind.config.js`)          | Tokens in `src/app/globals.css`, see `DESIGN.md`                                                                                                                                   |
-| Database        | Prisma 6                                                      | Schema-only workflow — CI generates and commits migrations, you never hand-write one. Prisma 7 is a deliberate future upgrade, not the default (driver-adapter migration required) |
-| Auth            | Supabase Auth                                                 | Auth/session only — Prisma still owns all application data. Removed entirely for landing pages with no accounts, see `docs/rules/auth.md`                                          |
-| Server state    | TanStack Query                                                | `QueryClient` created inside `useState`, never module scope                                                                                                                        |
-| i18n            | next-intl                                                     | Component-scoped translation files                                                                                                                                                 |
-| Observability   | Sentry + PostHog                                              | Both no-op gracefully until real keys are set; unified behind `captureError`/`captureClientError`, see `docs/rules/error-handling.md`                                              |
-| Testing         | `node --test` (unit) + Playwright (e2e)                       |                                                                                                                                                                                    |
-| Package manager | pnpm                                                          | Version pinned in `package.json`                                                                                                                                                   |
+| Layer           | Choice                                                        | Note                                                                                                                                            |
+| --------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework       | Next.js 16 (App Router, Turbopack, React Compiler) + React 19 | Server actions for every server call; see `AGENTS.md` for the v13/14 → 16 changes that matter                                                   |
+| AI              | Gemini 3.5 Flash-Lite (`@google/genai`), Deepgram `nova-3`    | Gemini parses commands, finds highlights and plans Make it; Deepgram writes the transcript, fillers included. Called only from `src/server/ai/` |
+| Database        | Postgres through Prisma 6                                     | AI cost (`ai_usage`), daily AI allowances (`ai_allowances`), contact messages. CI writes the migrations                                         |
+| Auth            | Supabase Auth, run locally in Docker                          | Sign-in only; Prisma owns all application data                                                                                                  |
+| In the browser  | Web Audio, canvas, `MediaRecorder`, IndexedDB                 | Audio analysis, the preview, the export, and saved projects                                                                                     |
+| Styling         | Tailwind CSS v4                                               | Tokens in `src/app/globals.css`; see `DESIGN.md`                                                                                                |
+| i18n            | next-intl                                                     | UI strings in `messages/en.json`                                                                                                                |
+| Observability   | Sentry, PostHog, a Pino logger                                | Sentry and PostHog do nothing until their keys are set; the logger always runs                                                                  |
+| Testing         | `node --test` (unit) and Playwright (end to end)              | Both with the AI faked: no test calls a provider                                                                                                |
+| Package manager | pnpm                                                          | Node 22.18 or later                                                                                                                             |
 
-## Project structure
+## Architecture in short
 
-```
-retake/
-├── .claude/skills/          Claude Code skills — see "Skills" below
-├── .claude-logs/            tracked (not gitignored) — AI session transcripts ship with the branch
-├── .github/workflows/       ci.yml, deploy-migrations.yml, claude-code-review.yml
-├── .githooks/commit-msg     installed automatically by `pnpm install`
-├── docs/
-│   ├── rules/                one file per engineering rule (see below)
-│   ├── STANDARDS.md          what every 8x repo carries, and the check that proves it
-│   └── CI_CD_SETUP.md        GitHub secrets/environments + Vercel setup
-├── e2e/smoke.spec.ts        Playwright — delete once real coverage exists
-├── messages/en.json         i18n strings
-├── prisma/schema/            multi-file schema — the only thing you hand-edit
-│   └── migrations/           CI-generated only, never by hand
-├── prisma/run-once.sql       one-off SQL, applied once per database on the next deploy
-├── scripts/                  commit-msg check, migration generator, run-once SQL runner, env-var check, standards check, RLS check
-├── src/
-│   ├── app/[locale]/         App Router pages, error.tsx, not-found.tsx, [...rest]/ (404 plumbing)
-│   ├── app/global-error.tsx  root boundary, inline-styled (see docs/rules/error-handling.md)
-│   ├── app/globals.css       design tokens (light + dark)
-│   ├── components/           query-provider.tsx, error-page.tsx, error-boundary.tsx, ui/ (Button, Input, Card, toasts, ...)
-│   ├── i18n/                 next-intl routing + request config
-│   ├── lib/                  cn.ts, env.ts, toast.ts, errors/, observability/, notifications/, posthog/, supabase/
-│   ├── server/                db/client.ts (the only file that touches Prisma), api/ (route factory)
-│   └── proxy.ts               Supabase session refresh + next-intl locale routing
-├── instrumentation.ts        Sentry init + env validation, run once at server boot
-├── AGENTS.md                  index into docs/rules/* — read by every coding agent
-├── CLAUDE.md                  thin: @AGENTS.md + session-log convention + skills pointer
-├── DESIGN.md                  design-token/component conventions
-└── .env.example               every variable explained inline
-```
+- **The video stays in the browser.** It's played from a local file, edited
+  as a list of clips over the original, exported by replaying the edit and
+  recording it, and saved to IndexedDB. Only the decoded audio (to
+  Deepgram), text (to Gemini) and, for Make it, one small picture every
+  2 seconds (to Gemini) leave the browser.
+- **Every AI call is a server action behind three checks**, in order: the
+  user is signed in (it fails closed), the input is valid, and the user has
+  daily allowance left for that kind of call. Then a wrapper calls the
+  provider with a time limit and records the call's cost.
+- **Filler words are cut only where the audio has a real gap** on both
+  sides, never at the transcriber's timestamps.
 
-## Setup
+The full picture, with a diagram and the reasons: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Run it locally
+
+You need Node 22.18 or later, pnpm, and Docker Desktop (for Supabase).
 
 ```bash
-pnpm install                       # also installs the commit-msg git hook + generates the Prisma client
-cp .env.example .env.local         # fill in DATABASE_URL/DIRECT_URL at minimum
-pnpm exec prisma migrate dev       # first migration, local only — see AGENTS.md
-pnpm dev
+pnpm install                      # also generates the Prisma client
+pnpm dlx supabase start           # Postgres and Auth in Docker (the first run downloads ~2 GB)
+pnpm dlx supabase status          # prints the local URLs and keys
+cp .env.example .env.local        # then fill it in (below)
+pnpm exec prisma migrate deploy   # create the tables
+pnpm dev                          # http://localhost:3000
 ```
 
-Open http://localhost:3000 — English is served unprefixed, and `/en`
-redirects back to `/`. Sentry,
-PostHog, and Supabase Auth all no-op or fail open locally until you set
-their env vars; nothing else requires them to run.
+In `.env.local`, from `supabase status`: `DATABASE_URL` and `DIRECT_URL`
+(the local Postgres), `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Add `GEMINI_API_KEY` and
+`DEEPGRAM_API_KEY` for the AI features; without them the app runs, and those
+features fail with a generic error. `CONTACT_IP_SECRET` is optional locally. Every
+variable is explained in `.env.example`. Create an account on the sign-in
+page to use the app.
 
-## Environment variables
+## Production settings
 
-Every variable the app reads is documented inline in `.env.example` (what
-it's for, its fallback behavior, how to generate it) and validated at boot
-by `src/lib/env.ts` — a misconfigured deployment fails immediately with a
-clear message instead of an obscure error three requests later. Groups:
-database (Prisma), Supabase Auth, Sentry, PostHog, Slack alerting, i18n,
-cron secret, app URL. `pnpm check:env` fails if any `process.env.X` in `src/` is missing
-from either `.env.example` or the schema. See `docs/CI_CD_SETUP.md` for
-which of these are Vercel-side vs. GitHub Actions-only secrets — they're
-not the same set.
+| Setting                                                            | Needed for                                                                   |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                     | The database (validated at boot)                                             |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Sign-in. Without them the server logs which is missing and exits             |
+| `CONTACT_IP_SECRET`                                                | The contact form's per-sender limit. Without it the server logs it and exits |
+| `GEMINI_API_KEY`, `DEEPGRAM_API_KEY`                               | The AI features (the server starts without them)                             |
 
-## Database & migrations
-
-Prisma schema (`prisma/schema/*.prisma`, one file per domain area) is the
-only thing you hand-edit. **CI writes the migration, you write the
-schema** — never touch a file under `prisma/schema/migrations/` yourself.
-The one SQL file you do hand-write is `prisma/run-once.sql`: a one-off
-change that isn't a schema change (fix a value, insert reference rows,
-replace a view). The next deploy applies it to production once, right after
-the migrations, and a ledger keyed by content hash makes sure it never runs
-again — replace its content for the next one-off. Full workflow, the
-destructive-change safety net, and why this approach was chosen over the
-org's other migration patterns: `docs/rules/migrations.md`.
-
-## Auth
-
-Supabase Auth by default for any project with real user accounts —
-already wired (`src/proxy.ts`, `src/lib/supabase/`), nothing to scaffold.
-Auth and session only; Prisma still owns every byte of application data.
-Landing pages with nothing to sign into remove it entirely — exact steps
-in `docs/rules/auth.md`. `template-setup` asks which one applies.
-
-## Testing
+`CONTACT_IP_SECRET` is the key a sender's IP is hashed with, so no IP is
+stored. Make it random and at least 32 characters:
 
 ```bash
-pnpm test        # node --test over scripts/*.test.mjs — fast, no browser
-pnpm test:e2e     # Playwright — boots the app itself unless E2E_BASE_URL is set
+openssl rand -hex 32
 ```
 
-The `e2e-review` skill runs the e2e suite and reviews failures against
-their actual trace/screenshot rather than guessing from the error message.
+Set it in the host's environment, never in the repo, and keep it the same
+across deploys (changing it resets every sender's count). The rest of the
+deployment notes, including request-size limits, are in
+[ARCHITECTURE.md](ARCHITECTURE.md#deployment-notes); the GitHub and Vercel
+setup is in `docs/CI_CD_SETUP.md`.
 
-## Skills
+## Tests
 
-| Skill                                                                      | Run it                                                    | What it does                                                                                                                                                                       |
-| -------------------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `template-setup`                                                           | Once, right after creating a new repo from this template  | Renames placeholders, confirms the repo was created the right way, asks internal- vs. external-facing and accounts-vs-landing-page, recommends packages accordingly                |
-| `dev-onboarding`                                                           | Once per developer, joining an already-customized project | Install, env vars, migrations, boot the dev server — not for creating a new project, see `template-setup` for that                                                                 |
-| `local-review`                                                             | Before every push                                         | Runs the full local gate (lint/typecheck/format/env/test/build) plus a manual pass against `docs/rules/*` — run before committing, not after CI fails, per `docs/rules/commits.md` |
-| `e2e-review`                                                               | Before opening a PR for a UI/flow change                  | Boots the app, runs Playwright, reviews failures against their trace/screenshot, flags uncovered new flows                                                                         |
-| `ai-usage-setup`                                                           | Once, when the project's AI answer is settled             | Wires AI spend tracking for the chosen providers and models, or strips it out — one of the two, never half                                                                         |
-| `ai-usage-check`                                                           | On any branch touching an AI call or model                | Model map against live OpenRouter prices, pricing/failure-isolation tests, one real priced row written and read back                                                               |
-| `staging-migration`, `sql-preview`, `seed-for-pr`, `local-feature-testing` | Day-to-day dev loop                                       | See each `SKILL.md` for detail                                                                                                                                                     |
+```bash
+pnpm test        # unit tests: node --test over scripts/*.test.mjs and src/**/*.test.mts
+pnpm test:e2e    # Playwright: starts the app itself unless E2E_BASE_URL is set
+```
 
-## Rules live in AGENTS.md, not CLAUDE.md
+Unit tests run the real code with only what can't run under Node swapped
+out (module mocks for the session, the AI SDKs and the database). The
+end-to-end tests drive the real app in Chromium and answer every AI request
+with canned results, so no test spends money.
 
-`AGENTS.md` is a short index into `docs/rules/*.md` — one topic-scoped
-file per rule: database access, migrations, auth, AI usage tracking, state
-management, code style, code quality, feature approach, commits, pull
-requests, deployment.
-`AGENTS.md` is the file every coding agent reads (Claude, Codex, Cursor,
-...), not just Claude Code, and the individual files are plain markdown
-any of them can open directly. `CLAUDE.md` is deliberately thin: it
-`@`-includes `AGENTS.md` and holds only the two things that are genuinely
-Claude-Code-specific (session-log tracking, the skills list). Add new
-rules under `docs/rules/` and link them from `AGENTS.md`; don't grow
-`CLAUDE.md` back into a dumping ground.
+## What CI checks
 
-`DESIGN.md` has the design-token/component conventions — read it before
-styling anything. It ships a neutral starter token set (light + dark, via
-`prefers-color-scheme`), not a real brand identity; that comes later, from
-an actual mockup, via the org's `impeccable` tooling.
+Every pull request runs (`.github/workflows/ci.yml`):
 
-## Don't over-commit
+- **check**: lint, typecheck, Prettier, `check:env`, `check:secrets`,
+  `check:standards` and the unit tests;
+- **build**: a production build (React Compiler errors fail it);
+- **e2e**: the Playwright suite, split across four runners;
+- **migrations**: replays every migration on a clean Postgres, writes and
+  commits any missing one from the schema, checks for drift, and
+  `check:rls` (row level security on every table, no policies);
+- **ai-models**: every model the code calls is still priced by OpenRouter;
+- **commits**: Conventional Commits headers.
 
-Every push triggers a real, paid CI run. Don't commit after every small
-step while iterating — run `local-review` locally first, then commit once
-the work is actually done, not once per fix as you go. One feature commit,
-plus at most one consolidated fix commit if something surfaces while
-stabilizing it — not a string of "fix", "actually fix", "fix for real"
-commits that each burn a CI run before anyone's looked at the last one.
-Full rule, with the reasoning: `docs/rules/commits.md`.
+A Claude review runs on each pull request too, and
+`.github/workflows/deploy-migrations.yml` applies migrations to production
+on every push to `main`.
 
-Same principle applies to the PR itself: if you need to open one before
-the work is done, open it as a **draft** with a placeholder title — don't
-write a final-sounding description for work that isn't final. Write the
-real title/description once, when the work is actually done, and mark it
-ready for review at the same time. See `docs/rules/pull-requests.md`.
+## Working in this repo
 
-## Deployment
-
-Never run a manual production deploy command — CI/CD handles it (see
-`docs/rules/deployment.md`). Before this project's first real PR, read
-`docs/CI_CD_SETUP.md` and set up:
-
-- **GitHub**: access to the org's Claude review workflow and token,
-  `MIGRATIONS_TOKEN`, the
-  `production-database` environment (holding `PRODUCTION_DATABASE_URL`),
-  and branch protection on `main`.
-- **Vercel**: connect the repo, mirror `.env.example` into project env
-  vars per-environment, and decide explicitly between Vercel's default
-  auto-deploy-on-push and the org's tag-gated release pattern (see
-  `docs/rules/deployment.md`) — don't inherit one silently.
-
-## Still open
-
-1. `prisma/schema/example.prisma` holds the real `User` model despite its
-   name — move it into a properly named file (e.g. `user.prisma`) once the
-   project's own models land; don't delete it.
-2. Delete `e2e/smoke.spec.ts` once real e2e coverage exists.
-3. Decide on state management beyond the TanStack Query default (a
-   timeline editor may justify a client store — decide when it does), and
-   the Prisma 6 → 7 upgrade.
-4. Set up GitHub and Vercel per the Deployment section above before
-   merging the first PR — without `MIGRATIONS_TOKEN` specifically, the
-   CI-generated migration commit's own run sits in `action_required`
-   waiting for manual approval.
+- `AGENTS.md` indexes the engineering rules in `docs/rules/` (database,
+  migrations, auth, AI usage, errors, logging, secrets and more); read the
+  rule before touching its area. `CLAUDE.md` adds the Claude Code skills and
+  session-log conventions.
+- Change the Prisma schema in `prisma/schema/`; CI writes the migration
+  (`docs/rules/migrations.md`).
+- Every push is a paid CI run: check locally first (`docs/rules/commits.md`).
+- Progress, decisions and open issues are kept in `PROGRESS_NOTES.md`.
 
 ## Scripts
 
-| Command                                    | What it does                                                                                                                                                                    |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev` / `build` / `start`             | Standard Next.js                                                                                                                                                                |
-| `pnpm lint` / `typecheck` / `format:check` | CI gates, run before pushing                                                                                                                                                    |
-| `pnpm test`                                | `node --test` over `scripts/*.test.mjs`                                                                                                                                         |
-| `pnpm test:e2e`                            | Playwright — boots the app itself unless `E2E_BASE_URL` is set                                                                                                                  |
-| `pnpm check:env`                           | Fails if a `process.env.X` in `src/` isn't declared in `.env.example` + `src/lib/env.ts`                                                                                        |
-| `pnpm check:standards`                     | Fails if a standard in `docs/STANDARDS.md` is unwired — rules index, commit hook, CI gates, effective lint/tsc config, tracked-file hygiene. `--root <dir>` audits another repo |
-| `pnpm check:rls`                           | Reads `pg_class` on the database `DATABASE_URL` points at: every table has RLS enabled, no policies, never forced. Runs at the end of CI's migrations job                       |
-| `pnpm prisma:generate`                     | Regenerate the Prisma client after a schema change                                                                                                                              |
-| `pnpm prisma:migrate:generate:check`       | Dry-run what CI's migration generator would write, without writing it                                                                                                           |
-| `pnpm db:run-once`                         | Apply `prisma/run-once.sql` once to `DIRECT_URL` (else `DATABASE_URL`) — what a deploy does                                                                                     |
+| Command                                    | What it does                                                                       |
+| ------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `pnpm dev` / `build` / `start`             | Next.js                                                                            |
+| `pnpm lint` / `typecheck` / `format:check` | The CI gates                                                                       |
+| `pnpm test`                                | Unit tests, `scripts/*.test.mjs` and `src/**/*.test.mts`                           |
+| `pnpm test:e2e`                            | Playwright; starts the app itself unless `E2E_BASE_URL` is set                     |
+| `pnpm check:env`                           | Every `process.env.X` in `src/` is declared in `.env.example` and `src/lib/env.ts` |
+| `pnpm check:secrets`                       | No credential in the source or the committed session logs                          |
+| `pnpm check:standards`                     | Every standard in `docs/STANDARDS.md` is wired up                                  |
+| `pnpm check:rls`                           | Every table has row level security on, no policies, never forced                   |
+| `pnpm check:ai-models`                     | Every model the code calls is still priced by OpenRouter                           |
+| `pnpm prisma:generate`                     | Regenerate the Prisma client after a schema change                                 |
+| `pnpm prisma:migrate:generate:check`       | Dry-run the migration CI would write                                               |
+| `pnpm db:run-once`                         | Apply `prisma/run-once.sql` once, as a deploy does                                 |
