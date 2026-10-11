@@ -26,44 +26,49 @@ import {
 } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { toast } from '@/lib/toast'
-import { AnnotationLayer } from './annotation-layer'
-import { AnnotationPanel, useAnnotationTools } from './annotation-panel'
-import { newSpan, type Annotation, type NewAnnotation, type Rect } from './annotations'
-import { keptSeconds, mergeCuts, planCleanup, type Cut, type Edit } from './cleanup'
-import { DEFAULT_CLIP_AUDIO, type ClipAudio } from './clip-audio'
-import { ClipAudioPanel } from './clip-audio-panel'
-import { CleanupPanel } from './cleanup-bar'
-import type { ClipSelection } from './clip-selection'
-import { CompareToggle } from './compare-toggle'
-import { captionAt, editedCaptions, editedWords, type CaptionMode } from './captions'
-import { cardRect, type Design } from './design'
-import { DesignCanvas } from './design-canvas'
+import { AnnotationLayer } from './components/preview/annotation-layer'
+import { AnnotationPanel, useAnnotationTools } from './components/panels/annotation-panel'
+import { newSpan, type Annotation, type NewAnnotation, type Rect } from './overlays/annotations'
+import { keptSeconds, mergeCuts, planCleanup, type Cut, type Edit } from './model/cleanup'
+import { DEFAULT_CLIP_AUDIO, type ClipAudio } from './model/clip-audio'
+import { ClipAudioPanel } from './components/panels/clip-audio-panel'
+import { CleanupPanel } from './components/panels/cleanup-bar'
+import type { ClipSelection } from './model/clip-selection'
+import { CompareToggle } from './components/preview/compare-toggle'
+import { captionAt, editedCaptions, editedWords, type CaptionMode } from './overlays/captions'
+import { cardRect, type Design } from './overlays/design'
+import { DesignCanvas } from './components/preview/design-canvas'
 import { isPlanEdit, type MadePlan } from '@/app/[locale]/(app)/make/make-plan'
-import { CommandBar, type AttachedAs, type FollowUps } from './command-bar'
-import { planFollowUp } from './make-follow-ups'
-import { setSideOpen, useSideOpen } from './editor-layout-store'
-import { EditorShell } from './editor-shell'
-import { EditorTimeline, type LaneItem } from './editor-timeline'
-import { JobProgress, type Job } from './editor-status'
-import { HistoryControls } from './history-controls'
-import { ItemToolbar, type Timing } from './item-toolbar'
-import { LeaveGuard } from './leave-guard'
-import { AnnotatePanel, TextLogoPanel, type MarkKind, type Picked } from './on-video-panels'
-import { TitleBox } from './title-box'
-import { ToolRail, type Tool } from './tool-rail'
-import { ProjectTitle } from './project-title'
-import { takeStart, type MadeWith } from './editor-start'
-import { MadeWithIntro, ModeSwitch, StudioCards } from './studio'
-import type { CommandContext, CommandPlan, TextTarget } from './edit-command'
-import { isOriginalEdit, ORIGINAL_EDIT, type EditSnapshot } from './edit-snapshot'
-import { ExportButton, useVideoExport } from './export-button'
-import { totalSeconds } from './export-video'
-import { FillerCutEditor } from './filler-cut-editor'
-import { CaptionsPanel, GraphicsPanel } from './graphics-panel'
-import { cutEditorWindow, initialCutRange, moveCutEdge, type FillerPlan } from './filler-cuts'
-import { emptyHistory, record, redo, reset, undo, type Step } from './history'
-import { OverlayPreview } from './overlay-preview'
-import { PictureFrame, PLAYER_WIDTH } from './picture-frame'
+import { CommandBar, type AttachedAs, type FollowUps } from './components/assistant/command-bar'
+import { planFollowUp } from './components/assistant/make-follow-ups'
+import { setSideOpen, useSideOpen } from './components/shell/editor-layout-store'
+import { EditorShell } from './components/shell/editor-shell'
+import { EditorTimeline, type LaneItem } from './components/timeline/editor-timeline'
+import { JobProgress, type Job } from './components/shell/editor-status'
+import { HistoryControls } from './components/shell/history-controls'
+import { ItemToolbar, type Timing } from './components/preview/item-toolbar'
+import { LeaveGuard } from './components/shell/leave-guard'
+import {
+	AnnotatePanel,
+	TextLogoPanel,
+	type MarkKind,
+	type Picked
+} from './components/panels/on-video-panels'
+import { TitleBox } from './components/preview/title-box'
+import { ToolRail, type Tool } from './components/shell/tool-rail'
+import { ProjectTitle } from './components/shell/project-title'
+import { takeStart, type MadeWith } from './projects/editor-start'
+import { MadeWithIntro, ModeSwitch, StudioCards } from './components/shell/studio'
+import type { CommandContext, CommandPlan, TextTarget } from './assistant/edit-command'
+import { isOriginalEdit, ORIGINAL_EDIT, type EditSnapshot } from './model/edit-snapshot'
+import { ExportButton, useVideoExport } from './export/export-button'
+import { totalSeconds } from './export/export-video'
+import { FillerCutEditor } from './components/timeline/filler-cut-editor'
+import { CaptionsPanel, GraphicsPanel } from './components/panels/graphics-panel'
+import { cutEditorWindow, initialCutRange, moveCutEdge, type FillerPlan } from './audio/filler-cuts'
+import { emptyHistory, record, redo, reset, undo, type Step } from './model/history'
+import { OverlayPreview } from './components/preview/overlay-preview'
+import { PictureFrame, PLAYER_WIDTH } from './components/preview/picture-frame'
 import {
 	IDENTITY_TRANSFORM,
 	outputSize,
@@ -72,8 +77,13 @@ import {
 	transformAt,
 	withRotation,
 	type PictureTransform
-} from './transform'
-import { CropBox, RotateHandle, TransformPanel, type TransformMode } from './transform-panel'
+} from './model/transform'
+import {
+	CropBox,
+	RotateHandle,
+	TransformPanel,
+	type TransformMode
+} from './components/panels/transform-panel'
 import {
 	editedSecondsAt,
 	readLogo,
@@ -82,10 +92,10 @@ import {
 	type Overlays,
 	type TitleCard,
 	type Watermark
-} from './overlays'
-import { previewWindow, reRecordBlocker, type ReplacementTake } from './re-record'
-import { ReRecordPanel } from './re-record-panel'
-import { JoinEditor } from './join-editor'
+} from './overlays/overlays'
+import { previewWindow, reRecordBlocker, type ReplacementTake } from './audio/re-record'
+import { ReRecordPanel } from './components/panels/re-record-panel'
+import { JoinEditor } from './components/timeline/join-editor'
 import {
 	byEarPlan,
 	initialJoins,
@@ -94,9 +104,9 @@ import {
 	moveJoin,
 	planSentenceSplice,
 	type SplicePlan
-} from './sentence-splice'
-import { SpeedToggle } from './speed-toggle'
-import { TransitionPanel } from './transition-panel'
+} from './audio/sentence-splice'
+import { SpeedToggle } from './components/preview/speed-toggle'
+import { TransitionPanel } from './components/panels/transition-panel'
 import {
 	clipMatrix,
 	gradeFilterId,
@@ -104,9 +114,9 @@ import {
 	NEUTRAL_GRADE,
 	type ColorGrade,
 	type ColorMatrix
-} from './color-grade'
-import { ColorPanel, GradeFilters } from './color-panel'
-import { DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
+} from './model/color-grade'
+import { ColorPanel, GradeFilters } from './components/panels/color-panel'
+import { DEFAULT_TEXT_STYLE, type TextStyle } from './overlays/text-style'
 import {
 	NO_ANIMATION,
 	NO_ZOOM,
@@ -116,12 +126,17 @@ import {
 	type LowerThird,
 	type Motion,
 	type Zoom
-} from './motion'
-import { inCorner, LOGO_TYPES, resizedLogo } from './logo'
-import { LogoBox } from './logo-box'
-import { ZoomPanel } from './motion-panels'
-import { ZoomBox } from './zoom-box'
-import { ProjectList, ProjectPanel, RelinkPanel, type SaveStatus } from './project-panel'
+} from './overlays/motion'
+import { inCorner, LOGO_TYPES, resizedLogo } from './overlays/logo'
+import { LogoBox } from './components/preview/logo-box'
+import { ZoomPanel } from './components/panels/motion-panels'
+import { ZoomBox } from './components/preview/zoom-box'
+import {
+	ProjectList,
+	ProjectPanel,
+	RelinkPanel,
+	type SaveStatus
+} from './components/panels/project-panel'
 import {
 	deleteProject,
 	isStorageFull,
@@ -131,9 +146,9 @@ import {
 	relinkMedia,
 	saveProject,
 	type MediaRef
-} from './projects'
-import type { Transcript } from './transcript'
-import { fadeLevelAt, overlapsClips, type TransitionKind } from './transitions'
+} from './projects/projects'
+import type { Transcript } from './audio/transcript'
+import { fadeLevelAt, overlapsClips, type TransitionKind } from './model/transitions'
 import {
 	canSplitAt,
 	clampSpeed,
@@ -159,20 +174,25 @@ import {
 	withClipSettings,
 	type Clip,
 	type SourceRange
-} from './sequence'
-import { isKnownDuration, moveTrimEdge, type TrimEdge, type TrimRange } from './timeline-scale'
-import type { TranscriptSegment } from './transcript'
-import { TranscriptPanel } from './transcript-panel'
-import { HighlightsDialog, HighlightsPanel } from './highlights-dialog'
-import { UploadDropzone } from './upload-dropzone'
-import { useSequencePlayback, type SourceUrls } from './use-sequence-playback'
-import { useTakeAnalysis } from './use-take-analysis'
-import { extractBlocker, extractedItem, speechSpans, type AudioItem } from './audio-lane'
-import { AudioLanePanel } from './audio-lane-panel'
-import { probeVideo, type AddedVideo } from './sources'
-import { decodeAudio } from './take-audio'
-import { VideoFileInput } from './video-file-input'
-import { formatTimecode } from './timeline-scale'
+} from './model/sequence'
+import {
+	isKnownDuration,
+	moveTrimEdge,
+	type TrimEdge,
+	type TrimRange
+} from './model/timeline-scale'
+import type { TranscriptSegment } from './audio/transcript'
+import { TranscriptPanel } from './components/panels/transcript-panel'
+import { HighlightsDialog, HighlightsPanel } from './components/panels/highlights-dialog'
+import { UploadDropzone } from './components/shell/upload-dropzone'
+import { useSequencePlayback, type SourceUrls } from './components/preview/use-sequence-playback'
+import { useTakeAnalysis } from './audio/use-take-analysis'
+import { extractBlocker, extractedItem, speechSpans, type AudioItem } from './model/audio-lane'
+import { AudioLanePanel } from './components/panels/audio-lane-panel'
+import { probeVideo, type AddedVideo } from './model/sources'
+import { decodeAudio } from './audio/take-audio'
+import { VideoFileInput } from './components/shell/video-file-input'
+import { formatTimecode } from './model/timeline-scale'
 
 /** The Text lane's ids for Make it's key lines, numbered after it. */
 const KEY_LINE_ID = 'key-line-'

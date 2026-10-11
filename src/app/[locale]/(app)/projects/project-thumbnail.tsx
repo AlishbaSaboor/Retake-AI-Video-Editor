@@ -2,8 +2,8 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { VideoIcon } from '@/components/ui/icons'
-import { projectVideo } from '@/app/[locale]/editor/projects'
-import { formatTimecode } from '@/app/[locale]/editor/timeline-scale'
+import { projectVideo } from '@/app/[locale]/editor/projects/projects'
+import { formatTimecode } from '@/app/[locale]/editor/model/timeline-scale'
 
 // The picture is taken this far in, or half way through a shorter video:
 // the very first frame is often black.

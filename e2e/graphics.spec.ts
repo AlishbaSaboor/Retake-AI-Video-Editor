@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import type { EditCommand } from '../src/app/[locale]/editor/edit-command'
+import type { EditCommand } from '../src/app/[locale]/editor/assistant/edit-command'
 import {
 	editCommand,
 	mockActions,

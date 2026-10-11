@@ -12,7 +12,7 @@ import {
 	projectVideo,
 	renameProject,
 	type ProjectSummary
-} from '@/app/[locale]/editor/projects'
+} from '@/app/[locale]/editor/projects/projects'
 import { Link } from '@/i18n/routing'
 import { cn } from '@/lib/cn'
 import { ProjectThumbnail } from './project-thumbnail'

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test, expect, type Route } from '@playwright/test'
 import { recordTestVideo, w, openTool } from './editor-helpers'
-import { toTranscript } from '../src/app/[locale]/editor/transcript'
+import { toTranscript } from '../src/app/[locale]/editor/audio/transcript'
 import { reuseTranscript } from './transcript-cache'
 
 // A real recording's transcript is paid for once and reused after: the first

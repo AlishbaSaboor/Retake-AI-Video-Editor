@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { toTranscript } from '../../editor/transcript'
-import { cardRect, wordPop } from '../../editor/design'
-import { exportSize, type Size } from '../../editor/transform'
+import { toTranscript } from '../../editor/audio/transcript'
+import { cardRect, wordPop } from '../../editor/overlays/design'
+import { exportSize, type Size } from '../../editor/model/transform'
 import {
 	faceFollow,
 	frameTimes,
