@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import type { MakeReply } from '../src/app/[locale]/(app)/make/make-plan'
 import { presetLook } from '../src/app/[locale]/(app)/make/make-presets'
-import { recordTestVideo, w } from './editor-helpers'
+import { recordTestVideo, seekTo, w } from './editor-helpers'
 import { exportVideo, readExportFrames } from './export-frames'
 import { makeReply, mockMakeActions } from './make-helpers'
 
@@ -234,4 +234,48 @@ test('Playful captions highlight the word being said in its own accent colour', 
 		{ args: highlight }
 	)
 	expect(frames[0]?.near, `the word being said, in ${highlight}`).toBeGreaterThan(5)
+})
+
+test('Bold on a designed frame: no fill, white title and the spoken word in the accent, each with a soft shadow', async ({
+	page
+}) => {
+	// A screen recording made a promo: designed around what's said, no picture.
+	await mockMakeActions(page, WORDS, [
+		makeReply({ ...SCREEN, style: 'ad', format: 'other', title: 'The key point' })
+	])
+	await pickVideo(page, 'make a bold promo ad')
+	await skipQuestions(page)
+	await expect(plan(page)).toContainText('designed around what’s said', { timeout: 60_000 })
+	await expect(plan(page)).toContainText('As you asked: a Bold look')
+	await plan(page).getByRole('button', { name: 'Apply' }).click()
+	await page
+		.getByRole('group', { name: 'Editor mode' })
+		.getByRole('button', { name: 'Edit manually' })
+		.click({ timeout: 30_000 })
+	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
+		timeout: 30_000
+	})
+	await seekTo(page, 1)
+	const shadow = 'rgba(0, 0, 0, 0.8)'
+	const title = page.locator('[data-title-text]')
+	// A designed title card breaks into lines, each its own block.
+	await expect(title).toHaveText(/^The key\s*point$/)
+	const titleStyle = await title.evaluate((e) => {
+		const s = getComputedStyle(e)
+		return { color: s.color, background: s.backgroundColor, shadow: s.textShadow }
+	})
+	expect(titleStyle.color).toBe('rgb(255, 255, 255)')
+	expect(titleStyle.background).toBe('rgba(0, 0, 0, 0)')
+	expect(titleStyle.shadow).toContain(shadow)
+	// One word at a time, in the accent (not white), with the same shadow and no fill.
+	const caption = page.locator('[data-caption-text]')
+	await expect(caption).toBeVisible()
+	const captionStyle = await caption.evaluate((e) => {
+		const s = getComputedStyle(e)
+		const band = e.firstElementChild ? getComputedStyle(e.firstElementChild).backgroundColor : ''
+		return { color: s.color, shadow: s.textShadow, band }
+	})
+	expect(captionStyle.color).not.toBe('rgb(255, 255, 255)')
+	expect(captionStyle.shadow).toContain(shadow)
+	expect(captionStyle.band).toBe('rgba(0, 0, 0, 0)')
 })

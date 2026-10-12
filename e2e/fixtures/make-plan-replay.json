@@ -1264,9 +1264,9 @@
 					"font": "sans",
 					"size": 1.8,
 					"color": "#ffffff",
-					"background": "#0f7b8a",
-					"solidBand": true,
-					"highlight": "#fef5f6"
+					"background": null,
+					"shadow": true,
+					"highlight": "#ef8f9c"
 				},
 				"audioItems": [],
 				"addedVideos": [],
@@ -1280,9 +1280,9 @@
 					"picture": "hidden",
 					"look": {
 						"from": "#2f0e12",
-						"to": "#6a381b",
-						"shape": "#a33729",
-						"accent": "#f19aa6",
+						"to": "#492712",
+						"shape": "#66231a",
+						"accent": "#ef8f9c",
 						"bar": "thick",
 						"wave": false
 					}
@@ -1484,9 +1484,9 @@
 					"font": "sans",
 					"size": 1.8,
 					"color": "#ffffff",
-					"background": "#0f7b8a",
-					"solidBand": true,
-					"highlight": "#fef5f6"
+					"background": null,
+					"shadow": true,
+					"highlight": "#ef8f9c"
 				},
 				"audioItems": [],
 				"addedVideos": [],
@@ -1500,9 +1500,9 @@
 					"picture": "hidden",
 					"look": {
 						"from": "#2f0e12",
-						"to": "#6a381b",
-						"shape": "#a33729",
-						"accent": "#f19aa6",
+						"to": "#492712",
+						"shape": "#66231a",
+						"accent": "#ef8f9c",
 						"bar": "thick",
 						"wave": false
 					}
@@ -1706,9 +1706,9 @@
 					"font": "sans",
 					"size": 1.8,
 					"color": "#ffffff",
-					"background": "#0f7b8a",
-					"solidBand": true,
-					"highlight": "#fef5f6"
+					"background": null,
+					"shadow": true,
+					"highlight": "#ef8f9c"
 				},
 				"audioItems": [],
 				"addedVideos": [],
@@ -1722,9 +1722,9 @@
 					"picture": "hidden",
 					"look": {
 						"from": "#2f0e12",
-						"to": "#6a381b",
-						"shape": "#a33729",
-						"accent": "#f19aa6",
+						"to": "#492712",
+						"shape": "#66231a",
+						"accent": "#ef8f9c",
 						"bar": "thick",
 						"wave": false
 					}
@@ -1927,7 +1927,7 @@
 					"size": 1.8,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"audioItems": [],
 				"addedVideos": [],
@@ -2136,9 +2136,9 @@
 					"font": "sans",
 					"size": 1.8,
 					"color": "#ffffff",
-					"background": "#0f7b8a",
-					"solidBand": true,
-					"highlight": "#fef5f6"
+					"background": null,
+					"shadow": true,
+					"highlight": "#ef8f9c"
 				},
 				"audioItems": [],
 				"addedVideos": [],
@@ -2152,9 +2152,9 @@
 					"picture": "hidden",
 					"look": {
 						"from": "#2f0e12",
-						"to": "#6a381b",
-						"shape": "#a33729",
-						"accent": "#f19aa6",
+						"to": "#492712",
+						"shape": "#66231a",
+						"accent": "#ef8f9c",
 						"bar": "thick",
 						"wave": false
 					}
@@ -2360,9 +2360,9 @@
 					"font": "sans",
 					"size": 1.8,
 					"color": "#ffffff",
-					"background": "#0f7b8a",
-					"solidBand": true,
-					"highlight": "#fef5f6"
+					"background": null,
+					"shadow": true,
+					"highlight": "#ef8f9c"
 				},
 				"audioItems": [],
 				"addedVideos": [],
@@ -2376,9 +2376,9 @@
 					"picture": "hidden",
 					"look": {
 						"from": "#2f0e12",
-						"to": "#6a381b",
-						"shape": "#a33729",
-						"accent": "#f19aa6",
+						"to": "#492712",
+						"shape": "#66231a",
+						"accent": "#ef8f9c",
 						"bar": "thick",
 						"wave": false
 					}
@@ -2586,9 +2586,9 @@
 					"font": "sans",
 					"size": 1.8,
 					"color": "#ffffff",
-					"background": "#0f7b8a",
-					"solidBand": true,
-					"highlight": "#fef5f6"
+					"background": null,
+					"shadow": true,
+					"highlight": "#ef8f9c"
 				},
 				"audioItems": [],
 				"addedVideos": [],
@@ -2602,9 +2602,9 @@
 					"picture": "hidden",
 					"look": {
 						"from": "#2f0e12",
-						"to": "#6a381b",
-						"shape": "#a33729",
-						"accent": "#f19aa6",
+						"to": "#492712",
+						"shape": "#66231a",
+						"accent": "#ef8f9c",
 						"bar": "thick",
 						"wave": false
 					}
@@ -2811,7 +2811,7 @@
 					"size": 1.8,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"audioItems": [],
 				"addedVideos": [],
@@ -5389,9 +5389,9 @@
 				"font": "sans",
 				"size": 1.8,
 				"color": "#ffffff",
-				"background": "#0f7b8a",
-				"solidBand": true,
-				"highlight": "#fef5f6"
+				"background": null,
+				"shadow": true,
+				"highlight": "#ef8f9c"
 			},
 			"audioItems": [],
 			"addedVideos": [],
@@ -5405,9 +5405,9 @@
 				"picture": "hidden",
 				"look": {
 					"from": "#2f0e12",
-					"to": "#6a381b",
-					"shape": "#a33729",
-					"accent": "#f19aa6",
+					"to": "#492712",
+					"shape": "#66231a",
+					"accent": "#ef8f9c",
 					"bar": "thick",
 					"wave": false
 				}
@@ -5614,7 +5614,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [],
 			"addedVideos": [],
@@ -5826,7 +5826,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [],
 			"addedVideos": [],
@@ -6038,7 +6038,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [],
 			"addedVideos": [],
@@ -6249,9 +6249,9 @@
 				"font": "sans",
 				"size": 1.8,
 				"color": "#ffffff",
-				"background": "#0f7b8a",
-				"solidBand": true,
-				"highlight": "#fef5f6"
+				"background": null,
+				"shadow": true,
+				"highlight": "#ef8f9c"
 			},
 			"audioItems": [],
 			"addedVideos": [],
@@ -6265,9 +6265,9 @@
 				"picture": "hidden",
 				"look": {
 					"from": "#2f0e12",
-					"to": "#6a381b",
-					"shape": "#a33729",
-					"accent": "#f19aa6",
+					"to": "#492712",
+					"shape": "#66231a",
+					"accent": "#ef8f9c",
 					"bar": "thick",
 					"wave": false
 				}
@@ -6474,7 +6474,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [],
 			"addedVideos": [],
@@ -6686,7 +6686,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [],
 			"addedVideos": [],
@@ -6898,7 +6898,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [],
 			"addedVideos": [],
@@ -7110,7 +7110,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [],
 			"addedVideos": [],
@@ -7899,7 +7899,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [],
 			"addedVideos": [],
@@ -8077,7 +8077,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -8143,7 +8143,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -8194,7 +8194,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -8436,7 +8436,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -8502,7 +8502,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -8553,7 +8553,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -8795,7 +8795,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -8861,7 +8861,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -8912,7 +8912,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -9154,7 +9154,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -9220,7 +9220,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -9271,7 +9271,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -9513,7 +9513,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -9579,7 +9579,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -9630,7 +9630,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -13287,7 +13287,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -13336,7 +13336,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -13383,7 +13383,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -13625,7 +13625,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -13674,7 +13674,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -13721,7 +13721,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -13963,7 +13963,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -14012,7 +14012,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -14059,7 +14059,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -14301,7 +14301,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -14350,7 +14350,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -14397,7 +14397,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -14639,7 +14639,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -14688,7 +14688,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -14735,7 +14735,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -16887,7 +16887,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -16953,7 +16953,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -17004,7 +17004,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -17246,7 +17246,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -17295,7 +17295,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -17342,7 +17342,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -17584,7 +17584,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -17633,7 +17633,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -17673,7 +17673,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -17918,7 +17918,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -17967,7 +17967,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -18007,7 +18007,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -18251,9 +18251,9 @@
 					"font": "sans",
 					"size": 1.75,
 					"color": "#ffffff",
-					"background": "#0f7b8a",
-					"solidBand": true,
-					"highlight": "#fef5f6"
+					"background": null,
+					"shadow": true,
+					"highlight": "#ef8f9c"
 				},
 				"animation": {
 					"in": {
@@ -18301,9 +18301,9 @@
 				"font": "sans",
 				"size": 1.8,
 				"color": "#ffffff",
-				"background": "#0f7b8a",
-				"solidBand": true,
-				"highlight": "#fef5f6"
+				"background": null,
+				"shadow": true,
+				"highlight": "#ef8f9c"
 			},
 			"audioItems": [
 				{
@@ -18342,9 +18342,9 @@
 						"font": "sans",
 						"size": 1.4,
 						"color": "#ffffff",
-						"background": "#0f7b8a",
-						"solidBand": true,
-						"highlight": "#fef5f6"
+						"background": null,
+						"shadow": true,
+						"highlight": "#ef8f9c"
 					},
 					"animation": {
 						"in": {
@@ -18369,9 +18369,9 @@
 				"picture": "corner",
 				"look": {
 					"from": "#2f0e12",
-					"to": "#6a381b",
-					"shape": "#a33729",
-					"accent": "#f19aa6",
+					"to": "#492712",
+					"shape": "#66231a",
+					"accent": "#ef8f9c",
 					"bar": "thick",
 					"wave": false
 				}
@@ -18596,9 +18596,9 @@
 					"font": "sans",
 					"size": 1.75,
 					"color": "#ffffff",
-					"background": "#0f7b8a",
-					"solidBand": true,
-					"highlight": "#fef5f6"
+					"background": null,
+					"shadow": true,
+					"highlight": "#ef8f9c"
 				},
 				"animation": {
 					"in": {
@@ -18646,9 +18646,9 @@
 				"font": "sans",
 				"size": 1.8,
 				"color": "#ffffff",
-				"background": "#0f7b8a",
-				"solidBand": true,
-				"highlight": "#fef5f6"
+				"background": null,
+				"shadow": true,
+				"highlight": "#ef8f9c"
 			},
 			"audioItems": [
 				{
@@ -18687,9 +18687,9 @@
 						"font": "sans",
 						"size": 1.4,
 						"color": "#ffffff",
-						"background": "#0f7b8a",
-						"solidBand": true,
-						"highlight": "#fef5f6"
+						"background": null,
+						"shadow": true,
+						"highlight": "#ef8f9c"
 					},
 					"animation": {
 						"in": {
@@ -18714,9 +18714,9 @@
 				"picture": "corner",
 				"look": {
 					"from": "#2f0e12",
-					"to": "#6a381b",
-					"shape": "#a33729",
-					"accent": "#f19aa6",
+					"to": "#492712",
+					"shape": "#66231a",
+					"accent": "#ef8f9c",
 					"bar": "thick",
 					"wave": false
 				}
@@ -18942,7 +18942,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -18991,7 +18991,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -19038,7 +19038,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -19280,7 +19280,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -19329,7 +19329,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -19376,7 +19376,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -19618,7 +19618,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -19667,7 +19667,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -19714,7 +19714,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -19956,7 +19956,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -20005,7 +20005,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -20052,7 +20052,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -20293,9 +20293,9 @@
 					"font": "sans",
 					"size": 1.75,
 					"color": "#ffffff",
-					"background": "#0f7b8a",
-					"solidBand": true,
-					"highlight": "#fef5f6"
+					"background": null,
+					"shadow": true,
+					"highlight": "#ef8f9c"
 				},
 				"animation": {
 					"in": {
@@ -20343,9 +20343,9 @@
 				"font": "sans",
 				"size": 1.8,
 				"color": "#ffffff",
-				"background": "#0f7b8a",
-				"solidBand": true,
-				"highlight": "#fef5f6"
+				"background": null,
+				"shadow": true,
+				"highlight": "#ef8f9c"
 			},
 			"audioItems": [
 				{
@@ -20384,9 +20384,9 @@
 						"font": "sans",
 						"size": 1.4,
 						"color": "#ffffff",
-						"background": "#0f7b8a",
-						"solidBand": true,
-						"highlight": "#fef5f6"
+						"background": null,
+						"shadow": true,
+						"highlight": "#ef8f9c"
 					},
 					"animation": {
 						"in": {
@@ -20411,9 +20411,9 @@
 				"picture": "hidden",
 				"look": {
 					"from": "#2f0e12",
-					"to": "#6a381b",
-					"shape": "#a33729",
-					"accent": "#f19aa6",
+					"to": "#492712",
+					"shape": "#66231a",
+					"accent": "#ef8f9c",
 					"bar": "thick",
 					"wave": false
 				}
@@ -20634,7 +20634,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -20683,7 +20683,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -20772,7 +20772,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -21014,7 +21014,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -21054,7 +21054,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -21101,7 +21101,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -21343,7 +21343,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -21383,7 +21383,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -21430,7 +21430,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -21672,7 +21672,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -21721,7 +21721,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -21768,7 +21768,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -21960,7 +21960,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -22009,7 +22009,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -22056,7 +22056,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -22265,7 +22265,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -22331,7 +22331,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -22403,7 +22403,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -22694,7 +22694,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -23119,7 +23119,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -23544,7 +23544,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -23969,7 +23969,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -24394,7 +24394,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -24779,7 +24779,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -24845,7 +24845,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -24896,7 +24896,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -25138,7 +25138,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -25204,7 +25204,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -25255,7 +25255,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -25497,7 +25497,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -25563,7 +25563,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -25614,7 +25614,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -25856,7 +25856,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -25922,7 +25922,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -25973,7 +25973,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -26215,7 +26215,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -26331,7 +26331,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -27230,7 +27230,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -27281,7 +27281,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -27562,7 +27562,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -27613,7 +27613,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -27855,7 +27855,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -27921,7 +27921,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [],
 			"addedVideos": [],
@@ -27950,7 +27950,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -28192,7 +28192,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -28258,7 +28258,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -28309,7 +28309,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -28551,7 +28551,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -28617,7 +28617,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -28668,7 +28668,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -28877,7 +28877,7 @@
 					"size": 1.4,
 					"color": "#ffffff",
 					"background": "#000000",
-					"highlight": "#fbe1e4"
+					"highlight": "#fadde1"
 				},
 				"animation": {
 					"in": {
@@ -28926,7 +28926,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -29120,7 +29120,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -29148,7 +29148,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -29402,7 +29402,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -29835,7 +29835,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -30235,7 +30235,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -30673,7 +30673,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -31008,7 +31008,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -31343,7 +31343,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -31710,7 +31710,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -32118,7 +32118,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -32422,7 +32422,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -33157,7 +33157,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -33423,7 +33423,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{
@@ -33635,7 +33635,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -33663,7 +33663,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -33691,7 +33691,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -33719,7 +33719,7 @@
 						"size": 1.4,
 						"color": "#ffffff",
 						"background": "#000000",
-						"highlight": "#fbe1e4"
+						"highlight": "#fadde1"
 					},
 					"animation": {
 						"in": {
@@ -33989,7 +33989,7 @@
 				"size": 1.8,
 				"color": "#ffffff",
 				"background": "#000000",
-				"highlight": "#fbe1e4"
+				"highlight": "#fadde1"
 			},
 			"audioItems": [
 				{

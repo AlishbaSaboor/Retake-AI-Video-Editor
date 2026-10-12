@@ -1,14 +1,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { toTranscript } from '../../editor/audio/transcript'
-import { bandColor, bandOpacity, BAND_OPACITY } from '../../editor/overlays/text-style'
+import { MAX_SHAPE_COVER } from '../../editor/overlays/design'
+import { bandOpacity } from '../../editor/overlays/text-style'
 import { dissolveAt, easeInOut, fadeLevelAt } from '../../editor/model/transitions'
 import { planMake, type MakeReply } from './make-plan'
 import {
 	choosePreset,
-	BLOCK_SATURATION,
-	colourBlock,
-	MIN_BLOCK_HUE_DISTANCE,
+	boldText,
+	boldTextStyle,
+	drawnBackground,
 	DEFAULT_PRESET,
 	PRESETS,
 	presetDefinition,
@@ -21,8 +22,6 @@ import {
 	contrast,
 	dominantColour,
 	fromHex,
-	hueDistance,
-	middleHue,
 	MIN_CONTRAST,
 	over,
 	readableOn,
@@ -215,15 +214,10 @@ test('each preset’s look: its captions, transition, title, zoom, pacing and mu
 	const cinematic = presetLook('cinematic', null)
 	assert.equal(cinematic.captions.picture.background, '#000000')
 	assert.equal(cinematic.captions.designed.background, null)
-	// Bold's title sits on its solid colour block in a designed frame, Playful's on an accent band;
-	// Clean's on a dark one.
-	assert.equal(
-		presetLook('bold', null).title.designed.background,
-		colourBlock(presetLook('bold', null).design.accent, [
-			presetLook('bold', null).design.from,
-			presetLook('bold', null).design.to
-		])
-	)
+	// Bold's title has no fill in a designed frame (white, with a soft shadow), Playful's sits on an
+	// accent band, Clean's on a dark one.
+	assert.equal(presetLook('bold', null).title.designed.background, null)
+	assert.equal(presetLook('bold', null).title.designed.shadow, true)
 	assert.equal(
 		presetLook('playful', null).title.designed.background,
 		presetLook('playful', null).design.accent
@@ -361,54 +355,95 @@ test('one look over the whole plan: one transition, eased unless it slides, the 
 	assert.deepEqual(planned('a bold reel', '#22aa44').edit.color, presetLook('bold', null).grade)
 })
 
-test('Bold on a designed background: white text on a solid, saturated block, never near the background’s hue', () => {
-	for (const colour of VIDEO_COLOURS) {
-		const look = presetLook('bold', colour)
-		const background = [look.design.from, look.design.to]
+/** How far apart two hues are around the wheel: 0 to 180 degrees. */
+const hueDistance = (a: number, b: number) => {
+	const d = Math.abs(a - b) % 360
+	return d > 180 ? 360 - d : d
+}
+/** 1,080 video colours: every 5° of hue, at three saturations and five lightnesses. */
+const SWEEP = Array.from({ length: 72 }, (_, i) => i * 5).flatMap((turn) =>
+	[0.4, 0.7, 1].flatMap((s) =>
+		[0.2, 0.35, 0.5, 0.65, 0.8].map((l) => shifted('#ff0000', turn, s, l))
+	)
+)
+
+test('Bold on a designed background: no fill, white text with a soft shadow, the spoken word in the accent', () => {
+	assert.equal(SWEEP.length, 1080)
+	for (const video of SWEEP) {
+		const look = presetLook('bold', video)
+		const drawn = drawnBackground(look.design)
 		for (const [name, style] of [
 			['captions', look.captions.designed],
 			['title', look.title.designed]
 		] as const) {
-			const where = `Bold on ${colour ?? 'no colour'}: ${name}`
-			const block = style.background ?? ''
-			const { h, s } = toHsl(fromHex(block))
-			// Solid, white text, at least 4.5:1.
-			assert.equal(style.solidBand, true, where)
-			assert.equal(bandOpacity(style), 1, where)
+			const where = `Bold on ${video}: ${name}`
+			// Every colour gets the no-fill look.
+			assert.equal(style.background, null, where)
+			assert.equal(style.shadow, true, where)
 			assert.equal(style.color, '#ffffff', where)
-			assert.ok(contrast('#ffffff', block) >= MIN_CONTRAST, `${where}: ${block}`)
-			// Saturated: at least 0.7 (the block is made at 0.8; rounding to hex moves it a little).
-			assert.ok(s >= 0.7 && BLOCK_SATURATION >= 0.7, `${where}: saturation ${s}`)
-			// Never close to the background's hue.
-			for (const b of background) {
-				const distance = hueDistance(h, toHsl(fromHex(b)).h)
-				assert.ok(distance >= MIN_BLOCK_HUE_DISTANCE - 2, `${where}: ${distance}° from ${b}`)
+			assert.equal(style.highlight, look.design.accent, where)
+			// At 4.5:1 or more on the background as drawn, shapes and all, with no credit for the shadow.
+			for (const b of drawn) {
+				assert.ok(contrast(style.color, b) >= MIN_CONTRAST, `${where}: white on ${b}`)
+				assert.ok(contrast(style.highlight ?? '', b) >= MIN_CONTRAST, `${where}: accent on ${b}`)
 			}
 		}
 	}
-	// Over the picture, Bold keeps the see-through dark band; other looks' bands stay see-through.
-	assert.equal(presetLook('bold', null).captions.picture.solidBand, undefined)
-	for (const preset of ['clean', 'cinematic', 'playful'] as const) {
-		const look = presetLook(preset, null)
-		assert.equal(look.captions.designed.solidBand, undefined, preset)
-		assert.equal(look.title.designed.solidBand, undefined, preset)
-	}
-	// Drawn opaque only when solid.
-	assert.equal(bandColor('#123456', bandOpacity({ solidBand: true })), 'rgba(18, 52, 86, 1)')
-	assert.equal(bandColor('#123456', bandOpacity({})), `rgba(18, 52, 86, ${BAND_OPACITY})`)
 })
 
-test('a colour block keeps the accent’s hue when it’s far from the background, else takes the complement', () => {
-	const greens = ['#0b3d0b', '#1f6b1f']
-	// A blue accent is far from green: its hue is kept.
-	const blue = colourBlock('#3355ff', greens)
-	assert.ok(hueDistance(toHsl(fromHex(blue)).h, toHsl(fromHex('#3355ff')).h) < 3, blue)
-	// A green accent is too close: the complement of the background's middle hue (magenta).
-	const shifted = colourBlock('#33cc33', greens)
-	const opposite = (middleHue(greens.map((g) => toHsl(fromHex(g)).h)) + 180) % 360
-	assert.ok(hueDistance(toHsl(fromHex(shifted)).h, opposite) < 3, shifted)
-	assert.ok(contrast('#ffffff', shifted) >= MIN_CONTRAST)
-	// Hues around the wheel.
-	assert.deepEqual([hueDistance(10, 350), hueDistance(0, 180), hueDistance(90, 90)], [20, 180, 0])
-	assert.ok(hueDistance(middleHue([350, 10]), 0) < 1e-9)
+test('Bold’s accent stays in the video’s own hue, never a complement, and colours the bar', () => {
+	for (const video of SWEEP) {
+		const look = presetLook('bold', video)
+		const { h, s, l } = toHsl(fromHex(look.design.accent))
+		const where = `Bold on ${video}: accent ${look.design.accent}`
+		// A light colour of the video's own hue (not white, not grey).
+		assert.ok(s > 0.3 && l >= 0.6, where)
+		assert.ok(hueDistance(h, hueOf(video)) <= 2, where)
+		// The whole designed background stays in the video's hue family too (its look turns 30° at most).
+		for (const part of [look.design.from, look.design.to, look.design.shape]) {
+			assert.ok(hueDistance(hueOf(part), hueOf(video)) <= 32, `${where}: ${part}`)
+		}
+	}
+	// The bar (drawn in the design's accent) is the spoken word's colour.
+	const green = presetLook('bold', '#2e8b2e')
+	assert.equal(green.design.accent, green.captions.designed.highlight)
+	// Bold's designed background is deep: its light end and its shapes are dark.
+	assert.ok(
+		toHsl(fromHex(green.design.to)).l <= 0.19 && toHsl(fromHex(green.design.shape)).l <= 0.26
+	)
+})
+
+test('the background as drawn: both gradient ends, and each under the shapes at their most', () => {
+	assert.ok(Math.abs(MAX_SHAPE_COVER - (1 - (1 - 0x66 / 255) ** 3)) < 1e-12)
+	const design = { from: '#102010', to: '#204020', shape: '#80ff80' }
+	assert.deepEqual(drawnBackground(design), [
+		'#102010',
+		'#204020',
+		over('#80ff80', '#102010', MAX_SHAPE_COVER),
+		over('#80ff80', '#204020', MAX_SHAPE_COVER)
+	])
+})
+
+test('where white or the accent would read under 4.5:1, Bold falls back to the accent block with black text', () => {
+	const dark = ['#0a1a0a', '#102810']
+	assert.equal(boldText('#a6e88f', dark), 'shadow')
+	// White fails on a light background.
+	assert.ok(contrast('#ffffff', '#c8c8c8') < MIN_CONTRAST)
+	assert.equal(boldText('#a6e88f', [...dark, '#c8c8c8']), 'block')
+	// White reads on this one, but the accent doesn't: that alone falls back too.
+	assert.ok(contrast('#ffffff', '#4f704f') >= MIN_CONTRAST)
+	assert.ok(contrast('#a6e88f', '#4f704f') < MIN_CONTRAST)
+	assert.equal(boldText('#a6e88f', [...dark, '#4f704f']), 'block')
+	const block = boldTextStyle('block', '#a6e88f', 'sans', 1.8)
+	assert.deepEqual(
+		[block.background, block.solidBand, block.color, block.highlight, block.shadow],
+		['#a6e88f', true, '#000000', '#000000', undefined]
+	)
+	assert.ok(contrast(block.color, block.background ?? '') >= MIN_CONTRAST)
+	assert.equal(bandOpacity(block), 1)
+	const shadow = boldTextStyle('shadow', '#a6e88f', 'sans', 1.8)
+	assert.deepEqual(
+		[shadow.background, shadow.shadow, shadow.color, shadow.highlight],
+		[null, true, '#ffffff', '#a6e88f']
+	)
 })

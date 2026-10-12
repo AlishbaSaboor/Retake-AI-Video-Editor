@@ -1,5 +1,5 @@
 import type { ColorGrade } from '../../editor/model/color-grade'
-import type { DesignLook } from '../../editor/overlays/design'
+import { MAX_SHAPE_COVER, type DesignLook } from '../../editor/overlays/design'
 import type { Animation } from '../../editor/overlays/motion'
 import {
 	BAND_OPACITY,
@@ -8,19 +8,7 @@ import {
 	type TextStyle
 } from '../../editor/overlays/text-style'
 import type { CaptionLook, MakeStyle } from './make-plan'
-import {
-	contrast,
-	fromHex,
-	fromHsl,
-	hueDistance,
-	middleHue,
-	MIN_CONTRAST,
-	over,
-	readableOn,
-	shifted,
-	toHex,
-	toHsl
-} from './video-colours'
+import { contrast, MIN_CONTRAST, over, readableOn, shifted } from './video-colours'
 
 // Make it's looks: a preset sets everything about how a plan looks at once
 // (the colour of the picture and of a designed background, the captions,
@@ -90,8 +78,9 @@ const PRESET_DEFINITIONS: Record<Preset, PresetDefinition> = {
 		fallback: '#d7263d',
 		background: {
 			from: [0, 0.55, 0.12],
-			to: [30, 0.6, 0.26],
-			shape: [15, 0.6, 0.4],
+			// Deep enough for white text and the light accent at 4.5:1, shapes and all.
+			to: [30, 0.6, 0.18],
+			shape: [15, 0.6, 0.25],
 			accent: [0, 0.75, 0.75]
 		},
 		bar: 'thick',
@@ -225,31 +214,57 @@ const ANY_PICTURE = ['#ffffff', '#000000']
 /** Text on a band reads against the band over whatever is behind it. */
 const behindBand = (band: string, behind: readonly string[]) =>
 	behind.map((colour) => over(band, colour, BAND_OPACITY))
-/** A colour block's hue stays at least this far (degrees) from every hue of the background. */
-export const MIN_BLOCK_HUE_DISTANCE = 60
-/** A colour block is this saturated. */
-export const BLOCK_SATURATION = 0.8
-/** Lightness a colour block starts from, darkened in this step until white reads on it. */
-const BLOCK_LIGHTNESS = 0.5
-const BLOCK_LIGHTNESS_STEP = 0.02
+/** How Bold's text sits on a designed background: no fill with a soft shadow, or on an accent block. */
+export type BoldText = 'shadow' | 'block'
 
 /**
- * Bold's colour block on a designed background: a solid, saturated band
- * behind white text. Its hue is the accent's unless that's within
- * MIN_BLOCK_HUE_DISTANCE of the background's own hues; then it's the
- * complement of the background's hue, so it never sinks into it. It's
- * darkened until white text on it reads at MIN_CONTRAST.
+ * Bold's text on a designed background. No fill, white text with a soft
+ * shadow and the spoken word in the accent, when both read at MIN_CONTRAST
+ * against every colour of the background itself (the shadow gets no
+ * credit); otherwise the light accent as a solid block behind black text.
  */
-export function colourBlock(accent: string, background: readonly string[]): string {
-	const hues = background.map((colour) => toHsl(fromHex(colour)).h)
-	const own = toHsl(fromHex(accent)).h
-	const near = hues.some((h) => hueDistance(own, h) < MIN_BLOCK_HUE_DISTANCE)
-	const hue = near ? (middleHue(hues) + 180) % 360 : own
-	for (let l = BLOCK_LIGHTNESS; l > 0; l -= BLOCK_LIGHTNESS_STEP) {
-		const block = toHex(fromHsl(hue, BLOCK_SATURATION, l))
-		if (contrast('#ffffff', block) >= MIN_CONTRAST) return block
+export function boldText(accent: string, behind: readonly string[]): BoldText {
+	const reads = (colour: string) => behind.every((b) => contrast(colour, b) >= MIN_CONTRAST)
+	return reads('#ffffff') && reads(accent) ? 'shadow' : 'block'
+}
+
+/**
+ * The colours text over a designed background can sit on, as drawn: the
+ * gradient's two ends, and each with the soft shapes' colour over it at the
+ * most they ever cover (every shape's middle at once).
+ */
+export function drawnBackground(design: Pick<DesignLook, 'from' | 'to' | 'shape'>): string[] {
+	const ends = [design.from, design.to]
+	return [...ends, ...ends.map((end) => over(design.shape, end, MAX_SHAPE_COVER))]
+}
+
+/**
+ * Bold's text style on a designed background. `shadow`: no fill, white
+ * text with a soft shadow, the spoken word in the accent. `block`: the
+ * light accent as a solid block behind black text.
+ */
+export function boldTextStyle(kind: BoldText, accent: string, font: Font, size: number): TextStyle {
+	if (kind === 'shadow') {
+		return {
+			...DEFAULT_TEXT_STYLE,
+			font,
+			size,
+			color: '#ffffff',
+			background: null,
+			shadow: true,
+			highlight: accent
+		}
 	}
-	return '#000000'
+	const dark = readableOn('#000000', [accent])
+	return {
+		...DEFAULT_TEXT_STYLE,
+		font,
+		size,
+		color: dark,
+		background: accent,
+		solidBand: true,
+		highlight: dark
+	}
 }
 
 /** How a preset looks on one video: every colour worked out, every text colour readable. */
@@ -321,17 +336,9 @@ export function presetLook(preset: Preset, videoColour: string | null): PresetLo
 			highlight: readableOn('#ffffff', seen)
 		}
 	}
-	// Bold on a designed background: white text on a solid colour block.
-	const block = colourBlock(accent, background)
-	const blockStyle = (font: Font, size: number): TextStyle => ({
-		...DEFAULT_TEXT_STYLE,
-		font,
-		size,
-		color: '#ffffff',
-		background: block,
-		solidBand: true,
-		highlight: readableOn(accent, [block])
-	})
+	// Bold on a designed background: the text colour does the work, in the video's own accent.
+	const bold = boldText(accent, drawnBackground(design))
+	const boldStyle = (font: Font, size: number) => boldTextStyle(bold, accent, font, size)
 	return {
 		preset,
 		grade: definition.grade,
@@ -341,7 +348,7 @@ export function presetLook(preset: Preset, videoColour: string | null): PresetLo
 			picture: style(captions.font, captions.size, '#000000', ANY_PICTURE),
 			designed:
 				preset === 'bold'
-					? blockStyle(captions.font, captions.size)
+					? boldStyle(captions.font, captions.size)
 					: style(
 							captions.font,
 							captions.size,
@@ -353,7 +360,7 @@ export function presetLook(preset: Preset, videoColour: string | null): PresetLo
 			picture: style(title.font, title.size, '#000000', ANY_PICTURE),
 			designed:
 				preset === 'bold'
-					? blockStyle(title.font, title.size)
+					? boldStyle(title.font, title.size)
 					: title.accentBand
 						? accentStyle(title.font, title.size)
 						: style(title.font, title.size, '#000000', background),

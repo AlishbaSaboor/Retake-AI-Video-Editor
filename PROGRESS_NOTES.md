@@ -365,15 +365,20 @@ before building.
   Every text and highlight colour reads at 4.5:1 or more (WCAG AA) on any
   picture and on its designed background. Unit tests check every look on
   16 video colours.
-- **Bold on a designed background** (fixed after the first frames, where a
-  pale band on a green video looked flat): its captions and title sit on a
-  solid, saturated colour block (`colourBlock`, saturation 0.8, drawn
-  opaque through the text style's new `solidBand`) with white text at
-  4.5:1 or more. Its hue is the accent's unless that's within 60° of the
-  background's hues; then it's the complement of the background's hue (a
-  green video gets magenta). One word at a time holds each word until the
-  next starts inside a spoken line; only a pause that ends the line
-  (over 0.7 s) shows nothing, as in every look.
+- **Bold on a designed background** (chosen by the owner from three
+  rendered variants, after a complementary magenta block was rejected):
+  no fill, white text with a soft shadow, and the word being said, one at
+  a time, in the video's own light accent; the title white. The progress
+  bar is the accent. Bold's background is deeper (its light end 0.18, its
+  shapes 0.25) so white and the accent both read at 4.5:1 or more against
+  it as drawn: the gradient's ends and the soft shapes at their most
+  (`MAX_SHAPE_COVER`, all three shapes' middles at once), with no credit
+  for the shadow. Where they wouldn't, the look falls back to the light
+  accent as a solid block behind black text; across 1,080 video colours
+  none needs it (worst 4.64:1), and the accent stays within 1° of the
+  video's own hue. One word at a time holds each word until the next
+  starts inside a spoken line; only a pause that ends the line (over
+  0.7 s) shows nothing, as in every look.
 - **The look question:** "Which look?" Clean · Bold · Cinematic · Playful
   · You decide, after the length, only when the request names no look.
   Never more than five questions: an ad with nothing named would show
@@ -401,8 +406,8 @@ before building.
   for the look question, a look switch in the chat, Playful's highlight
   in its colour, and Cinematic's serif in the export (the same large
   caption exported in Cinematic and Clean differs, so the serif is real).
-  Each rule removed on purpose (24 breaks) made a test fail. Unit 667 to
-  686; e2e 132 to 137. Frames of every look on the owner's two recordings
+  Each rule removed on purpose (17 for the looks, 19 for Bold's text, and
+  3 for the preview's) made a test fail. Unit 667 to 693; e2e 132 to 138. Frames of every look on the owner's two recordings
   are in `Desktop\style1`.
 
 ---
