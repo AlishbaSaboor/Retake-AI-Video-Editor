@@ -3,6 +3,8 @@
 // job (every PR) — one implementation, so the rule can never drift between
 // the two enforcement points. Edit the rule here, not in either caller.
 
+import { pathToFileURL } from 'node:url'
+
 const TYPES = [
 	'feat',
 	'fix',
@@ -120,6 +122,8 @@ async function main() {
 	}
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run directly (the hook, CI), not imported (the tests): compared as file URLs,
+// so a Windows path (C:\...) matches too, as `file://${path}` never did there.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
 	main()
 }
