@@ -37,6 +37,7 @@ import {
 import type { TitleCard } from '../../overlays/overlays'
 import {
 	bandColor,
+	bandOpacity,
 	canvasFont,
 	DEFAULT_TEXT_STYLE,
 	fontFamily,
@@ -123,7 +124,7 @@ function TitlePreview({
 					style={{
 						top: `${centre.y * PERCENT}%`,
 						height: `${TITLE_FONT_FRACTION * TITLE_BAND_SCALE * style.size * PERCENT}cqmin`,
-						background: bandColor(style.background),
+						background: bandColor(style.background, bandOpacity(style)),
 						transformOrigin: `${centre.x * PERCENT}% 50%`,
 						...motionStyle(motion)
 					}}
@@ -144,7 +145,7 @@ function TitlePreview({
 						lineHeight: TITLE_CARD_LINE,
 						padding: `${TITLE_CARD_INSET}em ${TITLE_CARD_PADDING}em`,
 						borderRadius: `${TITLE_CARD_PADDING}em`,
-						...(style.background && { background: bandColor(style.background) })
+						...(style.background && { background: bandColor(style.background, bandOpacity(style)) })
 					}),
 					...motionStyle(motion)
 				}}
@@ -241,7 +242,9 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 						<span
 							key={lineIndex}
 							style={{
-								background: captionStyle.background ? bandColor(captionStyle.background) : 'none',
+								background: captionStyle.background
+									? bandColor(captionStyle.background, bandOpacity(captionStyle))
+									: 'none',
 								padding: `0 ${CAPTION_PADDING_SCALE}em`
 							}}
 						>
@@ -273,7 +276,9 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 						fontSize: `${LOWER_THIRD_NAME_FRACTION * lower.style.size * PERCENT}cqmin`,
 						lineHeight: LOWER_THIRD_LINE_SCALE,
 						padding: `${LOWER_THIRD_PADDING_SCALE / 2}em ${LOWER_THIRD_PADDING_SCALE}em`,
-						background: lower.style.background ? bandColor(lower.style.background) : 'none',
+						background: lower.style.background
+							? bandColor(lower.style.background, bandOpacity(lower.style))
+							: 'none',
 						color: lower.style.color,
 						fontFamily: fontFamily(lower.style.font),
 						transformOrigin: 'center',

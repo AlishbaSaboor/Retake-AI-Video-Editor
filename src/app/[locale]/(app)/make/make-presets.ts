@@ -8,7 +8,19 @@ import {
 	type TextStyle
 } from '../../editor/overlays/text-style'
 import type { CaptionLook, MakeStyle } from './make-plan'
-import { contrast, fromHex, MIN_CONTRAST, over, readableOn, shifted, toHsl } from './video-colours'
+import {
+	contrast,
+	fromHex,
+	fromHsl,
+	hueDistance,
+	middleHue,
+	MIN_CONTRAST,
+	over,
+	readableOn,
+	shifted,
+	toHex,
+	toHsl
+} from './video-colours'
 
 // Make it's looks: a preset sets everything about how a plan looks at once
 // (the colour of the picture and of a designed background, the captions,
@@ -213,23 +225,31 @@ const ANY_PICTURE = ['#ffffff', '#000000']
 /** Text on a band reads against the band over whatever is behind it. */
 const behindBand = (band: string, behind: readonly string[]) =>
 	behind.map((colour) => over(band, colour, BAND_OPACITY))
-/** Steps an accent band is lightened in until dark text reads on it. */
-const ACCENT_STEPS = 10
+/** A colour block's hue stays at least this far (degrees) from every hue of the background. */
+export const MIN_BLOCK_HUE_DISTANCE = 60
+/** A colour block is this saturated. */
+export const BLOCK_SATURATION = 0.8
+/** Lightness a colour block starts from, darkened in this step until white reads on it. */
+const BLOCK_LIGHTNESS = 0.5
+const BLOCK_LIGHTNESS_STEP = 0.02
 
 /**
- * The accent, lightened (its hue kept) until `text`, made readable, reads
- * on it as a band over every one of `background`: a band is see-through,
- * so over a dark background a light accent turns mid-tone.
+ * Bold's colour block on a designed background: a solid, saturated band
+ * behind white text. Its hue is the accent's unless that's within
+ * MIN_BLOCK_HUE_DISTANCE of the background's own hues; then it's the
+ * complement of the background's hue, so it never sinks into it. It's
+ * darkened until white text on it reads at MIN_CONTRAST.
  */
-function accentForBand(accent: string, text: string, background: readonly string[]): string {
-	const { s, l } = toHsl(fromHex(accent))
-	for (let step = 0; step <= ACCENT_STEPS; step++) {
-		const band = shifted(accent, 0, s, l + ((1 - l) * step) / ACCENT_STEPS)
-		const seen = behindBand(band, background)
-		const colour = readableOn(text, seen)
-		if (seen.every((b) => contrast(colour, b) >= MIN_CONTRAST)) return band
+export function colourBlock(accent: string, background: readonly string[]): string {
+	const hues = background.map((colour) => toHsl(fromHex(colour)).h)
+	const own = toHsl(fromHex(accent)).h
+	const near = hues.some((h) => hueDistance(own, h) < MIN_BLOCK_HUE_DISTANCE)
+	const hue = near ? (middleHue(hues) + 180) % 360 : own
+	for (let l = BLOCK_LIGHTNESS; l > 0; l -= BLOCK_LIGHTNESS_STEP) {
+		const block = toHex(fromHsl(hue, BLOCK_SATURATION, l))
+		if (contrast('#ffffff', block) >= MIN_CONTRAST) return block
 	}
-	return '#ffffff'
+	return '#000000'
 }
 
 /** How a preset looks on one video: every colour worked out, every text colour readable. */
@@ -261,11 +281,9 @@ export function presetLook(preset: Preset, videoColour: string | null): PresetLo
 	const from = part(definition.background.from)
 	const to = part(definition.background.to)
 	const background = [from, to]
-	const readableAccent = readableOn(part(definition.background.accent), background)
+	const accent = readableOn(part(definition.background.accent), background)
 	// The dark text an accent band carries.
 	const bandText = shifted(base, 0, 0.6, 0.1)
-	const banded = preset === 'bold' || definition.title.accentBand
-	const accent = banded ? accentForBand(readableAccent, bandText, background) : readableAccent
 	const design: DesignLook = {
 		from,
 		to,
@@ -303,6 +321,17 @@ export function presetLook(preset: Preset, videoColour: string | null): PresetLo
 			highlight: readableOn('#ffffff', seen)
 		}
 	}
+	// Bold on a designed background: white text on a solid colour block.
+	const block = colourBlock(accent, background)
+	const blockStyle = (font: Font, size: number): TextStyle => ({
+		...DEFAULT_TEXT_STYLE,
+		font,
+		size,
+		color: '#ffffff',
+		background: block,
+		solidBand: true,
+		highlight: readableOn(accent, [block])
+	})
 	return {
 		preset,
 		grade: definition.grade,
@@ -312,7 +341,7 @@ export function presetLook(preset: Preset, videoColour: string | null): PresetLo
 			picture: style(captions.font, captions.size, '#000000', ANY_PICTURE),
 			designed:
 				preset === 'bold'
-					? accentStyle(captions.font, captions.size)
+					? blockStyle(captions.font, captions.size)
 					: style(
 							captions.font,
 							captions.size,
@@ -322,9 +351,12 @@ export function presetLook(preset: Preset, videoColour: string | null): PresetLo
 		},
 		title: {
 			picture: style(title.font, title.size, '#000000', ANY_PICTURE),
-			designed: title.accentBand
-				? accentStyle(title.font, title.size)
-				: style(title.font, title.size, '#000000', background),
+			designed:
+				preset === 'bold'
+					? blockStyle(title.font, title.size)
+					: title.accentBand
+						? accentStyle(title.font, title.size)
+						: style(title.font, title.size, '#000000', background),
 			animation: title.animation
 		},
 		transition: definition.transition,

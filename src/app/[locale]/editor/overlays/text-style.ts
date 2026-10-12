@@ -10,6 +10,8 @@ export type Font = (typeof FONTS)[number]
  * `size` is a multiple of the default size; `background` null draws no band.
  * `highlight`, when set, is the colour of the word being said (a Make it
  * look's accent); otherwise one is picked to stand out from `color`.
+ * `solidBand` draws the band opaque (a Make it look's colour block) rather
+ * than letting the picture through.
  */
 export type TextStyle = {
 	font: Font
@@ -17,6 +19,7 @@ export type TextStyle = {
 	color: string
 	background: string | null
 	highlight?: string
+	solidBand?: boolean
 }
 
 export const DEFAULT_TEXT_STYLE: TextStyle = {
@@ -77,11 +80,15 @@ export function toHexColor(value: string): string | null {
 	return COLOR_NAMES[color] ?? null
 }
 
-/** A band color, as drawn: the style's color at BAND_OPACITY. */
-export function bandColor(hex: string): string {
+/** A band color, as drawn: the style's color at `opacity` (BAND_OPACITY unless solid). */
+export function bandColor(hex: string, opacity = BAND_OPACITY): string {
 	const value = Number.parseInt(hex.slice(1), 16)
-	return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${BAND_OPACITY})`
+	return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${opacity})`
 }
+
+/** How opaque a style's band is drawn. */
+export const bandOpacity = (style: Pick<TextStyle, 'solidBand'>) =>
+	style.solidBand ? 1 : BAND_OPACITY
 
 export function clampTextSize(size: number): number {
 	return Math.min(MAX_TEXT_SIZE, Math.max(MIN_TEXT_SIZE, Math.round(size * 100) / 100))

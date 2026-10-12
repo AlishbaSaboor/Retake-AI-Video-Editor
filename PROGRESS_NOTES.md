@@ -363,8 +363,17 @@ before building.
   saturated hue of the pictures Make it already takes (greys, near-black,
   near-white left out; none under 1% colour, then the look's own colour).
   Every text and highlight colour reads at 4.5:1 or more (WCAG AA) on any
-  picture and on its designed background; an accent band is lightened
-  until its text does. Unit tests check every look on 16 video colours.
+  picture and on its designed background. Unit tests check every look on
+  16 video colours.
+- **Bold on a designed background** (fixed after the first frames, where a
+  pale band on a green video looked flat): its captions and title sit on a
+  solid, saturated colour block (`colourBlock`, saturation 0.8, drawn
+  opaque through the text style's new `solidBand`) with white text at
+  4.5:1 or more. Its hue is the accent's unless that's within 60° of the
+  background's hues; then it's the complement of the background's hue (a
+  green video gets magenta). One word at a time holds each word until the
+  next starts inside a spoken line; only a pause that ends the line
+  (over 0.7 s) shows nothing, as in every look.
 - **The look question:** "Which look?" Clean · Bold · Cinematic · Playful
   · You decide, after the length, only when the request names no look.
   Never more than five questions: an ad with nothing named would show
@@ -392,8 +401,8 @@ before building.
   for the look question, a look switch in the chat, Playful's highlight
   in its colour, and Cinematic's serif in the export (the same large
   caption exported in Cinematic and Clean differs, so the serif is real).
-  Each rule removed on purpose (18 breaks) made a test fail. Unit 667 to
-  683; e2e 132 to 137. Frames of every look on the owner's two recordings
+  Each rule removed on purpose (24 breaks) made a test fail. Unit 667 to
+  686; e2e 132 to 137. Frames of every look on the owner's two recordings
   are in `Desktop\style1`.
 
 ---

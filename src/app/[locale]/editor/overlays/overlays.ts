@@ -29,7 +29,13 @@ import {
 	type Zoom,
 	type ZoomView
 } from './motion'
-import { bandColor, canvasFont, DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
+import {
+	bandColor,
+	bandOpacity,
+	canvasFont,
+	DEFAULT_TEXT_STYLE,
+	type TextStyle
+} from './text-style'
 import {
 	BLUR_DIM,
 	blurSampleSize,
@@ -462,7 +468,7 @@ function drawAnnotations(
 		context.rotate(((item.rotation ?? 0) * Math.PI) / 180)
 		const band = { x: -pixels.width / 2, y: -pixels.height / 2, w: pixels.width, h: pixels.height }
 		if (style.background) {
-			context.fillStyle = bandColor(style.background)
+			context.fillStyle = bandColor(style.background, bandOpacity(style))
 			context.fillRect(band.x, band.y, band.w, band.h)
 		}
 		// Clipped to its band, as the preview's overflow is.
@@ -757,7 +763,7 @@ function drawLowerThird(context: CanvasRenderingContext2D, lower: LowerThird, se
 		{ x: x + bandWidth / 2, y: y + bandHeight / 2 }
 	)
 	if (style.background) {
-		context.fillStyle = bandColor(style.background)
+		context.fillStyle = bandColor(style.background, bandOpacity(style))
 		context.fillRect(x, y, bandWidth, bandHeight)
 	}
 	context.textAlign = 'left'
@@ -860,7 +866,7 @@ function drawFrameOverlays(
 			const laid = popLayout(widths, space, pops, maxWidth)
 			const lineWidth = laid.width + padding * 2
 			if (captionStyle.background) {
-				context.fillStyle = bandColor(captionStyle.background)
+				context.fillStyle = bandColor(captionStyle.background, bandOpacity(captionStyle))
 				context.fillRect((width - lineWidth) / 2, middle - lineHeight / 2, lineWidth, lineHeight)
 			}
 			context.fillStyle = captionStyle.color
@@ -943,7 +949,7 @@ function drawTitle(
 				Math.max(...lines.map((line) => context.measureText(line).width))
 			)
 			if (style.background) {
-				context.fillStyle = bandColor(style.background)
+				context.fillStyle = bandColor(style.background, bandOpacity(style))
 				roundedRect(
 					context,
 					x - textWidth / 2 - pad,
@@ -966,7 +972,7 @@ function drawTitle(
 			return
 		}
 		if (style.background) {
-			context.fillStyle = bandColor(style.background)
+			context.fillStyle = bandColor(style.background, bandOpacity(style))
 			context.fillRect(0, y - band / 2, width, band)
 		}
 		context.textAlign = 'center'

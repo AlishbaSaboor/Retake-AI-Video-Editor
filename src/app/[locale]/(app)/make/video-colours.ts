@@ -145,6 +145,19 @@ export function readableOn(colour: string, behind: readonly string[]): string {
 	return worst('#ffffff') >= worst('#000000') ? '#ffffff' : '#000000'
 }
 
+/** How far apart two hues are around the wheel: 0 to 180 degrees. */
+export function hueDistance(a: number, b: number): number {
+	const d = Math.abs(a - b) % 360
+	return d > 180 ? 360 - d : d
+}
+
+/** The hue halfway between hues, around the wheel (the average direction). */
+export function middleHue(hues: readonly number[]): number {
+	const x = hues.reduce((sum, h) => sum + Math.cos((h * Math.PI) / 180), 0)
+	const y = hues.reduce((sum, h) => sum + Math.sin((h * Math.PI) / 180), 0)
+	return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360
+}
+
 /** The colour at hue `h + turn`, `s` and `l`: for a palette built around the video's colour. */
 export function shifted(
 	colour: string,
