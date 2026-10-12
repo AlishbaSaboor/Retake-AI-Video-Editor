@@ -6,7 +6,10 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **Read this first: where things stand right now**
 >
-> - Branch `main`. Updated 2026-10-11.
+> - Branch `main`. Updated 2026-10-12.
+> - **The commit-message check runs on Windows** (section 3zze): it used to
+>   exit 0 there without checking anything, so the local hook let any
+>   message through; CI (Linux) was never affected.
 > - **The user decides how long it runs** (section 3zzc): a length question
 >   when the request states none; a click is the plan's most, an ad left to
 >   "You decide" runs at most 30 s, and a length Gemini invents never
@@ -330,6 +333,27 @@ actions in `actions.ts`.
   single `<video>` element through those segments: a frame loop jumps
   between them, and `seek`, `settle` and `restartIfAtEnd` handle the edges.
 - The source file is never modified, so every edit can be undone.
+
+## 3zze. The commit-message check runs on Windows (2026-10-12)
+
+`scripts/check-commit-message.mjs` only ran its checks when its own file
+URL equalled the text "file://" plus the script's path. On Windows those
+never match (`file:///C:/...` against `file://C:\...`), so the script exited
+0 without checking anything: the `commit-msg` hook let any message
+through, and PR #41 failed only in CI, on two subjects that began with a
+capital. It now compares against `pathToFileURL(process.argv[1]).href`, as
+`check-rls.mjs` and `check-standards.mjs` already do.
+
+- **Tests** (`scripts/check-commit-message.test.mjs`): the script run as
+  a real process, as the hook runs it (a message file) and as CI runs it
+  (`--range` over a throwaway git repo): a bad message exits 1 and a good
+  one exits 0 in each. On the unfixed script both tests failed on Windows
+  (exit 0 for a bad message). Unit 667 to 669.
+- **Checked by hand:** the hook now refuses `git commit` with a
+  capitalised subject, and allows a good one.
+- **Not fixed here:** `scripts/run-once-sql.mjs` has the same entry-point
+  test, so run directly on Windows it does nothing. Left for its own
+  change.
 
 ---
 
