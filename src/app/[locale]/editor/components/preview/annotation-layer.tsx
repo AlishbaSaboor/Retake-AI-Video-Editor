@@ -21,7 +21,7 @@ import {
 import { angleTo, normalDegrees, unturned } from '../../overlays/logo'
 import { animationAt } from '../../overlays/motion'
 import { motionStyle, RevealText } from './overlay-preview'
-import { bandColor, DEFAULT_TEXT_STYLE, fontFamily } from '../../overlays/text-style'
+import { bandColor, bandOpacity, DEFAULT_TEXT_STYLE, fontFamily } from '../../overlays/text-style'
 import { fitRect } from '../../model/sources'
 import type { Size } from '../../model/transform'
 
@@ -322,7 +322,9 @@ export function AnnotationLayer({
 								transform: `${motion ? motionStyle(motion).transform : ''} ${turned}`.trim()
 							}),
 							...(style && {
-								background: style.background ? bandColor(style.background) : 'none',
+								background: style.background
+									? bandColor(style.background, bandOpacity(style))
+									: 'none',
 								fontSize: `${rect.height * TEXT_HEIGHT_FRACTION * style.size * PERCENT}cqh`
 							})
 						}}

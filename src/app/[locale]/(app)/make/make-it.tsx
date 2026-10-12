@@ -37,7 +37,8 @@ import { withTimeout } from '@/lib/with-timeout'
 import { checkMakePlan, planMakeIt } from './actions'
 import { clearMakeStart, peekMakeStart } from './make-start'
 import { loadTrack } from './music-track'
-import { captureFrames } from './frames'
+import { captureFrames, framePixels } from './frames'
+import { dominantColour } from './video-colours'
 import {
 	FRAME_SEPARATOR,
 	frameTimes,
@@ -198,6 +199,8 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 				return { kind: 'questions', questions: reply.questions } as const
 			}
 			const music = reply.music ? await loadTrack(reply.music) : null
+			// The video's own colour, for its look: from the pictures already taken.
+			const videoColour = dominantColour(await framePixels(frames.data))
 			const plan = (
 				planned: MakeReply,
 				tooShort: { keepOut: number[] } | null = null,
@@ -214,7 +217,8 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 					musicAvailable: tracks.length > 0,
 					tooShort,
 					unchecked,
-					choices: ask.choices
+					choices: ask.choices,
+					videoColour
 				})
 			const musicAvailable = tracks.length > 0
 			// The plan as made, then checked against the request and made again
@@ -241,6 +245,7 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 				...made,
 				music,
 				musicAvailable,
+				videoColour,
 				problems: check?.problems ?? null
 			} as const
 		},
@@ -332,7 +337,8 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 							durationSeconds: video.durationSeconds,
 							picture: video.picture,
 							fillerCuts,
-							musicAvailable: plan.data.musicAvailable
+							musicAvailable: plan.data.musicAvailable,
+							videoColour: plan.data.videoColour
 						}
 					}
 		})
@@ -943,6 +949,10 @@ function PlanView({
 				]
 			: [])
 	]
+	// The look: the user's when their words or a click chose it, chosen for them otherwise.
+	const lookLine = summary.look.said
+		? t('look.asked', { preset: summary.look.preset })
+		: t('look.chosen', { preset: summary.look.preset, making: summary.making })
 	const shortNote = summary.short ? t(`short.${summary.short}`, { length }) : null
 	// The lines shown again over the chat in the editor: the plan's, and the warning if any.
 	const lines = [...entries.map(({ text }) => text), ...(shortNote ? [shortNote] : [])]
@@ -950,7 +960,10 @@ function PlanView({
 		const texts = entries.filter((entry) => entry.row === key).map(({ text }) => text)
 		return texts.length > 0 ? [{ key, Icon, texts }] : []
 	})
-	const notes = entries.filter((entry) => entry.row === 'note').map(({ text }) => text)
+	const notes = [
+		lookLine,
+		...entries.filter((entry) => entry.row === 'note').map(({ text }) => text)
+	]
 	return (
 		<section
 			role="status"

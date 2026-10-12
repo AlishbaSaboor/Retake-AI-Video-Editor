@@ -263,3 +263,70 @@ test("a designed frame's card too tall even at the captions' size has the captio
 	// With no captions, the whole frame is its room.
 	assert.equal(designedCardLayout(long, frame, 0.18, 151, captionBase, null, measureAt).fits, true)
 })
+
+test('a designed frame’s export draws Bold’s text: white title and the spoken word in the accent, each with its shadow', async () => {
+	const { drawFrame } = await import('./overlays')
+	const { IDENTITY_TRANSFORM } = await import('../model/transform')
+	const drawn: Array<{ text: string; fill: unknown; shadow: unknown }> = []
+	const state: Record<string, unknown> = { fillStyle: '', shadowColor: 'transparent' }
+	const context = new Proxy(state, {
+		get(target, key) {
+			if (key === 'canvas') return { width: 1080, height: 1920 }
+			if (key in target) return target[key as string]
+			if (key === 'measureText') return (text: string) => ({ width: text.length * 20 })
+			if (key === 'fillText')
+				return (text: string) =>
+					drawn.push({ text, fill: target.fillStyle, shadow: target.shadowColor })
+			if (key === 'createLinearGradient' || key === 'createRadialGradient')
+				return () => ({ addColorStop: () => undefined })
+			return () => undefined
+		},
+		set(target, key, value) {
+			target[key as string] = value
+			return true
+		}
+	}) as unknown as CanvasRenderingContext2D
+	const bold = {
+		font: 'sans' as const,
+		color: '#ffffff',
+		background: null,
+		shadow: true,
+		highlight: '#a6e88f'
+	}
+	drawFrame(
+		context,
+		{} as CanvasImageSource,
+		{ width: 1920, height: 1080 },
+		IDENTITY_TRANSFORM,
+		{
+			title: { text: 'Fathom', startSeconds: 0, durationSeconds: 5, style: { ...bold, size: 1.4 } },
+			watermark: null,
+			captions: [{ lines: ['notetaker.'], startSeconds: 0, endSeconds: 5 }],
+			captionStyle: { ...bold, size: 1.8 },
+			captionMode: 'words',
+			annotations: [],
+			lowerThird: null,
+			zoom: null,
+			designed: {
+				palette: 'reel',
+				picture: 'hidden',
+				look: {
+					from: '#0a1a0a',
+					to: '#102810',
+					shape: '#1a3a1a',
+					accent: '#a6e88f',
+					bar: 'thick',
+					wave: false
+				},
+				totalSeconds: 10
+			}
+		},
+		2,
+		null,
+		{} as HTMLCanvasElement
+	)
+	const caption = drawn.find((d) => d.text === 'notetaker.')
+	const title = drawn.find((d) => d.text === 'Fathom')
+	assert.deepEqual(caption, { text: 'notetaker.', fill: '#a6e88f', shadow: 'rgba(0, 0, 0, 0.8)' })
+	assert.deepEqual(title, { text: 'Fathom', fill: '#ffffff', shadow: 'rgba(0, 0, 0, 0.8)' })
+})

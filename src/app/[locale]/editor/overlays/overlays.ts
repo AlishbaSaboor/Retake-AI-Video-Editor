@@ -29,7 +29,15 @@ import {
 	type Zoom,
 	type ZoomView
 } from './motion'
-import { bandColor, canvasFont, DEFAULT_TEXT_STYLE, type TextStyle } from './text-style'
+import {
+	bandColor,
+	bandOpacity,
+	canvasFont,
+	DEFAULT_TEXT_STYLE,
+	setTextShadow,
+	type TextStyle,
+	wordColour
+} from './text-style'
 import {
 	BLUR_DIM,
 	blurSampleSize,
@@ -462,7 +470,7 @@ function drawAnnotations(
 		context.rotate(((item.rotation ?? 0) * Math.PI) / 180)
 		const band = { x: -pixels.width / 2, y: -pixels.height / 2, w: pixels.width, h: pixels.height }
 		if (style.background) {
-			context.fillStyle = bandColor(style.background)
+			context.fillStyle = bandColor(style.background, bandOpacity(style))
 			context.fillRect(band.x, band.y, band.w, band.h)
 		}
 		// Clipped to its band, as the preview's overflow is.
@@ -757,7 +765,7 @@ function drawLowerThird(context: CanvasRenderingContext2D, lower: LowerThird, se
 		{ x: x + bandWidth / 2, y: y + bandHeight / 2 }
 	)
 	if (style.background) {
-		context.fillStyle = bandColor(style.background)
+		context.fillStyle = bandColor(style.background, bandOpacity(style))
 		context.fillRect(x, y, bandWidth, bandHeight)
 	}
 	context.textAlign = 'left'
@@ -838,8 +846,11 @@ function drawFrameOverlays(
 		const bottom = height * (1 - CAPTION_BOTTOM_FRACTION)
 		const said = saidWordAt(caption, seconds, Boolean(designed))
 		const spoken = said?.index ?? null
+		const textColour = wordColour(captionStyle, overlays.captionMode, Boolean(designed))
 		const highlight =
-			overlays.captionMode === 'highlight' ? highlightColor(captionStyle.color) : captionStyle.color
+			overlays.captionMode === 'highlight'
+				? highlightColor(captionStyle.color, captionStyle.highlight)
+				: textColour
 		// In a designed frame each word pops as it's said (a one-word caption at its own start).
 		const starts = designed ? (caption.spoken ?? (said ? [said.start] : [])) : []
 		const space = context.measureText(' ').width
@@ -858,10 +869,11 @@ function drawFrameOverlays(
 			const laid = popLayout(widths, space, pops, maxWidth)
 			const lineWidth = laid.width + padding * 2
 			if (captionStyle.background) {
-				context.fillStyle = bandColor(captionStyle.background)
+				context.fillStyle = bandColor(captionStyle.background, bandOpacity(captionStyle))
 				context.fillRect((width - lineWidth) / 2, middle - lineHeight / 2, lineWidth, lineHeight)
 			}
-			context.fillStyle = captionStyle.color
+			setTextShadow(context, captionStyle, fontPixels)
+			context.fillStyle = textColour
 			if (spoken === null && laid.scales.every((scale) => scale === 1)) {
 				context.fillText(line, width / 2, middle)
 				wordIndex += words.length
@@ -874,7 +886,7 @@ function drawFrameOverlays(
 			for (const [i, word] of words.entries()) {
 				const scale = laid.scales[i] ?? 1
 				const wordLeft = left + (laid.lefts[i] ?? 0)
-				context.fillStyle = wordIndex === spoken ? highlight : captionStyle.color
+				context.fillStyle = wordIndex === spoken ? highlight : textColour
 				if (scale !== 1) {
 					const half = (widths[i] ?? 0) / 2
 					context.save()
@@ -887,6 +899,7 @@ function drawFrameOverlays(
 			}
 			context.textAlign = 'center'
 		}
+		setTextShadow(context, {}, fontPixels)
 	}
 	for (const [index, card] of cards.entries()) {
 		drawTitle(context, card, seconds, layouts[index] ?? null)
@@ -941,7 +954,7 @@ function drawTitle(
 				Math.max(...lines.map((line) => context.measureText(line).width))
 			)
 			if (style.background) {
-				context.fillStyle = bandColor(style.background)
+				context.fillStyle = bandColor(style.background, bandOpacity(style))
 				roundedRect(
 					context,
 					x - textWidth / 2 - pad,
@@ -955,6 +968,7 @@ function drawTitle(
 			context.textAlign = 'center'
 			context.textBaseline = 'middle'
 			context.fillStyle = style.color
+			setTextShadow(context, style, fontPixels)
 			const reveals = lineReveals(lines, titleMotion.reveal)
 			for (const [index, line] of lines.entries()) {
 				const lineY = y + (index - (lines.length - 1) / 2) * lineHeight
@@ -964,12 +978,13 @@ function drawTitle(
 			return
 		}
 		if (style.background) {
-			context.fillStyle = bandColor(style.background)
+			context.fillStyle = bandColor(style.background, bandOpacity(style))
 			context.fillRect(0, y - band / 2, width, band)
 		}
 		context.textAlign = 'center'
 		context.textBaseline = 'middle'
 		context.fillStyle = style.color
+		setTextShadow(context, style, fontPixels)
 		drawText(context, title.text, x, y, width * TITLE_MAX_WIDTH_FRACTION, titleMotion.reveal)
 		context.restore()
 	}

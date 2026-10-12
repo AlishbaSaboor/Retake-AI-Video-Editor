@@ -37,6 +37,9 @@ import {
 import type { TitleCard } from '../../overlays/overlays'
 import {
 	bandColor,
+	bandOpacity,
+	textShadow,
+	wordColour,
 	canvasFont,
 	DEFAULT_TEXT_STYLE,
 	fontFamily,
@@ -123,7 +126,7 @@ function TitlePreview({
 					style={{
 						top: `${centre.y * PERCENT}%`,
 						height: `${TITLE_FONT_FRACTION * TITLE_BAND_SCALE * style.size * PERCENT}cqmin`,
-						background: bandColor(style.background),
+						background: bandColor(style.background, bandOpacity(style)),
 						transformOrigin: `${centre.x * PERCENT}% 50%`,
 						...motionStyle(motion)
 					}}
@@ -139,12 +142,13 @@ function TitlePreview({
 					fontSize: `${TITLE_FONT_FRACTION * style.size * PERCENT}cqmin`,
 					color: style.color,
 					fontFamily: fontFamily(style.font),
+					textShadow: textShadow(style),
 					...(asCard && {
 						textAlign: 'center',
 						lineHeight: TITLE_CARD_LINE,
 						padding: `${TITLE_CARD_INSET}em ${TITLE_CARD_PADDING}em`,
 						borderRadius: `${TITLE_CARD_PADDING}em`,
-						...(style.background && { background: bandColor(style.background) })
+						...(style.background && { background: bandColor(style.background, bandOpacity(style)) })
 					}),
 					...motionStyle(motion)
 				}}
@@ -187,7 +191,9 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 	const spoken = said?.index ?? null
 	// The word being said: coloured only in highlighted captions; popping in a designed frame.
 	const saidStyle = {
-		...(overlays.captionMode === 'highlight' && { color: highlightColor(captionStyle.color) }),
+		...(overlays.captionMode === 'highlight' && {
+			color: highlightColor(captionStyle.color, captionStyle.highlight)
+		}),
 		...(said &&
 			designed && {
 				display: 'inline-block',
@@ -224,6 +230,7 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 			)}
 			{caption && (
 				<div
+					data-caption-text
 					className="absolute inset-x-0 flex flex-col items-center font-bold"
 					style={{
 						...(designed
@@ -231,15 +238,18 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 							: { bottom: `${CAPTION_BOTTOM_FRACTION * PERCENT}cqh` }),
 						fontSize: `${CAPTION_FONT_FRACTION * captionStyle.size * PERCENT}cqmin`,
 						lineHeight: CAPTION_LINE_SCALE,
-						color: captionStyle.color,
-						fontFamily: fontFamily(captionStyle.font)
+						color: wordColour(captionStyle, overlays.captionMode, Boolean(designed)),
+						fontFamily: fontFamily(captionStyle.font),
+						textShadow: textShadow(captionStyle)
 					}}
 				>
 					{caption.lines.map((line, lineIndex) => (
 						<span
 							key={lineIndex}
 							style={{
-								background: captionStyle.background ? bandColor(captionStyle.background) : 'none',
+								background: captionStyle.background
+									? bandColor(captionStyle.background, bandOpacity(captionStyle))
+									: 'none',
 								padding: `0 ${CAPTION_PADDING_SCALE}em`
 							}}
 						>
@@ -271,7 +281,9 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 						fontSize: `${LOWER_THIRD_NAME_FRACTION * lower.style.size * PERCENT}cqmin`,
 						lineHeight: LOWER_THIRD_LINE_SCALE,
 						padding: `${LOWER_THIRD_PADDING_SCALE / 2}em ${LOWER_THIRD_PADDING_SCALE}em`,
-						background: lower.style.background ? bandColor(lower.style.background) : 'none',
+						background: lower.style.background
+							? bandColor(lower.style.background, bandOpacity(lower.style))
+							: 'none',
 						color: lower.style.color,
 						fontFamily: fontFamily(lower.style.font),
 						transformOrigin: 'center',

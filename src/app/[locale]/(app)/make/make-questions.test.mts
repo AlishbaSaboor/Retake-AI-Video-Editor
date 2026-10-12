@@ -7,6 +7,8 @@ import {
 	applyChoices,
 	choiceWords,
 	decideAll,
+	MAKE_KINDS,
+	MAX_QUESTIONS,
 	namesAd,
 	namesKind,
 	namesLength,
@@ -16,19 +18,19 @@ import {
 	type MakeChoices
 } from './make-questions'
 
-const ALL_ASKED = ['kind', 'length', 'tone', 'callToAction']
+const ALL_ASKED = ['kind', 'length', 'style', 'tone', 'callToAction']
 
 test('a request that says nothing gets every built question; one that says it all gets none', () => {
 	assert.deepEqual(questionsToAsk('shorten this walkthrough'), ALL_ASKED)
 	assert.deepEqual(
 		questionsToAsk(
-			'A 45 second Instagram reel for small business owners, upbeat hip hop, energetic tone, end with "Follow for more tips"'
+			'A bold 45 second Instagram reel for small business owners, upbeat hip hop, energetic tone, end with "Follow for more tips"'
 		),
 		[]
 	)
 	assert.deepEqual(
 		questionsToAsk(
-			'An ad in 16:9 for new users, 20 seconds, calm tone, close with "Sign up today"'
+			'A clean ad in 16:9 for new users, 20 seconds, calm tone, close with "Sign up today"'
 		),
 		[]
 	)
@@ -108,11 +110,12 @@ test("an ad's shape: asked for an ad only, unless a shape or a short-video platf
 	// Picked on the screen: Ad shows it, a reel doesn't.
 	assert.equal(questionsToAsk('tidy it up', { kind: 'ad' }).includes('adShape'), true)
 	assert.equal(questionsToAsk('tidy it up', { kind: 'tiktok' }).includes('adShape'), false)
+	// Six would show, so tone is left out (at most five).
 	assert.deepEqual(questionsToAsk('tidy it up', { kind: 'ad' }), [
 		'kind',
 		'adShape',
 		'length',
-		'tone',
+		'style',
 		'callToAction'
 	])
 })
@@ -141,8 +144,8 @@ test('tone and call to action: each asked only when the request gives none', () 
 		assert.equal(questionsToAsk(request).includes('callToAction'), false, request)
 	}
 	// One of the two given: only the other asked.
-	assert.deepEqual(questionsToAsk('an energetic reel'), ['length', 'callToAction'])
-	assert.deepEqual(questionsToAsk('a reel, end with "Follow us"'), ['length', 'tone'])
+	assert.deepEqual(questionsToAsk('an energetic reel'), ['length', 'style', 'callToAction'])
+	assert.deepEqual(questionsToAsk('a reel, end with "Follow us"'), ['length', 'style', 'tone'])
 })
 
 test('the voice and music questions are defined but never shown until music is built', () => {
@@ -338,12 +341,13 @@ test('length: asked only when the request states none, in whole words', () => {
 	]) {
 		assert.equal(questionsToAsk(request).includes('length'), true, request)
 	}
-	// Shown after what it is and an ad's shape, before tone and call to action.
+	// Shown after what it is and an ad's shape, before the look and call to action (an ad with
+	// nothing named leaves out tone: at most five).
 	assert.deepEqual(questionsToAsk('tidy it up', { kind: 'ad' }), [
 		'kind',
 		'adShape',
 		'length',
-		'tone',
+		'style',
 		'callToAction'
 	])
 	// Clicked, it's the user's own words.
@@ -520,4 +524,52 @@ test('the owner’s fourth real reply: Gemini’s unasked 59 s no longer limits;
 	// Everything else as before: designed, vertical, a promo.
 	assert.deepEqual(decided.screen, { treatment: 'designed', why: 'promo' })
 	assert.equal(decided.shape.target, 'vertical')
+})
+
+test('at most five questions: when six would show, tone is left out; it is still read from the user’s words', () => {
+	// An ad with nothing named: five, without tone; the call to action stays.
+	const adAsked = questionsToAsk('tidy it up', { kind: 'ad' })
+	assert.equal(adAsked.length, MAX_QUESTIONS)
+	assert.deepEqual(adAsked, ['kind', 'adShape', 'length', 'style', 'callToAction'])
+	assert.deepEqual(questionsToAsk('make an ad'), [
+		'adShape',
+		'length',
+		'style',
+		'tone',
+		'callToAction'
+	])
+	// An ad whose request names a tone skips tone anyway.
+	assert.equal(questionsToAsk('make a calm ad').includes('tone'), false)
+	assert.equal(questionsToAsk('an energetic one', { kind: 'ad' }).includes('tone'), false)
+	// A reel with nothing named still asks tone: only five show.
+	assert.deepEqual(questionsToAsk('tidy it up', { kind: 'instagram_reel' }), [
+		'kind',
+		'length',
+		'style',
+		'tone',
+		'callToAction'
+	])
+	// Never more than five, whatever is picked.
+	for (const kind of MAKE_KINDS) {
+		assert.ok(questionsToAsk('tidy it up', { kind }).length <= MAX_QUESTIONS, kind)
+	}
+
+	// Left out, Gemini's tone is chosen for the user on the card; said in a follow-up, it's theirs.
+	const shown = questionsToAsk('tidy it up', { kind: 'ad' })
+	const skipped = plan(REPLY, 'tidy it up', { ...decideAll(shown), kind: 'ad' })
+	assert.equal(skipped.summary.brief.tone, 'calm')
+	assert.equal(skipped.summary.brief.said.tone, false)
+	const said = planMake({
+		reply: REPLY,
+		request: 'tidy it up',
+		durationSeconds: 71,
+		picture: { width: 1920, height: 1080 },
+		transcript: talk,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false,
+		choices: { ...decideAll(shown), kind: 'ad' },
+		followUps: ['make it calm']
+	})
+	assert.equal(said.summary.brief.said.tone, true)
 })
