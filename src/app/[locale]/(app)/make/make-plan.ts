@@ -968,13 +968,39 @@ export type CutBasis = Pick<
 	| 'look'
 >
 
+/**
+ * Where a webcam bubble sits, on Gemini's 0 to 1000 grid of each picture:
+ * a face at or below `low`, or at or above `high`, both across and down, is
+ * in a corner; in at least `share` of the pictures with a face, it's a
+ * bubble over something else, not a person filling the frame.
+ */
+export const FACE_CORNER = { low: 300, high: 700, share: 0.5 } as const
+
+/**
+ * A screen recording with the speaker in a webcam bubble: Gemini sees the
+ * face and says one person, with the picture as a corner card, but the face
+ * sits in a corner of the picture. A person filling the frame has theirs
+ * nearer the middle. With no face positions, it isn't one.
+ */
+export function webcamOverScreen(reply: Pick<MakeReply, 'subject' | 'card' | 'faces'>): boolean {
+	if (reply.subject !== 'one_person' || reply.card !== 'corner' || reply.faces.length === 0) {
+		return false
+	}
+	const outer = (value: number) => value <= FACE_CORNER.low || value >= FACE_CORNER.high
+	const cornered = reply.faces.filter((face) => outer(face.x) && outer(face.y)).length
+	return cornered >= reply.faces.length * FACE_CORNER.share
+}
+
 /** What every step of one plan reads, worked out once from its input. */
 export function planContext(input: MakeInput<unknown>): PlanContext {
 	const { reply, durationSeconds, picture, transcript } = input
 	const sentences = transcript?.segments ?? []
 	const words = transcript?.words ?? []
-	const screen = reply.subject === 'screen'
-	const chosen = choiceWords(input.choices)
+	// A webcam bubble over a screen is a screen recording, whatever the label.
+	const screen = reply.subject === 'screen' || webcamOverScreen(reply)
+	// The answers' words count as the user's; a look clicked sets the look alone (it's read from
+	// choices.style), never a brief part: "A bold look." is no bold tone.
+	const chosen = choiceWords(input.choices && { ...input.choices, style: null })
 	const said = [input.request, ...chosen, ...(input.followUps ?? [])]
 	const preset = choosePreset(reply.style, input.request, input.choices?.style, input.followUps)
 	const look = presetLook(preset.preset, input.videoColour ?? null)

@@ -256,3 +256,40 @@ test('a reel asked for 60 s says it’s capped at 59 s, and why', async ({ page 
 		'Capped at 59 s: reels, TikToks and Shorts run under a minute'
 	)
 })
+
+test('the owner’s fifth real run: a webcam bubble over a screen is designed for an ad, and a clicked look is no tone', async ({
+	page
+}) => {
+	// As Gemini returned it: one person with a corner card, the face at the bottom left of
+	// every picture, and a "bold" tone nobody asked for.
+	await mockMakeActions(page, WORDS, [
+		makeReply({
+			style: 'ad',
+			format: 'other',
+			subject: 'one_person',
+			card: 'corner',
+			pictureMatters: false,
+			faces: [1, 2, 3].map((frame) => ({ frame, x: 100, y: 750 })),
+			brief: { ...BRIEF, tone: 'bold', callToAction: 'Follow for more' }
+		})
+	])
+	await pickVideo(page, 'make an ad')
+	await makeIt(page).click()
+	await expect(questions(page)).toBeVisible({ timeout: 30_000 })
+	await group(page, 'What shape should the ad be?').getByLabel('Vertical', { exact: true }).check()
+	await group(page, 'How long, at most?').getByLabel('30 s', { exact: true }).check()
+	await group(page, 'Which look?').getByLabel('Bold', { exact: true }).check()
+	await questions(page).getByLabel('Call to action').fill('Follow for more')
+	await questions(page).getByRole('button', { name: 'Make the plan' }).click()
+
+	// Designed around what's said: a screen recording, not a person to frame.
+	await expect(plan(page)).toContainText('designed around what’s said', { timeout: 60_000 })
+	await expect(plan(page)).toContainText('As you asked: a Bold look')
+	await expect(plan(page)).toContainText('As you asked: at most 30 s')
+	// The tone is chosen, not the user's: the look's "bold" is not a tone.
+	await expect(plan(page)).toContainText('Chosen for a promo: bold tone')
+	await expect(plan(page).getByText(/From your brief:/)).toContainText(
+		'ends with “Follow for more”'
+	)
+	await expect(plan(page).getByText(/From your brief:/)).not.toContainText('bold tone')
+})

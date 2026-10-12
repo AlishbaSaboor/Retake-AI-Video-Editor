@@ -7,6 +7,11 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-12.
+> - **Two fixes from the fifth real run** (section 3zzf): a webcam bubble
+>   over a screen recording is treated as a screen (so "make an ad" is
+>   designed), and a clicked look never counts as the user's words for a
+>   brief part (Gemini's "bold" tone reads as chosen, not "From your
+>   brief").
 > - **The commit-message check runs on Windows** (section 3zze): it used to
 >   exit 0 there without checking anything, so the local hook let any
 >   message through; CI (Linux) was never affected.
@@ -433,6 +438,37 @@ capital. It now compares against `pathToFileURL(process.argv[1]).href`, as
 - **Not fixed here:** `scripts/run-once-sql.mjs` has the same entry-point
   test, so run directly on Windows it does nothing. Left for its own
   change.
+
+## 3zzf. Two fixes from the fifth real run (2026-10-12)
+
+One real run (the owner's, $0.028: one plan call and its check) of "make
+an ad" on the 4:41 screen recording, with vertical, 30 s, Bold and "Follow
+for more" clicked and tone skipped. Its replies are fixtures
+(`e2e/fixtures/real-run5-*.json`).
+
+- **A webcam bubble over a screen is a screen.** Gemini called the
+  recording one person, with a corner card and the face at the bottom left
+  of every picture (x 100, y 750 on its 0 to 1000 grid), so the screen
+  rules never ran and the ad showed the whole screen with black bars.
+  `webcamOverScreen`: one person, a corner card, and the face in a corner
+  (x and y each at most 300 or at least 700, `FACE_CORNER`) in at least
+  half the pictures with a face, counts as a screen recording for its
+  treatment. Replayed: "make an ad" is now designed with no picture; "shorten
+  this walkthrough" shows whole. A face in the middle, or off-centre but not
+  in a corner, is unchanged; with no face positions, the label decides as
+  before. Known limit: a speaker sitting in a corner of their own frame
+  counts as a bubble. A corner card alone wasn't enough: Gemini gives one
+  whenever a face shows.
+- **A clicked look is no brief part.** The look's words ("A bold look.")
+  counted as the user's, so Gemini's unasked "bold" tone read "From your
+  brief". The answers' words still count as the user's, the look click
+  alone doesn't (it sets the look directly). The card now reads "Chosen for
+  a promo: bold tone" (an ad reads as a promo; that wording is unchanged).
+- **Tests:** 7 unit tests (`make-real-run5.test.mts`) and 1 e2e (the
+  questions spec), with the saved reply. Each of the 7 rules removed on
+  purpose made a named test fail, and the e2e fails without either fix. No
+  existing test changed; the 100 replay scenarios are unchanged. Unit 695
+  to 702; e2e 138 to 139.
 
 ---
 
