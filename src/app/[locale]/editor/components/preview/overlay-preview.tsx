@@ -187,7 +187,9 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 	const spoken = said?.index ?? null
 	// The word being said: coloured only in highlighted captions; popping in a designed frame.
 	const saidStyle = {
-		...(overlays.captionMode === 'highlight' && { color: highlightColor(captionStyle.color) }),
+		...(overlays.captionMode === 'highlight' && {
+			color: highlightColor(captionStyle.color, captionStyle.highlight)
+		}),
 		...(said &&
 			designed && {
 				display: 'inline-block',

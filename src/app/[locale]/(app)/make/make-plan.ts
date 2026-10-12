@@ -4,7 +4,7 @@ import type { Cut } from '../../editor/model/cleanup'
 import type { Design } from '../../editor/overlays/design'
 import { ORIGINAL_EDIT, type EditSnapshot } from '../../editor/model/edit-snapshot'
 import type { CaptionMode } from '../../editor/overlays/captions'
-import type { Animation, Zoom } from '../../editor/overlays/motion'
+import type { Zoom } from '../../editor/overlays/motion'
 import type { TitleCard } from '../../editor/overlays/overlays'
 import {
 	editedLength,
@@ -14,7 +14,7 @@ import {
 	type Segment,
 	type SourceRange
 } from '../../editor/model/sequence'
-import { DEFAULT_TEXT_STYLE, type TextStyle } from '../../editor/overlays/text-style'
+import { DEFAULT_TEXT_STYLE } from '../../editor/overlays/text-style'
 import {
 	centredCrop,
 	fittedCrop,
@@ -23,7 +23,7 @@ import {
 	type PictureTransform,
 	type Size
 } from '../../editor/model/transform'
-import type { Transcript, TranscriptSegment } from '../../editor/audio/transcript'
+import type { Transcript, TranscriptSegment, TranscriptWord } from '../../editor/audio/transcript'
 import { transitionLimit, type TransitionKind } from '../../editor/model/transitions'
 import {
 	applyChoices,
@@ -36,6 +36,7 @@ import {
 	type MakeChoices,
 	type MakeKind
 } from './make-questions'
+import { choosePreset, presetLook, type Preset, type PresetLook } from './make-presets'
 
 // Make it: a whole edit planned from one request ("make this a reel").
 // Gemini reads the transcript and small pictures of the video and answers
@@ -374,17 +375,10 @@ const ZOOM_CUT_AMOUNT = 1.15
 const ZOOM_CUT_SECONDS = 0.4
 /** A zoom on a sentence shorter than this would be a jolt, not a push-in. */
 const MIN_ZOOM_SECONDS = 1
-const ZOOM_AMOUNT: Record<MakeStyle, number> = {
-	reel: 1.25,
-	professional: 1.12,
-	funny: 1.4,
-	ad: 1.25
-}
 /** The face may drift this far from the crop's middle (a fraction of its width) before the crop moves. */
 const FOLLOW_SLACK = 0.2
 /** Background music, before it ducks under speech. */
 const MUSIC_VOLUME = 0.35
-const TITLE_SECONDS = 3
 /** A brief's call to action shows over the last seconds of the edit, at most this long. */
 const CALL_TO_ACTION_SECONDS = 3
 /** Less room than this at the end (after the title) and the call to action is left out. */
@@ -406,48 +400,27 @@ const SHAPE_ASPECT: Record<Exclude<MakeShape, 'original'>, CropAspect> = {
 /** A video within this share of a shape already is that shape: nothing is cropped or barred. */
 const SAME_SHAPE = 0.02
 
-/** The title's and key lines' look, by style: bold and quick, calm, playful, punchy. */
-const TEXT_STYLE: Record<MakeStyle, TextStyle> = {
-	reel: { ...DEFAULT_TEXT_STYLE, size: 1.3 },
-	professional: { ...DEFAULT_TEXT_STYLE, font: 'serif' },
-	funny: { ...DEFAULT_TEXT_STYLE, size: 1.3, color: '#ffff00' },
-	ad: { ...DEFAULT_TEXT_STYLE, size: 1.4 }
-}
-/** How the title and key lines come in and go out, by style. */
-const TEXT_MOTION: Record<MakeStyle, Animation> = {
-	reel: {
-		in: { kind: 'words', side: 'left', seconds: 0.6 },
-		out: { kind: 'fade', side: 'left', seconds: 0.25 }
-	},
-	professional: {
-		in: { kind: 'fade', side: 'left', seconds: 0.7 },
-		out: { kind: 'fade', side: 'left', seconds: 0.5 }
-	},
-	funny: {
-		in: { kind: 'pop', side: 'left', seconds: 0.45 },
-		out: { kind: 'pop', side: 'left', seconds: 0.3 }
-	},
-	ad: {
-		in: { kind: 'slide', side: 'left', seconds: 0.35 },
-		out: { kind: 'fade', side: 'left', seconds: 0.25 }
-	}
-}
 /** Where text sits: key lines (and a vertical edit's title) near the top, clear of the captions below. */
 const TOP_TEXT = { x: 0.5, y: 0.18 }
 const MIDDLE_TEXT = { x: 0.5, y: 0.4 }
 /** A designed frame's title, this much bigger than the style's. */
 const DESIGN_TITLE_SCALE = 1.25
-/** How long a key line stays: through its sentence, within these. */
-const MIN_KEY_LINE_SECONDS = 1.5
-const MAX_KEY_LINE_SECONDS = 4
-
-/** Each caption look as the editor shows it: a mode, and a size on the request's colours. */
-const CAPTION_LOOK: Record<Exclude<CaptionLook, 'off'>, { mode: CaptionMode; size: number }> = {
-	classic: { mode: 'lines', size: 1.1 },
-	bold_words: { mode: 'words', size: 1.8 },
-	highlight: { mode: 'highlight', size: 1.3 },
-	large: { mode: 'lines', size: 1.7 }
+/** Each caption look as the editor shows it: a mode (its colours and font are the preset's). */
+const CAPTION_MODE: Record<Exclude<CaptionLook, 'off'>, CaptionMode> = {
+	classic: 'lines',
+	bold_words: 'words',
+	highlight: 'highlight',
+	large: 'lines'
 }
+/** A caption look's own size, when the user's words asked for it ("bigger captions"). */
+const CAPTION_SIZE: Record<Exclude<CaptionLook, 'off'>, number> = {
+	classic: 1.1,
+	bold_words: 1.8,
+	highlight: 1.3,
+	large: 1.7
+}
+/** The user's own words about the captions: then the reply's caption look is theirs. */
+const CAPTIONS_REQUEST = /\b(?:captions?|subtitles?)\b/i
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 const overlaps = (a: SourceRange, b: SourceRange) =>
@@ -842,6 +815,8 @@ export type MakeSummary = {
 	titleDropped: boolean
 	pictureMatters: boolean
 	cannotDo: string[]
+	/** The look (make-presets.ts), and whether the user's words or a click chose it. */
+	look: { preset: Preset; said: boolean }
 	/**
 	 * The quick questions shown before planning (absent when none were):
 	 * what it is and an ad's shape, as planned, and whether the user picked
@@ -911,6 +886,8 @@ export type MakeBasis = {
 	picture: Size
 	fillerCuts: Cut[]
 	musicAvailable: boolean
+	/** The video's own colour (video-colours.ts), null when it has none. */
+	videoColour?: string | null
 }
 
 export type MakeInput<Sound> = {
@@ -939,6 +916,8 @@ export type MakeInput<Sound> = {
 	followUps?: readonly string[]
 	/** The answers to the quick questions, when they were shown: the user's own words too. */
 	choices?: MakeChoices | null
+	/** The video's own colour (video-colours.ts), for its look; null when it has none. */
+	videoColour?: string | null
 }
 
 /** What every cut of one plan is made from: the reply, the transcript's sentences, the video. */
@@ -955,9 +934,17 @@ export type PlanContext = {
 	pictureMatters: boolean
 	/** A screen recording (a demo, a walkthrough, a shared screen): never zoomed into. */
 	screen: boolean
-	/** The transition as planned: a screen recording gets no zoom cuts. */
+	/** The transition, the look's: a screen recording gets no zoom cuts. */
 	transition: MakeReply['transition']
 	hasWords: boolean
+	/** Every word said, with its time: where a key word starts, for its zoom. */
+	words: readonly TranscriptWord[]
+	/** How the plan looks: one preset, on this video's colours. */
+	look: PresetLook
+	/** The user's words or a click chose the look. */
+	lookSaid: boolean
+	/** The user's own words mention the captions: the reply's caption look is kept, in the look's colours. */
+	captionsAsked: boolean
 	/**
 	 * The user's own words, the request and each follow-up: only they count
 	 * as asking (Gemini fills its fields in whether or not anyone asked).
@@ -972,7 +959,13 @@ export type PlanContext = {
 /** What a cut is made from. */
 export type CutBasis = Pick<
 	PlanContext,
-	'reply' | 'sentences' | 'durationSeconds' | 'fillerCuts' | 'pictureMatters' | 'transition'
+	| 'reply'
+	| 'sentences'
+	| 'durationSeconds'
+	| 'fillerCuts'
+	| 'pictureMatters'
+	| 'transition'
+	| 'look'
 >
 
 /** What every step of one plan reads, worked out once from its input. */
@@ -983,6 +976,9 @@ export function planContext(input: MakeInput<unknown>): PlanContext {
 	const screen = reply.subject === 'screen'
 	const chosen = choiceWords(input.choices)
 	const said = [input.request, ...chosen, ...(input.followUps ?? [])]
+	const preset = choosePreset(reply.style, input.request, input.choices?.style, input.followUps)
+	const look = presetLook(preset.preset, input.videoColour ?? null)
+	const transition = look.transition.kind
 	return {
 		reply,
 		sentences,
@@ -992,8 +988,12 @@ export function planContext(input: MakeInput<unknown>): PlanContext {
 		fillerCuts: input.fillerCuts,
 		pictureMatters: reply.pictureMatters || sentences.length === 0,
 		screen,
-		transition: screen && reply.transition === 'zoom_cut' ? 'none' : reply.transition,
+		transition: screen && transition === 'zoom_cut' ? 'none' : transition,
 		hasWords: words.length > 0,
+		words,
+		look,
+		lookSaid: preset.said,
+		captionsAsked: said.some((text) => CAPTIONS_REQUEST.test(text)),
 		said,
 		promo: said.some((text) => PROMO_REQUEST.test(text)),
 		known: [...words.map((word) => word.text), input.request, ...chosen].join(' ')
@@ -1046,7 +1046,7 @@ export function cutEdit(
 	const kept = opening ? [opening, ...pieces.filter((range) => range !== opening)] : pieces
 	const clips: Clip[] = kept.map((range, index) => ({ id: `make-${index + 1}`, ranges: [range] }))
 	const cuts = basis.fillerCuts.filter((cut) => kept.some((range) => overlaps(range, cut)))
-	const joins = transitionJoins(clips, transition)
+	const joins = transitionJoins(clips, transition, basis.look.transition.seconds, true)
 	const segments = playableSegments(clips, { trim: whole, cuts })
 	const transitions =
 		transition === 'zoom_cut' ? joins.length : clips.filter((clip) => clip.transition).length
@@ -1064,10 +1064,17 @@ export function cutEdit(
 /**
  * Joins where a real stretch was taken out (or the order jumps), the most
  * taken out first: only the first few get a transition. A fade, dissolve or
- * slide is set on each (as long as both clips have room for half of it);
- * returns the joins (the index of the clip after), for zoom cuts too.
+ * slide is set on each (as long as both clips have room for half of it),
+ * `seconds` long (each kind's own length when not given), a fade or
+ * dissolve eased when `eased` (a slide eases already); returns the joins
+ * (the index of the clip after), for zoom cuts too.
  */
-export function transitionJoins(clips: Clip[], transition: MakeReply['transition']): number[] {
+export function transitionJoins(
+	clips: Clip[],
+	transition: MakeReply['transition'],
+	seconds?: number,
+	eased = false
+): number[] {
 	const joins = clips
 		.flatMap((clip, index) => {
 			const prior = clips[index - 1]?.ranges.at(-1)
@@ -1092,9 +1099,15 @@ export function transitionJoins(clips: Clip[], transition: MakeReply['transition
 				prior.endSeconds - prior.startSeconds,
 				range.endSeconds - range.startSeconds
 			)
-			const seconds = Math.min(TRANSITION_SECONDS[kind], limit)
-			if (seconds >= TRANSITION_SECONDS[kind] / 2) {
-				clip.transition = { kind, seconds, after: before.id }
+			const wanted = seconds ?? TRANSITION_SECONDS[kind]
+			const length = Math.min(wanted, limit)
+			if (length >= wanted / 2) {
+				clip.transition = {
+					kind,
+					seconds: length,
+					after: before.id,
+					...(eased && kind !== 'slide' && { eased: true })
+				}
 			}
 		}
 	}
@@ -1343,12 +1356,12 @@ export function screenTreatment(
 export function shapeAndFit(
 	context: Pick<
 		PlanContext,
-		'reply' | 'picture' | 'screen' | 'said' | 'pictureMatters' | 'hasWords' | 'times'
+		'reply' | 'picture' | 'screen' | 'said' | 'pictureMatters' | 'hasWords' | 'times' | 'look'
 	>,
 	shortForm: boolean,
 	treatment: ScreenTreatment | null
 ): { shape: MakeSummary['shape']; design: Design | null; transform: PictureTransform } {
-	const { reply, picture, screen, said, pictureMatters, hasWords, times } = context
+	const { reply, picture, screen, said, pictureMatters, hasWords, times, look } = context
 	// A fit is asked for only in the user's own words too.
 	const fitAsked = reply.fitAsked && said.some((text) => FIT_REQUEST.test(text))
 	const shape: MakeShape = shortForm ? 'vertical' : reply.shape
@@ -1362,7 +1375,7 @@ export function shapeAndFit(
 	let design: Design | null = null
 	let transform = ORIGINAL_EDIT.transform
 	if (treatment === 'designed') {
-		design = { palette: reply.style, picture: 'hidden' }
+		design = { palette: reply.style, picture: 'hidden', look: look.design }
 		how = 'designed'
 		if (shape !== 'original') {
 			const crop = fittedCrop(SHAPE_RATIO[shape], picture)
@@ -1396,7 +1409,7 @@ export function shapeAndFit(
 							: { aspect, rect }
 				}
 			} else if (shape === 'vertical' && designable && !fitAsked) {
-				design = { palette: reply.style, picture: reply.card }
+				design = { palette: reply.style, picture: reply.card, look: look.design }
 				how = 'designed'
 				transform = { ...transform, crop: { aspect, rect: fittedCrop(ratio, picture), fit: true } }
 			} else {
@@ -1419,20 +1432,24 @@ export function shapeAndFit(
 
 /**
  * Zoom cuts at the chosen joins: the clip after starts a little closer and
- * settles. Then zooms on the sentences named, where they still play, never
- * overlapping, at most MAX_ZOOMS; none in a designed frame, whose picture
- * isn't what's being said, nor on a screen. A followed face is zoomed
- * towards.
+ * settles. Then a push-in on each key line's key words: from the first word
+ * it quotes to the end of its sentence, where it still plays, never
+ * overlapping, at most MAX_ZOOMS, at the look's strength; none in a
+ * designed frame, whose picture isn't what's being said, nor on a screen. A
+ * followed face is zoomed towards.
  */
 export function planZooms(
-	context: Pick<PlanContext, 'reply' | 'transition' | 'sentences' | 'screen' | 'times'>,
+	context: Pick<
+		PlanContext,
+		'reply' | 'transition' | 'sentences' | 'screen' | 'times' | 'words' | 'look'
+	>,
 	cut: Pick<MadeCut, 'joins' | 'segments' | 'editedSeconds'>,
 	/** Where each segment starts in the edit. */
 	starts: number[],
 	design: Design | null,
 	how: MakeSummary['shape']['how']
 ): Zoom[] {
-	const { reply, transition, sentences, screen, times } = context
+	const { reply, transition, sentences, screen, times, words, look } = context
 	const { joins, segments, editedSeconds } = cut
 	const autoZooms: Zoom[] =
 		transition === 'zoom_cut'
@@ -1446,13 +1463,24 @@ export function planZooms(
 					}
 				})
 			: []
-	for (const index of [
-		...sentenceIndexes(design || screen ? [] : reply.zoomSentences, sentences.length)
-	].sort((a, b) => a - b)) {
+	// Each key line that quotes its sentence: where its first quoted word is said.
+	const keyWords = (design || screen ? [] : reply.keyLines)
+		.flatMap((line) => {
+			const sentence = sentences[line.sentence - 1]
+			if (!sentence || !quotedLine(line.text, sentence.text)) return []
+			const first = wordsOf(line.text)[0]
+			const word = words.find(
+				(w) =>
+					w.startSeconds >= sentence.startSeconds - 0.01 &&
+					w.startSeconds < sentence.endSeconds &&
+					wordsOf(w.text)[0] === first
+			)
+			return [{ sentence, from: word?.startSeconds ?? sentence.startSeconds }]
+		})
+		.sort((a, b) => a.from - b.from)
+	for (const { sentence, from } of keyWords) {
 		if (autoZooms.length >= MAX_ZOOMS) break
-		const sentence = sentences[index]
-		if (!sentence) continue
-		const start = editedTimeOf(sentence.startSeconds, segments, starts)
+		const start = editedTimeOf(from, segments, starts)
 		const end = editedTimeOf(sentence.endSeconds - 0.01, segments, starts)
 		if (start === null || end === null || end - start < MIN_ZOOM_SECONDS) continue
 		if (autoZooms.some((zoom) => start < zoom.endSeconds && end > zoom.startSeconds)) continue
@@ -1461,7 +1489,7 @@ export function planZooms(
 			startSeconds: start,
 			endSeconds: end,
 			direction: 'in',
-			amount: ZOOM_AMOUNT[reply.style],
+			amount: look.zoom,
 			...(faceY !== null && { focus: { x: 0.5, y: faceY } })
 		})
 	}
@@ -1501,7 +1529,7 @@ export function musicBed<Sound>(
  * frame, and near the top of a tall frame or a designed one.
  */
 export function planTitle(
-	{ reply, known }: Pick<PlanContext, 'reply' | 'known'>,
+	{ reply, known, look }: Pick<PlanContext, 'reply' | 'known' | 'look'>,
 	editedSeconds: number,
 	design: Design | null,
 	/** The frame is taller than wide. */
@@ -1514,15 +1542,12 @@ export function planTitle(
 			? {
 					text: titleText,
 					startSeconds: 0,
-					durationSeconds: Math.min(TITLE_SECONDS, editedSeconds),
+					durationSeconds: Math.min(look.pacing.titleSeconds, editedSeconds),
 					// Bigger in a designed frame: it's what the frame is about.
 					style: design
-						? {
-								...TEXT_STYLE[reply.style],
-								size: TEXT_STYLE[reply.style].size * DESIGN_TITLE_SCALE
-							}
-						: TEXT_STYLE[reply.style],
-					animation: TEXT_MOTION[reply.style],
+						? { ...look.title.designed, size: look.title.designed.size * DESIGN_TITLE_SCALE }
+						: look.title.picture,
+					animation: look.title.animation,
 					// Above the captions; near the top of a tall frame or a designed one.
 					at: tall || design ? TOP_TEXT : MIDDLE_TEXT
 				}
@@ -1532,15 +1557,18 @@ export function planTitle(
 
 /**
  * Key lines: words quoted from their sentence, over it where it plays,
- * after the title and never two at once; at most MAX_KEY_LINES.
+ * after the title and never two at once; at most MAX_KEY_LINES, held as
+ * long as the look's pacing allows.
  */
 export function keyLineTitles(
-	{ reply, sentences }: Pick<PlanContext, 'reply' | 'sentences'>,
+	{ reply, sentences, look }: Pick<PlanContext, 'reply' | 'sentences' | 'look'>,
 	{ segments, editedSeconds }: Pick<MadeCut, 'segments' | 'editedSeconds'>,
 	/** Where each segment starts in the edit. */
 	starts: number[],
-	title: TitleCard | null
+	title: TitleCard | null,
+	design: Design | null = null
 ): TitleCard[] {
+	const { keyLineMin, keyLineMax } = look.pacing
 	const autoTitles: TitleCard[] = []
 	for (const line of reply.keyLines) {
 		if (autoTitles.length === MAX_KEY_LINES) break
@@ -1549,19 +1577,19 @@ export function keyLineTitles(
 		const start = sentence ? editedTimeOf(sentence.startSeconds, segments, starts) : null
 		if (!sentence || !text || start === null) continue
 		const end = editedTimeOf(sentence.endSeconds - 0.01, segments, starts) ?? start
-		const length = Math.min(MAX_KEY_LINE_SECONDS, Math.max(MIN_KEY_LINE_SECONDS, end - start))
+		const length = Math.min(keyLineMax, Math.max(keyLineMin, end - start))
 		const until = Math.min(start + length, editedSeconds)
 		const titleEnd = title ? title.startSeconds + title.durationSeconds : 0
 		const clash = autoTitles.some(
 			(other) => start < other.startSeconds + other.durationSeconds && until > other.startSeconds
 		)
-		if (start < titleEnd || clash || until - start < MIN_KEY_LINE_SECONDS / 2) continue
+		if (start < titleEnd || clash || until - start < keyLineMin / 2) continue
 		autoTitles.push({
 			text,
 			startSeconds: start,
 			durationSeconds: until - start,
-			style: TEXT_STYLE[reply.style],
-			animation: TEXT_MOTION[reply.style],
+			style: design ? look.title.designed : look.title.picture,
+			animation: look.title.animation,
 			at: TOP_TEXT
 		})
 	}
@@ -1574,10 +1602,11 @@ export function keyLineTitles(
  * meet left out. The words on screen, in the order they show.
  */
 export function withCallToAction(
-	{ reply, known }: Pick<PlanContext, 'reply' | 'known'>,
+	{ reply, known, look }: Pick<PlanContext, 'reply' | 'known' | 'look'>,
 	keyLines: readonly TitleCard[],
 	editedSeconds: number,
-	title: TitleCard | null
+	title: TitleCard | null,
+	design: Design | null = null
 ): { autoTitles: TitleCard[]; callToAction: string | null } {
 	const autoTitles = [...keyLines]
 	const actionText = reply.brief.callToAction?.trim().slice(0, MAX_TITLE_LENGTH) ?? ''
@@ -1600,8 +1629,8 @@ export function withCallToAction(
 			text: callToAction,
 			startSeconds: actionFrom,
 			durationSeconds: editedSeconds - actionFrom,
-			style: TEXT_STYLE[reply.style],
-			animation: TEXT_MOTION[reply.style],
+			style: design ? look.title.designed : look.title.picture,
+			animation: look.title.animation,
 			at: MIDDLE_TEXT
 		})
 	}
@@ -1609,17 +1638,35 @@ export function withCallToAction(
 	return { autoTitles, callToAction }
 }
 
-/** The caption look asked for, as the editor's caption settings; off with no words to caption. */
-export function captionSettings(reply: Pick<MakeReply, 'captions' | 'style'>, hasWords: boolean) {
-	const captions = hasWords ? reply.captions : 'off'
-	const look = captions === 'off' ? null : CAPTION_LOOK[captions]
+/**
+ * The look's captions, as the editor's caption settings: their style over
+ * the picture, or on a designed background; off when the reply has them
+ * off, or there are no words to caption. When the user's own words asked
+ * about the captions ("make the captions bigger"), the reply's caption look
+ * (Gemini's reading of those words) is kept, at its own size, in the look's
+ * colours and font.
+ */
+export function captionSettings(
+	look: PresetLook,
+	reply: Pick<MakeReply, 'captions'>,
+	hasWords: boolean,
+	designed: boolean,
+	asked = false
+) {
+	// Whether captions show is the reply's (a request for none is kept); how they look, the preset's.
+	const captions: CaptionLook =
+		!hasWords || reply.captions === 'off' ? 'off' : asked ? reply.captions : look.captionLook
+	const style = designed ? look.captions.designed : look.captions.picture
 	return {
 		captions,
-		captionsOn: look !== null,
-		captionMode: look?.mode ?? 'lines',
-		captionStyle: look
-			? { ...DEFAULT_TEXT_STYLE, color: TEXT_STYLE[reply.style].color, size: look.size }
-			: DEFAULT_TEXT_STYLE
+		captionsOn: captions !== 'off',
+		captionMode: captions === 'off' ? 'lines' : CAPTION_MODE[captions],
+		captionStyle:
+			captions === 'off'
+				? DEFAULT_TEXT_STYLE
+				: asked
+					? { ...style, size: CAPTION_SIZE[captions] }
+					: style
 	}
 }
 
@@ -1648,7 +1695,8 @@ export function planSummary<Sound>(
 		shape,
 		screen,
 		choices,
-		lengthSaid
+		lengthSaid,
+		look
 	}: {
 		limits: LengthLimits
 		made: FittedCut & { lengthened: boolean }
@@ -1666,6 +1714,8 @@ export function planSummary<Sound>(
 		choices?: MakeChoices | null
 		/** The length came from the user's own words: typed, clicked, or a follow-up. */
 		lengthSaid: boolean
+		/** The look, and whether the user's words or a click chose it. */
+		look: MakeSummary['look']
 	}
 ): MakeSummary {
 	const { reply, durationSeconds, sentences, transition, said, promo, pictureMatters } = context
@@ -1725,6 +1775,7 @@ export function planSummary<Sound>(
 		titleDropped,
 		pictureMatters,
 		cannotDo: reply.cannotDo,
+		look,
 		// Only the questions shown, each the user's when picked, chosen for them when not.
 		...(choices && {
 			questions: {
@@ -1781,9 +1832,21 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 	const autoZooms = planZooms(context, made.cut, starts, design, shape.how)
 	const audioItems = musicBed(input.music, editedSeconds)
 	const { title, titleDropped } = planTitle(context, editedSeconds, design, tall)
-	const keyLines = keyLineTitles(context, made.cut, starts, title)
-	const { autoTitles, callToAction } = withCallToAction(context, keyLines, editedSeconds, title)
-	const { captions, ...captionFields } = captionSettings(reply, context.hasWords)
+	const keyLines = keyLineTitles(context, made.cut, starts, title, design)
+	const { autoTitles, callToAction } = withCallToAction(
+		context,
+		keyLines,
+		editedSeconds,
+		title,
+		design
+	)
+	const { captions, ...captionFields } = captionSettings(
+		context.look,
+		reply,
+		context.hasWords,
+		design !== null,
+		context.captionsAsked
+	)
 
 	const edit = {
 		...ORIGINAL_EDIT,
@@ -1793,6 +1856,7 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 		title,
 		...captionFields,
 		transform,
+		color: context.look.grade,
 		audioItems,
 		autoZooms,
 		autoTitles,
@@ -1812,7 +1876,8 @@ export function planMake<Sound>(input: MakeInput<Sound>): {
 		shape,
 		screen,
 		choices: input.choices,
-		lengthSaid: length.said
+		lengthSaid: length.said,
+		look: { preset: context.look.preset, said: context.lookSaid }
 	})
 	return { edit, used: { ...reply, removeSentences: made.removeSentences }, summary }
 }
@@ -1825,6 +1890,7 @@ export type PlanChange =
 			to: number
 	  }
 	| { kind: 'captions'; from: CaptionLook; to: CaptionLook }
+	| { kind: 'look'; from: Preset; to: Preset }
 	| { kind: 'shape'; from: MakeShape; to: MakeShape }
 	| { kind: 'fit'; from: FitLabel; to: FitLabel }
 	| { kind: 'title' | 'music'; from: string | null; to: string | null }
@@ -1843,6 +1909,10 @@ const fitLabel = (shape: MakeSummary['shape']): FitLabel =>
  */
 export function planChanges(before: MakeSummary, after: MakeSummary): PlanChange[] {
 	const changes: PlanChange[] = []
+	// The look first, as the plan card shows it.
+	if (before.look.preset !== after.look.preset) {
+		changes.push({ kind: 'look', from: before.look.preset, to: after.look.preset })
+	}
 	const count = (
 		kind: 'length' | 'sentences' | 'keyLines' | 'zooms' | 'transitions',
 		from: number,

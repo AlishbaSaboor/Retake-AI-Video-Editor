@@ -2262,6 +2262,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 					background: (
 						<DesignCanvas
 							palette={design.palette}
+							look={design.look}
 							totalSeconds={editedSeconds}
 							seconds={editedNow ?? 0}
 							speaking={editedNow !== null && captionAt(overlays.captions, editedNow) !== undefined}

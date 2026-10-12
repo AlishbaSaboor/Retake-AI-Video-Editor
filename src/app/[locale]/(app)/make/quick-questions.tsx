@@ -14,6 +14,7 @@ import {
 	questionsToAsk,
 	type MakeChoices
 } from './make-questions'
+import { PRESETS } from './make-presets'
 
 // The quick questions before Make it plans: only those the request leaves
 // open, on one screen, each with "You decide" (picked until something else
@@ -117,6 +118,7 @@ export function QuickQuestions({
 	const [kind, setKind] = useState<MakeChoices['kind']>(null)
 	const [adShape, setAdShape] = useState<MakeChoices['adShape']>(null)
 	const [length, setLength] = useState<MakeChoices['length']>(null)
+	const [style, setStyle] = useState<MakeChoices['style']>(null)
 	const [tone, setTone] = useState('')
 	const [callToAction, setCallToAction] = useState('')
 	// Asked again as answers come in: an ad's shape once it's an ad.
@@ -134,6 +136,7 @@ export function QuickQuestions({
 					kind: has('kind') ? kind : null,
 					adShape: has('adShape') ? adShape : null,
 					length: has('length') ? length : null,
+					style: has('style') ? style : null,
 					tone: has('tone') ? text(tone) : null,
 					callToAction: has('callToAction') ? text(callToAction) : null
 				})
@@ -175,6 +178,16 @@ export function QuickQuestions({
 					value={length}
 					onChange={setLength}
 					label={(option) => t('length.option', { seconds: option })}
+					decide={t('decide')}
+				/>
+			)}
+			{has('style') && (
+				<Choices
+					legend={t('style.label')}
+					options={PRESETS}
+					value={style}
+					onChange={setStyle}
+					label={(option) => t(`style.${option}`)}
 					decide={t('decide')}
 				/>
 			)}
