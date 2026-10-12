@@ -6,7 +6,12 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **Read this first: where things stand right now**
 >
-> - Branch `main`. Updated 2026-10-11.
+> - Branch `main`. Updated 2026-10-12.
+> - **Make it's four looks** (section 3zzd): Clean, Bold, Cinematic and
+>   Playful each set the colour, captions, one eased transition, the
+>   title's animation, the zoom on key words and the pacing at once, in
+>   colours from the video that always read. A look question when the
+>   request names none (at most five questions); a follow-up switches it.
 > - **The user decides how long it runs** (section 3zzc): a length question
 >   when the request states none; a click is the plan's most, an ad left to
 >   "You decide" runs at most 30 s, and a length Gemini invents never
@@ -330,6 +335,80 @@ actions in `actions.ts`.
   single `<video>` element through those segments: a frame loop jumps
   between them, and `seek`, `settle` and `restartIfAtEnd` handle the edges.
 - The source file is never modified, so every edit can be undone.
+
+## 3zzd. Make it's four looks (2026-10-12)
+
+A reel or an ad should look like one designed piece, not a set of
+defaults. Presets, rules and every changed test agreed with the owner
+before building.
+
+- **Four looks** (`make-presets.ts`): Clean, Bold, Cinematic, Playful. A
+  look sets the picture's colour grade, a designed background (its
+  colours, a thin or thick bar, Playful's wave), the captions (mode,
+  font, size; Cinematic serif, a dark band over the picture and none on
+  its designed background), one transition for the whole video, eased
+  (Clean dissolve 0.4 s, Bold slide 0.4 s, Cinematic fade 0.8 s, Playful
+  zoom cut), the title's animation (fade, slide, word by word, pop),
+  zooms on key words at its own strength, and how long text holds. A
+  music mood is defined and unused. The editor's text styles gained an
+  optional highlight colour, designed frames an optional look, joins an
+  optional `eased`; nothing existing changed meaning.
+- **Which look:** the latest the user asked for wins (a chat follow-up
+  naming one, else the click, else the request, whole words only), else
+  the style's own (reel and ad Bold, professional Clean, funny Playful;
+  Cinematic only when asked). The plan card's first line says "As you
+  asked: a Cinematic look" or "Chosen for you: a Bold look, as suits a
+  reel". The four Make it styles stay what the video is.
+- **Colours from the video** (`video-colours.ts`): the most telling
+  saturated hue of the pictures Make it already takes (greys, near-black,
+  near-white left out; none under 1% colour, then the look's own colour).
+  Every text and highlight colour reads at 4.5:1 or more (WCAG AA) on any
+  picture and on its designed background. Unit tests check every look on
+  16 video colours.
+- **Bold on a designed background** (chosen by the owner from three
+  rendered variants, after a complementary magenta block was rejected):
+  no fill, white text with a soft shadow, and the word being said, one at
+  a time, in the video's own light accent; the title white. The progress
+  bar is the accent. Bold's background is deeper (its light end 0.18, its
+  shapes 0.25) so white and the accent both read at 4.5:1 or more against
+  it as drawn: the gradient's ends and the soft shapes at their most
+  (`MAX_SHAPE_COVER`, all three shapes' middles at once), with no credit
+  for the shadow. Where they wouldn't, the look falls back to the light
+  accent as a solid block behind black text; across 1,080 video colours
+  none needs it (worst 4.64:1), and the accent stays within 1° of the
+  video's own hue. One word at a time holds each word until the next
+  starts inside a spoken line; only a pause that ends the line (over
+  0.7 s) shows nothing, as in every look.
+- **The look question:** "Which look?" Clean · Bold · Cinematic · Playful
+  · You decide, after the length, only when the request names no look.
+  Never more than five questions: an ad with nothing named would show
+  six, so tone is left out (still read from the user's words, and
+  labelled "Chosen for you" when Gemini picks it).
+- **Captions the user asks about:** when the request, an answer or a
+  follow-up mentions captions or subtitles, Gemini's caption choice is
+  kept at its own size, in the look's colours and font ("make the
+  captions bigger" works after "more cinematic"); otherwise the look
+  decides. Captions off is always kept.
+- **A follow-up that switches the look** shows "Look: Bold to Cinematic"
+  first in the chat's list of changes, so it can be applied even when
+  nothing else changes.
+- **Replays:** the 100 captured plans were regenerated; field by field,
+  1,158 look fields changed and 25 others, all the edit's length (and the
+  music bed's and the summary's stated length that follow it) in nine
+  scenarios, each from the transition its look sets. No clip range,
+  sentence count, shape, treatment or label changed. The owner's three
+  real runs keep their lengths.
+- **Existing tests changed, each approved by the owner** (listed side by
+  side in the PR): 7 tests in `make-plan-steps`, 5 in `make-plan`, 4 in
+  `make-questions`, 5 e2e (one split in two), and the replay fixture.
+- **Tests:** unit tests for the looks, colours, contrast, choice, the
+  question, the cap, easing, captions asked for, and look changes; e2e
+  for the look question, a look switch in the chat, Playful's highlight
+  in its colour, and Cinematic's serif in the export (the same large
+  caption exported in Cinematic and Clean differs, so the serif is real).
+  Each rule removed on purpose (17 for the looks, 19 for Bold's text, and
+  3 for the preview's) made a test fail. Unit 667 to 693; e2e 132 to 138. Frames of every look on the owner's two recordings
+  are in `Desktop\style1`.
 
 ---
 

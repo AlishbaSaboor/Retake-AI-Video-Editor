@@ -29,6 +29,7 @@ import {
 	SHORT_FORM_TARGET_SECONDS,
 	type MakeReply
 } from './make-plan'
+import { presetLook } from './make-presets'
 
 // Five sentences over a 20 s take: a short pause between the first two, a
 // false start (3), then long pauses before 4 and 5.
@@ -186,13 +187,13 @@ test('a reply is planned into one edit: clips, transitions, word captions, zooms
 		[[[0.25, 2.65]], [[8.75, 11.25]], [[13.75, 15.25]]]
 	)
 	assert.deepEqual(edit.cuts, [{ startSeconds: 1.65, endSeconds: 1.75 }])
-	// A dissolve at both joins: each follows a long stretch taken out.
+	// A slide at both joins (a reel's look, Bold): each follows a long stretch taken out.
 	assert.deepEqual(
 		edit.clips?.map((clip) => clip.transition),
 		[
 			undefined,
-			{ kind: 'dissolve', seconds: 0.4, after: 'make-1' },
-			{ kind: 'dissolve', seconds: 0.4, after: 'make-2' }
+			{ kind: 'slide', seconds: 0.4, after: 'make-1' },
+			{ kind: 'slide', seconds: 0.4, after: 'make-2' }
 		]
 	)
 	assert.equal(edit.captionsOn, true)
@@ -226,7 +227,7 @@ test('a reply is planned into one edit: clips, transitions, word captions, zooms
 	assert.equal(edit.autoTitles[0]?.text, 'Key point')
 	near(edit.autoTitles[0]?.startSeconds ?? 0, 2.15)
 	assert.deepEqual(edit.autoTitles[0]?.at, { x: 0.5, y: 0.18 })
-	assert.equal(edit.autoTitles[0]?.animation?.in.kind, 'words')
+	assert.equal(edit.autoTitles[0]?.animation?.in.kind, 'slide')
 	assert.deepEqual(
 		{ ...summary, editedSeconds: 0 },
 		{
@@ -249,7 +250,7 @@ test('a reply is planned into one edit: clips, transitions, word captions, zooms
 			keyLines: 1,
 			opensWith: null,
 			zooms: 1,
-			transition: 'dissolve',
+			transition: 'slide',
 			transitions: 2,
 			music: 'upbeat.mp3',
 			musicMissing: false,
@@ -274,7 +275,8 @@ test('a reply is planned into one edit: clips, transitions, word captions, zooms
 			title: null,
 			titleDropped: true,
 			pictureMatters: false,
-			cannotDo: []
+			cannotDo: [],
+			look: { preset: 'bold', said: false }
 		}
 	)
 })
@@ -522,11 +524,10 @@ test('transitions go only at the few joins where the most was cut: slide overlap
 		{ word: 'Four.', start: 16, end: 18 },
 		{ word: 'Five.', start: 24, end: 26 }
 	])
-	const plan = (transition: MakeReply['transition']) =>
+	const plan = (look: string) =>
 		planMake({
 			reply: {
 				...REPLY,
-				transition,
 				removeSentences: [],
 				moments: [],
 				zoomSentences: [],
@@ -535,7 +536,7 @@ test('transitions go only at the few joins where the most was cut: slide overlap
 				format: 'other',
 				style: 'professional'
 			},
-			request: 'make it professional',
+			request: `make it professional, ${look}`,
 			durationSeconds: 26,
 			picture: { width: 1920, height: 1080 },
 			transcript: talk,
@@ -543,16 +544,16 @@ test('transitions go only at the few joins where the most was cut: slide overlap
 			music: null,
 			musicAvailable: false
 		})
-	const slide = plan('slide')
+	const slide = plan('bold')
 	// Three of the four joins: not the 2 s one.
 	assert.deepEqual(
 		slide.edit.clips?.map((clip) => clip.transition?.kind ?? null),
 		[null, 'slide', 'slide', null, 'slide']
 	)
 	assert.equal(slide.summary.transitions, 3)
-	const plain = plan('none')
+	const plain = plan('cinematic')
 	near(slide.summary.editedSeconds, plain.summary.editedSeconds - 3 * 0.4)
-	const zoomCut = plan('zoom_cut')
+	const zoomCut = plan('playful')
 	assert.ok(zoomCut.edit.clips?.every((clip) => !clip.transition))
 	assert.equal(zoomCut.summary.transitions, 3)
 	assert.equal(zoomCut.summary.zooms, 0)
@@ -673,7 +674,11 @@ test('a reel of a meeting or a still screen is designed around the speech: the p
 	const designed = plan({})
 	assert.equal(designed.summary.shape.how, 'designed')
 	assert.equal(designed.summary.card, 'corner')
-	assert.deepEqual(designed.edit.design, { palette: 'reel', picture: 'corner' })
+	assert.deepEqual(designed.edit.design, {
+		palette: 'reel',
+		picture: 'corner',
+		look: presetLook('bold', null).design
+	})
 	// The frame is 9:16 (recorded at 1080 × 1920), the whole picture kept for the card.
 	assert.equal(designed.edit.transform.crop?.fit, true)
 	assert.deepEqual(exportSize({ width: 1920, height: 1080 }, designed.edit.transform), {
@@ -688,10 +693,15 @@ test('a reel of a meeting or a still screen is designed around the speech: the p
 		[[[0.25, 2.65]], [[8.75, 11.25]], [[13.75, 15.25]]]
 	)
 	// Hidden when the picture shows nothing to keep; the ad's colours for an ad.
-	assert.deepEqual(plan({ card: 'hidden' }).edit.design, { palette: 'reel', picture: 'hidden' })
+	assert.deepEqual(plan({ card: 'hidden' }).edit.design, {
+		palette: 'reel',
+		picture: 'hidden',
+		look: presetLook('bold', null).design
+	})
 	assert.deepEqual(plan({ style: 'ad', format: 'other' }, 'make this an ad').edit.design, {
 		palette: 'ad',
-		picture: 'corner'
+		picture: 'corner',
+		look: presetLook('bold', null).design
 	})
 	// Not for a picture that matters, nor a professional edit, nor a video with nothing said.
 	assert.equal(plan({ pictureMatters: true }).edit.design, null)
@@ -975,7 +985,7 @@ test('a follow-up asking for a length cuts the plan to it, fills most of it, and
 })
 
 test('what changed between two plans is listed in the plan card order, and nothing when nothing did', () => {
-	const make = (fields: Partial<MakeReply>) =>
+	const make = (fields: Partial<MakeReply>, followUps: string[] = []) =>
 		planMake({
 			reply: { ...REPLY, ...fields },
 			request: 'make this an Instagram reel',
@@ -984,33 +994,38 @@ test('what changed between two plans is listed in the plan card order, and nothi
 			transcript,
 			fillerCuts: [],
 			music: null,
-			musicAvailable: false
+			musicAvailable: false,
+			followUps
 		}).summary
 	const before = make({})
 	assert.deepEqual(planChanges(before, make({})), [])
-	// Sentence 4 out (so the dissolves at the joins change too), large
-	// captions, no zooms, a different title.
-	const after = make({
-		removeSentences: [3, 4],
-		captions: 'large',
-		zoomSentences: [],
-		keyLines: [],
-		title: 'Hello this is good'
-	})
+	// Sentence 4 out (so the transitions at the joins change too), a
+	// cinematic look (its captions), no key lines (so no zooms), a different title.
+	const after = make(
+		{
+			removeSentences: [3, 4],
+			zoomSentences: [],
+			keyLines: [],
+			title: 'Hello this is good'
+		},
+		['make it cinematic']
+	)
 	const changes = planChanges(before, after)
 	assert.deepEqual(
 		changes.map((change) => change.kind),
-		['length', 'sentences', 'captions', 'title', 'keyLines', 'zooms', 'transitions']
+		['look', 'length', 'sentences', 'captions', 'title', 'keyLines', 'zooms', 'transitions']
 	)
-	assert.deepEqual(changes[0], {
+	// The look first, as the plan card shows it.
+	assert.deepEqual(changes[0], { kind: 'look', from: 'bold', to: 'cinematic' })
+	assert.deepEqual(changes[1], {
 		kind: 'length',
 		from: Math.round(before.editedSeconds),
 		to: Math.round(after.editedSeconds)
 	})
-	assert.deepEqual(changes[1], { kind: 'sentences', from: 4, to: 3 })
-	assert.deepEqual(changes[2], { kind: 'captions', from: 'bold_words', to: 'large' })
+	assert.deepEqual(changes[2], { kind: 'sentences', from: 4, to: 3 })
+	assert.deepEqual(changes[3], { kind: 'captions', from: 'bold_words', to: 'classic' })
 	// The first plan's title named someone never said ("Sarah"): it had none.
-	assert.deepEqual(changes[3], { kind: 'title', from: null, to: 'Hello this is good' })
+	assert.deepEqual(changes[4], { kind: 'title', from: null, to: 'Hello this is good' })
 	// Lengths compare as the plan shows them: in whole seconds.
 	assert.deepEqual(
 		planChanges(before, { ...before, editedSeconds: before.editedSeconds + 0.2 }).filter(
@@ -1429,12 +1444,16 @@ test('a screen recording is the whole screen by default, designed with no pictur
 		assert.equal(rect.width, 1, why)
 		near(rect.y, -(rect.height - 1) / 2)
 		assert.deepEqual(plan.edit.autoZooms, [], why)
-		assert.equal(plan.summary.transition, 'none', why)
+		assert.notEqual(plan.summary.transition, 'zoom_cut', why)
 	}
 	/** Designed around what's said: no picture at all, never the corner card. */
 	const designed = (plan: ReturnType<typeof make>, why: string) => {
 		assert.deepEqual(plan.summary.screen, { treatment: 'designed', why }, why)
-		assert.deepEqual(plan.edit.design, { palette: plan.used.style, picture: 'hidden' }, why)
+		assert.deepEqual(
+			plan.edit.design,
+			{ palette: plan.used.style, picture: 'hidden', look: presetLook('bold', null).design },
+			why
+		)
 		assert.equal(plan.summary.card, 'hidden', why)
 		assert.equal(plan.summary.shape.how, 'designed', why)
 		assert.deepEqual(plan.edit.autoZooms, [], why)
@@ -1459,7 +1478,11 @@ test('a screen recording is the whole screen by default, designed with no pictur
 	whole(make('a reel', { treatment: 'designed' }, true), 'unchecked')
 	// Designed in its own shape too: a horizontal ad keeps no picture, uncropped.
 	const wideAd = make('make an ad from this', { shape: 'original', format: 'other', style: 'ad' })
-	assert.deepEqual(wideAd.edit.design, { palette: 'ad', picture: 'hidden' })
+	assert.deepEqual(wideAd.edit.design, {
+		palette: 'ad',
+		picture: 'hidden',
+		look: presetLook('bold', null).design
+	})
 	assert.equal(wideAd.edit.transform.crop, null)
 
 	// An unknown label is other: never designed, whatever the request.
@@ -1655,4 +1678,102 @@ test("the owner's third real reply: a brief part is the user's only in their own
 		[given.said.audience, given.said.show, given.said.lengthSeconds],
 		[true, true, true]
 	)
+})
+
+// The captions the user's own words asked about: Gemini's caption look is
+// kept (its mode and size), in the preset's colours and font; otherwise the
+// preset decides everything about them.
+const captionPlan = (captions: MakeReply['captions'], followUps: string[] = []) =>
+	planMake({
+		reply: { ...REPLY, captions },
+		request: 'make this an Instagram reel',
+		durationSeconds: DURATION,
+		picture: { width: 1920, height: 1080 },
+		transcript,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false,
+		followUps
+	})
+
+test('"make the captions bigger" keeps Gemini’s caption choice, in the look’s colours and font', () => {
+	const { edit, summary } = captionPlan('large', ['make the captions bigger'])
+	// Still Bold (a reel's look), but large captions in lines, as Gemini read the words.
+	assert.deepEqual(summary.look, { preset: 'bold', said: false })
+	assert.equal(summary.captions, 'large')
+	assert.equal(edit.captionMode, 'lines')
+	assert.deepEqual(edit.captionStyle, { ...presetLook('bold', null).captions.picture, size: 1.7 })
+	// "subtitles" is a caption word too; "captioned" inside another word is not.
+	assert.equal(captionPlan('large', ['bigger subtitles please']).edit.captionStyle.size, 1.7)
+	assert.equal(captionPlan('large', ['uncaptioned is fine']).edit.captionMode, 'words')
+})
+
+test('a request with no caption words lets the look decide the captions', () => {
+	const { edit, summary } = captionPlan('large', ['make it shorter'])
+	// Gemini said large; Bold's own captions are one word at a time, at its size.
+	assert.equal(summary.captions, 'bold_words')
+	assert.equal(edit.captionMode, 'words')
+	assert.deepEqual(edit.captionStyle, presetLook('bold', null).captions.picture)
+	// Off is kept either way: a request for none is the user's.
+	assert.equal(captionPlan('off').edit.captionsOn, false)
+	assert.equal(captionPlan('off', ['bigger captions']).edit.captionsOn, false)
+})
+
+test('"more cinematic" then "bigger captions": the look switch and the caption ask both hold', () => {
+	const { edit, summary } = captionPlan('large', ['more cinematic', 'bigger captions'])
+	assert.deepEqual(summary.look, { preset: 'cinematic', said: true })
+	assert.equal(summary.captions, 'large')
+	assert.equal(edit.captionMode, 'lines')
+	const cinematic = presetLook('cinematic', null)
+	assert.deepEqual(edit.captionStyle, { ...cinematic.captions.picture, size: 1.7 })
+	assert.equal(edit.captionStyle.font, 'serif')
+	assert.deepEqual(edit.color, cinematic.grade)
+	// The other order holds too: the caption ask stays after a later look switch.
+	const later = captionPlan('large', ['bigger captions', 'more cinematic'])
+	assert.deepEqual(later.edit.captionStyle, { ...cinematic.captions.picture, size: 1.7 })
+})
+
+const followedUp = (followUps: string[], fields: Partial<MakeReply> = {}) =>
+	planMake({
+		reply: { ...REPLY, ...fields },
+		request: 'make this an Instagram reel',
+		durationSeconds: DURATION,
+		picture: { width: 1920, height: 1080 },
+		transcript,
+		fillerCuts: [],
+		music: null,
+		musicAvailable: false,
+		followUps
+	}).summary
+
+test('a follow-up that only switches the look lists the look alone, so it can be applied', () => {
+	const before = followedUp([])
+	// Bold to Cinematic with the captions asked to stay as they were: only the look changes.
+	const changes = planChanges(before, {
+		...followedUp(['more cinematic']),
+		captions: before.captions,
+		transitions: before.transitions,
+		editedSeconds: before.editedSeconds
+	})
+	assert.deepEqual(changes, [{ kind: 'look', from: 'bold', to: 'cinematic' }])
+	// Clean to Cinematic, end to end: both a line or two at a time, so only the look (and the
+	// transitions' length it sets) changes, never nothing.
+	const clean = followedUp(['make it clean'])
+	const cinematic = followedUp(['make it clean', 'now more cinematic'])
+	assert.equal(clean.captions, cinematic.captions)
+	assert.deepEqual(planChanges(clean, cinematic)[0], {
+		kind: 'look',
+		from: 'clean',
+		to: 'cinematic'
+	})
+})
+
+test('a follow-up that changes nothing still lists nothing; one that changes the look and more lists both', () => {
+	const before = followedUp([])
+	// No look named, nothing else different: nothing would change.
+	assert.deepEqual(planChanges(before, followedUp(['add stock footage of a city'])), [])
+	// The look and the sentences: both, the look first.
+	const both = planChanges(before, followedUp(['more cinematic'], { removeSentences: [3, 4] }))
+	assert.deepEqual(both[0], { kind: 'look', from: 'bold', to: 'cinematic' })
+	assert.ok(both.some((change) => change.kind === 'sentences'))
 })

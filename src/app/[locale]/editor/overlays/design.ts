@@ -14,8 +14,21 @@ import type { Size } from '../model/transform'
 export const DESIGN_PALETTES = ['reel', 'professional', 'funny', 'ad'] as const
 export type DesignPalette = (typeof DESIGN_PALETTES)[number]
 
+/**
+ * A Make it look's own background, in place of the named palette's: its
+ * colours (built around the video's), and how the bar and the wave show.
+ */
+export type DesignLook = {
+	from: string
+	to: string
+	shape: string
+	accent: string
+	bar: 'thin' | 'thick'
+	wave: boolean
+}
+
 /** The design: its colours, and whether the original picture shows as a corner card or not at all. */
-export type Design = { palette: DesignPalette; picture: 'corner' | 'hidden' }
+export type Design = { palette: DesignPalette; picture: 'corner' | 'hidden'; look?: DesignLook }
 
 /** What drawing it needs besides the design: how long the edit is, for the progress bar. */
 export type DesignedFrame = Design & { totalSeconds: number }
@@ -66,8 +79,20 @@ export function wordPop(start: number, seconds: number): number {
 	return 1 + POP_SCALE * (1 - (into - POP_RISE_SECONDS) / POP_SECONDS)
 }
 
+/** How many soft shapes drift over the background, and how opaque each is at its middle (hex). */
+const SHAPES = 3
+const SHAPE_ALPHA_HEX = '66'
+/**
+ * The most a point of the background is covered by the shapes' colour:
+ * every shape's middle on it at once. Text over a designed background is
+ * checked against the background mixed with the shapes this much.
+ */
+export const MAX_SHAPE_COVER = 1 - (1 - Number.parseInt(SHAPE_ALPHA_HEX, 16) / 255) ** SHAPES
+
 /** The progress bar along the bottom and the wave at the lower right, as fractions of the frame. */
 const BAR = { x: 0.06, y: 0.955, width: 0.88, height: 0.008 }
+/** A look's thick bar: this many times the thin one's height. */
+const THICK_BAR = 2.2
 const WAVE = { x: 0.62, y: 0.84, width: 0.3, height: 0.05, bars: 7 }
 
 /** Each wave bar's height (0 to 1) at `seconds`: moving while someone speaks, low and still otherwise. */
@@ -103,7 +128,8 @@ export function drawDesign(
 	speaking: boolean
 ) {
 	const { width, height } = context.canvas
-	const colours = PALETTES[designed.palette]
+	const colours = designed.look ?? PALETTES[designed.palette]
+	const bar = { ...BAR, height: BAR.height * (designed.look?.bar === 'thick' ? THICK_BAR : 1) }
 	context.save()
 	context.setTransform(1, 0, 0, 1, 0, 0)
 	const angle = seconds * 0.15
@@ -120,12 +146,12 @@ export function drawDesign(
 	context.fillStyle = gradient
 	context.fillRect(0, 0, width, height)
 	// Three soft shapes, each drifting on its own slow loop.
-	for (let i = 0; i < 3; i++) {
+	for (let i = 0; i < SHAPES; i++) {
 		const x = width * (0.5 + 0.35 * Math.sin(seconds * 0.23 + i * 2.1))
 		const y = height * (0.5 + 0.35 * Math.cos(seconds * 0.17 + i * 1.7))
 		const radius = width * (0.35 + 0.1 * i)
 		const shape = context.createRadialGradient(x, y, 0, x, y, radius)
-		shape.addColorStop(0, `${colours.shape}66`)
+		shape.addColorStop(0, `${colours.shape}${SHAPE_ALPHA_HEX}`)
 		shape.addColorStop(1, `${colours.shape}00`)
 		context.fillStyle = shape
 		context.fillRect(0, 0, width, height)
@@ -135,23 +161,27 @@ export function drawDesign(
 	context.fillStyle = 'rgba(255, 255, 255, 0.25)'
 	roundedRect(
 		context,
-		BAR.x * width,
-		BAR.y * height,
-		BAR.width * width,
-		BAR.height * height,
+		bar.x * width,
+		bar.y * height,
+		bar.width * width,
+		bar.height * height,
 		height
 	)
 	context.fill()
 	context.fillStyle = colours.accent
 	roundedRect(
 		context,
-		BAR.x * width,
-		BAR.y * height,
-		BAR.width * width * progress,
-		BAR.height * height,
+		bar.x * width,
+		bar.y * height,
+		bar.width * width * progress,
+		bar.height * height,
 		height
 	)
 	context.fill()
+	if (designed.look?.wave === false) {
+		context.restore()
+		return
+	}
 	// The wave: bars from the middle line, up and down.
 	const step = (WAVE.width * width) / WAVE.bars
 	for (const [i, level] of waveHeights(seconds, speaking).entries()) {

@@ -27,6 +27,7 @@ import {
 	type MakeInput,
 	type MakeReply
 } from './make-plan'
+import { presetLook } from './make-presets'
 
 // Each step planMake takes, on its own: small inputs, and the decision it makes.
 
@@ -100,9 +101,13 @@ test('planContext: the user’s words include follow-ups; a screen gets no zoom 
 	assert.deepEqual(context.said, ['a promo', 'text only'])
 	assert.equal(context.promo, true)
 	assert.equal(context.screen, true)
-	assert.equal(context.transition, 'none')
+	// The transition is the look's: Playful's zoom cut, but never on a screen.
+	assert.equal(
+		planContext(input({ subject: 'screen' }, { request: 'a playful promo' })).transition,
+		'none'
+	)
 	assert.equal(context.known.endsWith(' a promo'), true)
-	assert.equal(planContext(input({ transition: 'zoom_cut' })).transition, 'zoom_cut')
+	assert.equal(planContext(input({}, { request: 'a playful one' })).transition, 'zoom_cut')
 	const silent = planContext(input({}, { transcript: null }))
 	assert.equal(silent.pictureMatters, true)
 	assert.equal(silent.hasWords, false)
@@ -257,7 +262,11 @@ test('shapeAndFit: a screen is never zoomed; a designed one shows no picture; on
 	assert.equal(screen.shape.fit, 'bars')
 	// Designed: the palette, no picture, the shape fitted.
 	const designed = shapeAndFit(context({ subject: 'screen', style: 'ad' }), false, 'designed')
-	assert.deepEqual(designed.design, { palette: 'ad', picture: 'hidden' })
+	assert.deepEqual(designed.design, {
+		palette: 'ad',
+		picture: 'hidden',
+		look: presetLook('bold', null).design
+	})
 	assert.equal(designed.shape.how, 'designed')
 	// One person, a face in every frame: a reel follows it.
 	const faces = frameTimes(20).map((_, i) => ({ frame: i + 1, x: 500, y: 300 }))
@@ -287,23 +296,37 @@ test('shapeAndFit: a screen is never zoomed; a designed one shows no picture; on
 		true,
 		null
 	)
-	assert.deepEqual(meeting.design, { palette: 'reel', picture: 'corner' })
+	assert.deepEqual(meeting.design, {
+		palette: 'reel',
+		picture: 'corner',
+		look: presetLook('bold', null).design
+	})
 	// Already the shape, or kept as it is.
 	assert.equal(shapeAndFit(context({ shape: 'horizontal' }), false, null).shape.how, 'matches')
 	assert.equal(shapeAndFit(context({ shape: 'original' }), false, null).shape.how, 'kept')
 })
 
-test('planZooms: zoom cuts at the joins, zooms on named sentences, none on a screen or a design', () => {
-	const context = planContext(input({ zoomSentences: [2, 4, 4, 99], style: 'funny' }))
+test('planZooms: zoom cuts at the joins, zooms on key words, none on a screen or a design', () => {
+	const context = planContext(
+		input({
+			keyLines: [
+				{ sentence: 2, text: 'Step2' },
+				{ sentence: 4, text: 'Step4' },
+				{ sentence: 99, text: 'Step99' }
+			],
+			style: 'funny'
+		})
+	)
 	const cut = cutEdit(context, [])
 	const starts = editedStarts(cut.segments)
 	const zooms = planZooms(context, cut, starts, null, 'centred')
 	// Nothing is cut, so sentences 2 and 4 play where they were said; 99 doesn't exist.
+	// Playful (a funny video's look) pushes in at 1.35.
 	assert.deepEqual(
 		zooms.map((zoom) => [zoom.startSeconds, zoom.direction, zoom.amount]),
 		[
-			[3.5, 'in', 1.4],
-			[10.5, 'in', 1.4]
+			[3.5, 'in', 1.35],
+			[10.5, 'in', 1.35]
 		]
 	)
 	assert.deepEqual(planZooms({ ...context, screen: true }, cut, starts, null, 'centred'), [])
@@ -336,7 +359,7 @@ test('planTitle: never with a name nobody said; bigger in a designed frame, at t
 	const known = 'hello this is sarah'
 	const make = (title: string, design = false, tall = false) =>
 		planTitle(
-			{ reply: { ...REPLY, title }, known },
+			{ reply: { ...REPLY, title }, known, look: presetLook('clean', null) },
 			30,
 			design ? { palette: 'reel', picture: 'hidden' } : null,
 			tall
@@ -348,10 +371,13 @@ test('planTitle: never with a name nobody said; bigger in a designed frame, at t
 	assert.deepEqual(plain?.at, { x: 0.5, y: 0.4 })
 	assert.deepEqual(make('Meet Sarah', false, true).title?.at, { x: 0.5, y: 0.18 })
 	assert.ok((make('Meet Sarah', true).title?.style?.size ?? 0) > (plain?.style?.size ?? 0))
-	assert.deepEqual(planTitle({ reply: REPLY, known }, 30, null, false), {
-		title: null,
-		titleDropped: false
-	})
+	assert.deepEqual(
+		planTitle({ reply: REPLY, known, look: presetLook('clean', null) }, 30, null, false),
+		{
+			title: null,
+			titleDropped: false
+		}
+	)
 })
 
 test('keyLineTitles: only quoted words, after the title, never two at once, at most four', () => {
@@ -390,7 +416,7 @@ test('withCallToAction: said words only, over the end, key lines it meets left o
 	})
 	const known = 'follow me for more'
 	const made = withCallToAction(
-		{ reply: reply('Follow me for more'), known },
+		{ reply: reply('Follow me for more'), known, look: presetLook('clean', null) },
 		[line('late', 27), line('early', 10), line('middle', 20)],
 		30,
 		null
@@ -405,7 +431,7 @@ test('withCallToAction: said words only, over the end, key lines it meets left o
 		]
 	)
 	const invented = withCallToAction(
-		{ reply: reply('Visit Acme'), known },
+		{ reply: reply('Visit Acme'), known, look: presetLook('clean', null) },
 		[line('b', 15), line('a', 5)],
 		30,
 		null
@@ -418,17 +444,20 @@ test('withCallToAction: said words only, over the end, key lines it meets left o
 	)
 })
 
-test('captionSettings: the look asked for, or off with no words', () => {
-	assert.deepEqual(
-		captionSettings({ captions: 'large', style: 'reel' }, true).captionStyle.size,
-		1.7
+test('captionSettings: the look’s captions, or off with no words or when the reply has none', () => {
+	const bold = presetLook('bold', null)
+	assert.deepEqual(captionSettings(bold, { captions: 'large' }, true, false).captionStyle.size, 1.8)
+	assert.equal(captionSettings(bold, { captions: 'classic' }, true, false).captionMode, 'words')
+	const cinematic = captionSettings(
+		presetLook('cinematic', null),
+		{ captions: 'large' },
+		true,
+		false
 	)
-	assert.equal(
-		captionSettings({ captions: 'bold_words', style: 'reel' }, true).captionMode,
-		'words'
-	)
-	const off = captionSettings({ captions: 'large', style: 'reel' }, false)
+	assert.deepEqual([cinematic.captionMode, cinematic.captionStyle.font], ['lines', 'serif'])
+	const off = captionSettings(bold, { captions: 'large' }, false, false)
 	assert.deepEqual([off.captions, off.captionsOn, off.captionMode], ['off', false, 'lines'])
+	assert.equal(captionSettings(bold, { captions: 'off' }, true, false).captionsOn, false)
 })
 
 test('planSummary: a brief part is the user’s only in their own words; counts leave out the extras', () => {
@@ -444,10 +473,10 @@ test('planSummary: a brief part is the user’s only in their own words; counts 
 				},
 				transition: 'zoom_cut'
 			},
-			{ request: 'a promo for new users' }
+			{ request: 'a playful promo for new users' }
 		)
 	)
-	const limits = lengthLimits(context.reply, 'a promo for new users')
+	const limits = lengthLimits(context.reply, 'a playful promo for new users')
 	const fitted = fitToLimit(context, limits, null)
 	const made = { ...fitted, lengthened: false }
 	const zoom = { startSeconds: 0, endSeconds: 1, direction: 'in' as const, amount: 1.2 }

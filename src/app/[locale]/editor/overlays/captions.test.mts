@@ -135,3 +135,42 @@ test('highlighted captions keep their lines and say which word is being said', (
 	assert.equal(highlightColor('#ffffff'), '#ffd400')
 	assert.equal(highlightColor('#FFD400'), '#ffffff')
 })
+
+test('word by word never leaves a blank inside a spoken line: each word holds until the next starts', () => {
+	// Two spoken lines: words with short gaps between them (one a sentence end), then a long
+	// pause, then the second line.
+	const spoken = [
+		word('This', 0.2, 0.4),
+		word('is', 0.55, 0.7),
+		word('the', 0.75, 0.9),
+		word('key', 1.3, 1.6),
+		word('point.', 1.65, 2.1),
+		word('And', 2.5, 2.7),
+		word('more', 2.75, 3.0),
+		word('Later', 4.5, 4.9),
+		word('on.', 5.0, 5.4)
+	]
+	const byWord = editedCaptions(spoken, whole(10), 'words')
+	const byLine = editedCaptions(spoken, whole(10), 'lines')
+	// Within each spoken line, one word's caption ends exactly where the next one's starts.
+	for (const line of byLine) {
+		const inLine = byWord.filter(
+			(c) => c.startSeconds >= line.startSeconds - 1e-9 && c.startSeconds < line.endSeconds
+		)
+		for (let i = 0; i + 1 < inLine.length; i++) {
+			assert.equal(inLine[i]?.endSeconds, inLine[i + 1]?.startSeconds, inLine[i]?.lines[0])
+		}
+		// Every moment of the line shows a word.
+		for (let t = line.startSeconds; t < line.endSeconds; t += 0.05) {
+			assert.ok(
+				captionAt(byWord, t),
+				`a blank at ${t.toFixed(2)} s inside "${line.lines.join(' ')}"`
+			)
+		}
+	}
+	// Held across a short pause between sentences too ("point." until "And").
+	assert.equal(captionAt(byWord, 2.3)?.lines[0], 'point.')
+	// Only a long pause, between spoken lines, shows nothing.
+	assert.equal(captionAt(byWord, 3.5), undefined)
+	assert.equal(captionAt(byWord, 4.6)?.lines[0], 'Later')
+})
