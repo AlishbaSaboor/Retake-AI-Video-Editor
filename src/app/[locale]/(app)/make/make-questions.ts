@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { MakeReply } from './make-plan'
+import { PRESETS, presetNamed, type Preset } from './make-presets'
 
 // Make it's quick questions: fixed choices on one screen before the plan,
 // costing no AI call. Code decides which to ask from the request's own
@@ -22,15 +23,16 @@ export const MAKE_LENGTHS = ['15', '30', '60'] as const
 export type MakeLength = (typeof MAKE_LENGTHS)[number]
 /** An ad's length when it's left to "You decide": short, as ads run. */
 export const DEFAULT_AD_SECONDS = 30
-/** A reel's sound: question 4, shown once music is built. */
+/** A reel's sound: question 5, shown once music is built. */
 export const VOICE_CHOICES = ['voice', 'music_only', 'both'] as const
-/** The music's genre or mood: question 5, shown once music is built. */
+/** The music's genre or mood: question 6, shown once music is built. */
 export const MUSIC_MOODS = ['calm', 'upbeat', 'hip_hop', 'cinematic', 'none'] as const
 
 export const QUESTION_IDS = [
 	'kind',
 	'adShape',
 	'length',
+	'style',
 	'voice',
 	'music',
 	'tone',
@@ -45,11 +47,20 @@ export const QUESTIONS: ReadonlyArray<{ id: QuestionId; built: boolean }> = [
 	{ id: 'kind', built: true },
 	{ id: 'adShape', built: true },
 	{ id: 'length', built: true },
+	{ id: 'style', built: true },
 	{ id: 'voice', built: false },
 	{ id: 'music', built: false },
 	{ id: 'tone', built: true },
 	{ id: 'callToAction', built: true }
 ]
+
+/**
+ * At most this many questions show at once. Only an ad with nothing named
+ * would reach six; then the tone question is left out (it overlaps most with
+ * the look, and Gemini reads it from the video). A tone in the user's own
+ * words still counts as theirs.
+ */
+export const MAX_QUESTIONS = 5
 
 const choiceText = z.string().trim().max(MAX_BRIEF_PART_LENGTH).nullable()
 
@@ -58,6 +69,7 @@ export const makeChoicesSchema = z.object({
 	kind: z.enum(MAKE_KINDS).nullable(),
 	adShape: z.enum(AD_SHAPES).nullable(),
 	length: z.enum(MAKE_LENGTHS).nullable().default(null),
+	style: z.enum(PRESETS).nullable().default(null),
 	voice: z.enum(VOICE_CHOICES).nullable(),
 	music: z.enum(MUSIC_MOODS).nullable(),
 	tone: choiceText,
@@ -71,6 +83,7 @@ export const decideAll = (asked: QuestionId[]): MakeChoices => ({
 	kind: null,
 	adShape: null,
 	length: null,
+	style: null,
 	voice: null,
 	music: null,
 	tone: null,
@@ -114,7 +127,8 @@ export const namesLengthChange = (text: string) => LENGTH_CHANGE.test(text)
 /**
  * The questions to show for a request, in order, given what's been picked
  * so far (an ad's shape is asked once it's an ad): only what the request
- * doesn't already say, and only questions whose feature is built.
+ * doesn't already say, and only questions whose feature is built; never
+ * more than MAX_QUESTIONS.
  */
 export function questionsToAsk(
 	request: string,
@@ -127,12 +141,15 @@ export function questionsToAsk(
 		// A reel, TikTok or Short is always vertical; a shape or platform named answers it.
 		adShape: ad && !namesShortVideo(request) && !namesShape(request),
 		length: !namesLength(request),
+		style: presetNamed(request) === null,
 		voice: short,
 		music: !namesMusic(request),
 		tone: !namesTone(request),
 		callToAction: !namesCallToAction(request)
 	}
-	return QUESTIONS.filter(({ id, built }) => built && ask[id]).map(({ id }) => id)
+	const asked = QUESTIONS.filter(({ id, built }) => built && ask[id]).map(({ id }) => id)
+	// When six would show, leave out tone.
+	return asked.length > MAX_QUESTIONS ? asked.filter((id) => id !== 'tone') : asked
 }
 
 const KIND_WORDS: Record<MakeKind, string> = {
@@ -141,6 +158,12 @@ const KIND_WORDS: Record<MakeKind, string> = {
 	youtube_shorts: 'YouTube Shorts.',
 	ad: 'An ad.',
 	other: 'Another kind of video.'
+}
+const STYLE_WORDS: Record<Preset, string> = {
+	clean: 'A clean look.',
+	bold: 'A bold look.',
+	cinematic: 'A cinematic look.',
+	playful: 'A playful look.'
 }
 const SHAPE_WORDS: Record<AdShape, string> = {
 	vertical: 'Vertical.',
@@ -159,6 +182,7 @@ export function choiceWords(choices: MakeChoices | null | undefined): string[] {
 		...(choices.kind ? [KIND_WORDS[choices.kind]] : []),
 		...(choices.adShape ? [SHAPE_WORDS[choices.adShape]] : []),
 		...(choices.length ? [`At most ${choices.length} seconds.`] : []),
+		...(choices.style ? [STYLE_WORDS[choices.style]] : []),
 		...(choices.tone ? [`Tone: ${choices.tone}.`] : []),
 		...(choices.callToAction ? [`Call to action: ${choices.callToAction}.`] : [])
 	]

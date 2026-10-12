@@ -14,6 +14,7 @@ import {
 import {
 	crossfadeGains,
 	overlapsClips,
+	easeInOut,
 	slideOffset,
 	transitionGainAt
 } from '../../model/transitions'
@@ -378,7 +379,8 @@ export function useSequencePlayback(
 			const progress = into / next.transition.seconds
 			// A slide comes in whole, from the right; a dissolve blends in.
 			const slide = next.transition.kind === 'slide'
-			deck.style.opacity = slide ? '1' : String(Math.min(1, progress))
+			const eased = next.transition.eased ? easeInOut(progress) : progress
+			deck.style.opacity = slide ? '1' : String(Math.min(1, eased))
 			deck.style.transform = slide ? `translateX(${slideOffset(progress) * PERCENT}%)` : ''
 			deck.volume = Math.min(1, crossfadeGains(progress).in)
 		}
