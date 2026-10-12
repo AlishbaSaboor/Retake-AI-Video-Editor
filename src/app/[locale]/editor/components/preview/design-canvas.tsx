@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { drawDesign, type DesignPalette } from '../../overlays/design'
+import { drawDesign, type DesignLook, type DesignPalette } from '../../overlays/design'
 
 /**
  * A designed frame's background in the preview: a canvas over the whole
@@ -10,11 +10,14 @@ import { drawDesign, type DesignPalette } from '../../overlays/design'
  */
 export function DesignCanvas({
 	palette,
+	look,
 	totalSeconds,
 	seconds,
 	speaking
 }: {
 	palette: DesignPalette
+	/** A Make it look's own colours and decoration, over the named palette's. */
+	look?: DesignLook
 	totalSeconds: number
 	seconds: number
 	speaking: boolean
@@ -30,9 +33,14 @@ export function DesignCanvas({
 		if (canvas.height !== height) canvas.height = height
 		const context = canvas.getContext('2d')
 		if (context) {
-			drawDesign(context, { palette, picture: 'corner', totalSeconds }, seconds, speaking)
+			drawDesign(
+				context,
+				{ palette, picture: 'corner', totalSeconds, ...(look && { look }) },
+				seconds,
+				speaking
+			)
 		}
-	}, [palette, totalSeconds, seconds, speaking])
+	}, [palette, look, totalSeconds, seconds, speaking])
 	return (
 		<canvas
 			ref={ref}

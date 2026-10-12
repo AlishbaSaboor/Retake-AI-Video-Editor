@@ -29,11 +29,20 @@ export function slideOffset(progress: number): number {
 	return (1 - p) ** 3
 }
 
-/** The join into a clip from the clip `after` names. */
-export type Transition = { kind: TransitionKind; seconds: number; after: string }
+/**
+ * The join into a clip from the clip `after` names. `eased` (Make it's
+ * looks) eases a fade or dissolve in and out; without it they run evenly.
+ */
+export type Transition = { kind: TransitionKind; seconds: number; after: string; eased?: boolean }
 
 /** What a segment carries: the transition into it, at the length it really plays. */
-export type SegmentTransition = { kind: TransitionKind; seconds: number }
+export type SegmentTransition = { kind: TransitionKind; seconds: number; eased?: boolean }
+
+/** Slow in and out: 0 to 1, flat at both ends. */
+export const easeInOut = (p: number) => {
+	const t = Math.min(1, Math.max(0, p))
+	return t * t * (3 - 2 * t)
+}
 
 export const MIN_TRANSITION_SECONDS = 0.1
 export const MAX_TRANSITION_SECONDS = 3
@@ -51,7 +60,13 @@ export function transitionLimit(beforeSeconds: number, afterSeconds: number): nu
 }
 
 /** A transition in the edited video: into segment `index`, which starts at `at`. */
-export type Join = { kind: TransitionKind; seconds: number; index: number; at: number }
+export type Join = {
+	kind: TransitionKind
+	seconds: number
+	index: number
+	at: number
+	eased?: boolean
+}
 
 /**
  * How much of the picture and sound comes through the fades at edited time
@@ -63,7 +78,7 @@ export function fadeLevelAt(joins: Join[], seconds: number): number {
 		if (join.kind !== 'fade') continue
 		const half = join.seconds / 2
 		const from = Math.abs(seconds - join.at)
-		if (from < half) level = Math.min(level, from / half)
+		if (from < half) level = Math.min(level, join.eased ? easeInOut(from / half) : from / half)
 	}
 	return level
 }
@@ -76,7 +91,9 @@ export function dissolveAt(
 	const join = joins.find(
 		(j) => overlapsClips(j.kind) && seconds >= j.at && seconds < j.at + j.seconds
 	)
-	return join ? { join, progress: (seconds - join.at) / join.seconds } : null
+	if (!join) return null
+	const progress = (seconds - join.at) / join.seconds
+	return { join, progress: join.eased ? easeInOut(progress) : progress }
 }
 
 /**

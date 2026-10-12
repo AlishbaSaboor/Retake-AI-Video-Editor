@@ -142,6 +142,8 @@ export function FollowUpAnswer({
 		switch (change.kind) {
 			case 'length':
 				return t('changes.length', { from: lengthText(change.from), to: lengthText(change.to) })
+			case 'look':
+				return t('changes.look', { from: t(`look.${change.from}`), to: t(`look.${change.to}`) })
 			case 'captions':
 				return t('changes.captions', {
 					from: t(`captions.${change.from}`),

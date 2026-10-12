@@ -90,7 +90,10 @@ test('Home offers Make it: the video and what it should become go on to the Make
 test('a reel is planned, shown, applied as one undo step, and exported vertical following the face', async ({
 	page
 }) => {
-	const seen = await mockMakeActions(page, WORDS, [reply()])
+	// A key line on sentence 2: its key words are where the zoom goes.
+	const seen = await mockMakeActions(page, WORDS, [
+		reply({ keyLines: [{ sentence: 2, text: 'the key point' }] })
+	])
 	await startMaking(page, 'make this an Instagram reel')
 
 	await expect(plan(page)).toBeVisible({ timeout: 60_000 })
@@ -486,15 +489,16 @@ test('a request that fails on the server shows a plain message, never the error 
 	)
 })
 
-test('the second check fixes the plan before it shows: its title and key line come in word by word', async ({
-	page
-}) => {
-	const seen = await mockMakeActions(
+/**
+ * A plan that names someone never mentioned and has no key line, and a
+ * second check that fixes both. A screen recording: the whole picture
+ * fitted, 180 × 320, so the captions are large enough to measure in the
+ * export, on black.
+ */
+const mockCheckThatFixes = (page: Page) =>
+	mockMakeActions(
 		page,
 		WORDS,
-		// The plan names someone never mentioned and has no key line; the check fixes both.
-		// A screen recording: the whole picture fitted, 180 × 320, so the
-		// captions are large enough to measure in the export, on black.
 		[
 			reply({
 				title: 'Meet Jordan',
@@ -519,25 +523,35 @@ test('the second check fixes the plan before it shows: its title and key line co
 			}
 		]
 	)
-	await startMaking(page, 'make this an Instagram reel')
+
+/** The plan card says the check fixed the plan, and what it fixed; the check read the plan as made. */
+async function expectCheckFixed(page: Page, seen: { checks: string[] }) {
 	await expect(plan(page)).toContainText('Checked against your request, and fixed:', {
 		timeout: 60_000
 	})
 	await expect(plan(page)).toContainText('The title named someone who is never mentioned.')
 	await expect(plan(page)).toContainText('Title at the start: “This is the key point”')
-	await expect(plan(page)).toContainText('Captions with the word being said highlighted')
 	// The check read the plan as made: its title, what it made, how long.
 	expect(seen.checks).toHaveLength(1)
 	// It had already lost its title (Jordan was never mentioned): the check put one back.
 	expect(seen.checks[0]).toContain('Title: none')
 	expect(seen.checks[0]).toContain('Making: instagram_reel')
+}
+
+test('the second check fixes the plan before it shows: Cinematic, its title comes in word by word', async ({
+	page
+}) => {
+	const seen = await mockCheckThatFixes(page)
+	// Cinematic: a title that comes in word by word (the look sets it, not the check).
+	await startMaking(page, 'make this a cinematic Instagram reel')
+	await expectCheckFixed(page, seen)
+	// The look's captions, a line or two at a time (the check's highlight is not the user's words).
+	await expect(plan(page)).toContainText('Captions, a line or two at a time')
 
 	await applyAndEditManually(page)
 	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
 		timeout: 30_000
 	})
-	// The key line (after the title: never two at once) is on the Text lane, beside the title.
-	await expect(page.getByRole('button', { name: 'Bye', exact: true })).toBeVisible()
 	// At the start, the title's words haven't come in yet, each one its own.
 	const words = page.locator('[data-title-text] > span > span')
 	await expect(words).toHaveCount(5)
@@ -549,8 +563,7 @@ test('the second check fixes the plan before it shows: its title and key line co
 
 	// The export (the 320 × 180 video fitted to 9:16 with black bars). At
 	// 0.1 s the title (near the top) has barely begun to come in; by 2.5 s it
-	// is all there, and a word of "This is the key point." is being said:
-	// highlighted yellow at the bottom (yellowish, as the encoder blurs it).
+	// is all there, and "This is the key point." is captioned at the bottom.
 	const bytes = await exportVideo(page)
 	const { frames } = await readExportFrames(
 		page,
@@ -575,10 +588,10 @@ test('the second check fixes the plan before it shows: its title and key line co
 					Math.round(height * 0.28),
 					(r, g, b) => r > 220 && g > 220 && b > 220
 				),
-				captionYellow: count(
+				captionWhite: count(
 					Math.round(height * 0.6),
 					height,
-					(r, g, b) => r > 170 && g > 140 && r - b > 90
+					(r, g, b) => r > 200 && g > 200 && b > 200
 				)
 			}
 		}
@@ -588,7 +601,26 @@ test('the second check fixes the plan before it shows: its title and key line co
 	expect(start?.titleWhite ?? 0, `the title at ${start?.shown} s`).toBeLessThan(
 		(later?.titleWhite ?? 0) / 2
 	)
-	expect(later?.captionYellow, 'the word being said, highlighted').toBeGreaterThan(5)
+	expect(later?.captionWhite, 'the line being said, captioned').toBeGreaterThan(5)
+})
+
+test('the second check fixes the plan before it shows: Bold by default, its title and key line applied', async ({
+	page
+}) => {
+	const seen = await mockCheckThatFixes(page)
+	// No look named: a reel's own, Bold, whose pacing leaves room for the check's key line.
+	await startMaking(page, 'make this an Instagram reel')
+	await expectCheckFixed(page, seen)
+	await expect(plan(page)).toContainText('Captions, one big word at a time')
+
+	await applyAndEditManually(page)
+	await expect(page.getByRole('slider', { name: 'Playhead position' })).toBeVisible({
+		timeout: 30_000
+	})
+	// The key line (after the title: never two at once) is on the Text lane, beside the title.
+	await expect(page.getByRole('button', { name: 'Bye', exact: true })).toBeVisible()
+	await seekTo(page, 1.5)
+	await expect(page.locator('[data-title-text]')).toHaveText('This is the key point')
 })
 
 test("the plan's summary shows whole, with the edit's real length; a check's too short is shown", async ({
@@ -871,7 +903,8 @@ test('Edit manually on the plan opens the full editor with the plan applied', as
 test('a follow-up in the chat changes the plan: questions first, what changed, Cancel, Apply, Undo, and what it cannot do', async ({
 	page
 }) => {
-	const first = reply()
+	// A key line on sentence 2: the zoom on its key words.
+	const first = reply({ keyLines: [{ sentence: 2, text: 'the key point' }] })
 	// Shorter: sentence 2 (the long one) out, large captions; the zoom on it goes too.
 	const shorter = { ...first, removeSentences: [2], captions: 'large' as const, maxSeconds: null }
 	const seen = await mockMakeActions(
@@ -901,6 +934,9 @@ test('a follow-up in the chat changes the plan: questions first, what changed, C
 	const box = chat.getByRole('textbox', { name: 'Edit command' })
 	await expect(box).toHaveAttribute('placeholder', 'Try "make it shorter"')
 	await chat.getByRole('button', { name: 'Make it shorter' }).click()
+	// The caption change is the user's own ask: their words name the captions.
+	await box.press('End')
+	await box.pressSequentially(' and make the captions bigger')
 	await chat.getByRole('button', { name: 'Run' }).click()
 
 	// Unclear: a question first, nothing planned.
@@ -919,7 +955,7 @@ test('a follow-up in the chat changes the plan: questions first, what changed, C
 	// The follow-up sent the plan, the transcript and the answer; not the pictures again.
 	expect(seen.followUps).toHaveLength(2)
 	const asked = seen.followUps[1] ?? ''
-	expect(asked).toContain('"followUp":"Make it shorter"')
+	expect(asked).toContain('"followUp":"Make it shorter and make the captions bigger"')
 	expect(asked).toContain('"answer":"The long middle sentence"')
 	expect(asked).toContain('"captions":"bold_words"')
 	expect(asked).toContain('"text":"This is the key point."')
@@ -1443,8 +1479,11 @@ test("a designed promo's text never overlaps, in every shape: popping words make
 		await page
 			.getByLabel('Video to make into something')
 			.setInputFiles({ name: 'screen.webm', mimeType: 'video/webm', buffer: video })
-		await page.getByRole('textbox', { name: 'What should it become?' }).fill('make a promo ad')
-		await submitMake(page, 'make a promo ad')
+		// Clean: captions in lines, each word popping (Bold's one word at a time has no line to pop in).
+		await page
+			.getByRole('textbox', { name: 'What should it become?' })
+			.fill('make a clean promo ad')
+		await submitMake(page, 'make a clean promo ad')
 		await expect(plan(page)).toContainText('designed around what’s said', { timeout: 60_000 })
 		await applyAndEditManually(page)
 		await expect(page.getByRole('button', { name: 'Export video' })).toBeEnabled({

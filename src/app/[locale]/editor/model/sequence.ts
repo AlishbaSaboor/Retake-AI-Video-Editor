@@ -430,7 +430,14 @@ export function playableSegments<R extends Replacement>(
 				: transitionLimit(segmentSeconds(before), segmentSeconds(first))
 		const seconds = Math.min(transition.seconds, limit)
 		if (seconds >= MIN_TRANSITION_SECONDS) {
-			segments[0] = { ...first, transition: { kind: transition.kind, seconds } }
+			segments[0] = {
+				...first,
+				transition: {
+					kind: transition.kind,
+					seconds,
+					...(transition.eased && { eased: true })
+				}
+			}
 		}
 	}
 	return byClip.flat()

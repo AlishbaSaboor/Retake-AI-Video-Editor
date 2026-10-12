@@ -26,7 +26,8 @@ export type CaptionMode = (typeof CAPTION_MODES)[number]
 
 /** The word being spoken, picked out in highlighted captions: yellow, or white when the text already is. */
 const HIGHLIGHT_COLOR = '#ffd400'
-export function highlightColor(textColor: string): string {
+export function highlightColor(textColor: string, chosen?: string): string {
+	if (chosen) return chosen
 	return textColor.toLowerCase() === HIGHLIGHT_COLOR ? '#ffffff' : HIGHLIGHT_COLOR
 }
 
