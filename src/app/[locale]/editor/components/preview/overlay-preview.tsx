@@ -38,6 +38,8 @@ import type { TitleCard } from '../../overlays/overlays'
 import {
 	bandColor,
 	bandOpacity,
+	textShadow,
+	wordColour,
 	canvasFont,
 	DEFAULT_TEXT_STYLE,
 	fontFamily,
@@ -140,6 +142,7 @@ function TitlePreview({
 					fontSize: `${TITLE_FONT_FRACTION * style.size * PERCENT}cqmin`,
 					color: style.color,
 					fontFamily: fontFamily(style.font),
+					textShadow: textShadow(style),
 					...(asCard && {
 						textAlign: 'center',
 						lineHeight: TITLE_CARD_LINE,
@@ -227,6 +230,7 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 			)}
 			{caption && (
 				<div
+					data-caption-text
 					className="absolute inset-x-0 flex flex-col items-center font-bold"
 					style={{
 						...(designed
@@ -234,8 +238,9 @@ export function OverlayPreview({ overlays, editedSeconds, frame }: OverlayPrevie
 							: { bottom: `${CAPTION_BOTTOM_FRACTION * PERCENT}cqh` }),
 						fontSize: `${CAPTION_FONT_FRACTION * captionStyle.size * PERCENT}cqmin`,
 						lineHeight: CAPTION_LINE_SCALE,
-						color: captionStyle.color,
-						fontFamily: fontFamily(captionStyle.font)
+						color: wordColour(captionStyle, overlays.captionMode, Boolean(designed)),
+						fontFamily: fontFamily(captionStyle.font),
+						textShadow: textShadow(captionStyle)
 					}}
 				>
 					{caption.lines.map((line, lineIndex) => (

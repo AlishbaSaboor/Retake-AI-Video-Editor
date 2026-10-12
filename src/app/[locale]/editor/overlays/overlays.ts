@@ -34,7 +34,9 @@ import {
 	bandOpacity,
 	canvasFont,
 	DEFAULT_TEXT_STYLE,
-	type TextStyle
+	setTextShadow,
+	type TextStyle,
+	wordColour
 } from './text-style'
 import {
 	BLUR_DIM,
@@ -844,10 +846,11 @@ function drawFrameOverlays(
 		const bottom = height * (1 - CAPTION_BOTTOM_FRACTION)
 		const said = saidWordAt(caption, seconds, Boolean(designed))
 		const spoken = said?.index ?? null
+		const textColour = wordColour(captionStyle, overlays.captionMode, Boolean(designed))
 		const highlight =
 			overlays.captionMode === 'highlight'
 				? highlightColor(captionStyle.color, captionStyle.highlight)
-				: captionStyle.color
+				: textColour
 		// In a designed frame each word pops as it's said (a one-word caption at its own start).
 		const starts = designed ? (caption.spoken ?? (said ? [said.start] : [])) : []
 		const space = context.measureText(' ').width
@@ -869,7 +872,8 @@ function drawFrameOverlays(
 				context.fillStyle = bandColor(captionStyle.background, bandOpacity(captionStyle))
 				context.fillRect((width - lineWidth) / 2, middle - lineHeight / 2, lineWidth, lineHeight)
 			}
-			context.fillStyle = captionStyle.color
+			setTextShadow(context, captionStyle, fontPixels)
+			context.fillStyle = textColour
 			if (spoken === null && laid.scales.every((scale) => scale === 1)) {
 				context.fillText(line, width / 2, middle)
 				wordIndex += words.length
@@ -882,7 +886,7 @@ function drawFrameOverlays(
 			for (const [i, word] of words.entries()) {
 				const scale = laid.scales[i] ?? 1
 				const wordLeft = left + (laid.lefts[i] ?? 0)
-				context.fillStyle = wordIndex === spoken ? highlight : captionStyle.color
+				context.fillStyle = wordIndex === spoken ? highlight : textColour
 				if (scale !== 1) {
 					const half = (widths[i] ?? 0) / 2
 					context.save()
@@ -895,6 +899,7 @@ function drawFrameOverlays(
 			}
 			context.textAlign = 'center'
 		}
+		setTextShadow(context, {}, fontPixels)
 	}
 	for (const [index, card] of cards.entries()) {
 		drawTitle(context, card, seconds, layouts[index] ?? null)
@@ -963,6 +968,7 @@ function drawTitle(
 			context.textAlign = 'center'
 			context.textBaseline = 'middle'
 			context.fillStyle = style.color
+			setTextShadow(context, style, fontPixels)
 			const reveals = lineReveals(lines, titleMotion.reveal)
 			for (const [index, line] of lines.entries()) {
 				const lineY = y + (index - (lines.length - 1) / 2) * lineHeight
@@ -978,6 +984,7 @@ function drawTitle(
 		context.textAlign = 'center'
 		context.textBaseline = 'middle'
 		context.fillStyle = style.color
+		setTextShadow(context, style, fontPixels)
 		drawText(context, title.text, x, y, width * TITLE_MAX_WIDTH_FRACTION, titleMotion.reveal)
 		context.restore()
 	}

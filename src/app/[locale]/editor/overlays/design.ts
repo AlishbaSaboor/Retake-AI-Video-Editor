@@ -79,6 +79,16 @@ export function wordPop(start: number, seconds: number): number {
 	return 1 + POP_SCALE * (1 - (into - POP_RISE_SECONDS) / POP_SECONDS)
 }
 
+/** How many soft shapes drift over the background, and how opaque each is at its middle (hex). */
+const SHAPES = 3
+const SHAPE_ALPHA_HEX = '66'
+/**
+ * The most a point of the background is covered by the shapes' colour:
+ * every shape's middle on it at once. Text over a designed background is
+ * checked against the background mixed with the shapes this much.
+ */
+export const MAX_SHAPE_COVER = 1 - (1 - Number.parseInt(SHAPE_ALPHA_HEX, 16) / 255) ** SHAPES
+
 /** The progress bar along the bottom and the wave at the lower right, as fractions of the frame. */
 const BAR = { x: 0.06, y: 0.955, width: 0.88, height: 0.008 }
 /** A look's thick bar: this many times the thin one's height. */
@@ -136,12 +146,12 @@ export function drawDesign(
 	context.fillStyle = gradient
 	context.fillRect(0, 0, width, height)
 	// Three soft shapes, each drifting on its own slow loop.
-	for (let i = 0; i < 3; i++) {
+	for (let i = 0; i < SHAPES; i++) {
 		const x = width * (0.5 + 0.35 * Math.sin(seconds * 0.23 + i * 2.1))
 		const y = height * (0.5 + 0.35 * Math.cos(seconds * 0.17 + i * 1.7))
 		const radius = width * (0.35 + 0.1 * i)
 		const shape = context.createRadialGradient(x, y, 0, x, y, radius)
-		shape.addColorStop(0, `${colours.shape}66`)
+		shape.addColorStop(0, `${colours.shape}${SHAPE_ALPHA_HEX}`)
 		shape.addColorStop(1, `${colours.shape}00`)
 		context.fillStyle = shape
 		context.fillRect(0, 0, width, height)
