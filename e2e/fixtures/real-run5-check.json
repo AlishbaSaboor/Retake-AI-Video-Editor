@@ -1,0 +1,18 @@
+{
+	"problems": ["Key line 40 uses words not present in the spoken sentence"],
+	"title": "Fathom AI meeting notetaker",
+	"keyLines": [
+		{
+			"sentence": 4,
+			"text": "Fathom AI, an AI meeting notetaker"
+		},
+		{
+			"sentence": 40,
+			"text": "executive summary, action items"
+		}
+	],
+	"captions": "bold_words",
+	"transition": "slide",
+	"dropSentences": [],
+	"tooShort": false
+}
