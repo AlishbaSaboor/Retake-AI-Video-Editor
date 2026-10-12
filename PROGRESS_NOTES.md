@@ -7,6 +7,9 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-12.
+> - **The commit-message check runs on Windows** (section 3zze): it used to
+>   exit 0 there without checking anything, so the local hook let any
+>   message through; CI (Linux) was never affected.
 > - **Make it's four looks** (section 3zzd): Clean, Bold, Cinematic and
 >   Playful each set the colour, captions, one eased transition, the
 >   title's animation, the zoom on key words and the pacing at once, in
@@ -409,6 +412,27 @@ before building.
   Each rule removed on purpose (17 for the looks, 19 for Bold's text, and
   3 for the preview's) made a test fail. Unit 667 to 693; e2e 132 to 138. Frames of every look on the owner's two recordings
   are in `Desktop\style1`.
+
+## 3zze. The commit-message check runs on Windows (2026-10-12)
+
+`scripts/check-commit-message.mjs` only ran its checks when its own file
+URL equalled the text "file://" plus the script's path. On Windows those
+never match (`file:///C:/...` against `file://C:\...`), so the script exited
+0 without checking anything: the `commit-msg` hook let any message
+through, and PR #41 failed only in CI, on two subjects that began with a
+capital. It now compares against `pathToFileURL(process.argv[1]).href`, as
+`check-rls.mjs` and `check-standards.mjs` already do.
+
+- **Tests** (`scripts/check-commit-message.test.mjs`): the script run as
+  a real process, as the hook runs it (a message file) and as CI runs it
+  (`--range` over a throwaway git repo): a bad message exits 1 and a good
+  one exits 0 in each. On the unfixed script both tests failed on Windows
+  (exit 0 for a bad message). Unit 693 to 695.
+- **Checked by hand:** the hook now refuses `git commit` with a
+  capitalised subject, and allows a good one.
+- **Not fixed here:** `scripts/run-once-sql.mjs` has the same entry-point
+  test, so run directly on Windows it does nothing. Left for its own
+  change.
 
 ---
 
