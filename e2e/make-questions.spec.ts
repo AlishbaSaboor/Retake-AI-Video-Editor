@@ -93,7 +93,7 @@ test('a long brief that answers every question asks none, and its parts read as 
 	page
 }) => {
 	const request =
-		'A 45 second Instagram reel for small business owners, upbeat hip hop, energetic tone, end with "Bye"'
+		'A bold 45 second Instagram reel for small business owners, upbeat hip hop, energetic tone, end with "Bye"'
 	const seen = await mockMakeActions(page, WORDS, [
 		makeReply({
 			maxSeconds: 45,

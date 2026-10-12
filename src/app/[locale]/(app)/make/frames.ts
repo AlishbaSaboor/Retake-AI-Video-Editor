@@ -46,3 +46,21 @@ export async function captureFrames(url: string, times: readonly number[]): Prom
 		video.load()
 	}
 }
+
+/** The pixels (RGBA) of each picture captureFrames took, for reading the video's colours. */
+export async function framePixels(frames: readonly string[]): Promise<Uint8ClampedArray[]> {
+	const canvas = document.createElement('canvas')
+	const context = canvas.getContext('2d', { willReadFrequently: true })
+	if (!context) return []
+	const pixels: Uint8ClampedArray[] = []
+	for (const frame of frames) {
+		const image = new Image()
+		image.src = `data:image/jpeg;base64,${frame}`
+		await image.decode()
+		canvas.width = image.naturalWidth
+		canvas.height = image.naturalHeight
+		context.drawImage(image, 0, 0)
+		pixels.push(context.getImageData(0, 0, canvas.width, canvas.height).data)
+	}
+	return pixels
+}

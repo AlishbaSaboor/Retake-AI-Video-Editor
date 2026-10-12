@@ -964,6 +964,7 @@
 				"answered": "Answered."
 			},
 			"changes": {
+				"look": "Look: {from} to {to}",
 				"length": "Length {from} to {to}",
 				"sentences": "Sentences kept {from} to {to}",
 				"captions": "Captions: {from} to {to}",
@@ -974,6 +975,12 @@
 				"zooms": "Zooms {from} to {to}",
 				"transitions": "Transitions {from} to {to}",
 				"music": "Music: {from} to {to}"
+			},
+			"look": {
+				"clean": "Clean",
+				"bold": "Bold",
+				"cinematic": "Cinematic",
+				"playful": "Playful"
 			},
 			"captions": {
 				"classic": "a line or two",
@@ -1773,6 +1780,13 @@
 				"label": "How long, at most?",
 				"option": "{seconds} s"
 			},
+			"style": {
+				"label": "Which look?",
+				"clean": "Clean",
+				"bold": "Bold",
+				"cinematic": "Cinematic",
+				"playful": "Playful"
+			},
 			"tone": {
 				"label": "Tone",
 				"placeholder": "Energetic, calm, friendly…"
@@ -1906,6 +1920,10 @@
 				"screen": "On screen",
 				"motion": "Motion",
 				"music": "Music"
+			},
+			"look": {
+				"asked": "As you asked: a {preset, select, clean {Clean} bold {Bold} cinematic {Cinematic} other {Playful}} look",
+				"chosen": "Chosen for you: a {preset, select, clean {Clean} bold {Bold} cinematic {Cinematic} other {Playful}} look, as suits {making, select, ad {an ad} professional {a professional edit} funny {a funny edit} other {a reel}}"
 			}
 		},
 		"startFrom": "Or start from",

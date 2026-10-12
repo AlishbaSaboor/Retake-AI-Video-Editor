@@ -839,7 +839,9 @@ function drawFrameOverlays(
 		const said = saidWordAt(caption, seconds, Boolean(designed))
 		const spoken = said?.index ?? null
 		const highlight =
-			overlays.captionMode === 'highlight' ? highlightColor(captionStyle.color) : captionStyle.color
+			overlays.captionMode === 'highlight'
+				? highlightColor(captionStyle.color, captionStyle.highlight)
+				: captionStyle.color
 		// In a designed frame each word pops as it's said (a one-word caption at its own start).
 		const starts = designed ? (caption.spoken ?? (said ? [said.start] : [])) : []
 		const space = context.measureText(' ').width

@@ -6,8 +6,18 @@
 export const FONTS = ['sans', 'serif', 'mono', 'handwriting'] as const
 export type Font = (typeof FONTS)[number]
 
-/** `size` is a multiple of the default size; `background` null draws no band. */
-export type TextStyle = { font: Font; size: number; color: string; background: string | null }
+/**
+ * `size` is a multiple of the default size; `background` null draws no band.
+ * `highlight`, when set, is the colour of the word being said (a Make it
+ * look's accent); otherwise one is picked to stand out from `color`.
+ */
+export type TextStyle = {
+	font: Font
+	size: number
+	color: string
+	background: string | null
+	highlight?: string
+}
 
 export const DEFAULT_TEXT_STYLE: TextStyle = {
 	font: 'sans',
