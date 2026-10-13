@@ -31,9 +31,6 @@ mock.module('next/navigation', { namedExports: { unstable_rethrow: () => {} } })
 mock.module(import.meta.resolve('@/lib/supabase/server'), {
 	namedExports: { createServerSupabaseClient: async () => ({ auth: { getUser: () => session() } }) }
 })
-mock.module(import.meta.resolve('@/lib/rbac/context'), {
-	namedExports: { enforceAuthorize: async () => ({}) }
-})
 mock.module(import.meta.resolve('@/lib/observability/capture-error'), {
 	namedExports: { captureError: (error: unknown) => normalizeError(error) }
 })

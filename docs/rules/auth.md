@@ -47,7 +47,7 @@ realtime widens that one type deliberately — never to `from` or `rpc`.
 
 ## The `User.id` convention
 
-`prisma/schema/example.prisma` models this: `User.id` **is** the Supabase
+`prisma/schema/user.prisma` models this: `User.id` **is** the Supabase
 auth user's UUID, set explicitly when the row is first created (an auth
 webhook, or on first sign-in), never Prisma-generated
 (`@default(cuid())`). This avoids running two parallel identity systems
