@@ -16,8 +16,11 @@ export const DAILY_AI_LIMITS = {
 	transcript: { perDay: 30, what: 'transcripts' },
 	/** Finding a video's highlights (Gemini; ~$0.0007 each). */
 	highlights: { perDay: 30, what: 'highlight searches' },
-	/** Make it: a plan, its check, or a follow-up each count one (Gemini; a plan up to ~$0.06). */
-	make_it: { perDay: 60, what: 'Make it requests' }
+	/**
+	 * Make it steps: a plan, its automatic check, or a change asked in the chat each count one,
+	 * so a plan with its check uses two (Gemini; a plan up to ~$0.06).
+	 */
+	make_it: { perDay: 60, what: 'Make it steps' }
 } as const
 
 export type AiAllowanceKind = keyof typeof DAILY_AI_LIMITS

@@ -44,10 +44,11 @@ flowchart LR
 ```
 
 The file itself is played from an object URL, edited, exported and saved in
-the browser. Only three things leave it: the decoded audio (for a
-transcript, to Deepgram), text (typed and spoken commands, the transcript's
-sentences, to Gemini) and, for Make it, the transcript plus one small
-picture every 2 seconds (to Gemini).
+the browser. Only four things leave it: the decoded audio (for a
+transcript, to Deepgram), the microphone recording of a spoken command (to
+Deepgram), text (typed commands, spoken commands once transcribed, the
+transcript's sentences, to Gemini) and, for Make it, the transcript plus one
+small picture every 2 seconds (to Gemini).
 
 ## Module map
 
@@ -153,7 +154,9 @@ Proof: `supabase/config.toml`, `src/server/auth/session.ts`,
 ### One chokepoint for AI calls, with cost tracking
 
 Feature code calls `src/server/ai/<provider>`; ESLint fails the build on any
-other import of an AI SDK. Each call writes one row to `ai_usage`, priced at
+other import of the Gemini SDK. Deepgram is called with plain `fetch` in
+`src/server/ai/deepgram.ts`, so no lint rule yet stops a `fetch` to Deepgram
+elsewhere. Each call writes one row to `ai_usage`, priced at
 the time of the call (an unknown price is stored as null, never zero). A
 failed write costs the row, never the call.
 _Trade-off:_ every new model or provider must be registered before it can
@@ -188,12 +191,15 @@ Proof: `src/server/auth/session.ts` (`requireUser`),
 
 Each signed-in user has a daily allowance per kind of AI action (typed
 commands 300, spoken commands 200, transcripts 30, highlight searches 30,
-Make it 60), counted per UTC day in `ai_allowances`. Taking one is a single
+Make it steps 60, where a plan and its automatic check use two and each
+change asked in the chat uses one), counted per UTC day in `ai_allowances`. Taking one is a single
 conditional update, so simultaneous requests can't go past the ceiling. A
 call whose provider fails or times out is given back. `ai_usage` is left
 alone because another system reads it.
 _Trade-off:_ a ceiling, not a budget: at these numbers one account could
-still spend about $4.58 a day at the highest cost seen per call.
+still spend about $4.58 a day, at the highest cost per call recorded in
+`ai_usage` by 2026-10-11 (the estimates in `src/lib/ai-limits.ts` give
+about $4.40).
 Proof: `src/lib/ai-limits.ts`, `src/server/lib/ai-allowance.ts`,
 `prisma/schema/ai-allowance.prisma`.
 
@@ -211,53 +217,68 @@ Proof: `src/app/[locale]/(site)/contact/actions.ts`, `contact-limit.ts`.
 
 ## Known limits
 
-- **Email confirmation is off** (`supabase/config.toml`), so accounts cost
-  nothing to create; the daily limits cap each one, not how many there are.
-- **Request size.** Transcription sends up to about 12.8 MB and Make it up
-  to about 9 MB in one request (the server-action body limit is raised to
-  about 13.8 MB in `next.config.ts`). Many hosts cap request bodies lower
-  ([Vercel's is 4.5 MB](https://vercel.com/docs/functions/limitations), on
-  every plan), so these may fail there.
 - **Export runs in real time in the browser**, as long as the edit, with
-  the tab in front.
+  the tab in front, and the recording is held in memory until it ends.
 - **Projects are per-browser**: they don't follow a user to another browser
   or device.
-- **Large files**: the `VideoEditor` component is about 2,550 lines
-  (`src/app/[locale]/editor/video-editor.tsx`), and `make-plan.ts` about
-  1,880: the reply's and the check's shapes, the planner's steps and the
-  plan-to-plan comparison, in one file (`planMake` itself is about 60).
+- **Large files**: the `VideoEditor` component is one function of about
+  2,560 lines (`src/app/[locale]/editor/video-editor.tsx`, lines 236 to
+  2793), and `make-plan.ts` is 2,058 lines: the reply's and the check's
+  shapes, the planner's steps and the plan-to-plan comparison, in one file
+  (`planMake` itself is 82).
 - **Unused template scaffolding**: the admin roles, feature flags and their
-  admin action (about 1,340 lines in `src/lib/rbac`, `src/lib/flags`,
-  `src/server/actions/feature-flags.ts`) aren't used by the product.
+  admin action (1,560 lines in `src/lib/rbac`, `src/lib/flags` and
+  `src/server/actions/feature-flags.ts`, plus the 71-line route factory in
+  `src/server/api/route-factory.ts`) aren't used by the product.
 - **CI doesn't exercise real sign-in**: it runs with accounts off, and the
   sign-in checks are covered by unit tests with the session mocked.
 
-## Deployment notes
+## Scope: local-first, not deployed
 
-- **Settings a production server needs to start:** `DATABASE_URL`,
-  `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and
-  `CONTACT_IP_SECRET` (at least 32 characters; `openssl rand -hex 32`).
-  Without one, the server logs which is missing and exits.
-- **For the AI features:** `GEMINI_API_KEY` and `DEEPGRAM_API_KEY`. The
-  server starts without them, and those features then fail with a
-  generic error.
-- **Migrations:** CI writes them from the Prisma schema, and
-  `.github/workflows/deploy-migrations.yml` applies them to production on
-  every push to `main`.
-- **Client IP:** the contact limit trusts the last `x-forwarded-for`
-  entry, so deploy behind a host or proxy that sets it.
+Retake is built to run on one machine: `pnpm dev` (or a production build
+started locally), a local Supabase in Docker, and the developer's own
+Gemini and Deepgram keys. It isn't deployed anywhere, and nothing here is
+tuned for strangers on the internet.
+
+**To run it locally:**
+
+- `DATABASE_URL`, always (the server won't start without it).
+- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and
+  `CONTACT_IP_SECRET` (at least 32 characters; `openssl rand -hex 32`). A
+  production server started without one logs which are missing and exits
+  (`src/lib/production-settings.ts`); in development they're optional.
+- `GEMINI_API_KEY` and `DEEPGRAM_API_KEY`, for the AI features. The server
+  starts without them; an AI call then fails with "The AI isn't available
+  right now. Try again later." for the person, and the log names the
+  provider and the setting to check (never a key's value).
+- Migrations: CI writes them from the Prisma schema;
+  `pnpm exec prisma migrate deploy` applies them locally.
+
+**What a hosted launch would need, and why each is out of scope here:**
+
+| Needed for a hosted launch                 | Why                                                                                                                                                                                                                                                                     | Why not here                                                            |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Request-size limits that fit the host      | A transcript sends up to about 12.8 MB in one request and a Make it plan up to about 9 MB (the server-action body limit is raised to about 13.8 MB in `next.config.ts`); many hosts cap bodies lower, Vercel at [4.5 MB](https://vercel.com/docs/functions/limitations) | A local server has no such cap                                          |
+| `maxDuration` on the long actions          | A plan may take up to 60 s (`PLAN_TIMEOUT_MS`); a host's default function duration may be shorter                                                                                                                                                                       | A local server has no function duration                                 |
+| A spend ceiling across all accounts        | The daily allowance caps each account, not how many there are                                                                                                                                                                                                           | One person runs it with their own keys                                  |
+| Email confirmation or a captcha at sign-up | Confirmation is off (`supabase/config.toml`), so accounts are free to create                                                                                                                                                                                            | Accounts are local test accounts                                        |
+| Sign-in rate limits per visitor            | Sign-in runs as a server action, so Supabase's per-IP limits see the server's address                                                                                                                                                                                   | One person signs in                                                     |
+| Migrations ordered before the app's deploy | `.github/workflows/deploy-migrations.yml` applies migrations on every push to `main`, independently of any app deploy                                                                                                                                                   | No app is deployed                                                      |
+| A user id on `ai_usage`                    | Spend can't be traced to an account (`prisma/schema/ai-usage.prisma`)                                                                                                                                                                                                   | `ai_usage` is a contract with the MOAD dashboard and isn't changed here |
+| A trusted client IP for the contact limit  | It reads the last `x-forwarded-for` entry, trustworthy only behind a host or proxy that sets it                                                                                                                                                                         | Locally there's one sender                                              |
 
 ## What I'd do next
 
-1. Move transcription uploads off the request body (compressed audio, or
-   an upload to storage passed by reference), so they fit any host's limit.
-2. Turn on email confirmation, so the daily limits apply to real people.
-3. Split the `VideoEditor` component into hooks by concern (project
-   save/open, export flow, command dispatch) when those parts are next
-   changed, and `make-plan.ts` into files by concern (its steps are
-   already separate functions).
-4. Remove the unused admin and feature-flag scaffolding, or document it as
-   kept on purpose.
+1. Harden what applies locally: no admin seat from an email domain, an
+   output-token cap per Gemini feature, PostHog without autocapture or
+   session replay, an atomic contact limit and a way to read the messages,
+   no Supabase call for public pages, and a lint rule for Deepgram calls.
+2. Test the real paths: the allowance's ceiling against Postgres, and a
+   paid action through the real wrapper with fake providers at the network
+   edge.
+3. Remove the unused admin and feature-flag scaffolding.
+4. Split `make-plan.ts` into files by concern, then the `VideoEditor`
+   component into hooks by concern, one at a time.
 5. Run e2e against a real local Supabase in CI, so sign-in is exercised
    there.
 6. Offer a way to move a project between browsers (an export and import of

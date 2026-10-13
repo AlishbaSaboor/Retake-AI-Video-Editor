@@ -3,7 +3,7 @@ import { getTranslations } from 'next-intl/server'
 import { CaptionsIcon, CheckIcon, SendIcon, UndoIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 
-const PLAN_DOTS = ['bg-brand-violet', 'bg-brand-purple', 'bg-brand-blue', 'bg-brand-lilac'] as const
+const PLAN_DOTS = ['bg-brand-violet', 'bg-brand-purple', 'bg-brand-blue'] as const
 
 /**
  * The landing page's window onto Retake: a project with its picture and
@@ -77,11 +77,6 @@ export async function HeroDemo() {
 								<span className="text-text-muted w-16 shrink-0">{t('demo.lanes.captions')}</span>
 								<span className="bg-surface-hover h-4 flex-1 rounded" />
 							</div>
-							<div className="flex items-center gap-3">
-								<span className="text-text-muted w-16 shrink-0">{t('demo.lanes.music')}</span>
-								<span className="h-4 flex-[0.9] rounded bg-[repeating-linear-gradient(90deg,rgb(76_125_255/0.8)_0_2px,transparent_2px_5px)]" />
-								<span className="flex-[0.1]" />
-							</div>
 							<span className="absolute top-2 bottom-2 left-[22%] w-0.5 bg-white">
 								<span className="absolute -top-1 -left-[3px] size-2 rounded-sm bg-white" />
 							</span>
@@ -135,7 +130,7 @@ export async function HeroDemo() {
 				{t('chips.fillers')}
 			</Chip>
 			<Chip
-				className="-bottom-8 left-6 rotate-2 max-md:hidden"
+				className="-bottom-12 left-6 rotate-2 max-md:hidden"
 				icon={<UndoIcon size={15} />}
 				iconClass="bg-brand-lilac text-ink"
 			>
