@@ -7,7 +7,7 @@ import {
 	type Font,
 	type TextStyle
 } from '../../editor/overlays/text-style'
-import type { CaptionLook, MakeStyle } from './make-plan'
+import type { CaptionLook, MakeStyle } from './make-reply'
 import { contrast, MIN_CONTRAST, over, readableOn, shifted } from './video-colours'
 
 // Make it's looks: a preset sets everything about how a plan looks at once

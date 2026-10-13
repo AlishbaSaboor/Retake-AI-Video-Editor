@@ -15,12 +15,13 @@ session with no memory of it can carry on. Read this whole file, then
 > - **Every AI call** goes through `src/server/ai/` with a required time limit (30 or 60 s) and an output cap, and writes one `ai_usage` row, priced when written.
 > - **Tests:** 679 unit (1 skipped on Windows), 142 e2e in 28 files, 6 database tests (`pnpm test:db`) on real Postgres.
 > - **CI:** commits (pull requests only), check, ai-models, build, e2e (4 shards), migrations, db-tests.
-> - **Largest code:** `VideoEditor` is one 2,572-line function (`video-editor.tsx`, lines 236 to 2807); `make-plan.ts` is 2,058 lines, `planMake` 82.
+> - **Largest code:** `VideoEditor` is one 2,572-line function (`video-editor.tsx`, lines 236 to 2807). Make it's planner is split by concern: `make-plan.ts` (231 lines: `planMake`, 82, and re-exports) and `make-reply`, `make-request`, `make-context`, `make-cut`, `make-look`, `make-summary` (102 to 499 lines each).
 > - **No admin console, feature flags, API routes or production-migrations workflow** (removed in 3zzo); their tables `admin_members`, `feature_flags` and `feature_flag_overrides` stay in the schema, unused, until a migration drops them.
 > - **Decisions, trade-offs and known limits:** ARCHITECTURE.md.
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **make-plan.ts split by concern** (section 3zzp).
 > - **Unused template code removed** (section 3zzo).
 > - **Docs true of main; the allowance back only when not charged**
 >   (section 3zzn).
@@ -501,6 +502,33 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzp. make-plan.ts split by concern (2026-10-13)
+
+- **Six files, moved unchanged** out of `make-plan.ts` (2,058 lines):
+  `make-reply` (the contract with Gemini, 325), `make-request` (what the
+  request's words ask, 102), `make-context` (the plan's shapes and context,
+  340), `make-cut` (what's kept and how long, 499), `make-look` (how it
+  looks, 492) and `make-summary` (what the plan says about itself, 268).
+  `make-plan.ts` (231) keeps `planMake` and re-exports exactly the 88 names
+  it exported before, so no caller changed.
+- **Pure move:** every code line of the old file is in the new files once.
+  The only differences: `export` on ten names that now cross a file
+  (`ASKED_FILL`, `CAPTIONS_REQUEST`, `FIT_REQUEST`, `PROMO_REQUEST`,
+  `wordsOf`, `MIN_PIECE_SECONDS`, `clamp`, `overlaps`, `without`,
+  `SHAPE_RATIO`), which made Prettier wrap `clamp` onto two lines; a purpose
+  comment per file; and the barrel's intro comment.
+- **Imports:** `make-questions.ts`, `make-presets.ts` and `music-track.ts`
+  import their types from the new files instead of the barrel (one line
+  each). No runtime import cycle, as on main; the one type-only cycle
+  (`make-reply`, `make-questions`, `make-presets`) is the one `make-plan`
+  had before, and is in ARCHITECTURE.md's known limits.
+- **Tests:** none changed. 679 unit tests before and after, the six Make it
+  files the same (replay 101, steps 17, plan 41, presets 14, questions 17,
+  real run 5's 7), each run after every move; the replay fixture is
+  byte-identical.
 
 ---
 
