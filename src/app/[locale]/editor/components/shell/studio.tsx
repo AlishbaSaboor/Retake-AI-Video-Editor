@@ -54,18 +54,29 @@ export function ModeSwitch({
 	)
 }
 
-/** Over the chat: what was asked on the Make it page, and what was applied. */
+/** The chat-only view's heading, pinned over the chat: what it is and how it works. */
+export function StudioChatHeader() {
+	const t = useTranslations('Editor.studio')
+	return (
+		<div className="border-border flex shrink-0 flex-col border-b px-5 py-4">
+			<span className="font-display text-text text-lg font-semibold tracking-[-0.02em]">
+				{t('title')}
+			</span>
+			<span className="text-text-faint text-[13px]">{t('help')}</span>
+		</div>
+	)
+}
+
+/**
+ * The chat's first messages in the chat-only view: what was asked on the
+ * Make it page, and what was applied. In the chat's scrolling area, so a long
+ * plan never pushes the box to type in out of view.
+ */
 export function MadeWithIntro({ made }: { made: MadeWith }) {
 	const t = useTranslations('Editor.studio')
 	return (
 		<div className="flex flex-col">
-			<div className="border-border flex flex-col border-b px-5 py-4">
-				<span className="font-display text-text text-lg font-semibold tracking-[-0.02em]">
-					{t('title')}
-				</span>
-				<span className="text-text-faint text-[13px]">{t('help')}</span>
-			</div>
-			<div className="flex flex-col gap-3.5 px-5 pt-[18px]">
+			<div className="flex flex-col gap-3.5 pt-[18px]">
 				<p className="bg-accent text-accent-ink ml-auto max-w-[85%] rounded-[14px_14px_4px_14px] px-3.5 py-2.5 font-medium">
 					{made.request}
 				</p>

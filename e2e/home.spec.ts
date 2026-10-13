@@ -110,7 +110,7 @@ test('saved projects are listed with a picture, a name and a date, and open in t
 test('signed in, Open Retake on the public pages goes straight to a new project', async ({
 	page
 }) => {
-	await page.goto('/features')
+	await page.goto('/')
 	await page.getByRole('banner').getByRole('link', { name: 'Open Retake' }).first().click()
 	await expect(page).toHaveURL(/\/home$/, { timeout: 30_000 })
 	await expect(

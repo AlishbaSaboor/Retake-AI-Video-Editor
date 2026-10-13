@@ -41,11 +41,8 @@ const visit = async (path: string) => {
 const PUBLIC = [
 	'/',
 	'/features',
-	'/how-it-works',
-	'/pricing',
-	'/contact',
 	'/privacy',
-	'/en/pricing',
+	'/en/features',
 	'/no-such-page',
 	'/homepage',
 	'/editorial'

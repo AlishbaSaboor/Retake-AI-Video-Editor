@@ -7,10 +7,9 @@ import { MobileMenu } from './mobile-menu'
 import { NavLinks } from './nav-links'
 
 const PUBLIC_LINKS = [
-	{ href: '/features', key: 'features' },
-	{ href: '/how-it-works', key: 'howItWorks' },
-	{ href: '/pricing', key: 'pricing' },
-	{ href: '/contact', key: 'contact' }
+	{ href: '/#features', key: 'features' },
+	{ href: '/#how-it-works', key: 'howItWorks' },
+	{ href: '/#faq', key: 'faq' }
 ] as const
 
 /**

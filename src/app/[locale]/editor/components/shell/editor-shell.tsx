@@ -99,7 +99,9 @@ export function EditorShell({
 						hidden={!shown}
 						className={cn(
 							'order-2 min-h-0 lg:h-full lg:overflow-hidden',
-							railRight ? 'border-border lg:order-2 lg:border-l' : 'lg:order-none'
+							// The chat-only view on a phone: a panel of its own height, its
+							// messages scrolling, the box to type in always at its foot.
+							railRight ? 'border-border max-lg:h-[80dvh] lg:order-2 lg:border-l' : 'lg:order-none'
 						)}
 					>
 						{rail}

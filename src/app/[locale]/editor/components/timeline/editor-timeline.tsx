@@ -55,6 +55,8 @@ export type LaneItem = {
 }
 
 type EditorTimelineProps = {
+	/** More classes for the timeline's box (how tall it may grow in the editor's column). */
+	className?: string
 	/** The edited video, or the untouched take (the Original view: view only). */
 	view: 'edited' | 'original'
 	/** The take's length: the Original view's whole width. */
@@ -231,16 +233,20 @@ export function EditorTimeline(props: EditorTimelineProps) {
 	return (
 		<section
 			aria-label={t('label')}
-			className="border-border bg-surface flex flex-col rounded-lg border"
+			className={cn(
+				'border-border bg-surface flex min-h-0 flex-col rounded-lg border',
+				props.className
+			)}
 		>
 			<h2 className="sr-only">{t('label')}</h2>
 			<div
 				role="region"
 				aria-label={tc('label')}
-				className="flex flex-col"
+				className="flex min-h-0 flex-1 flex-col"
 				aria-describedby={hintId}
 			>
-				<div className="border-border flex flex-wrap items-center gap-1 border-b px-2 py-1.5">
+				{/* The clip tools stay in view; only the lanes below them scroll when room is short. */}
+				<div className="border-border flex shrink-0 flex-wrap items-center gap-1 border-b px-2 py-1.5">
 					<ToolbarButton
 						label={tc('split')}
 						text={tc('splitShort')}
@@ -314,7 +320,7 @@ export function EditorTimeline(props: EditorTimelineProps) {
 						</label>
 					</div>
 				</div>
-				<div className="flex gap-1 overflow-x-auto px-2 pt-1 pb-2">
+				<div className="flex min-h-0 gap-1 overflow-auto px-2 pt-1 pb-2">
 					<div className="flex shrink-0 flex-col gap-1 pt-7" aria-hidden>
 						<span className={cn(laneLabel, 'h-14')}>{t('lanes.video')}</span>
 						{!isOriginal && (
@@ -620,7 +626,7 @@ export function EditorTimeline(props: EditorTimelineProps) {
 					</div>
 				</div>
 				{!isOriginal && (
-					<div className="border-border flex flex-wrap items-center gap-2 border-t px-3 py-1.5">
+					<div className="border-border flex shrink-0 flex-wrap items-center gap-2 border-t px-3 py-1.5">
 						<button
 							type="button"
 							onClick={props.onAddVideo}
