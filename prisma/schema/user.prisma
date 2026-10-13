@@ -1,0 +1,20 @@
+// A Retake account: one row per Supabase Auth user, written by provisionUser
+// (src/server/auth/provision-user.ts) on sign-in and sign-up. Prisma reads
+// every *.prisma file in prisma/schema/ as one combined schema.
+//
+// User.id is NOT @default: per docs/rules/auth.md, User.id IS the Supabase
+// auth user's uuid, set explicitly when the row is first created, never
+// generated app-side. @db.Uuid matches AdminMember.userId @db.Uuid
+// (prisma/schema/authz.prisma) so the FK types agree.
+//
+// users is user-scoped, so its create migration ENABLEs ROW LEVEL SECURITY
+// (no policy, no FORCE) — see docs/rules/auth.md.
+model User {
+	id          String       @id @db.Uuid
+	email       String       @unique
+	createdAt   DateTime     @default(now()) @db.Timestamptz(6)
+	updatedAt   DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
+	adminMember AdminMember?
+
+	@@map("users")
+}

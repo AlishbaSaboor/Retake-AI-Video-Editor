@@ -84,10 +84,10 @@ const SIGN_IN_PAGE = '/login'
 const AFTER_SIGN_IN = '/home'
 /**
  * Every page that reads the session (its own render, or the signed-in actions
- * posted to it): the signed-in pages, sign-in itself and the admin console.
- * Only these refresh the session cookie.
+ * posted to it): the signed-in pages and sign-in itself. Only these refresh
+ * the session cookie.
  */
-const SESSION_PAGES = [...SIGNED_IN_PAGES, SIGN_IN_PAGE, '/admin']
+const SESSION_PAGES = [...SIGNED_IN_PAGES, SIGN_IN_PAGE]
 
 /** The request's locale prefix ('' for the default locale) and its path without it. */
 function localePath(request: NextRequest): { prefix: string; path: string } {

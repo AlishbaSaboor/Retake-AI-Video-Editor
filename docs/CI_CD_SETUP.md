@@ -64,21 +64,8 @@ this template without minting a new token per repo:
 
 ### Environments
 
-Settings → Environments → New environment → `production-database`.
-
-Used by `.github/workflows/deploy-migrations.yml`, which applies migrations
-and then `prisma/run-once.sql` (see `docs/rules/migrations.md`) to
-production on every push to `main`. Add one environment secret here (not a
-repository secret — keep it scoped to this environment only):
-
-| Secret                    | Value                                                                                                                                                                                                                                                                                                    |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PRODUCTION_DATABASE_URL` | The production Postgres connection string, **session pooler, port 5432** — not the transaction pooler on 6543. `prisma migrate deploy` holds an advisory lock across statements that transaction-mode pgbouncer can't sustain; using the wrong port here is the most common way this job silently hangs. |
-
-Consider adding required reviewers or a deployment branch rule (restrict
-to `main`) on this environment if the team wants a human checkpoint before
-migrations hit production, on top of the PR review that already happened
-before the merge that triggers this workflow.
+None. Retake isn't deployed and has no production database, so there's no
+`production-database` environment and no workflow that migrates one.
 
 ### Branch protection
 

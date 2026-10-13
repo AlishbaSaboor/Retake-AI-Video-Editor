@@ -42,12 +42,9 @@ if (!canAfford) {
 }
 ```
 
-`createApiRoute` (`src/server/api/route-factory.ts`) already catches this
-and responds with the right status + `userMessage` — nothing extra to wire
-up in a route handler. `validatedAction`
-(`src/server/actions/validated-action.ts`) is the Server Action equivalent
-— same Zod input contract, same `captureError` reporting, returns
-`{ ok: true, data } | { ok: false, error, status }` instead of a `Response`
+`validatedAction` (`src/server/actions/validated-action.ts`) already
+catches this — with a Zod input contract and `captureError` reporting, it
+returns `{ ok: true, data } | { ok: false, error, status }`,
 since a Server Action's return value goes straight to whatever called it:
 
 ```ts

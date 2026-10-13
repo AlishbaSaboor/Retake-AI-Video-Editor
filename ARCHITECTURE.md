@@ -242,10 +242,8 @@ Proof: `prisma/schema/contact.prisma`, `scripts/contact-messages.mjs`.
 PostHog gets the typed events and page views only: autocapture and session
 recording are off in code (`src/lib/posthog/init-options.ts`), whatever
 PostHog's own settings say. The proxy refreshes the Supabase session only
-on the pages that read it (the signed-in pages, sign-in and the admin
-console), so a public page makes no call to Supabase. No email domain gets
-an admin seat on sign-up: sign-up doesn't confirm the address, so seats are
-granted by hand (`src/lib/rbac/staff-bootstrap.ts`).
+on the pages that read it (the signed-in pages and sign-in), so a public
+page makes no call to Supabase.
 _Trade-off:_ PostHog's heatmaps and replays aren't available; a new page
 that reads the session must be added to `SESSION_PAGES` in `src/proxy.ts`.
 Proof: `instrumentation-client.ts`, `src/proxy.ts`.
@@ -261,10 +259,10 @@ Proof: `instrumentation-client.ts`, `src/proxy.ts`.
   2807), and `make-plan.ts` is 2,058 lines: the reply's and the check's
   shapes, the planner's steps and the plan-to-plan comparison, in one file
   (`planMake` itself is 82).
-- **Unused template scaffolding**: the admin roles, feature flags and their
-  admin action (1,557 lines in `src/lib/rbac`, `src/lib/flags` and
-  `src/server/actions/feature-flags.ts`, plus the 71-line route factory in
-  `src/server/api/route-factory.ts`) aren't used by the product.
+- **Unused template tables**: `admin_members`, `feature_flags` and
+  `feature_flag_overrides` (`prisma/schema/authz.prisma`, `flags.prisma`)
+  are still in the schema, though no code reads or writes them, because
+  dropping them is a migration of its own.
 - **CI doesn't exercise real sign-in**: it runs with accounts off, and the
   sign-in checks are covered by unit tests with the session mocked.
 - **One paid action runs against real Postgres**: CI's `db-tests` job
@@ -294,22 +292,23 @@ tuned for strangers on the internet.
 
 **What a hosted launch would need, and why each is out of scope here:**
 
-| Needed for a hosted launch                 | Why                                                                                                                                                                                                                                                                     | Why not here                                                            |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Request-size limits that fit the host      | A transcript sends up to about 12.8 MB in one request and a Make it plan up to about 9 MB (the server-action body limit is raised to about 13.8 MB in `next.config.ts`); many hosts cap bodies lower, Vercel at [4.5 MB](https://vercel.com/docs/functions/limitations) | A local server has no such cap                                          |
-| `maxDuration` on the long actions          | A plan may take up to 60 s (`PLAN_TIMEOUT_MS`); a host's default function duration may be shorter                                                                                                                                                                       | A local server has no function duration                                 |
-| A spend ceiling across all accounts        | The daily allowance caps each account, not how many there are                                                                                                                                                                                                           | One person runs it with their own keys                                  |
-| Email confirmation or a captcha at sign-up | Confirmation is off (`supabase/config.toml`), so accounts are free to create                                                                                                                                                                                            | Accounts are local test accounts                                        |
-| Sign-in rate limits per visitor            | Sign-in runs as a server action, so Supabase's per-IP limits see the server's address                                                                                                                                                                                   | One person signs in                                                     |
-| Migrations ordered before the app's deploy | `.github/workflows/deploy-migrations.yml` applies migrations on every push to `main`, independently of any app deploy                                                                                                                                                   | No app is deployed                                                      |
-| A user id on `ai_usage`                    | Spend can't be traced to an account (`prisma/schema/ai-usage.prisma`)                                                                                                                                                                                                   | `ai_usage` is a contract with the MOAD dashboard and isn't changed here |
+| Needed for a hosted launch                                         | Why                                                                                                                                                                                                                                                                     | Why not here                                                            |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Request-size limits that fit the host                              | A transcript sends up to about 12.8 MB in one request and a Make it plan up to about 9 MB (the server-action body limit is raised to about 13.8 MB in `next.config.ts`); many hosts cap bodies lower, Vercel at [4.5 MB](https://vercel.com/docs/functions/limitations) | A local server has no such cap                                          |
+| `maxDuration` on the long actions                                  | A plan may take up to 60 s (`PLAN_TIMEOUT_MS`); a host's default function duration may be shorter                                                                                                                                                                       | A local server has no function duration                                 |
+| A spend ceiling across all accounts                                | The daily allowance caps each account, not how many there are                                                                                                                                                                                                           | One person runs it with their own keys                                  |
+| Email confirmation or a captcha at sign-up                         | Confirmation is off (`supabase/config.toml`), so accounts are free to create                                                                                                                                                                                            | Accounts are local test accounts                                        |
+| Sign-in rate limits per visitor                                    | Sign-in runs as a server action, so Supabase's per-IP limits see the server's address                                                                                                                                                                                   | One person signs in                                                     |
+| Migrations applied to the hosted database, before the app's deploy | No workflow applies migrations anywhere but CI's throwaway Postgres; there is no production database                                                                                                                                                                    | No app is deployed                                                      |
+| A user id on `ai_usage`                                            | Spend can't be traced to an account (`prisma/schema/ai-usage.prisma`)                                                                                                                                                                                                   | `ai_usage` is a contract with the MOAD dashboard and isn't changed here |
 
 ## What I'd do next
 
 1. Bound Make it's reply: a length limit on each of its lists in the
    reply's schema and a thinking budget, so the plan's output cap can be
    proven rather than measured.
-2. Remove the unused admin and feature-flag scaffolding.
+2. Drop the unused `admin_members`, `feature_flags` and
+   `feature_flag_overrides` tables, in a migration of their own.
 3. Split `make-plan.ts` into files by concern, then the `VideoEditor`
    component into hooks by concern, one at a time.
 4. Run e2e against a real local Supabase in CI, so sign-in is exercised
