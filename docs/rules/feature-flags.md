@@ -186,6 +186,9 @@ automatically, where PostHog uses the stored (identify'd) properties.
 `default: false`. Target it to your segment in PostHog, then PostHog → Settings →
 Session Replay → **"Enable recordings using a feature flag"** → pick
 `session_recording`. Now only matching people are recorded — nobody by default.
+In Retake, session recording is turned off in code (`disable_session_recording`
+in `src/lib/posthog/init-options.ts`), so nobody is recorded whatever this flag
+or PostHog's settings say; recording would need that line changed first.
 
 **Measure a specific new feature's flow.** Gate the feature with its flag
 (default off, targeted). Instrument the flow with the taxonomy's `flow_started` /

@@ -42,6 +42,22 @@ const AI_SDK_IMPORTS = {
 		"Call the provider through 'src/server/ai/<provider>' instead — that file is the only place an AI SDK is imported, and the only place trackAiCall is called. Add the method there if it's missing. See docs/rules/ai-usage.md."
 }
 
+// A Client Component importing the server-only logger (docs/rules/logging.md).
+const LOGGER_IN_CLIENT_SYNTAX = {
+	selector:
+		"Program:has(> ExpressionStatement[directive='use client']) ImportDeclaration[source.value=/^@\\/server\\/lib\\/logger(\\/|$)/]",
+	message:
+		'The logger is server-only; a Client Component reports errors through Sentry (instrumentation-client.ts). See docs/rules/logging.md.'
+}
+
+// Deepgram's host in a string or template outside src/server/ai: a call to it
+// that no ai_usage row would account for (docs/rules/ai-usage.md).
+const DEEPGRAM_OUTSIDE_WRAPPER_SYNTAX = {
+	selector: 'Literal[value=/deepgram\\.com/i], TemplateElement[value.raw=/deepgram\\.com/i]',
+	message:
+		"Call Deepgram through 'src/server/ai/deepgram' instead — that file is the only place its API is called, and the only place trackAiCall records it. Add the method there if it's missing. See docs/rules/ai-usage.md."
+}
+
 // Prisma is the only data path (docs/rules/database.md). The client is
 // constructed once, in src/server/db/client.ts, and everything else imports
 // `db` from there. Type imports stay allowed — typing a parameter as
@@ -200,17 +216,25 @@ const eslintConfig = defineConfig([
 		// docs/rules/logging.md is enforced here instead: a `'use client'` file
 		// reports errors through Sentry (instrumentation-client.ts), never the
 		// logger.
+		//
+		// Deepgram has no SDK here: src/server/ai/deepgram.ts calls its REST API
+		// with fetch, so the AI-SDK import ban can't see a second call. Any
+		// mention of its host outside src/server/ai is that second call (or the
+		// start of one), so it fails the build too.
+		//
+		// Both selectors live in ONE rule entry, for the same last-match-wins
+		// reason as no-restricted-imports above; the src/server/ai block below
+		// re-states the logger one.
 		files: ['src/**/*.{ts,tsx}'],
 		rules: {
-			'no-restricted-syntax': [
-				'error',
-				{
-					selector:
-						"Program:has(> ExpressionStatement[directive='use client']) ImportDeclaration[source.value=/^@\\/server\\/lib\\/logger(\\/|$)/]",
-					message:
-						'The logger is server-only; a Client Component reports errors through Sentry (instrumentation-client.ts). See docs/rules/logging.md.'
-				}
-			]
+			'no-restricted-syntax': ['error', LOGGER_IN_CLIENT_SYNTAX, DEEPGRAM_OUTSIDE_WRAPPER_SYNTAX]
+		}
+	},
+	{
+		// The Deepgram wrapper is where its host may be named.
+		files: ['src/server/ai/**/*.ts'],
+		rules: {
+			'no-restricted-syntax': ['error', LOGGER_IN_CLIENT_SYNTAX]
 		}
 	}
 ])
