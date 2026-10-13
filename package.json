@@ -18,6 +18,7 @@
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"test": "node --experimental-test-module-mocks --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/register-ts.mjs --test \"scripts/*.test.mjs\" \"src/**/*.test.mts\"",
+		"test:db": "node --experimental-test-module-mocks --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/register-ts.mjs --test --test-concurrency=1 \"src/**/*.db-test.mts\"",
 		"test:e2e": "playwright test",
 		"shots": "playwright test -c playwright.shots.config.ts",
 		"prisma:generate": "prisma generate",
