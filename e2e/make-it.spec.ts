@@ -732,6 +732,35 @@ test("a refused key or a usage limit shows the server's plain words", async ({ p
 	await expect(page.getByText(refused)).toBeVisible({ timeout: 60_000 })
 })
 
+test('a plan cut off by its output cap comes back as no plan: a plain message, never a crash', async ({
+	page
+}) => {
+	await mockMakeActions(page, WORDS, [reply()])
+	// The plan action's answer when Gemini's reply was cut off and didn't parse.
+	await page.route(
+		(url) => url.pathname.endsWith('/make'),
+		async (route) => {
+			const request = route.request()
+			if (!request.headers()['next-action'] || !request.postData()?.includes('"frames"')) {
+				return route.fallback()
+			}
+			const response = await route.fetch({ postData: JSON.stringify([{ frames: '' }]) })
+			await route.fulfill({
+				response,
+				body: (await response.text()).replace(
+					/\{"ok":false[^\n]*\}/,
+					JSON.stringify({ ok: true, data: { reply: null, tracks: [] } })
+				)
+			})
+		}
+	)
+	await startMaking(page, 'make this an Instagram reel')
+	await expect(
+		page.getByText("Retake couldn't make a plan from that. Try saying it another way.")
+	).toBeVisible({ timeout: 60_000 })
+	await expect(page.getByText(/React|Error|500/)).toHaveCount(0)
+})
+
 /** The average colour of a region of an image, its edges as fractions of it. */
 type Region = { x: number; y: number; width: number; height: number }
 const REGIONS: Record<string, Region> = {

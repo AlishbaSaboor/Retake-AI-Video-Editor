@@ -7,9 +7,9 @@ import { seatRoleForEmail } from '@/lib/rbac/staff-bootstrap'
 // with the Supabase auth uuid + email. It (1) creates or refreshes the User row
 // with id = the Supabase auth uuid (docs/rules/auth.md — never app-generated),
 // and (2) if the email's domain maps to a staff seat (src/lib/rbac/staff-bootstrap),
-// creates an AdminMember at that role. seatRoleForEmail returns the LOWEST role
-// for 8x.social and null for everyone else, so a non-staff user gets a User row
-// and no seat. An existing seat is never downgraded here — (re)seating or
+// creates an AdminMember at that role. No domain maps to a seat in Retake
+// (sign-up doesn't confirm the address), so every user gets a User row and no
+// seat. An existing seat is never downgraded here — (re)seating or
 // elevation is a deliberate access.manage action, not a side effect of signing in.
 export async function provisionUser({ id, email }: { id: string; email: string }): Promise<void> {
 	await db.user.upsert({

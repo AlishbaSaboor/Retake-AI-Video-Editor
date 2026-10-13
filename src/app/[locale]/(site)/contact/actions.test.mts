@@ -27,20 +27,22 @@ mock.module('next/headers', {
 			new Headers(forwardedFor === null ? {} : { 'x-forwarded-for': forwardedFor })
 	}
 })
+const contactMessage = {
+	count: async ({ where }: { where: { ipHash: string | null; createdAt: { gt: Date } } }) =>
+		rows.filter((row) => row.ipHash === where.ipHash && row.createdAt > where.createdAt.gt).length,
+	create: async ({ data }: { data: Omit<Row, 'createdAt'> }) => {
+		rows.push({ ...data, createdAt: new Date() })
+		return data
+	}
+}
 mock.module(import.meta.resolve('@/server/db/client'), {
 	namedExports: {
 		// As the real module exports it (validatedAction's AI allowance reads it; contact never does).
 		Prisma: { PrismaClientKnownRequestError: class extends Error {} },
 		db: {
-			contactMessage: {
-				count: async ({ where }: { where: { ipHash: string | null; createdAt: { gt: Date } } }) =>
-					rows.filter((row) => row.ipHash === where.ipHash && row.createdAt > where.createdAt.gt)
-						.length,
-				create: async ({ data }: { data: Omit<Row, 'createdAt'> }) => {
-					rows.push({ ...data, createdAt: new Date() })
-					return data
-				}
-			}
+			contactMessage,
+			$transaction: (body: (tx: { contactMessage: typeof contactMessage }) => Promise<unknown>) =>
+				body({ contactMessage })
 		}
 	}
 })
