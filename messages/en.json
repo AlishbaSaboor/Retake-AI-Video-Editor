@@ -1013,9 +1013,7 @@
 			"menu": "Menu",
 			"features": "Features",
 			"howItWorks": "How it works",
-			"pricing": "Pricing",
-			"contact": "Contact",
-			"contactFaq": "Contact & FAQ",
+			"faq": "FAQ",
 			"privacy": "Privacy",
 			"open": "Open Retake",
 			"signIn": "Sign in",
@@ -1427,173 +1425,6 @@
 				"5": "hello and welcome to the demo · <cut>er,</cut> where was I · right, the timeline · "
 			}
 		},
-		"howItWorks": {
-			"metaTitle": "How it works",
-			"eyebrow": "How it works",
-			"title": "Two paths. <em>Same happy ending.</em>",
-			"paths": "Choose a path",
-			"pathNames": {
-				"ai": "Make it with AI",
-				"hand": "Edit manually"
-			},
-			"stepsLabel": "Steps",
-			"ai": {
-				"upload": {
-					"label": "Upload",
-					"title": "Upload a video.",
-					"body": "Drag it in or browse. Retake writes a transcript so it knows what you said."
-				},
-				"describe": {
-					"label": "Describe",
-					"title": "Say what it should become.",
-					"body": "Type it or speak it: “make this an Instagram reel”, “make it funny”, “make this an ad”."
-				},
-				"review": {
-					"label": "Review",
-					"title": "Read the plan.",
-					"body": "Shape, length, cuts, captions and on-screen text, listed step by step. Not right? Change your request in plain words."
-				},
-				"apply": {
-					"label": "Apply",
-					"title": "Press Apply.",
-					"body": "Only now does the video change. It opens in the editor, where you can keep asking the assistant or use the timeline."
-				},
-				"export": {
-					"label": "Export",
-					"title": "Download it.",
-					"body": "Tweak anything on the timeline first if you like, or add music of your own on the Audio lane, then export."
-				}
-			},
-			"hand": {
-				"upload": {
-					"label": "Upload",
-					"title": "Upload a video.",
-					"body": "Choose Edit by hand and the editor opens on the transcript and the tools, with the assistant a tab away."
-				},
-				"tidy": {
-					"label": "Tidy",
-					"title": "Clean it up.",
-					"body": "Long pauses and filler words are flagged. Remove them in one click, or one by one."
-				},
-				"shape": {
-					"label": "Shape",
-					"title": "Cut and arrange.",
-					"body": "Split, trim and reorder clips. Said a line wrong? Record that one sentence again and Retake splices it in."
-				},
-				"polish": {
-					"label": "Polish",
-					"title": "Add the finishing touches.",
-					"body": "Titles, captions, a logo, zooms, colour, transitions and music. Or ask the assistant: “zoom here”."
-				},
-				"export": {
-					"label": "Export",
-					"title": "Download it.",
-					"body": "Name the project to keep it in this browser, then export the finished video."
-				}
-			}
-		},
-		"features": {
-			"metaTitle": "Features",
-			"eyebrow": "Features",
-			"title": "Everything a good edit needs. <em>Nothing it doesn't.</em>",
-			"sections": {
-				"ai": {
-					"eyebrow": "Make it with AI",
-					"title": "Say it once. Get a whole edit.",
-					"points": {
-						"plans": {
-							"title": "Plans the whole edit",
-							"body": "Shape, cuts, captions and on-screen text from one sentence."
-						},
-						"shows": {
-							"title": "Shows you first",
-							"body": "Read the plan. Not right? Change your request in plain words."
-						},
-						"builds": {
-							"title": "Builds it on Apply",
-							"body": "Then undo is one click away."
-						}
-					}
-				},
-				"hand": {
-					"eyebrow": "Edit it yourself",
-					"title": "A timeline that stays out of your way.",
-					"points": {
-						"tracks": {
-							"title": "Video, text and audio tracks",
-							"body": "Trim, split, merge and reorder."
-						},
-						"finish": {
-							"title": "Captions, zooms, transitions, crop",
-							"body": "The finishing touches, without the fiddling."
-						},
-						"place": {
-							"title": "Text, logo and music",
-							"body": "Put them where you want them."
-						},
-						"assistant": {
-							"title": "An assistant on the timeline",
-							"body": "“zoom here”, “add a caption”."
-						},
-						"rerecord": {
-							"title": "Re-record one sentence",
-							"body": "Say it again and Retake splices it in."
-						}
-					}
-				},
-				"tidy": {
-					"eyebrow": "Tidy and share",
-					"title": "Clean it up. Cut it down.",
-					"points": {
-						"cleanup": {
-							"title": "One-click clean up",
-							"body": "Filler words and long pauses, gone."
-						},
-						"byHand": {
-							"title": "Or remove them by hand",
-							"body": "You choose which ones go."
-						},
-						"highlights": {
-							"title": "Highlights",
-							"body": "Best moments, downloadable in vertical."
-						},
-						"compare": {
-							"title": "Before and after",
-							"body": "Compare your edit with the original."
-						}
-					}
-				}
-			}
-		},
-		"contact": {
-			"metaTitle": "Contact us",
-			"eyebrow": "Contact us",
-			"title": "Say hello. <em>We read everything.</em>",
-			"description": "Questions, ideas or something not working? Retake is in beta, so every message helps.",
-			"reply": "We reply to the email you give",
-			"form": {
-				"name": "Name",
-				"namePlaceholder": "Your name",
-				"email": "Email",
-				"emailPlaceholder": "you@example.com",
-				"topic": "What's it about?",
-				"topics": {
-					"question": "A question",
-					"idea": "Feedback or an idea",
-					"broken": "Something's not working",
-					"other": "Something else"
-				},
-				"message": "Message",
-				"messagePlaceholder": "Tell us what's on your mind",
-				"send": "Send message",
-				"invalid": "Check your email and message, then try again.",
-				"refused": "Your message couldn’t be sent right now. Please try again later.",
-				"honeypot": "Leave this empty",
-				"sentTitle": "Message sent",
-				"sentBody": "Thanks, we have it.",
-				"another": "Send another"
-			}
-		},
 		"login": {
 			"metaTitle": "Log in",
 			"pitch": "Keep the moment. <em>Lose the mess.</em>",
@@ -1890,34 +1721,6 @@
 				"word": "RIDGE"
 			}
 		},
-		"pricing": {
-			"metaTitle": "Pricing",
-			"eyebrow": "Pricing",
-			"title": "Free, <em>while in beta.</em>",
-			"description": "Every feature, no catch. We're building Retake with the people who use it.",
-			"plan": "Beta",
-			"price": "Free",
-			"start": "Start editing free",
-			"included": "Included",
-			"features": {
-				"0": "Make it with AI, plan first",
-				"1": "Timeline for video, text and audio",
-				"2": "Assistant for quick commands",
-				"3": "One-click clean up",
-				"4": "Captions, zooms, transitions, crop",
-				"5": "Highlights in vertical",
-				"6": "Undo, redo and before/after",
-				"7": "Dark and light themes"
-			},
-			"after": {
-				"title": "What about after beta?",
-				"body": "Pricing after beta hasn't been decided. This page will say so clearly before anything changes."
-			},
-			"limits": {
-				"title": "Any limits during beta?",
-				"body": "Transcripts, Make it and highlights work on videos up to 5 minutes. The AI has a daily limit for each account: {command} typed commands, {voice} spoken commands, {transcript} transcripts, {highlights} highlight searches and {makeIt} Make it steps a day (a plan uses two, since each plan is checked, and each change asked in the chat uses one), reset at midnight UTC. Projects are saved in your browser, so how many you keep depends on its storage."
-			}
-		},
 		"privacy": {
 			"metaTitle": "Privacy",
 			"eyebrow": "Privacy",
@@ -1928,7 +1731,7 @@
 				"who": {
 					"title": "Who we are",
 					"items": {
-						"0": "Retake is a video editor for the web, in beta. Questions about this policy reach us through the contact page."
+						"0": "Retake is a video editor for the web, in beta. During the beta, questions about this policy aren't handled through the site."
 					}
 				},
 				"collect": {
@@ -1936,14 +1739,13 @@
 					"items": {
 						"0": "<b>Account details:</b> your email address, and your password, kept by our sign-in service (Supabase).",
 						"1": "<b>Your videos:</b> they stay on your computer. Editing, previews and export run in your browser, and saved projects, with their video, are kept in this browser, not on our servers.",
-						"2": "<b>Usage information:</b> which pages are visited and what is clicked (PostHog), and reports of errors so we can fix them (Sentry). Never your videos.",
-						"3": "<b>Messages:</b> what you send through the contact page, with your name and email, so we can reply. With each message we keep a coded form of your network address (a one-way code, never the address itself), only to stop the form being flooded."
+						"2": "<b>Usage information:</b> which pages are visited and what is clicked (PostHog), and reports of errors so we can fix them (Sentry). Never your videos."
 					}
 				},
 				"use": {
 					"title": "How we use it",
 					"items": {
-						"0": "To run Retake for you: transcribe your videos, find filler words and pauses, plan and apply the edits you approve, find highlights, and answer your messages."
+						"0": "To run Retake for you: transcribe your videos, find filler words and pauses, plan and apply the edits you approve, and find highlights."
 					}
 				},
 				"ai": {
@@ -1957,13 +1759,13 @@
 				"keep": {
 					"title": "How long we keep it",
 					"items": {
-						"0": "Projects stay in your browser until you delete them or clear the browser's data. We don't keep your videos, audio or transcripts on our servers. Your account and the messages you send are kept until you ask us to delete them."
+						"0": "Projects stay in your browser until you delete them or clear the browser's data. We don't keep your videos, audio or transcripts on our servers. Your account is kept until it is deleted."
 					}
 				},
 				"choices": {
 					"title": "Your choices",
 					"items": {
-						"0": "You can delete any project at any time from Projects, which removes it and its video from this browser. To delete your account or a message you sent, write to us through the contact page."
+						"0": "You can delete any project at any time from Projects, which removes it and its video from this browser. During the beta, deleting an account isn't handled through the site."
 					}
 				},
 				"changes": {
@@ -1972,26 +1774,7 @@
 						"0": "If this policy changes, we will update the date above."
 					}
 				}
-			},
-			"questions": "Questions about your privacy? <link>Write to us.</link>"
-		},
-		"shots": {
-			"zoom": "Open full size.",
-			"close": "Close",
-			"upload": "Retake's home screen: two ways in, Make it with AI and Edit manually, each with an upload button.",
-			"say": "The Make it screen: a sunrise clip attached and the request “Make this an Instagram reel” typed in.",
-			"plan": "Make it's plan for a vertical reel, row by row, beside the clip, with Apply and open.",
-			"studio": "The edited reel open in the editor: the vertical video with its title and captions, and the chat beside it.",
-			"tidy": "The editor's Clean up panel: 2 filler words found, the button to remove them, and the video and timeline.",
-			"yours": "The editor with captions turned on: the line being said shown over the sunrise.",
-			"manual": "The full editor: the tools, the transcript, the video and the timeline.",
-			"assistant": "The editor's assistant: “Turn captions on” asked, and what it will do, waiting for Apply.",
-			"share": "Find highlights: three highlight cards from the video, each with a title, a description, its times and a Download button.",
-			"dark": "The editor in the dark theme.",
-			"light": "The editor in the light theme.",
-			"before": "Before: the original clip, the sun rising over a mountain range.",
-			"after": "After: the same clip as Retake exported it.",
-			"still": "A frame of the clip: mountain ridges at sunrise."
+			}
 		}
 	},
 	"Make": {

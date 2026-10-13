@@ -19,7 +19,7 @@ test('the landing page edits one sentence, then shows the five fixes, Make it, t
 		'Bring a video you have already recorded.'
 	])
 		await expect(page.getByRole('heading', { level: 2, name: heading })).toBeVisible()
-	// The contact form is on the contact page, not here.
+	// No contact form on the site.
 	await expect(page.getByLabel('Message')).toHaveCount(0)
 
 	// The five fixes follow the scroll: halfway through the scene, the third is the one shown.
@@ -61,34 +61,30 @@ test('the landing page edits one sentence, then shows the five fixes, Make it, t
 	await firstQuestion.click()
 	await expect(firstAnswer).toBeHidden()
 
-	// The header: the pages, the theme switch and Open Retake, nothing else.
+	// The header: Features, How it works and FAQ, the theme switch and Open Retake, nothing else.
 	const header = page.getByRole('banner')
 	const nav = header.getByRole('navigation', { name: 'Main' }).first()
-	await expect(nav.getByRole('link')).toHaveText(['Features', 'How it works', 'Pricing', 'Contact'])
+	await expect(nav.getByRole('link')).toHaveText(['Features', 'How it works', 'FAQ'])
 	await expect(header.getByRole('link', { name: 'Open Retake' }).first()).toBeVisible()
 	await expect(header.getByRole('switch', { name: 'Light mode' }).first()).toBeVisible()
 	await expect(header.getByRole('link', { name: 'Projects' })).toHaveCount(0)
-	// Each opens its own page, marked as the one you're on.
-	for (const [link, path, heading] of [
-		['Features', /\/features$/, "Everything a good edit needs. Nothing it doesn't."],
-		['How it works', /\/how-it-works$/, 'Two paths. Same happy ending.'],
-		['Pricing', /\/pricing$/, 'Free, while in beta.'],
-		['Contact', /\/contact$/, 'Say hello. We read everything.']
+	// Each scrolls to its own section of the landing page.
+	for (const [link, hash, heading] of [
+		['Features', '#features', 'Or take the timeline yourself.'],
+		['How it works', '#how-it-works', 'One recording, five small fixes.'],
+		['FAQ', '#faq', 'Questions people ask first.']
 	] as const) {
 		await nav.getByRole('link', { name: link }).click()
-		await expect(page).toHaveURL(path, { timeout: 30_000 })
-		// Each page compiles on its first visit to a cold dev server.
-		await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible({
-			timeout: 30_000
-		})
-		await expect(nav.getByRole('link', { name: link })).toHaveAttribute('aria-current', 'page')
+		await expect(page).toHaveURL(new RegExp(`/${hash}$`))
+		await expect(page.getByRole('heading', { level: 2, name: heading })).toBeInViewport()
 	}
-	// The contact page: name, email, what it's about and the message.
-	await expect(page.getByLabel('Name')).toBeVisible()
-	await expect(page.getByLabel('Email')).toBeVisible()
-	await expect(page.getByLabel("What's it about?")).toHaveValue('question')
-	await expect(page.getByLabel('Message')).toBeVisible()
-	// Then the questions: each opens its answer below it, and closes it again.
+	// From another page too: the link opens the landing page at its section.
+	await page.goto('/privacy')
+	await nav.getByRole('link', { name: 'FAQ' }).click()
+	await expect(page).toHaveURL(/\/#faq$/, { timeout: 30_000 })
+	await expect(
+		page.getByRole('heading', { level: 2, name: 'Questions people ask first.' })
+	).toBeInViewport({ timeout: 30_000 })
 	const question = page.getByText('Where are my videos kept?')
 	const answer = page.getByText(
 		/^In your browser\. Editing, previews and export run on your computer/
@@ -98,6 +94,13 @@ test('the landing page edits one sentence, then shows the five fixes, Make it, t
 	await expect(answer).toBeVisible()
 	await question.click()
 	await expect(answer).toBeHidden()
+	for (const asked of [
+		'What is Retake?',
+		'Can I undo an edit?',
+		'Which videos can I upload?',
+		'Can I make vertical clips?'
+	])
+		await expect(page.getByText(asked, { exact: true })).toBeVisible()
 
 	// The footer reaches the privacy policy.
 	await page
@@ -110,21 +113,37 @@ test('the landing page edits one sentence, then shows the five fixes, Make it, t
 	await expect(page.getByRole('heading', { level: 2, name: 'AI and other services' })).toBeVisible()
 })
 
-test('pricing says free while in beta, with the way in', async ({ page }) => {
-	await page.goto('/pricing')
-	await expect(page.getByRole('heading', { level: 2, name: 'Free' })).toBeVisible()
-	await expect(page.getByRole('list', { name: 'Included' }).getByRole('listitem')).toHaveCount(8)
-	await expect(page.getByRole('heading', { name: 'Any limits during beta?' })).toBeVisible()
-	await expect(page.getByText(/\[[A-Z ]+\]/)).toHaveCount(0)
-})
-
-test('how it works switches between its two paths', async ({ page }) => {
-	await page.goto('/how-it-works')
-	const paths = page.getByRole('radiogroup', { name: 'Choose a path' })
-	await expect(page.getByRole('heading', { level: 3, name: 'Read the plan.' })).toBeVisible()
-	await paths.getByRole('radio', { name: 'Edit manually' }).click()
-	await expect(page.getByRole('heading', { level: 3, name: 'Cut and arrange.' })).toBeVisible()
-	await expect(page.getByRole('heading', { level: 3, name: 'Read the plan.' })).toHaveCount(0)
+test('every link on the public pages leads to a page that exists; old pages go to their sections', async ({
+	page,
+	request
+}) => {
+	const checked = new Set<string>()
+	for (const path of ['/', '/privacy', '/login']) {
+		await page.goto(path)
+		const hrefs = await page
+			.locator('a[href^="/"]')
+			.evaluateAll((links) => links.map((link) => link.getAttribute('href') ?? ''))
+		for (const href of hrefs) {
+			const target = href.split('#')[0] || '/'
+			if (checked.has(target)) continue
+			checked.add(target)
+			const response = await request.get(target, { maxRedirects: 0 })
+			expect(response.status(), `${path} links to ${href}`).toBeLessThan(400)
+		}
+	}
+	// The pages that became sections, and those removed: redirected, never a 404.
+	for (const [old, to] of [
+		['/features', '/#features'],
+		['/how-it-works', '/#how-it-works'],
+		['/faq', '/#faq'],
+		['/contact', '/#faq'],
+		['/pricing', '/'],
+		['/en/features', '/#features']
+	] as const) {
+		const response = await request.get(old, { maxRedirects: 0 })
+		expect(response.status(), old).toBe(308)
+		expect(response.headers()['location'], old).toBe(to)
+	}
 })
 
 test.describe('signed in', () => {
@@ -178,80 +197,6 @@ test.describe('signed in', () => {
 	})
 })
 
-test('a contact message is checked, sent, and thanked', async ({ page }) => {
-	// The form's action, answered as if saved: CI has no database. The request
-	// still reaches the real server, with its input emptied (refused before
-	// any write), so only the result inside Next's reply is swapped.
-	await page.route(
-		(url) => url.pathname.endsWith('/contact'),
-		async (route) => {
-			const request = route.request()
-			if (!request.headers()['next-action']) return route.continue()
-			const response = await route.fetch({ postData: '[{}]' })
-			await route.fulfill({
-				response,
-				body: (await response.text()).replace(/\{"ok":false[^\n]*\}/, '{"ok":true,"data":null}')
-			})
-		}
-	)
-	await page.goto('/contact')
-	await page.getByLabel('Name').fill('Sam')
-	await page.getByLabel('Email').fill('not-an-email')
-	await page.getByLabel("What's it about?").selectOption({ label: 'Feedback or an idea' })
-	await page.getByLabel('Message').fill('Hello')
-	await page.getByRole('button', { name: 'Send message' }).click()
-	// The browser's own check stops a malformed email before anything is sent.
-	expect(
-		await page.getByLabel('Email').evaluate((input: HTMLInputElement) => input.validity.valid)
-	).toBe(false)
-	await page.getByLabel('Email').fill('sam@example.com')
-	await page.getByRole('button', { name: 'Send message' }).click()
-	await expect(page.getByRole('heading', { name: 'Message sent' })).toBeVisible()
-})
-
-test('a person never sees the hidden field and sends it empty; a refused message says so plainly', async ({
-	page
-}) => {
-	// The form's action, answered as the server does when a sender is over the
-	// limit (or the hidden field is filled): the request still reaches the real
-	// server, its input emptied, and only the result inside Next's reply is swapped.
-	const sent: string[] = []
-	await page.route(
-		(url) => url.pathname.endsWith('/contact'),
-		async (route) => {
-			const request = route.request()
-			if (!request.headers()['next-action']) return route.continue()
-			sent.push(request.postData() ?? '')
-			const response = await route.fetch({ postData: '[{}]' })
-			await route.fulfill({
-				response,
-				body: (await response.text()).replace(
-					/\{"ok":false[^\n]*\}/,
-					JSON.stringify({
-						ok: false,
-						error: "Your message couldn't be sent right now. Please try again later.",
-						status: 429
-					})
-				)
-			})
-		}
-	)
-	await page.goto('/contact')
-	const hidden = page.locator('input[name="website"]')
-	await expect(hidden).not.toBeInViewport()
-	expect(await hidden.getAttribute('tabindex')).toBe('-1')
-	// Not offered to a screen reader either (getByRole skips what's aria-hidden).
-	await expect(page.getByRole('textbox', { name: 'Leave this empty' })).toHaveCount(0)
-	await page.getByLabel('Email').fill('sam@example.com')
-	await page.getByLabel('Message').fill('Hello')
-	await page.getByRole('button', { name: 'Send message' }).click()
-	await expect(
-		page.getByText('Your message couldn’t be sent right now. Please try again later.')
-	).toBeVisible()
-	await expect(page.getByRole('heading', { name: 'Message sent' })).toHaveCount(0)
-	expect(JSON.parse(sent[0] ?? '[]')[0]?.website).toBe('')
-})
-
 test('the app pages ask a signed-out visitor to log in, when accounts are on', async ({ page }) => {
 	await page.goto('/projects')
 	const url = new URL(page.url())
@@ -272,19 +217,17 @@ test('the app pages ask a signed-out visitor to log in, when accounts are on', a
 	await expect(password).toHaveAttribute('type', 'password')
 })
 
-test('on a phone, the menu closes once a page from it opens', async ({ page }) => {
+test('on a phone, the menu closes once a link in it is followed', async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 })
 	await page.goto('/')
 	const menu = page.locator('details:has(summary[aria-label="Menu"])')
 	await page.locator('summary[aria-label="Menu"]').click()
 	await expect(menu).toHaveAttribute('open', '')
 	await menu.getByRole('link', { name: 'Features' }).click()
+	await expect(page).toHaveURL(/\/#features$/)
 	await expect(
-		page.getByRole('heading', {
-			level: 1,
-			name: "Everything a good edit needs. Nothing it doesn't."
-		})
-	).toBeVisible({ timeout: 30_000 })
+		page.getByRole('heading', { level: 2, name: 'Or take the timeline yourself.' })
+	).toBeInViewport()
 	await expect(menu).not.toHaveAttribute('open')
 	// Nothing on the page is wider than the phone.
 	const overflow = await page.evaluate(

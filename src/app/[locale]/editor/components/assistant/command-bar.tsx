@@ -45,6 +45,8 @@ type CommandBarProps = {
 	 * plan (a follow-up), not a single command.
 	 */
 	followUps?: FollowUps
+	/** Messages shown first in the chat, above its own (what Make it applied). */
+	intro?: React.ReactNode
 }
 
 /** How the chat asks for a follow-up's plan and applies it. */
@@ -102,7 +104,8 @@ export function CommandBar({
 	onApply,
 	onAttach,
 	initialCommand,
-	followUps
+	followUps,
+	intro
 }: CommandBarProps) {
 	const t = useTranslations('Editor.command')
 	const tFollowUp = useTranslations('Editor.followUp')
@@ -213,8 +216,9 @@ export function CommandBar({
 		followUps ? tFollowUp(`example.${key}`) : t(`chat.example.${key}`)
 
 	return (
-		<section aria-label={t('chat.label')} className="flex h-full min-h-0 flex-col">
+		<section aria-label={t('chat.label')} className="flex h-full min-h-0 flex-1 flex-col">
 			<div className="relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 pb-4">
+				{intro}
 				{entries.length === 0 && !thinking ? (
 					// Empty: what the chat is for, and a few things to try. The panel
 					// above already says what it is, so no heading of its own.
@@ -292,7 +296,7 @@ export function CommandBar({
 				<div ref={endRef} />
 			</div>
 			<form
-				className="border-border border-t p-3"
+				className="border-border shrink-0 border-t p-3"
 				onSubmit={(event) => {
 					event.preventDefault()
 					void ask(command)

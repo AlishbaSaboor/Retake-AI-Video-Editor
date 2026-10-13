@@ -2,10 +2,9 @@ import { getTranslations } from 'next-intl/server'
 import { Link } from '@/i18n/routing'
 
 const FOOTER_LINKS = [
-	{ href: '/features', key: 'features' },
-	{ href: '/how-it-works', key: 'howItWorks' },
-	{ href: '/pricing', key: 'pricing' },
-	{ href: '/contact', key: 'contactFaq' },
+	{ href: '/#features', key: 'features' },
+	{ href: '/#how-it-works', key: 'howItWorks' },
+	{ href: '/#faq', key: 'faq' },
 	{ href: '/privacy', key: 'privacy' }
 ] as const
 

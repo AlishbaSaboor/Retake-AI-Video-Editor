@@ -197,6 +197,17 @@ body {
 	-webkit-font-smoothing: antialiased;
 }
 
+/* The header's links scroll to the landing page's sections: smoothly, unless
+   reduced motion is asked for, and stopping clear of the sticky header. */
+@media (prefers-reduced-motion: no-preference) {
+	html {
+		scroll-behavior: smooth;
+	}
+}
+[id] {
+	scroll-margin-top: 88px;
+}
+
 /* Headlines in Funnel Display, set tight; a class on the heading still wins. */
 @layer base {
 	h1,
@@ -442,16 +453,4 @@ body {
 	left: 0;
 	transform-origin: 0 0;
 	transform: scale(tan(atan2(100cqw, var(--mock-width))));
-}
-
-/* A screenshot comes in both themes (Shot, src/components/site/shot.tsx):
-   only the page's own shows. */
-.shot-light {
-	display: none;
-}
-[data-theme='light'] .shot-light {
-	display: block;
-}
-[data-theme='light'] .shot-dark {
-	display: none;
 }

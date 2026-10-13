@@ -38,7 +38,17 @@ const TOOL_KEYS = [
 	'highlights',
 	'export'
 ] as const
-const FAQ_KEYS = ['free', 'asking', 'rerecord', 'install', 'kept'] as const
+const FAQ_KEYS = [
+	'what',
+	'free',
+	'asking',
+	'undo',
+	'install',
+	'videos',
+	'vertical',
+	'rerecord',
+	'kept'
+] as const
 const PROMISE_KEYS = ['apply', 'undo', 'browser'] as const
 const RULER = ['0:00', '0:15', '0:30', '0:45', '1:00'] as const
 const SPEEDS = ['0.5×', '1×', '1.5×', '2×'] as const
@@ -147,7 +157,7 @@ export async function Hero() {
 					{t('start')}
 					<ArrowRightIcon size={18} />
 				</Link>
-				<a href="#story" className={s.link}>
+				<a href="#how-it-works" className={s.link}>
 					{t('watch')}
 				</a>
 			</div>
@@ -161,7 +171,7 @@ export async function StoryScene() {
 	const caption = t('caption').split(' ')
 	return (
 		<>
-			<div className={cn(s.wrap, s.sceneHead)}>
+			<div id="how-it-works" className={cn(s.wrap, s.sceneHead)}>
 				<Eyebrow>{t('eyebrow')}</Eyebrow>
 				<DisplayHeading size="page" className="rt-reveal mt-[22px] max-w-[14ch]">
 					{t('title')}
@@ -575,7 +585,7 @@ function Illustration({
 export async function ToolTrack() {
 	const t = await getTranslations('Site.landingPage.tools')
 	return (
-		<section id="editor" className={s.editor} aria-label={t('label')} data-scene="editor">
+		<section id="features" className={s.editor} aria-label={t('label')} data-scene="editor">
 			<div className={s.pin}>
 				<div className={s.ed}>
 					<div className={cn(s.wrap, s.edHead)}>

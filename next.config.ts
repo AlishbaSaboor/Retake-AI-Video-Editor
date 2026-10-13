@@ -5,8 +5,27 @@ import { TRANSCRIBE_REQUEST_LIMIT_BYTES } from './src/app/[locale]/editor/audio/
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
 
+/**
+ * Pages that became sections of the landing page, and pages removed: each
+ * old URL goes to the section it became (or the landing page), never a 404.
+ * With and without the locale prefix (the default locale is unprefixed).
+ */
+const MOVED_PAGES = [
+	{ from: '/features', to: '/#features' },
+	{ from: '/how-it-works', to: '/#how-it-works' },
+	{ from: '/faq', to: '/#faq' },
+	{ from: '/contact', to: '/#faq' },
+	{ from: '/pricing', to: '/' }
+] as const
+
 const nextConfig: NextConfig = {
 	reactStrictMode: true,
+	async redirects() {
+		return MOVED_PAGES.flatMap(({ from, to }) => [
+			{ source: from, destination: to, permanent: true },
+			{ source: `/:locale(en)${from}`, destination: to, permanent: true }
+		])
+	},
 	// Top-level as of Next.js 16, not under `experimental`. Strictest
 	// setting: any Compiler bailout fails the build instead of silently
 	// skipping optimization for that component. Matches 8x-core and
