@@ -15,12 +15,13 @@ session with no memory of it can carry on. Read this whole file, then
 > - **Every AI call** goes through `src/server/ai/` with a required time limit (30 or 60 s) and an output cap, and writes one `ai_usage` row, priced when written.
 > - **Tests:** 679 unit (1 skipped on Windows), 142 e2e in 28 files, 6 database tests (`pnpm test:db`) on real Postgres.
 > - **CI:** commits (pull requests only), check, ai-models, build, e2e (4 shards), migrations, db-tests.
-> - **Largest code:** `VideoEditor` is one 2,553-line function (`video-editor.tsx`, lines 237 to 2789), being split into hooks one PR at a time (1 of 13 done). Make it's planner is split by concern: `make-plan.ts` (231 lines: `planMake`, 82, and re-exports) and `make-reply`, `make-request`, `make-context`, `make-cut`, `make-look`, `make-summary` (102 to 499 lines each).
+> - **Largest code:** `VideoEditor` is one 2,431-line function (`video-editor.tsx`, lines 235 to 2665), being split into hooks one PR at a time (2 done; the plan is in section 3zzr). Make it's planner is split by concern: `make-plan.ts` (231 lines: `planMake`, 82, and re-exports) and `make-reply`, `make-request`, `make-context`, `make-cut`, `make-look`, `make-summary` (102 to 499 lines each).
 > - **No admin console, feature flags, API routes or production-migrations workflow** (removed in 3zzo); their tables `admin_members`, `feature_flags` and `feature_flag_overrides` stay in the schema, unused, until a migration drops them.
 > - **Decisions, trade-offs and known limits:** ARCHITECTURE.md.
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **VideoEditor's second hook: the picked item** (section 3zzr).
 > - **VideoEditor's first hook: keyboard shortcuts** (section 3zzq).
 > - **make-plan.ts split by concern** (section 3zzp).
 > - **Unused template code removed** (section 3zzo).
@@ -503,6 +504,31 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzr. VideoEditor's second hook: the picked item (2026-10-14)
+
+- **Re-plan (after #56):** measured on the code, a pure-move hook costs back
+  the lines of its call (one per name in and out, once Prettier wraps it), so
+  all twelve remaining hooks would leave `video-editor.tsx` near 1,600 lines,
+  not under 1,500; under 800 needs a different shape (one editor object, or
+  the JSX split into components), not pure moves. `applyCommand` and
+  `commandContext`, and `useEditDocument` as one hook, are too tangled to
+  move as pure moves. Agreed route, one PR each, stopping after each: 6.2
+  `usePickedItem`, 6.3 `useProjectFile`, 6.4 `useReRecord`, 6.5 the helper
+  components and constants into their own files, 6.6 the `tools` config;
+  then the owner decides.
+- **PR 6.2:** `usePickedItem` (`components/preview/use-picked-item.ts`) holds
+  what's picked on the video (its state, name, timing, retime, delete and
+  replace) and the Text lane's items with `selectText`, moved line for line,
+  with `KEY_LINE_ID`. No effect or ref; the `picked` state now runs later in
+  the hook order (the same order every render). `video-editor.tsx`: 2,866
+  to 2,742 lines.
+- **e2e:** no local run. Docker wasn't running (local Supabase down, so the
+  suite's sign-in step failed and nothing else ran) and memory is low; CI's
+  four dev-mode shards (accounts off) are the full-suite result, so real
+  sign-in isn't exercised for this PR.
 
 ---
 
