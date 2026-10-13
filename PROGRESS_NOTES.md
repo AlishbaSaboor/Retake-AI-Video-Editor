@@ -7,6 +7,7 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-13.
+> - **One landing page; the editor fits the window** (section 3zzj).
 > - **Redesign** (section 3zzi): the whole site and app in the owner's new
 >   design: violet-black, Funnel type, the landing page as scroll scenes.
 > - **Hardening** (section 3zzh): no admin seat from an email domain, an
@@ -480,6 +481,37 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzj. One landing page, and an editor that fits the window (2026-10-13)
+
+- **Pages.** Features, How it works, Pricing and Contact us removed. The
+  header's Features, How it works and FAQ scroll to the landing page's own
+  sections (`/#features`, the tools; `/#how-it-works`, the five fixes;
+  `/#faq`), from any page, smoothly unless reduced motion is asked for. The
+  footer has the same three and Privacy. Every old URL redirects (308) to
+  its section or the landing page (`next.config.ts`, `MOVED_PAGES`). The
+  landing page's FAQ asks all nine questions. The phone menu closes when a
+  link in it is followed (an anchor changes no path).
+- **Contact.** No page sends messages any more; the server action, its limit
+  and its tests stay, and `pnpm contact:messages` still reads what was sent.
+  Privacy no longer points to a contact page (the owner's choice): its lines
+  about messages are gone, and it says that during the beta questions and
+  account deletion aren't handled through the site.
+- **The studio's chat.** What Make it applied is now the chat's first
+  message, in its scrolling area, not a block above it: a long plan used to
+  push the box to type in out of view. The box, the mic and send stay at
+  the panel's foot; on a phone the panel is 80% of the screen's height.
+- **The full editor fits the window** (from `lg`): the picture takes the
+  room the tools, its controls and the timeline leave (a size container, the
+  player the largest 16:9 box in it); the timeline is at most 46% of the
+  column, its clip tools fixed and its lanes scrolling inside it.
+- **Tests:** `e2e/editor-fit.spec.ts` (5): at 1366 × 768 and 1920 × 1080 the
+  editor's picture, crop tool, Split, Merge, Duplicate, Delete and lanes are
+  in view with no page scroll, and after Make it the chat's box, mic and
+  send are; on a phone they're at the chat panel's foot. The site tests
+  follow the anchors and the redirects, and check no link 404s.
 
 ---
 

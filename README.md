@@ -88,7 +88,8 @@ setup is in `docs/CI_CD_SETUP.md`.
 
 ## Contact messages
 
-Messages sent from the Contact us page are kept in the local database and
+Messages sent from the Contact us page (removed on 2026-10-13) are kept in
+the local database and
 nowhere else: nothing is emailed or sent to an outside service. They're
 personal data (a name, an email and what was written), so they stay there.
 To read them:

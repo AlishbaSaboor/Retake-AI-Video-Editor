@@ -23,9 +23,17 @@ const PLAYER_RATIO = 16 / 9
  */
 export const PLAYER_WIDTH =
 	'w-full max-w-[min(100%,calc((100dvh-24rem)*16/9))] min-w-[min(100%,28rem)]'
+/**
+ * The editor fitted to the window (from `lg`): as large as the box it sits in
+ * allows, both ways, in that box's container units. Below `lg` the page
+ * scrolls, and the player is as wide as the column again.
+ */
+const PLAYER_FIT = 'lg:w-[min(100cqw,calc(100cqh*16/9))] lg:max-w-none lg:min-w-0'
 const PERCENT = 100
 
 type PictureFrameProps = {
+	/** As large as its container allows (a size container, from `lg`), not capped by the window's height. */
+	fit?: boolean
 	/** The source picture's size; a 16:9 stand-in until the video's metadata is in. */
 	picture: Size
 	/** What the preview shows: the edit's transform, or none for the original. */
@@ -106,7 +114,8 @@ export function PictureFrame({
 	onFrame,
 	zoom = NO_ZOOM,
 	design = null,
-	blurSource
+	blurSource,
+	fit = false
 }: PictureFrameProps) {
 	const output = outputSize(picture, transform)
 	const frame = rotatedFrame(picture, transform.rotation)
@@ -121,7 +130,8 @@ export function PictureFrame({
 			data-testid="player"
 			className={cn(
 				'border-border relative mx-auto aspect-video shrink-0 overflow-hidden rounded-lg border bg-black shadow-2xl',
-				PLAYER_WIDTH
+				PLAYER_WIDTH,
+				fit && PLAYER_FIT
 			)}
 		>
 			<div
