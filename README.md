@@ -59,7 +59,8 @@ In `.env.local`, from `supabase status`: `DATABASE_URL` and `DIRECT_URL`
 (the local Postgres), `NEXT_PUBLIC_SUPABASE_URL` and
 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Add `GEMINI_API_KEY` and
 `DEEPGRAM_API_KEY` for the AI features; without them the app runs, and those
-features fail with a generic error. `CONTACT_IP_SECRET` is optional locally. Every
+features fail with "The AI isn't available right now. Try again later." (the
+server log names the missing setting). `CONTACT_IP_SECRET` is optional locally. Every
 variable is explained in `.env.example`. Create an account on the sign-in
 page to use the app.
 
@@ -80,9 +81,9 @@ openssl rand -hex 32
 ```
 
 Set it in the host's environment, never in the repo, and keep it the same
-across deploys (changing it resets every sender's count). The rest of the
-deployment notes, including request-size limits, are in
-[ARCHITECTURE.md](ARCHITECTURE.md#deployment-notes); the GitHub and Vercel
+across deploys (changing it resets every sender's count). What a hosted launch
+would still need, including request-size limits, is in
+[ARCHITECTURE.md](ARCHITECTURE.md#scope-local-first-not-deployed); the GitHub and Vercel
 setup is in `docs/CI_CD_SETUP.md`.
 
 ## Tests

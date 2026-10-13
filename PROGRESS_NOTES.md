@@ -6,7 +6,12 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **Read this first: where things stand right now**
 >
-> - Branch `main`. Updated 2026-10-12.
+> - Branch `main`. Updated 2026-10-13.
+> - **Copy and docs say what's true** (section 3zzg): no music promised
+>   from Make it, "Make it steps" on Pricing, a generic message for a
+>   refused AI key (the detail in the log), and ARCHITECTURE.md and
+>   DESIGN.md corrected, with a Scope section on what a hosted launch
+>   would need.
 > - **Two fixes from the fifth real run** (section 3zzf): a webcam bubble
 >   over a screen recording is treated as a screen (so "make an ad" is
 >   designed), and a clicked look never counts as the user's words for a
@@ -469,6 +474,47 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzg. Copy and docs that say what's true (2026-10-13)
+
+The first of the review's fixes: nothing here changes what the product
+does, except what an AI failure shows a person.
+
+- **No music from Make it.** `public/music` holds no track, so Make it
+  never lays music, but the landing page's demo (a "Soft music underneath"
+  plan line and a Music lane), Features, How it works and the editor's
+  "Add calm music" follow-up chip all said it did. All gone; How it works'
+  last step now says music of your own goes on the Audio lane. The hero's
+  undo chip moved down so it no longer covers the Captions label.
+- **Make it steps.** Pricing said "Make it requests", but a plan and its
+  automatic check count two. Pricing and the limit-reached message now
+  both say "Make it steps" (`DAILY_AI_LIMITS.make_it.what`), and Pricing
+  says a plan uses two.
+- **No setup detail for a person.** A refused key or a provider's usage
+  limit showed "Check GEMINI_API_KEY in .env.local" to whoever used the
+  app. Both now show "The AI isn't available right now. Try again later.";
+  the log gets the provider, the failure and the setting to check, never a
+  key's value. Timeout and busy messages are unchanged. One e2e test's
+  injected text changed to match (approved).
+- **Docs.** ARCHITECTURE.md: the line counts (VideoEditor 2,558,
+  `make-plan.ts` 2,058, `planMake` 82, scaffolding 1,560 plus the 71-line
+  route factory), four things leave the browser (a spoken command's
+  recording too), the $4.58 figure's source, Deepgram outside the lint
+  rule, and a new "Scope: local-first, not deployed" section listing what
+  a hosted launch would need and why each is out of scope (`ai_usage` keeps
+  no user id on purpose: it's MOAD's contract). DESIGN.md rewritten from
+  the template's starter text to the real tokens, radii, type and
+  components, with "tokens, not literal values" stated as an aim the code
+  doesn't meet yet (395 arbitrary values in `.tsx`). README's AI-key line
+  and its link to the old Deployment notes fixed.
+- **Tests:** `ai-busy.test.mts` (4) and `copy-claims.test.mts` (2). Each of
+  12 fixes undone on purpose made a named test fail. Unit 702 to 708.
+  Not tested: the hero's markup (the Music lane's JSX could come back
+  without its message and only show a missing-message key).
+- **Main was red** from a one-line format failure in the review workflow;
+  fixed separately first (PR #45).
 
 ---
 
