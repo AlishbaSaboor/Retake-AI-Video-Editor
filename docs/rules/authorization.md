@@ -50,8 +50,10 @@ enum column; `role` stays a small fixed enum.
   - `requirePermission(perm)` / `requireAtLeastRole(role)` — per-capability.
   - `requirePermissionOrRedirect(perm)` — page twin (sign-in vs admin home).
   - `requireAuthorize(...)` — used by the factories (below).
-- `staff-bootstrap.ts` — `seatRoleForEmail(email)`: an `8x.social` email
-  auto-gets the **lowest** seat, everyone else gets `null` (no seat).
+- `staff-bootstrap.ts` — `seatRoleForEmail(email)`: a listed staff domain
+  auto-gets the **lowest** seat, everyone else gets `null` (no seat). Retake
+  lists no domain: sign-up doesn't confirm the address, so a listed domain
+  would hand a seat to anyone who types one. Seats are granted by hand.
 - `provision-user.ts` — `provisionUser({ id, email })`: upsert the `User` at
   the Supabase auth uuid, and if `seatRoleForEmail` is non-null, create an
   `AdminMember` at that role. Logs through `src/server/lib/logger`.

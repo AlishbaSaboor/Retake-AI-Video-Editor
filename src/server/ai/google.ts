@@ -2,12 +2,14 @@ import 'server-only'
 import {
 	GoogleGenAI,
 	MediaResolution,
+	type FinishReason,
 	type GenerateContentParameters,
 	type GenerateContentResponse
 } from '@google/genai'
 import { withTimeout } from '@/lib/with-timeout'
 import { env } from '@/lib/env'
 import { trackAiCall } from '@/server/lib/ai-usage/sink'
+import { log } from '@/server/lib/logger'
 import type { TrackedModel } from '@/server/lib/ai-usage/models'
 import type { AiUsageMeta } from '@/server/lib/ai-usage/track'
 
@@ -32,6 +34,38 @@ function gemini(): GoogleGenAI {
 }
 
 /**
+ * The most each Gemini feature may write per call: the visible reply plus the
+ * model's thinking, which Gemini bills as output (`ai_usage.output_tokens`).
+ * Set from the real replies in `ai_usage` up to 2026-10-12 (360 calls):
+ *
+ * - Typed commands, highlights and the check are short JSON: at most 161,
+ *   169 and 211 seen, so 1,024 leaves room to spare.
+ * - A plan is 1.5x the largest seen (5,483, a recording near 5 minutes). It
+ *   is not a proven bound: the 5-minute limit caps the input, not the reply,
+ *   since the reply's lists have no length limit and thinking isn't bounded
+ *   by the recording's length. Bounding the reply's schema and setting a
+ *   thinking budget is the known next step. A follow-up answers with the
+ *   same reply as a plan, so it gets the same cap.
+ *
+ * A reply cut off here fails to parse and each feature treats it as no reply;
+ * the wrapper logs the cut-off as its own event, so it is never mistaken for
+ * a malformed reply.
+ */
+export const GEMINI_MAX_OUTPUT_TOKENS = {
+	parse_edit_command: 1024,
+	find_highlights: 1024,
+	make_it_check: 1024,
+	make_it: 8192,
+	make_it_follow_up: 8192
+} as const
+
+/** Why a reply stopped, when it hit its output cap: the SDK's own value, checked against its enum. */
+const CUT_OFF = 'MAX_TOKENS' satisfies `${FinishReason}`
+
+/** A Gemini feature: one with an output cap, so a call without one doesn't compile. */
+export type GeminiFeature = keyof typeof GEMINI_MAX_OUTPUT_TOKENS
+
+/**
  * What the spend is for. `feature` is the axis every cost question gets asked
  * along: `transcribe_take` and `parse_edit_command` answer different
  * questions, `generate` answers none.
@@ -41,7 +75,7 @@ function gemini(): GoogleGenAI {
  * table directly, so that constraint is the only thing keeping it safe.
  */
 export type AiContext = {
-	feature: string
+	feature: GeminiFeature
 	model: TrackedModel
 	meta?: AiUsageMeta
 	/** Give up after this long: the request is aborted and the call fails with a TimeoutError (recorded). */
@@ -71,13 +105,24 @@ export function generateContent(
 	params: Omit<GenerateContentParameters, 'model'>
 ): Promise<GenerateContentResponse> {
 	const { timeoutMs, ...tracked } = context
+	const maxOutputTokens = GEMINI_MAX_OUTPUT_TOKENS[context.feature]
 	const call = (abortSignal?: AbortSignal) =>
 		gemini().models.generateContent({
 			...params,
 			model: context.model,
-			config: { ...params.config, ...(abortSignal && { abortSignal }) }
+			// The feature's cap wins over anything the caller passed.
+			config: { ...params.config, maxOutputTokens, ...(abortSignal && { abortSignal }) }
 		})
 	return trackAiCall({ provider: 'google', ...tracked }, () =>
 		timeoutMs ? withTimeout(timeoutMs, call) : call()
-	)
+	).then((response) => {
+		if (response.candidates?.[0]?.finishReason === CUT_OFF) {
+			log.warn('AI reply cut off by its output cap', {
+				provider: 'google',
+				feature: context.feature,
+				maxOutputTokens
+			})
+		}
+		return response
+	})
 }

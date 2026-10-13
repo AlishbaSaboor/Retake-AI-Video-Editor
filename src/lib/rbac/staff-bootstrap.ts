@@ -1,15 +1,12 @@
 import type { AdminRole } from '@prisma/client'
-import { LOWEST_ROLE } from './roles'
 
 // Auto-provisioning rule: an internal email domain maps to a DEFAULT admin seat
-// role; every other domain gets no seat at all. Shipped with 8x.social → the
-// LOWEST role, so internal staff are recognised automatically but at least
-// privilege, to be elevated deliberately. Change or extend the map in one line,
-// or empty it to require fully manual granting. This is deliberately the LOWEST
-// seat — no email string is ever a path to elevated access.
-const STAFF_DOMAIN_ROLE: Record<string, AdminRole> = {
-	'8x.social': LOWEST_ROLE
-}
+// role; every other domain gets no seat at all. Empty in Retake: sign-up has no
+// email confirmation (supabase/config.toml), so anyone could type an address at
+// a listed domain and get its seat. Every seat is granted by hand. A domain may
+// only be added here once sign-up confirms the address, and then only at the
+// LOWEST role (roles.ts): no email string is ever a path to elevated access.
+const STAFF_DOMAIN_ROLE: Record<string, AdminRole> = {}
 
 // The admin role a newly provisioned user should get from their email, or null
 // for "no admin seat" (the normal case — creators/brands/end-users). Called by

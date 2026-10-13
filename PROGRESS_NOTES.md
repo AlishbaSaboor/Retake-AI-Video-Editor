@@ -7,6 +7,10 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-13.
+> - **Hardening** (section 3zzh): no admin seat from an email domain, an
+>   output-token cap per Gemini feature, PostHog without autocapture or
+>   recording, an atomic contact limit and `pnpm contact:messages`, no
+>   Supabase call on public pages, and a lint rule for Deepgram.
 > - **Copy and docs say what's true** (section 3zzg): no music promised
 >   from Make it, "Make it steps" on Pricing, a generic message for a
 >   refused AI key (the detail in the log), and ARCHITECTURE.md and
@@ -474,6 +478,50 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzh. Hardening: caps, analytics, contact, proxy, lint (2026-10-13)
+
+The review's second set, each finding checked against the code first (all
+true; "no way to read contact messages" was partly wrong: Prisma Studio
+worked, there just wasn't a purpose-built way).
+
+- **No admin seat from an email domain.** `STAFF_DOMAIN_ROLE` gave any
+  `@8x.social` sign-up the lowest admin seat, and sign-up doesn't confirm
+  the address. Now empty: seats are granted by hand.
+- **An output cap per Gemini feature** (`GEMINI_MAX_OUTPUT_TOKENS` in
+  `src/server/ai/google.ts`): 1,024 for a typed command, highlights and the
+  check; 8,192 for a plan and a follow-up, from the real replies in
+  `ai_usage` (largest 161, 169, 211 and 5,483). The output count includes
+  the model's thinking (real run 5: a 1,780-character reply billed 4,260),
+  so 8,192 is measured headroom (1.5 times the largest plan), not a proven
+  bound: the 5-minute cap limits the input, not the reply's lists or the
+  thinking. A call for a feature without a cap doesn't compile, the
+  feature's cap overrides a caller's, and a reply cut off by it is logged
+  as `AI reply cut off by its output cap` with the feature; the plan then
+  reads as no plan ("Retake couldn't make a plan from that…"). Next step:
+  bound the reply's schema and set a thinking budget.
+- **PostHog:** autocapture and session recording off in code
+  (`src/lib/posthog/init-options.ts`); page views still by hand.
+- **Contact limit atomic:** count and insert in one Serializable
+  transaction, retried up to three times when Postgres aborts an overlapping
+  send (P2034); still overlapping after three, the send is refused with the
+  usual message (429), not a server error. Tested with a fake database that
+  behaves like Postgres for this pattern; not yet against real Postgres.
+- **`pnpm contact:messages`:** the latest 20 (`--limit`, at most 200), one
+  read-only select, never the hashed IP, refuses any database not on this
+  machine. Messages are personal data and stay in the local database.
+- **The proxy** calls Supabase only on the pages that read the session
+  (`/home`, `/make`, `/projects`, `/editor`, `/login`, `/admin`).
+- **Deepgram lint rule:** a mention of `deepgram.com` outside
+  `src/server/ai/` fails lint (Deepgram is a `fetch`, so the SDK import ban
+  couldn't see it).
+- **Tests:** 22 new (unit 708 to 730) and one new e2e (a cut-off plan's
+  message). Two existing tests changed with the owner's approval (the
+  `8x.social` seat tests now assert no seat) and one existing fake gained
+  `$transaction` (no assertion changed). Each of 17 fixes undone on purpose
+  made a named test fail.
 
 ---
 

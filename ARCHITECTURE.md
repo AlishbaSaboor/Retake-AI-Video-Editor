@@ -154,14 +154,21 @@ Proof: `supabase/config.toml`, `src/server/auth/session.ts`,
 ### One chokepoint for AI calls, with cost tracking
 
 Feature code calls `src/server/ai/<provider>`; ESLint fails the build on any
-other import of the Gemini SDK. Deepgram is called with plain `fetch` in
-`src/server/ai/deepgram.ts`, so no lint rule yet stops a `fetch` to Deepgram
-elsewhere. Each call writes one row to `ai_usage`, priced at
+other import of the Gemini SDK, and on any mention of Deepgram's host outside
+`src/server/ai/` (Deepgram is called with plain `fetch`, so there's no SDK
+import to ban). Each Gemini feature has an output-token cap in one constant,
+`GEMINI_MAX_OUTPUT_TOKENS` (1,024 for a typed command, highlights and the
+check; 8,192 for a plan and a follow-up), and a call for a feature without
+one doesn't compile. A reply cut off by its cap is logged as its own event
+and treated as no reply. Each call writes one row to `ai_usage`, priced at
 the time of the call (an unknown price is stored as null, never zero). A
 failed write costs the row, never the call.
 _Trade-off:_ every new model or provider must be registered before it can
 be called. `ai_usage` is read by another system (MOAD), so its columns are
-not changed casually.
+not changed casually. The caps come from the real replies in `ai_usage`
+(360 calls to 2026-10-12): 8,192 is 1.5 times the largest plan seen (5,483
+tokens, thinking included), not a proven bound, since neither the reply's
+lists nor the model's thinking are limited by the 5-minute cap.
 Proof: `src/server/ai/google.ts`, `src/server/lib/ai-usage/sink.ts`,
 `src/server/lib/ai-usage/models.ts`, `eslint.config.mjs`.
 
@@ -207,13 +214,32 @@ Proof: `src/lib/ai-limits.ts`, `src/server/lib/ai-allowance.ts`,
 
 The public contact form has a hidden honeypot field and a per-sender limit
 counted from the saved messages: 5 an hour per sender, 30 an hour shared by
-senders who can't be told apart. A sender is stored only as an HMAC of
-their IP with `CONTACT_IP_SECRET`, never the IP. Both checks refuse with
-the same plain message.
+senders who can't be told apart. The count and the insert run in one
+Serializable transaction, so sends at once can't pass the count together (a
+send that still overlaps after three tries is refused). A sender is stored
+only as an HMAC of their IP with `CONTACT_IP_SECRET`, never the IP. Every
+check refuses with the same plain message. The messages are personal data
+(a name, an email and what was written) and stay in the local database:
+`pnpm contact:messages` prints the latest ones, read-only, and refuses any
+database not on this machine.
 _Trade-off:_ the IP is read from the last `x-forwarded-for` entry, which is
 trustworthy behind a host that sets it (Vercel) but could be set by a
 client on a server with no proxy in front.
-Proof: `src/app/[locale]/(site)/contact/actions.ts`, `contact-limit.ts`.
+Proof: `src/app/[locale]/(site)/contact/actions.ts`, `contact-limit.ts`,
+`scripts/contact-messages.mjs`.
+
+### Analytics without autocapture, and the session only where it's read
+
+PostHog gets the typed events and page views only: autocapture and session
+recording are off in code (`src/lib/posthog/init-options.ts`), whatever
+PostHog's own settings say. The proxy refreshes the Supabase session only
+on the pages that read it (the signed-in pages, sign-in and the admin
+console), so a public page makes no call to Supabase. No email domain gets
+an admin seat on sign-up: sign-up doesn't confirm the address, so seats are
+granted by hand (`src/lib/rbac/staff-bootstrap.ts`).
+_Trade-off:_ PostHog's heatmaps and replays aren't available; a new page
+that reads the session must be added to `SESSION_PAGES` in `src/proxy.ts`.
+Proof: `instrumentation-client.ts`, `src/proxy.ts`.
 
 ## Known limits
 
@@ -269,13 +295,12 @@ tuned for strangers on the internet.
 
 ## What I'd do next
 
-1. Harden what applies locally: no admin seat from an email domain, an
-   output-token cap per Gemini feature, PostHog without autocapture or
-   session replay, an atomic contact limit and a way to read the messages,
-   no Supabase call for public pages, and a lint rule for Deepgram calls.
+1. Bound Make it's reply: a length limit on each of its lists in the
+   reply's schema and a thinking budget, so the plan's output cap can be
+   proven rather than measured.
 2. Test the real paths: the allowance's ceiling against Postgres, and a
    paid action through the real wrapper with fake providers at the network
-   edge.
+   edge, and the contact limit's transaction against Postgres.
 3. Remove the unused admin and feature-flag scaffolding.
 4. Split `make-plan.ts` into files by concern, then the `VideoEditor`
    component into hooks by concern, one at a time.

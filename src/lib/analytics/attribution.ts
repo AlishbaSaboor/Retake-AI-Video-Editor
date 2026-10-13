@@ -2,8 +2,9 @@
 
 import posthog from 'posthog-js'
 
-// Common user attributes (rule 6). Most are already attached by PostHog's own
-// autocapture and don't need re-implementing here:
+// Common user attributes (rule 6). Most are already attached by posthog-js to
+// every event (autocapture is off; these are default properties) and don't
+// need re-implementing here:
 //   os        -> $os
 //   device    -> $device_type
 //   country   -> $geoip_country_code
