@@ -1,140 +1,143 @@
 # Design system
 
-Retake's look: two colour schemes (dark by default), one violet accent, a
-serif for display lines. The owner's design files (`design/landing.html`
-for the public site, `design/app.html` for the app; 12 MB, kept out of the
-repo) are the source of truth; `src/app/globals.css` is where the code
-holds it. This file describes what the code does today, including where it
-falls short of its own rules (section 4).
+Retake's look, from the owner's design (`design/`, kept out of the repo:
+the landing page, the signed-in app and the design notes). Violet on a
+violet-black base, dark by default and mirrored in light; Funnel Display for
+headlines, Funnel Sans for reading, JetBrains Mono for timecodes and labels.
+`src/app/globals.css` is where the code holds it. This file describes what
+the code does today, including where it falls short of its own rules
+(section 5).
 
-## 1. Tokens live in `src/app/globals.css`
+## 1. The rules the design sets
 
-Tailwind v4 is CSS-first: there is no `tailwind.config.js`. Three places:
+- **60 / 30 / 10.** Roughly 60% base, 30% raised surfaces and lines, 10%
+  accent. The accent marks only what you can press or what is happening
+  right now.
+- **No orange or yellow anywhere**, the footage included: the site's
+  pictures of the sample trip are shown in a violet duotone (`.duo` in the
+  landing page's stylesheet). The person's own video in the app is always
+  shown in its real colours.
+- **Pink only for what gets cut**: filler words, pauses, removed parts, and
+  a recording in progress (`--cut`).
+- **No highlighted or italic words in headlines.** A message's `<em>` reads
+  as plain text (`emphasis()` in `src/components/site/display.tsx`).
+- **No orbs or glows** behind the content; the landing page's moving
+  background is spoken words drifting past, with the ums cut out.
 
-- **`@theme`**: static tokens, the same in both schemes: the radii, the
-  brand's four colours, `night` and `ink` (what stays dark in both), `zoom`
-  (a zoom's box and the spoken word drawn on the video), `knob` and `sun`
-  (the theme switch), and the easing `--ease-out-soft`.
+## 2. Tokens live in `src/app/globals.css`
+
+Tailwind v4 is CSS-first: there is no `tailwind.config.js`.
+
+- **`@theme`**: the radii, the brand colours (the logo's dot, the
+  gradient lines), `night` and `ink`, and the easing `--ease-out-soft`
+  (`cubic-bezier(.2,.8,.2,1)`, the design's).
 - **`:root` / `[data-theme='dark']` and `[data-theme='light']`**: the colour
   tokens that change with the scheme, re-exposed to Tailwind by
-  `@theme inline` so utilities read them live (`bg-surface`, `text-text-muted`,
-  `border-border`, ...).
-- **`@utility`**: `bg-brand` and `bg-brand-wide` (the brand gradients),
-  `text-gradient` and `bg-glow`.
+  `@theme inline` (`bg-surface`, `text-text-muted`, `border-border`, ...).
+- **`@utility`**: `bg-brand` (the accent as a fill) and `bg-brand-wide` (the
+  design's one gradient: accent into the support blue).
 
-Spacing and font sizes use Tailwind's default scale; there is no parallel
-one.
+| Token                          | Dark                  | Light               | Role (the design's name)                         |
+| ------------------------------ | --------------------- | ------------------- | ------------------------------------------------ |
+| `--bg`                         | `#0b0a1a`             | `#f5f4fb`           | base (`--bg`)                                    |
+| `--surface`                    | `#151330`             | `#ffffff`           | raised surface (`--panel`)                       |
+| `--surface-hover`              | `#1c1940`             | `#f1effb`           | a surface on a surface (`--panel-2`)             |
+| `--surface-inset`              | `#100e24`             | `#eceaf7`           | recessed fields and chat (`--bg-2`)              |
+| `--border` / `--border-strong` | lilac 12% / 22%       | ink 11% / 20%       | lines (`--line`, `--line-2`)                     |
+| `--text`                       | `#f1efff` (17.3:1)    | `#14122b` (16.7:1)  | text (`--fg`)                                    |
+| `--text-muted`                 | `#aba6cf` (8.5:1)     | `#514c78` (7.2:1)   | secondary text (`--mute`)                        |
+| `--text-faint`                 | `#8c87b6` (5.8:1)     | `#686391` (5.1:1)   | quiet labels (`--faint`)                         |
+| `--accent`                     | `#8f7eff`             | `#5b45f0`           | buttons, the playhead, now-playing               |
+| `--accent-ink`                 | `#0b0a1a` (6.2:1)     | white (5.9:1)       | text on the accent (`--on-accent`)               |
+| `--accent-fg`                  | `#b5a9ff` (9.4:1)     | `#4b36e0` (6.6:1)   | the accent as text and links (`--accent-ink`)    |
+| `--accent-soft`                | lilac 16%             | accent 13%          | a picked chip, a focus ring (`--ring`)           |
+| `--blue`                       | `#7c9cff` (7.5:1)     | `#2f5be0` (5.2:1)   | support: "Chosen for you", gradients             |
+| `--cut` / `--cut-soft`         | `#f27bcb` (7.9:1)     | `#b0267a` (5.6:1)   | what gets cut; also `--filler` and `--warning`   |
+| `--success`                    | `#6ee7c1` (12.9:1)    | `#0e7a5b` (4.9:1)   | done: "Applied", checks (`--ok`)                 |
+| `--danger`                     | `#ff6b8a`             | `#c5282e`           | errors only (the design has none; kept for them) |
+| `--glass`                      | panel at 72%          | white at 78%        | the bars' blurred backgrounds                    |
+| `--river` / `--river-cut`      | lilac 5.5% / pink 13% | ink 4.5% / pink 10% | the drifting words behind the landing page       |
+| `--shadow-card`                | deep, black           | soft, violet        | raised cards (`--shadow`)                        |
 
-## 2. Tokens, named by role
+Contrast figures are the design notes', against the base.
 
-| Token                                                     | Dark                              | Light                             | Role                                                             |
-| --------------------------------------------------------- | --------------------------------- | --------------------------------- | ---------------------------------------------------------------- |
-| `--bg`                                                    | `#09081a`                         | `#f7f6fd`                         | page background                                                  |
-| `--surface`                                               | `#121122`                         | `#ffffff`                         | card or panel                                                    |
-| `--surface-hover`                                         | `#1b1a2d`                         | `#efeef8`                         | hover on a surface                                               |
-| `--surface-inset`                                         | `#07061a`                         | `#f3f2fb`                         | recessed area: inputs, the timeline track                        |
-| `--surface-raised`                                        | `#17152e`                         | `#ffffff`                         | a raised card or dialog (the plan card, Pricing, a device frame) |
-| `--border` / `--border-strong`                            | white 8% / 17%                    | ink 9% / 18%                      | hairline border / hover and focus-adjacent border                |
-| `--text`                                                  | `#f4f3fa`                         | `#12111f`                         | primary text                                                     |
-| `--text-muted` / `--text-faint`                           | 70% / 55%                         | 70% / 62%                         | secondary / placeholder text                                     |
-| `--accent`                                                | `#6d5bff`                         | `#6d5bff`                         | fills: primary buttons, the playhead, selected chips             |
-| `--accent-hover`                                          | `#7b6bff`                         | `#5c49f2`                         | accent hover                                                     |
-| `--accent-fg`                                             | `#b8acff`                         | `#4f3fd9`                         | the accent as text or an icon                                    |
-| `--accent-ink`                                            | white                             | white                             | text on an `--accent` fill                                       |
-| `--accent-soft` / `--accent-glow`                         | accent 16% / 35%                  | accent 10% / 28%                  | tinted backgrounds / glows and focus rings                       |
-| `--accent-secondary`                                      | `#9b6bff`                         | `#7b3fd6`                         | second hue for small highlights                                  |
-| `--contrast` / `--contrast-ink`                           | white / `#0b0a16`                 | `#12111f` / white                 | the solid button beside the gradient one                         |
-| `--success` / `--warning` / `--danger`                    | `#4ade9b` / `#ffd27a` / `#ff6b7a` | `#0b7656` / `#a8640a` / `#c5282e` | status only, never decoration                                    |
-| `--filler`                                                | `#ffb067`                         | `#b4570f`                         | filler words on the timeline (silences use `--warning`)          |
-| `--glass` / `--glass-border`                              | white 6% / 9%                     | white 62% / ink 9%                | translucent cards                                                |
-| `--selected` / `--track`                                  | white 13% / 12%                   | ink 8% / 10%                      | a segmented control's pick / a slider's empty track              |
-| `--glow-*`, `--orb-*`, `--shadow-card`, `--gradient-text` | see `globals.css`                 | see `globals.css`                 | the page's glow, floating orbs, card shadow, gradient text       |
+**Radii** (static): `rounded-sm` 8px, `rounded` 12px (the app's buttons and
+fields), `rounded-lg` 14px, `rounded-xl` 20px, `rounded-2xl` 24px,
+`rounded-3xl` 28px; pills are `rounded-full` (the site's buttons, chips).
 
-**Brand colours** (static): `brand-violet` `#6d5bff`, `brand-purple`
-`#9b6bff`, `brand-blue` `#4c7dff`, `brand-lilac` `#d9c2ff`, for the logo,
-the gradients and coloured bullets.
+**Schemes.** The switch (`src/components/theme-toggle.tsx`) is the design's
+round button: the sun while it's dark, the moon while it's light; read out
+as a switch named "Light mode". It sets `data-theme` on `<html>` and
+remembers it in `localStorage` (`retake-theme`); a script in `<head>`
+(`src/lib/theme.ts`) applies it before first paint.
 
-**Radii** (static): `rounded-sm` 7px, `rounded` 11px, `rounded-lg` 14px,
-`rounded-xl` 18px, `rounded-2xl` 24px, `rounded-3xl` 30px.
+## 3. Type and motion
 
-**Schemes.** The switch (`src/components/theme-toggle.tsx`, `site` and `app`
-sizes) sets `data-theme` on `<html>` and remembers it in `localStorage`
-(`retake-theme`); a script in `<head>` (`src/lib/theme.ts`) applies it
-before first paint. `data-theme` on any element makes that part wear one
-scheme whatever the page's (the day-and-night comparison). Anything drawn
-on the video itself (handles, the letterbox, crop shade) stays black and
-white in both: it sits on footage, not on the page.
+**Type** (`next/font` in `src/app/[locale]/layout.tsx`, self-hosted at
+build): Funnel Display for headlines (`font-display`, weight 500, set tight:
+`-0.03em` to `-0.035em`, line height 0.98 to 1.02), Funnel Sans for reading
+(`font-sans`), JetBrains Mono for timecodes and labels (`font-mono`). Every
+`h1`–`h3` defaults to the display face (`@layer base` in `globals.css`).
+`display.tsx` holds the headline sizes, each a `clamp()` that shrinks to a
+phone's width (`hero` 46 to 124px, `page` 40 to 88px, `section` 36 to 72px,
+`small` 30 to 58px), the `Eyebrow` (mono capitals after a short rule), the
+`Lead` and the `PageHero`.
 
-**Contrast**, checked 2026-10-08 (WCAG): muted text 8.8:1 dark / 6.7:1
-light, faint 5.7 / 5.1, accent text 9.8 / 6.9, success 11.5 / 5.2, white on
-`--accent` 4.6. White on the light end of the button gradient (`#9b6bff`) is
-3.5:1, as the design has it.
+**Motion.** Light CSS, every piece under
+`prefers-reduced-motion: no-preference`:
 
-## 3. Type, motion and shared pieces
+- `globals.css`: `rt-rise` (a page's opening), `rt-reveal` (rises in as it
+  scrolls into view, by scroll-driven animation; simply there where that
+  isn't supported), `rt-btn` (a button lifts 1px on hover), `rt-wordmark`
+  (the closing "Retake" slides sideways), `rt-drift` (the sign-in panel's
+  words), `rt-snip` (a filler marked pink, cut, then back).
+- The landing page (`src/components/site/landing/`): the design's motion
+  spec. One scroll listener, batched into `requestAnimationFrame`
+  (`landing-motion.tsx`), drives the pinned scenes: the story stage's
+  `--s1` to `--s5` (all its movement is `calc()` on those), the Make it
+  panes, the sideways tool track, the hero sentence and the corner
+  timecode. The word rows drift on their own frame loop. Only transform,
+  opacity and CSS variables change on scroll. With reduced motion the
+  pinned scenes become ordinary sections, every step's text shows, the
+  Make it scene shows the questions and the plan, the tool cards wrap, and
+  nothing loops.
 
-**Type** (`next/font` in `src/app/[locale]/layout.tsx`, self-hosted at build): Manrope for
-the interface and headings (`font-sans`, `font-display`), Instrument Serif
-for the large display lines (`font-serif`), Geist Mono for timecodes
-(`font-mono`). `src/components/site/display.tsx` holds the serif heading
-sizes, each a `clamp()` that shrinks to a phone's width: `hero` 52 to
-128px, `page` 48 to 96px, `section` 40 to 76px, `small` 36 to 64px. A rich
-message's `<em>` is its one emphasised phrase, styled by `emphasis()`
-(`gradient`, `accent` or `plain`).
+## 4. Shared pieces
 
-**Motion** is CSS only, in `globals.css`: `rt-rise` (a page's opening),
-`rt-reveal` (rises in as it scrolls into view, by scroll-driven animation),
-`rt-float`, `rt-pulse`, `rt-scrollhint`, `rt-sheen`, `rt-bar`, `rt-fade-in`,
-`rt-lift` and `rt-btn`. All of it sits under
-`prefers-reduced-motion: no-preference`, so reduced motion shows everything
-at once and still.
+- **Buttons** (`src/components/ui/button.tsx`, `cva`): `primary` (the
+  accent, with its ink), `outline` (the design's "ghost": a line, no fill),
+  `ghost`, `secondary`, `contrast` and `destructive`; 12px corners in the
+  app, `rounded-full` on the site.
+- **The site** (`src/components/site/`): the floating glass pill of a header
+  (`site-header.tsx`, with the page links marked by a soft fill), the
+  one-line footer, the ending (`closing-band.tsx`: the last line, the way
+  in, the outlined wordmark), the logo (the ring-and-dot mark), and the
+  landing page's scenes (`landing/landing-scenes.tsx` and its CSS module).
+- **The app**: the 62px bar (`app-header.tsx`; the editor's own is
+  `editor-shell.tsx`), the segmented switches (Edit with AI / Edit manually,
+  Edited / Original) with the accent on the picked one, the plan as a
+  written list with thin rules, and Make it's four-step progress bar.
+- Icons come from `src/components/ui/icons.tsx` (Phosphor, regular weight),
+  never drawn inline.
 
-**Buttons** (`src/components/ui/button.tsx`, `cva`): variants `primary`
-(the brand gradient, white extra-bold text), `contrast` (the solid one),
-`secondary`, `outline`, `ghost` and `destructive`; sizes `sm`, `default`,
-`lg` and `icon`. Every variant has a `focus-visible` outline in the accent.
+## 5. Conventions, and where the code stands
 
-**Shared pieces:**
-
-- `src/components/ui/`: `badge`, `button`, `card`, `icons` (the only place
-  icons are imported from), `input`, `label`, `textarea`, `toast` and
-  `toaster`.
-- `src/components/site/`: the public pill bar (`site-header.tsx`,
-  `mobile-menu.tsx`, `nav-links.tsx`), the app bar (`app-header.tsx`),
-  `site-footer.tsx`, `logo.tsx`, `display.tsx` (`Eyebrow`, `DisplayHeading`,
-  `PageHero`), `closing-band.tsx`, and the landing page's parts
-  (`landing-sections.tsx`, `hero-demo.tsx`, `make-showcase.tsx`,
-  `story-scroller.tsx`, `path-switcher.tsx`, `compare-slider.tsx`).
-- Pictures of the app are real screenshots, taken from the app by
-  `e2e/site-shots.ts` in both schemes at 2x, and shown by `Shot`, `ZoomShot`
-  and `Device` (`shot.tsx`, `shot-zoom.tsx`); the one matching the page's
-  scheme shows. The `.mock-frame` and `.mock-canvas` rules in `globals.css`
-  are left over from drawn pictures and no longer used.
-
-## 4. Conventions, and where the code stands
-
-- **Variants through `cva`, classes through `cn()`** (`src/lib/cn.ts`,
-  `clsx` + `tailwind-merge`), so a caller can extend a component's classes.
-  Followed in `src/components/ui/`.
-- **Tokens instead of literal values.** This is an aim the code doesn't meet
-  yet. As of 2026-10-13, `.tsx` files hold 395 arbitrary Tailwind values
-  (`[...]` in a colour, size, radius or spacing class), 112 of them pixel
-  font sizes (`text-[13px]`), and radii such as `rounded-[14px]` or
-  `rounded-[22px]` beside the tokens above; the button sizes themselves use
-  `rounded-[9px]`, `rounded-[11px]`, `h-[50px]` and `text-[15.5px]`, from
-  the design files. 19 files use inline `style`, mostly for values computed
-  at run time (positions on the video, the timeline). Literal hex colours
-  appear in `global-error.tsx` (which renders when the app's own CSS may
-  not have loaded) and in two editor files as a default band colour and a
-  canvas fill. New code should still reach for a token first, and add one
-  when a value repeats.
+- **Variants through `cva`, classes through `cn()`.**
+- **Tokens instead of literal values.** An aim the code doesn't fully meet:
+  many components still carry arbitrary Tailwind values (pixel font sizes,
+  `rounded-[22px]`), most of them the design's own measurements. The
+  landing page's stage keeps its numbers in its CSS module, where the
+  `calc()` expressions are readable. New code should reach for a token
+  first, and add one when a value repeats.
 - **A visible `:focus-visible` state** on every interactive element.
 - **Reduced motion respected** for anything beyond an opacity or colour
   change.
 
-## 5. Accessibility baseline
+## 6. Accessibility baseline
 
-- Text on `--bg` and `--surface` meets WCAG AA (4.5:1 for body text, 3:1
-  for large text) in both schemes; recheck when a token value changes.
+- Text on `--bg` and `--surface` meets WCAG AA in both schemes (the
+  figures above); recheck when a token value changes.
 - Every form input has a `<label>` (visually hidden is fine).
 - Icon-only buttons get an `aria-label`; icons themselves render
-  `aria-hidden` (`docs/rules/icons.md`).
+  `aria-hidden`. The landing page's moving pictures are `aria-hidden` or a
+  labelled `role="img"`; the text they illustrate is in the page.

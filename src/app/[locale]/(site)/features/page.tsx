@@ -47,7 +47,7 @@ export default async function FeaturesPage() {
 							<Eyebrow>{t(`sections.${key}.eyebrow`)}</Eyebrow>
 							<h2
 								id={`feature-${key}`}
-								className="text-text font-serif text-[clamp(38px,4.4vw,54px)] leading-[1.02] tracking-[-0.01em]"
+								className="text-text font-display text-[clamp(38px,4.4vw,54px)] leading-[1.02] font-medium tracking-[-0.01em]"
 							>
 								{t(`sections.${key}.title`)}
 							</h2>

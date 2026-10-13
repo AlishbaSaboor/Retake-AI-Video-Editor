@@ -25,11 +25,11 @@ const bold = (chunks: React.ReactNode) => <strong className="text-text font-bold
 export default async function PrivacyPage() {
 	const t = await getTranslations('Site.privacy')
 	return (
-		<main className="bg-glow -mt-[76px] px-5 pt-[clamp(130px,13vw,196px)]">
+		<main className="px-[clamp(16px,4vw,48px)] pt-[clamp(70px,11vw,150px)]">
 			<div className="mx-auto flex max-w-[760px] flex-col">
-				<div className="rt-rise flex flex-col gap-3.5">
+				<div className="rt-rise flex flex-col items-start gap-[22px]">
 					<Eyebrow>{t('eyebrow')}</Eyebrow>
-					<DisplayHeading as="h1" className="text-[clamp(52px,6.4vw,80px)] leading-[0.98]">
+					<DisplayHeading as="h1" size="page">
 						{t.rich('title', { em: emphasis('plain') })}
 					</DisplayHeading>
 					<p className="text-text-faint text-sm">{t('updated')}</p>

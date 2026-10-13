@@ -4,14 +4,12 @@ import { useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import {
-	AiIcon,
-	ImageIcon,
+	ArrowRightIcon,
 	ManualIcon,
-	SoundIcon,
+	SparkleIcon,
 	SpinnerIcon,
-	SplitIcon,
-	TextIcon,
-	UploadIcon
+	UploadIcon,
+	VideoIcon
 } from '@/components/ui/icons'
 import { handOffStart } from '@/app/[locale]/editor/projects/editor-start'
 import { setSideOpen } from '@/app/[locale]/editor/components/shell/editor-layout-store'
@@ -20,30 +18,23 @@ import { useRouter } from '@/i18n/routing'
 import { cn } from '@/lib/cn'
 import { handOffMake } from '../make/make-start'
 
-/** Make it's starting points, each with its dot's colour. */
-const MAKE_EXAMPLES = [
-	{ key: 'reel', dot: 'bg-brand-violet' },
-	{ key: 'funny', dot: 'bg-brand-purple' },
-	{ key: 'professional', dot: 'bg-brand-blue' },
-	{ key: 'ad', dot: 'bg-brand-lilac' }
-] as const
-/** What the manual editor puts in front, shown on its card. */
-const HAND_TOOLS = [
-	{ key: 'cut', icon: SplitIcon },
-	{ key: 'picture', icon: ImageIcon },
-	{ key: 'sound', icon: SoundIcon },
-	{ key: 'graphics', icon: TextIcon }
-] as const
+/** Make it's starting points. */
+const MAKE_EXAMPLES = ['reel', 'funny', 'professional', 'ad'] as const
 
 type Way = 'make' | 'hand'
 
 const chip =
-	'border-border text-text-muted hover:border-border-strong hover:text-text focus-visible:outline-accent inline-flex items-center gap-2 rounded-full border px-[11px] py-1.5 text-[12.5px] font-bold transition-colors focus-visible:outline-2'
+	'border-border-strong text-text-muted hover:border-accent hover:text-text focus-visible:outline-accent inline-flex items-center rounded-full border px-3 py-1.5 text-[13.5px] transition-colors focus-visible:outline-2'
+
+/** The recommended way's border: the accent into the support blue, fading into the line. */
+const AI_CARD =
+	'shadow-[0_30px_80px_-50px_var(--accent)] [background:linear-gradient(var(--surface),var(--surface))_padding-box,linear-gradient(135deg,var(--accent),color-mix(in_srgb,var(--blue)_70%,transparent)_45%,var(--border)_80%)_border-box] before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:bg-[radial-gradient(70%_90%_at_0%_0%,color-mix(in_srgb,var(--accent)_16%,transparent),transparent_70%)]'
 
 /**
  * Where a project starts. Two ways in, side by side: Make it with AI (the
  * video and what it should become go to the Make it page, which plans the
- * whole edit) and Edit manually (straight to the tools and the timeline).
+ * whole edit), set off as the recommended one, and Edit manually (straight
+ * to the tools and the timeline). A video can be dropped on either.
  */
 export function StartBox() {
 	const t = useTranslations('Site.home')
@@ -51,6 +42,8 @@ export function StartBox() {
 	const router = useRouter()
 	const [request, setRequest] = useState('')
 	const [opening, setOpening] = useState<{ way: Way; name: string } | null>(null)
+	const makeInput = useRef<HTMLInputElement>(null)
+	const handInput = useRef<HTMLInputElement>(null)
 
 	function start(file: File, way: Way) {
 		setOpening({ way, name: file.name })
@@ -67,103 +60,101 @@ export function StartBox() {
 
 	return (
 		<div className="flex flex-col gap-5">
-			<div className="grid gap-5 lg:grid-cols-[586fr_510fr]">
-				<div className="bg-brand-wide rt-lift rounded-[30px] p-0.5 shadow-(--shadow-card)">
-					<DropCard
-						way="make"
-						onFile={(file) => start(file, 'make')}
-						className="bg-surface-raised h-full rounded-[28px]"
-					>
-						<span
-							aria-hidden
-							className="bg-orb-violet pointer-events-none absolute -top-36 -right-24 size-[340px] rounded-full opacity-60 blur-[90px]"
-						/>
-						<div className="relative flex items-center gap-3">
-							<span className="bg-brand flex size-[46px] items-center justify-center rounded-[14px] text-white">
-								<AiIcon size={22} />
-							</span>
-							<span className="bg-accent-soft text-accent-fg rounded-full px-2.5 py-1 text-xs font-extrabold">
-								{t('make.badge')}
-							</span>
-						</div>
-						<CardText id="start-make" title={t('make.title')} body={t('make.body')} />
-						<div className="border-border-strong bg-surface-inset focus-within:border-accent/60 focus-within:ring-accent-soft relative flex flex-col gap-3 rounded-[18px] border px-3.5 pt-3.5 pb-3 transition-shadow focus-within:ring-4">
-							<div className="flex items-start gap-2">
-								<textarea
-									value={request}
-									onChange={(event) => setRequest(event.target.value)}
-									rows={1}
-									aria-label={t('make.requestLabel')}
-									placeholder={t('make.placeholder')}
-									disabled={opening !== null}
-									className="text-text placeholder:text-text-faint field-sizing-content min-h-7 w-full flex-1 resize-none bg-transparent text-base font-semibold focus-visible:outline-none"
-								/>
-								<VoiceCommandButton
-									disabled={opening !== null}
-									onText={(text) =>
-										setRequest((typed) => (typed.trim() ? `${typed.trim()} ${text}` : text))
-									}
-								/>
-							</div>
-							<ul className="flex flex-wrap gap-1.5">
-								{MAKE_EXAMPLES.map(({ key, dot }) => (
-									<li key={key}>
-										<button
-											type="button"
-											onClick={() => setRequest(examples(key))}
-											className={cn(
-												chip,
-												request === examples(key) && 'border-accent/60 text-text'
-											)}
-										>
-											<span aria-hidden className={cn('size-[7px] rounded-full', dot)} />
-											{examples(key)}
-										</button>
-									</li>
-								))}
-							</ul>
-						</div>
-						<Upload
-							label={t('make.inputLabel')}
-							text={t('make.upload')}
-							hint={t('dropHint')}
-							busy={opening?.way === 'make'}
+			<div className="grid gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+				<DropCard way="make" onFile={(file) => start(file, 'make')} className={AI_CARD}>
+					<CardHead
+						id="start-make"
+						icon={<SparkleIcon size={21} />}
+						iconClass="bg-accent text-accent-ink"
+						title={t('make.title')}
+						body={t('make.body')}
+						tag={t('make.badge')}
+					/>
+					<div className="border-border-strong bg-surface-inset focus-within:border-accent relative flex items-center gap-2 rounded-2xl border py-1.5 pr-1.5 pl-4 max-[520px]:flex-col max-[520px]:items-stretch max-[520px]:p-2.5">
+						<textarea
+							value={request}
+							onChange={(event) => setRequest(event.target.value)}
+							rows={1}
+							aria-label={t('make.requestLabel')}
+							placeholder={t('make.placeholder')}
 							disabled={opening !== null}
-							onFile={(file) => start(file, 'make')}
+							className="text-text placeholder:text-text-faint font-display field-sizing-content min-h-7 w-full min-w-0 flex-1 resize-none bg-transparent py-1.5 text-lg tracking-[-0.01em] focus-visible:outline-none"
 						/>
-					</DropCard>
-				</div>
-				<DropCard
-					way="hand"
-					onFile={(file) => start(file, 'hand')}
-					className="border-glass-border bg-glass rt-lift rounded-[30px] border"
-				>
-					<span className="bg-surface-hover text-text flex size-[46px] items-center justify-center rounded-[14px]">
-						<ManualIcon size={22} />
-					</span>
-					<CardText id="start-hand" title={t('hand.title')} body={t('hand.body')} />
-					<ul className="grid grid-cols-2 gap-2">
-						{HAND_TOOLS.map(({ key, icon: Icon }) => (
-							<li
-								key={key}
-								className="border-border flex items-center gap-2.5 rounded-[14px] border p-3"
+						<div className="flex items-center gap-1.5">
+							<VoiceCommandButton
+								disabled={opening !== null}
+								onText={(text) =>
+									setRequest((typed) => (typed.trim() ? `${typed.trim()} ${text}` : text))
+								}
+							/>
+							<Button
+								type="button"
+								className="min-h-[42px] flex-1"
+								disabled={opening !== null}
+								onClick={() => makeInput.current?.click()}
 							>
-								<span className="bg-accent-soft text-accent-fg flex size-[30px] shrink-0 items-center justify-center rounded-[9px]">
-									<Icon size={16} />
-								</span>
-								<span className="text-text text-[13.5px] leading-tight font-bold">
-									{t(`hand.items.${key}`)}
-								</span>
+								{opening?.way === 'make' ? <SpinnerIcon /> : <UploadIcon size={18} />}
+								{t('make.upload')}
+							</Button>
+						</div>
+					</div>
+					<ul className="relative flex flex-wrap gap-1.5">
+						{MAKE_EXAMPLES.map((key) => (
+							<li key={key}>
+								<button
+									type="button"
+									onClick={() => setRequest(examples(key))}
+									className={cn(
+										chip,
+										request === examples(key) &&
+											'border-accent bg-accent-soft text-text font-semibold'
+									)}
+								>
+									{examples(key)}
+								</button>
 							</li>
 						))}
 					</ul>
-					<Upload
-						label={t('hand.inputLabel')}
-						text={t('hand.upload')}
-						hint={t('dropHint')}
-						variant="contrast"
-						busy={opening?.way === 'hand'}
+					<FileInput
+						inputRef={makeInput}
+						label={t('make.inputLabel')}
+						onFile={(file) => start(file, 'make')}
+					/>
+				</DropCard>
+				<DropCard
+					way="hand"
+					onFile={(file) => start(file, 'hand')}
+					className="border-border bg-surface hover:border-border-strong"
+				>
+					<CardHead
+						id="start-hand"
+						icon={<ManualIcon size={21} />}
+						iconClass="bg-surface-hover text-accent-fg"
+						title={t('hand.title')}
+						body={t('hand.body')}
+					/>
+					<button
+						type="button"
 						disabled={opening !== null}
+						onClick={() => handInput.current?.click()}
+						className="group border-border-strong text-text hover:border-accent hover:bg-accent-soft focus-visible:outline-accent flex min-h-[108px] flex-1 items-center gap-3.5 rounded-2xl border-[1.5px] border-dashed px-[18px] py-4 text-left transition-colors focus-visible:outline-2 disabled:opacity-60"
+					>
+						<span className="text-accent-fg shrink-0">
+							{opening?.way === 'hand' ? <SpinnerIcon size={28} /> : <VideoIcon size={28} />}
+						</span>
+						<span className="min-w-0">
+							<b className="block font-semibold">{t('hand.upload')}</b>
+							<small className="text-text-faint mt-0.5 block text-[13px]">
+								{t('dropHint')} · {t('hand.formats')}
+							</small>
+						</span>
+						<span className="text-text-faint group-hover:text-accent-fg ml-auto">
+							<ArrowRightIcon size={18} />
+						</span>
+					</button>
+					<FileInput
+						inputRef={handInput}
+						label={t('hand.inputLabel')}
 						onFile={(file) => start(file, 'hand')}
 					/>
 				</DropCard>
@@ -178,13 +169,43 @@ export function StartBox() {
 	)
 }
 
-function CardText({ id, title, body }: { id: string; title: string; body: string }) {
+/** A way in's heading: its icon, its name and what it does, and a tag on the recommended one. */
+function CardHead({
+	id,
+	icon,
+	iconClass,
+	title,
+	body,
+	tag
+}: {
+	id: string
+	icon: React.ReactNode
+	iconClass: string
+	title: string
+	body: string
+	tag?: string
+}) {
 	return (
-		<div className="relative flex flex-col gap-2">
-			<h2 id={id} className="text-text text-[28px] leading-tight font-extrabold tracking-[-0.02em]">
-				{title}
-			</h2>
-			<p className="text-text-muted text-[15.5px] leading-[1.45]">{body}</p>
+		<div className="relative flex items-start gap-3.5">
+			<span
+				className={cn(
+					'flex size-11 shrink-0 items-center justify-center rounded-[13px]',
+					iconClass
+				)}
+			>
+				{icon}
+			</span>
+			<div className="min-w-0 flex-1">
+				<h2 id={id} className="text-text text-[22px] leading-tight tracking-[-0.02em]">
+					{title}
+				</h2>
+				<p className="text-text-muted mt-1 text-[14.5px]">{body}</p>
+			</div>
+			{tag && (
+				<span className="bg-accent-soft text-accent-fg rounded-full px-[9px] py-[5px] font-mono text-[10.5px] tracking-[0.08em] whitespace-nowrap uppercase max-[520px]:hidden">
+					{tag}
+				</span>
+			)}
 		</div>
 	)
 }
@@ -225,14 +246,14 @@ function DropCard({
 				if (file) onFile(file)
 			}}
 			className={cn(
-				'relative flex flex-col gap-5 overflow-hidden p-7 transition-shadow',
+				'relative flex min-w-0 flex-col justify-between gap-4 overflow-hidden rounded-[22px] border border-transparent px-6 py-[22px] transition-[box-shadow,border-color]',
 				dragging && 'ring-accent-glow ring-4',
 				className
 			)}
 		>
 			{children}
 			{dragging && (
-				<div className="bg-accent-soft text-accent-fg pointer-events-none absolute inset-0 flex items-center justify-center rounded-[inherit] text-sm font-extrabold backdrop-blur-sm">
+				<div className="bg-accent-soft text-accent-fg pointer-events-none absolute inset-0 flex items-center justify-center rounded-[inherit] text-sm font-semibold backdrop-blur-sm">
 					{t('dropHere')}
 				</div>
 			)}
@@ -240,52 +261,29 @@ function DropCard({
 	)
 }
 
-/** A way in's upload: a button that opens the file picker, and the drop hint beside it. */
-function Upload({
+/** The hidden file picker behind a way in's button. */
+function FileInput({
+	inputRef,
 	label,
-	text,
-	hint,
-	variant = 'primary',
-	busy,
-	disabled,
 	onFile
 }: {
+	inputRef: React.RefObject<HTMLInputElement | null>
 	label: string
-	text: string
-	hint: string
-	variant?: 'primary' | 'contrast'
-	busy: boolean
-	disabled: boolean
 	onFile: (file: File) => void
 }) {
-	const inputRef = useRef<HTMLInputElement>(null)
 	return (
-		<div className="relative mt-auto flex flex-wrap items-center gap-3.5">
-			<Button
-				type="button"
-				size="lg"
-				variant={variant}
-				className="rounded-[14px]"
-				disabled={disabled}
-				onClick={() => inputRef.current?.click()}
-			>
-				{busy ? <SpinnerIcon /> : <UploadIcon size={18} />}
-				{text}
-			</Button>
-			<span className="text-text-faint text-[13px]">{hint}</span>
-			<input
-				ref={inputRef}
-				type="file"
-				accept="video/*"
-				className="sr-only"
-				tabIndex={-1}
-				aria-label={label}
-				onChange={(event) => {
-					const file = event.target.files?.[0]
-					event.target.value = ''
-					if (file) onFile(file)
-				}}
-			/>
-		</div>
+		<input
+			ref={inputRef}
+			type="file"
+			accept="video/*"
+			className="sr-only"
+			tabIndex={-1}
+			aria-label={label}
+			onChange={(event) => {
+				const file = event.target.files?.[0]
+				event.target.value = ''
+				if (file) onFile(file)
+			}}
+		/>
 	)
 }

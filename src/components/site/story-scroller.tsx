@@ -55,7 +55,7 @@ export function StoryScroller({
 					<span aria-hidden className="bg-border absolute top-1 bottom-1 left-[5px] w-0.5" />
 					<span
 						aria-hidden
-						className="bg-brand-wide absolute top-1 left-[5px] w-0.5 transition-[height] duration-500"
+						className="absolute top-1 left-[5px] w-0.5 bg-linear-to-b from-(--blue) to-(--accent) transition-[height] duration-500"
 						style={{ height: `${(active / Math.max(steps.length - 1, 1)) * 100}%` }}
 					/>
 					<ol className="flex flex-col gap-5 py-1">
@@ -65,7 +65,7 @@ export function StoryScroller({
 									href={`#story-${step.id}`}
 									aria-current={index === active ? 'step' : undefined}
 									className={cn(
-										'focus-visible:outline-accent flex items-center gap-4 rounded text-[13px] font-extrabold tracking-[0.18em] uppercase transition-colors focus-visible:outline-2',
+										'focus-visible:outline-accent flex items-center gap-4 rounded font-mono text-xs tracking-[0.16em] uppercase transition-colors focus-visible:outline-2',
 										index === active
 											? 'text-text'
 											: index < active
@@ -76,12 +76,12 @@ export function StoryScroller({
 									<span
 										aria-hidden
 										className={cn(
-											'relative size-3 rounded-full transition-all',
+											'relative size-3 rounded-full border-2 transition-all duration-400',
 											index === active
-												? 'bg-brand-blue scale-125 shadow-[0_0_0_7px_rgb(76_125_255/0.22)]'
+												? 'border-accent bg-accent shadow-[0_0_0_6px_var(--accent-soft)]'
 												: index < active
-													? 'bg-accent'
-													: 'bg-border-strong'
+													? 'border-accent bg-accent'
+													: 'border-border-strong bg-bg'
 										)}
 									/>
 									{step.label}
@@ -105,15 +105,15 @@ export function StoryScroller({
 							index === active ? 'opacity-100' : 'lg:opacity-35'
 						)}
 					>
-						<span className="text-accent-fg text-[13px] font-extrabold tracking-[0.22em] uppercase">
+						<span className="text-text-faint font-mono text-xs tracking-[0.16em] uppercase">
 							{String(index + 1).padStart(2, '0')} · {step.label}
 						</span>
-						<h3 className="text-text font-serif text-[clamp(38px,4.2vw,54px)] leading-[1.02] tracking-[-0.01em]">
+						<h3 className="text-text font-display text-[clamp(28px,3vw,44px)] leading-[0.98] font-medium tracking-[-0.035em]">
 							{step.title}
 						</h3>
-						<p className="text-text-muted text-[17px] leading-[1.7]">{step.body}</p>
+						<p className="text-text-muted max-w-[42ch] text-[17px] leading-[1.55]">{step.body}</p>
 						{step.pill && (
-							<span className="bg-surface-hover text-text-muted self-start rounded-full px-3.5 py-2 text-sm font-bold">
+							<span className="border-border-strong text-text-muted self-start rounded-full border px-3 py-1 font-mono text-[11.5px] tracking-[0.04em]">
 								{step.pill}
 							</span>
 						)}
@@ -122,11 +122,7 @@ export function StoryScroller({
 			</ol>
 			<div className="hidden lg:block">
 				<div className="sticky top-[calc(50vh-190px)]">
-					<div className="border-border-strong bg-surface-raised relative rounded-[30px] border p-3 shadow-(--shadow-card)">
-						<span
-							aria-hidden
-							className="bg-accent-glow pointer-events-none absolute -inset-10 -z-10 rounded-full blur-3xl"
-						/>
+					<div className="border-border bg-surface relative rounded-[28px] border p-3 shadow-(--shadow-card)">
 						<div className="grid">
 							{screens.map((screen, index) => (
 								<div

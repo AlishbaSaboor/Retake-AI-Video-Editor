@@ -3,7 +3,6 @@
 import { useTranslations } from 'next-intl'
 import { ArrowLeftIcon, PanelIcon } from '@/components/ui/icons'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { LogoMark } from '@/components/site/logo'
 import { Link } from '@/i18n/routing'
 import { cn } from '@/lib/cn'
 
@@ -51,17 +50,16 @@ export function EditorShell({
 			<header
 				role="toolbar"
 				aria-label={t('toolbar')}
-				className="border-border bg-bg flex min-h-[60px] flex-wrap items-center gap-2 border-b px-2 py-2 sm:px-4"
+				className="border-border sticky top-0 z-10 flex min-h-[62px] flex-wrap items-center gap-2.5 border-b bg-[color-mix(in_srgb,var(--bg)_88%,transparent)] px-[clamp(12px,2.4vw,24px)] py-2 backdrop-blur-[12px]"
 			>
 				<Link
 					href="/home"
 					aria-label={t('back')}
 					title={t('back')}
-					className="text-text-muted hover:bg-surface-hover hover:text-text focus-visible:outline-accent inline-flex size-9 shrink-0 items-center justify-center rounded-lg focus-visible:outline-2"
+					className="text-text-muted hover:bg-border hover:text-text focus-visible:outline-accent inline-flex size-[38px] shrink-0 items-center justify-center rounded-[10px] focus-visible:outline-2"
 				>
 					<ArrowLeftIcon size={18} />
 				</Link>
-				<LogoMark className="mr-1" />
 				<div className="flex min-w-0 flex-1 items-center gap-2 lg:flex-none">{title}</div>
 				<div className="flex items-center gap-1.5 lg:mx-auto">{centre}</div>
 				<div className="ml-auto flex shrink-0 items-center gap-1.5 lg:ml-0">
