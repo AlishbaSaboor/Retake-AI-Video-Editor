@@ -1,17 +1,14 @@
 # Deployment
 
-Never run a manual production deploy command (`vercel --prod`,
-`supabase functions deploy`, etc.) unless explicitly instructed. Let CI/CD
-handle it — see `.github/workflows/`.
+Retake isn't deployed. There's no Vercel project, no `vercel.json` and no
+deploy workflow, so nothing deploys on a push to `main` or on a tag; it runs
+on one machine (`pnpm dev`, or a production build started locally). See
+`ARCHITECTURE.md`, "Scope: local-first, not deployed".
 
-This template assumes Vercel's default git integration (auto-deploy on
-push to `main`) rather than the org's tag-gated release process seen in
-some other repos (e.g. 8x-brands disables Vercel's auto-deploy and only
-ships production on a `v*` tag push). If this project should follow that
-pattern instead, see `docs/CI_CD_SETUP.md`'s note on it — don't silently
-assume one or the other without checking what's actually configured in the
-Vercel project.
+Never run a manual deploy command (`vercel --prod`, `supabase functions
+deploy`, etc.). If the project is ever deployed, its hosting and deploy
+pipeline get set up first, deliberately: `ARCHITECTURE.md`'s Scope table
+lists what a hosted launch would need.
 
-See `docs/CI_CD_SETUP.md` for what this repo needs configured in GitHub
-(secrets, environments, branch protection) and Vercel (env vars, git
-integration) before any of the deploy-related CI jobs actually work.
+`docs/CI_CD_SETUP.md` covers what the GitHub workflows need (secrets,
+branch protection).

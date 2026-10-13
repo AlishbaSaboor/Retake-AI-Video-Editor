@@ -21,6 +21,7 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **Docs say it isn't deployed; CRON_SECRET removed** (section 3zzw).
 > - **VideoEditor's helpers and two small components in their own files** (section 3zzu).
 > - **VideoEditor's fourth hook: re-recording** (section 3zzt).
 > - **VideoEditor's third hook: the project file** (section 3zzs).
@@ -507,6 +508,34 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzw. Docs say it isn't deployed; CRON_SECRET removed (2026-10-14)
+
+Local branch `local/architecture`, not pushed (GitHub CI is blocked by billing).
+
+- **`docs/rules/deployment.md`** said the app auto-deploys to Vercel on a push
+  to `main`; it now says Retake isn't deployed (no Vercel project, no
+  `vercel.json`, no deploy workflow) and points to ARCHITECTURE.md's Scope.
+- **`docs/CI_CD_SETUP.md`** is GitHub only: its Vercel section (connecting
+  the repo, a Vercel environment-variable table, auto-deploy against
+  tag-gated) and "Shared database previews" (which named a production
+  deployment workflow that #54 removed) give way to a short "Hosting: none".
+  AGENTS.md's two lines about them and the `.env.example` header follow.
+- **`CRON_SECRET`** removed from `src/lib/env.ts` and `.env.example`: nothing
+  reads it (there are no cron routes). `ci.yml` still sets it for the build
+  and e2e jobs (lines 69 and 93), left for the owner, since this work
+  doesn't touch `.github/`. `Bearer $CRON_SECRET` stays where it's the secret
+  scanner's example of a placeholder (`secrets.md`, `check-secrets` and its
+  test).
+- **ARCHITECTURE.md**'s "Only four things leave it" now says those four are
+  what leaves of the video and what's said in it, and that PostHog (typed
+  events and page views) and Sentry (error reports) send too once their
+  keys are set.
+- **Not changed:** the `.env.example` comments with conditional Vercel
+  advice, `docs/STANDARDS.md` (the org-wide checklist) and the `.claude/`
+  skill texts.
 
 ---
 

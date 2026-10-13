@@ -44,11 +44,14 @@ flowchart LR
 ```
 
 The file itself is played from an object URL, edited, exported and saved in
-the browser. Only four things leave it: the decoded audio (for a
-transcript, to Deepgram), the microphone recording of a spoken command (to
-Deepgram), text (typed commands, spoken commands once transcribed, the
-transcript's sentences, to Gemini) and, for Make it, the transcript plus one
-small picture every 2 seconds (to Gemini).
+the browser. Of the video and what's said in it, only four things leave
+it: the decoded audio (for a transcript, to Deepgram), the microphone
+recording of a spoken command (to Deepgram), text (typed commands, spoken
+commands once transcribed, the transcript's sentences, to Gemini) and, for
+Make it, the transcript plus one small picture every 2 seconds (to Gemini).
+Once their keys are set, PostHog also receives the typed events and page
+views (ids, enums and booleans, never the video or what's said) and Sentry
+receives error reports; with no key set, neither sends anything.
 
 ## Module map
 
