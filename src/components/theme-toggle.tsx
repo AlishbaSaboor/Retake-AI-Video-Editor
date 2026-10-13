@@ -29,8 +29,10 @@ function setTheme(theme: Theme) {
 }
 
 /**
- * The light/dark switch. `site`: the public pages' wide pill, a moon and a
- * sun with the knob under the one in use; `app`: the app bars' small one.
+ * The light/dark switch: a round button showing the sun while it's dark
+ * (press for light) and the moon while it's light. `site`: the public
+ * pages' 44px one; `app`: the app bars' 38px one. Read out as a switch,
+ * on when the light theme is.
  */
 export function ThemeToggle({
 	variant = 'app',
@@ -52,50 +54,12 @@ export function ThemeToggle({
 			title={t(next)}
 			onClick={() => setTheme(next)}
 			className={cn(
-				'border-glass-border bg-glass focus-visible:outline-accent relative inline-flex shrink-0 items-center rounded-full border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
-				variant === 'site' ? 'h-11 w-[84px]' : 'h-7 w-12',
+				'border-border text-text hover:bg-border focus-visible:outline-accent inline-flex shrink-0 items-center justify-center rounded-full border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
+				variant === 'site' ? 'size-11' : 'size-[38px]',
 				className
 			)}
 		>
-			{variant === 'site' ? (
-				<>
-					<span
-						aria-hidden
-						className={cn(
-							'absolute top-1 left-1 h-[34px] w-[38px] rounded-full shadow-[0_2px_12px_rgb(0_0_0/0.25)] transition-transform duration-300 ease-(--ease-out-soft) motion-reduce:transition-none',
-							light ? 'translate-x-[36px] bg-white' : 'bg-knob'
-						)}
-					/>
-					<span
-						aria-hidden
-						className={cn(
-							'relative flex w-1/2 justify-center pl-1 transition-colors',
-							light ? 'text-text-faint' : 'text-brand-lilac'
-						)}
-					>
-						<DarkModeIcon size={17} />
-					</span>
-					<span
-						aria-hidden
-						className={cn(
-							'relative flex w-1/2 justify-center pr-1 transition-colors',
-							light ? 'text-sun' : 'text-text-faint'
-						)}
-					>
-						<LightModeIcon size={17} />
-					</span>
-				</>
-			) : (
-				<span
-					aria-hidden
-					className={cn(
-						'bg-brand absolute top-0.5 left-0.5 flex size-[22px] items-center justify-center rounded-full text-white transition-transform duration-300 ease-(--ease-out-soft) motion-reduce:transition-none',
-						light && 'translate-x-5'
-					)}
-				>
-					{light ? <LightModeIcon size={13} /> : <DarkModeIcon size={13} />}
-				</span>
-			)}
+			{light ? <DarkModeIcon size={18} /> : <LightModeIcon size={18} />}
 		</button>
 	)
 }

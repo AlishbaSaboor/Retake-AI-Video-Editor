@@ -2,14 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useTranslations } from 'next-intl'
-import {
-	ArrowRightIcon,
-	HideIcon,
-	LockIcon,
-	MailIcon,
-	ShowIcon,
-	SpinnerIcon
-} from '@/components/ui/icons'
+import { HideIcon, LockIcon, MailIcon, ShowIcon, SpinnerIcon } from '@/components/ui/icons'
 import { useRouter } from '@/i18n/routing'
 import { cn } from '@/lib/cn'
 import { signIn, signUp } from './actions'
@@ -18,7 +11,7 @@ import { safeNext } from './next-path'
 type Mode = 'signIn' | 'signUp'
 
 const field =
-	'border-border-strong bg-surface-inset text-text focus-within:border-accent/60 focus-within:ring-accent-soft flex h-[52px] items-center gap-3 rounded-[14px] border pl-3.5 transition-shadow focus-within:ring-4'
+	'border-border-strong bg-surface text-text-faint focus-within:border-accent focus-within:ring-accent-soft flex h-[50px] items-center gap-2.5 rounded border pl-3.5 transition-shadow focus-within:ring-4'
 
 export function LoginForm({ next, enabled }: { next: string | null; enabled: boolean }) {
 	const t = useTranslations('Site.login')
@@ -30,12 +23,10 @@ export function LoginForm({ next, enabled }: { next: string | null; enabled: boo
 	const other: Mode = mode === 'signIn' ? 'signUp' : 'signIn'
 
 	return (
-		<div className="rt-rise flex w-full max-w-[400px] flex-col gap-7">
-			<div className="flex flex-col gap-2">
-				<h1 className="text-text font-serif text-[64px] leading-none tracking-[-0.02em]">
-					{t.rich(`${mode}.title`, {
-						em: (chunks) => <em className="text-gradient italic">{chunks}</em>
-					})}
+		<div className="rt-rise flex w-full max-w-[380px] flex-col gap-[22px]">
+			<div className="flex flex-col gap-3">
+				<h1 className="text-text text-[clamp(40px,4.4vw,60px)] leading-[1.02] tracking-[-0.03em]">
+					{t.rich(`${mode}.title`, { em: (chunks) => <em className="not-italic">{chunks}</em> })}
 				</h1>
 				<p className="text-text-muted">{t(`${mode}.description`)}</p>
 			</div>
@@ -46,7 +37,7 @@ export function LoginForm({ next, enabled }: { next: string | null; enabled: boo
 			)}
 			<form
 				aria-label={t(`${mode}.heading`)}
-				className="flex flex-col gap-[18px]"
+				className="flex flex-col gap-[22px]"
 				onSubmit={(event) => {
 					event.preventDefault()
 					const form = new FormData(event.currentTarget)
@@ -65,7 +56,7 @@ export function LoginForm({ next, enabled }: { next: string | null; enabled: boo
 				}}
 			>
 				<div className="flex flex-col gap-2">
-					<label htmlFor="login-email" className="text-text text-[13.5px] font-bold">
+					<label htmlFor="login-email" className="text-text text-[13.5px] font-semibold">
 						{t('email')}
 					</label>
 					<span className={field}>
@@ -77,12 +68,12 @@ export function LoginForm({ next, enabled }: { next: string | null; enabled: boo
 							required
 							autoComplete="email"
 							placeholder={t('emailPlaceholder')}
-							className="placeholder:text-text-faint h-full min-w-0 flex-1 bg-transparent pr-3.5 text-base outline-none"
+							className="placeholder:text-text-faint text-text h-full min-w-0 flex-1 bg-transparent pr-3.5 text-[15.5px] outline-none"
 						/>
 					</span>
 				</div>
 				<div className="flex flex-col gap-2">
-					<label htmlFor="login-password" className="text-text text-[13.5px] font-bold">
+					<label htmlFor="login-password" className="text-text text-[13.5px] font-semibold">
 						{t('password')}
 					</label>
 					<span className={cn(field, 'pr-1.5')}>
@@ -95,14 +86,14 @@ export function LoginForm({ next, enabled }: { next: string | null; enabled: boo
 							minLength={6}
 							autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'}
 							placeholder={t('passwordPlaceholder')}
-							className="placeholder:text-text-faint h-full min-w-0 flex-1 bg-transparent text-base outline-none"
+							className="placeholder:text-text-faint text-text h-full min-w-0 flex-1 bg-transparent text-[15.5px] outline-none"
 						/>
 						<button
 							type="button"
 							aria-label={showPassword ? t('hidePassword') : t('showPassword')}
 							aria-pressed={showPassword}
 							onClick={() => setShowPassword((shown) => !shown)}
-							className="text-text-muted hover:text-text hover:bg-surface-hover focus-visible:outline-accent flex size-10 items-center justify-center rounded-[10px] focus-visible:outline-2"
+							className="text-text-muted hover:text-text hover:bg-border focus-visible:outline-accent flex size-[38px] items-center justify-center rounded-[10px] focus-visible:outline-2"
 						>
 							{showPassword ? <HideIcon size={18} /> : <ShowIcon size={18} />}
 						</button>
@@ -117,11 +108,10 @@ export function LoginForm({ next, enabled }: { next: string | null; enabled: boo
 				<button
 					type="submit"
 					disabled={pending || !enabled}
-					className="rt-btn bg-brand focus-visible:outline-accent mt-2 flex h-[54px] items-center justify-center gap-2 rounded-[15px] text-base font-extrabold text-white shadow-[0_16px_40px_-16px_var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50"
+					className="rt-btn bg-accent text-accent-ink focus-visible:outline-accent mt-1 flex min-h-[52px] items-center justify-center gap-2 rounded text-base font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50"
 				>
 					{pending && <SpinnerIcon />}
 					{t(`${mode}.submit`)}
-					{!pending && <ArrowRightIcon size={17} />}
 				</button>
 			</form>
 			<p className="text-text-muted text-center text-[14.5px]">
@@ -132,7 +122,7 @@ export function LoginForm({ next, enabled }: { next: string | null; enabled: boo
 						setMode(other)
 						setError(null)
 					}}
-					className="text-accent-fg focus-visible:outline-accent rounded font-extrabold hover:underline focus-visible:outline-2"
+					className="text-accent-fg focus-visible:outline-accent rounded font-semibold hover:underline focus-visible:outline-2"
 				>
 					{t(`${mode}.switchLink`)}
 				</button>

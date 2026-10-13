@@ -94,19 +94,15 @@ export function ZoomShot({
 	)
 }
 
-/** The rounded device a picture of the app sits in, with a soft glow behind. */
+/** The rounded card a picture of the app sits in. */
 export function Device({ children, className }: { children: React.ReactNode; className?: string }) {
 	return (
 		<div
 			className={cn(
-				'border-border-strong bg-surface-raised relative rounded-[30px] border p-3 shadow-(--shadow-card)',
+				'border-border bg-surface relative rounded-[28px] border p-3 shadow-(--shadow-card)',
 				className
 			)}
 		>
-			<span
-				aria-hidden
-				className="bg-accent-glow pointer-events-none absolute -inset-8 -z-10 rounded-full opacity-60 blur-3xl"
-			/>
 			{children}
 		</div>
 	)

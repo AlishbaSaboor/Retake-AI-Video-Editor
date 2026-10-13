@@ -5,9 +5,7 @@ import { useTranslations } from 'next-intl'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import {
-	AiIcon,
 	AlertIcon,
-	ArrowRightIcon,
 	AttachIcon,
 	CaptionsIcon,
 	CropIcon,
@@ -15,10 +13,8 @@ import {
 	TextIcon,
 	TimingIcon,
 	VideoIcon,
-	ManualIcon,
 	CheckIcon,
 	LockIcon,
-	SparkleIcon,
 	SpinnerIcon,
 	UploadIcon
 } from '@/components/ui/icons'
@@ -364,21 +360,21 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 				? t('steps.pictures')
 				: t('steps.planning')
 
-	/** The page around each stage: where it is in the three steps, the heading, then the stage. */
+	/** The page around each stage: where it is in the four steps, the heading, then the stage. */
 	const frame = (stage: Stage, content: React.ReactNode) =>
-		stage === 3 ? (
-			// The plan, as the mockup has it: the video on the left, the plan beside it.
-			<div className="flex flex-col items-center gap-7">
-				<Steps stage={stage} />
+		stage === 4 ? (
+			// The plan, as the design has it: the video upright on the left, the plan beside it.
+			<div className="flex flex-col gap-7">
+				<Progress stage={stage} />
 				<div className="sr-only">{heading}</div>
-				<div className="flex w-full flex-col items-center gap-6 lg:flex-row lg:items-start lg:justify-center">
+				<div className="grid items-start gap-[clamp(20px,3vw,40px)] md:grid-cols-[auto_minmax(0,1fr)]">
 					<Preview video={video} />
-					<div className="w-full max-w-[560px]">{content}</div>
+					<div className="min-w-0">{content}</div>
 				</div>
 			</div>
 		) : (
-			<div className="flex flex-col items-center gap-8">
-				<Steps stage={stage} />
+			<div className="flex flex-col gap-7">
+				<Progress stage={stage} />
 				{heading}
 				<div className="w-full">{content}</div>
 			</div>
@@ -386,7 +382,7 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 
 	if (ask && failed) {
 		return frame(
-			2,
+			3,
 			<Card>
 				<p role="alert" className="text-text text-sm">
 					{failed}
@@ -408,7 +404,7 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 	}
 	if (ask && plan.data?.kind === 'questions') {
 		return frame(
-			1,
+			2,
 			<Questions
 				questions={plan.data.questions}
 				onAnswer={(answers) => setAsk({ ...ask, answers })}
@@ -418,7 +414,7 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 	}
 	if (ask && plan.data?.kind === 'plan') {
 		return frame(
-			3,
+			4,
 			<PlanView
 				summary={plan.data.summary}
 				problems={plan.data.problems}
@@ -430,7 +426,7 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 	}
 	if (ask && plan.data?.kind === 'none') {
 		return frame(
-			2,
+			3,
 			<Card>
 				<p role="alert" className="text-text text-sm">
 					{t('errors.noPlan')}
@@ -443,7 +439,7 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 	}
 	if (asking) {
 		return frame(
-			1,
+			2,
 			<Card>
 				<QuickQuestions
 					request={asking.request}
@@ -455,16 +451,22 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 	}
 	if (ask || reading) {
 		return frame(
-			2,
+			3,
 			<Card>
-				<p role="status" className="text-text flex items-center gap-3 text-base font-bold">
+				<p role="status" className="text-text flex items-center gap-3 text-[17px] font-semibold">
 					<SpinnerIcon size={18} className="text-accent-fg" />
 					{step}
 				</p>
-				<span aria-hidden className="bg-track relative h-1.5 overflow-hidden rounded-full">
-					<span className="bg-brand-wide rt-sheen absolute inset-0 bg-size-[200%_100%] opacity-80" />
+				<span aria-hidden className="flex h-[84px] items-center gap-[3px]">
+					{READING_BARS.map((height, i) => (
+						<i
+							key={i}
+							className="rt-pulse flex-1 rounded-[2px] bg-linear-to-b from-(--blue) to-(--accent)"
+							style={{ height: `${height}%`, animationDelay: `${(i % 12) * 0.08}s` }}
+						/>
+					))}
 				</span>
-				<p className="text-text-muted text-sm">{t('steps.note')}</p>
+				<p className="text-text-faint text-[13px]">{t('steps.note')}</p>
 			</Card>
 		)
 	}
@@ -478,7 +480,7 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 				void start()
 			}}
 		>
-			<div className="from-brand-blue via-brand-violet to-brand-purple mx-auto w-full max-w-[780px] rounded-[30px] bg-linear-100 p-[3px] shadow-(--shadow-card)">
+			<div className="w-full">
 				<section
 					onDragOver={(event) => {
 						event.preventDefault()
@@ -492,8 +494,8 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 						if (dropped) pick(dropped)
 					}}
 					className={cn(
-						'bg-surface-raised flex flex-col gap-4 rounded-[27px] p-[22px] transition-shadow',
-						dragging && 'ring-accent-glow ring-4 ring-inset'
+						'flex flex-col gap-4 rounded-[18px] transition-shadow',
+						dragging && 'ring-accent-glow ring-4'
 					)}
 				>
 					{file ? (
@@ -506,12 +508,12 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 						<button
 							type="button"
 							onClick={() => inputRef.current?.click()}
-							className="border-border-strong hover:border-accent/60 hover:bg-accent-soft focus-visible:outline-accent flex flex-col items-center gap-2 rounded-[18px] border border-dashed px-6 py-8 text-center transition-colors focus-visible:outline-2"
+							className="border-border-strong text-text-muted hover:border-accent hover:bg-accent-soft focus-visible:outline-accent flex min-h-[150px] flex-col items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-dashed px-6 py-[18px] text-center transition-colors focus-visible:outline-2"
 						>
-							<span className="bg-accent-soft text-accent-fg flex size-12 items-center justify-center rounded-[14px]">
-								<UploadIcon size={22} />
+							<span className="text-accent-fg">
+								<UploadIcon size={26} />
 							</span>
-							<span className="text-text text-[15px] font-extrabold">{t('chooseVideo')}</span>
+							<span className="text-text text-[15px] font-semibold">{t('chooseVideo')}</span>
 							<span className="text-text-faint text-[13px]">{t('dropHint')}</span>
 						</button>
 					)}
@@ -528,47 +530,66 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 							if (picked) pick(picked)
 						}}
 					/>
-					<label htmlFor="make-request" className="text-text-muted px-1 text-[13px] font-bold">
-						{t('requestLabel')}
-					</label>
-					<textarea
-						id="make-request"
-						value={request}
-						onChange={(event) => setRequest(event.target.value)}
-						onKeyDown={(event) => {
-							if (event.key === 'Enter' && !event.shiftKey) {
-								event.preventDefault()
-								void start()
-							}
-						}}
-						rows={2}
-						aria-describedby="make-request-count"
-						aria-invalid={overLimit}
-						placeholder={t('placeholder')}
-						className="text-text placeholder:text-text-faint -mt-2 w-full resize-none bg-transparent px-1 text-[22px] font-semibold focus-visible:outline-none"
-					/>
-					<p
-						id="make-request-count"
-						role={overLimit ? 'alert' : undefined}
-						className={cn(
-							'-mt-2 px-1 text-[12.5px]',
-							overLimit ? 'text-danger font-bold' : 'text-text-faint'
-						)}
-					>
-						{overLimit
-							? t('requestOver', {
-									count: request.length - MAX_REQUEST_LENGTH,
-									max: MAX_REQUEST_LENGTH
-								})
-							: t('requestLeft', { count: MAX_REQUEST_LENGTH - request.length })}
-					</p>
+					<div className="border-border-strong bg-surface-inset focus-within:border-accent flex flex-col gap-1 rounded-[14px] border px-3.5 py-3">
+						<label
+							htmlFor="make-request"
+							className="text-text-faint font-mono text-[11.5px] tracking-[0.08em] uppercase"
+						>
+							{t('requestLabel')}
+						</label>
+						<textarea
+							id="make-request"
+							value={request}
+							onChange={(event) => setRequest(event.target.value)}
+							onKeyDown={(event) => {
+								if (event.key === 'Enter' && !event.shiftKey) {
+									event.preventDefault()
+									void start()
+								}
+							}}
+							rows={2}
+							aria-describedby="make-request-count"
+							aria-invalid={overLimit}
+							placeholder={t('placeholder')}
+							className="text-text placeholder:text-text-faint font-display w-full resize-none bg-transparent text-xl tracking-[-0.015em] focus-visible:outline-none"
+						/>
+						<p
+							id="make-request-count"
+							role={overLimit ? 'alert' : undefined}
+							className={cn('text-xs', overLimit ? 'text-danger font-semibold' : 'text-text-faint')}
+						>
+							{overLimit
+								? t('requestOver', {
+										count: request.length - MAX_REQUEST_LENGTH,
+										max: MAX_REQUEST_LENGTH
+									})
+								: t('requestLeft', { count: MAX_REQUEST_LENGTH - request.length })}
+						</p>
+					</div>
+					<div className="flex flex-wrap gap-1.5">
+						{EXAMPLES.map(({ key }) => (
+							<button
+								key={key}
+								type="button"
+								onClick={() => setRequest(t(`examples.${key}`))}
+								className={cn(
+									'focus-visible:outline-accent inline-flex items-center rounded-full border px-3 py-1.5 text-[13.5px] transition-colors focus-visible:outline-2',
+									request === t(`examples.${key}`)
+										? 'border-accent bg-accent-soft text-text font-semibold'
+										: 'border-border-strong text-text-muted hover:border-accent hover:text-text'
+								)}
+							>
+								{t(`examples.${key}`)}
+							</button>
+						))}
+					</div>
 					<div className="flex items-center gap-2">
 						<button
 							type="button"
 							aria-label={t('attach')}
 							title={t('attach')}
 							onClick={() => inputRef.current?.click()}
-							className="border-border-strong text-text-muted hover:text-text hover:bg-surface-hover focus-visible:outline-accent flex size-10 items-center justify-center rounded-[12px] border transition-colors focus-visible:outline-2"
+							className="border-border-strong text-text-muted hover:text-text hover:bg-border focus-visible:outline-accent flex size-11 items-center justify-center rounded border transition-colors focus-visible:outline-2"
 						>
 							<AttachIcon size={17} />
 						</button>
@@ -579,41 +600,20 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 						/>
 						<Button
 							type="submit"
-							size="lg"
-							className="ml-auto rounded-[14px] px-6"
+							className="ml-auto"
 							disabled={!file || !request.trim() || overLimit}
 						>
-							<AiIcon />
 							{t('makeIt')}
 						</Button>
 					</div>
 				</section>
-			</div>
-			<div className="flex flex-wrap items-center justify-center gap-2">
-				<span className="text-text-faint text-sm">{t('startFrom')}</span>
-				{EXAMPLES.map(({ key, dot }) => (
-					<button
-						key={key}
-						type="button"
-						onClick={() => setRequest(t(`examples.${key}`))}
-						className={cn(
-							'focus-visible:outline-accent inline-flex h-[38px] items-center gap-2 rounded-full border px-3.5 text-[13.5px] font-bold transition-colors focus-visible:outline-2',
-							request === t(`examples.${key}`)
-								? 'border-accent/60 bg-accent-soft text-accent-fg'
-								: 'border-border text-text-muted hover:border-border-strong hover:text-text'
-						)}
-					>
-						<span aria-hidden className={cn('size-[7px] rounded-full', dot)} />
-						{t(`examples.${key}`)}
-					</button>
-				))}
 			</div>
 			{problem && (
 				<p role="alert" className="text-danger text-center text-sm">
 					{t(`errors.${problem}`, { minutes: MAX_MAKE_SECONDS / 60 })}
 				</p>
 			)}
-			<p className="text-text-faint flex items-start justify-center gap-2 text-center text-[13px]">
+			<p className="text-text-faint flex items-start gap-2 text-[13px]">
 				<LockIcon size={14} className="mt-0.5 shrink-0" />
 				{t('steps.note')}
 			</p>
@@ -621,66 +621,77 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 	)
 }
 
-type Stage = 1 | 2 | 3
-const STAGES = ['upload', 'plans', 'review'] as const
+type Stage = 1 | 2 | 3 | 4
+const STAGES = ['describe', 'questions', 'transcript', 'plan'] as const
 
-/** Where Make it is: 1 the video and request, 2 the plan being made, 3 the plan to review. */
-function Steps({ stage }: { stage: Stage }) {
-	const t = useTranslations('Make.stages')
+/** The bars of the waveform shown while the video is read, in percent. */
+const READING_BARS = Array.from({ length: 72 }, (_, i) =>
+	Math.round(20 + 70 * Math.abs(Math.sin(i * 0.47) * Math.cos(i * 0.19)))
+)
+
+/**
+ * Where Make it is, as the design shows it: "Step 2 of 4", how many are left,
+ * and a bar for each step, those done and the one now filled. 1 the video and
+ * request, 2 the questions (when any are asked), 3 the transcript and the
+ * plan being made, 4 the plan to review.
+ */
+function Progress({ stage }: { stage: Stage }) {
+	const t = useTranslations('Make.progress')
 	return (
-		<ol className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm font-bold">
-			{STAGES.map((key, index) => {
-				const number = index + 1
-				const done = number < stage
-				const current = number === stage
-				return (
-					<li
-						key={key}
-						aria-current={current ? 'step' : undefined}
-						className="flex items-center gap-3"
-					>
-						{index > 0 && (
-							<span
+		<div className="flex flex-col gap-2.5" aria-live="polite">
+			<div className="flex items-baseline justify-between gap-3">
+				<span className="font-display text-text text-[15px] font-semibold">
+					{t('step', { step: stage, total: STAGES.length })}
+				</span>
+				<span className="text-accent-fg font-mono text-[11.5px] tracking-[0.06em] uppercase">
+					{t('left', { count: STAGES.length - stage })}
+				</span>
+			</div>
+			<ol className="grid grid-cols-4 gap-1.5">
+				{STAGES.map((key, index) => {
+					const number = index + 1
+					const done = number < stage
+					const current = number === stage
+					return (
+						<li
+							key={key}
+							aria-current={current ? 'step' : undefined}
+							className="flex min-w-0 flex-col gap-[7px]"
+						>
+							<i
 								aria-hidden
 								className={cn(
-									'hidden h-0.5 w-10 rounded-full sm:block',
-									done || current ? 'bg-accent' : 'bg-border-strong'
+									'h-1 rounded-full transition-colors duration-300',
+									current
+										? 'bg-accent'
+										: done
+											? 'bg-[color-mix(in_srgb,var(--accent)_55%,transparent)]'
+											: 'bg-border-strong'
 								)}
 							/>
-						)}
-						<span
-							className={cn(
-								'flex items-center gap-2',
-								current || done ? 'text-text' : 'text-text-muted'
-							)}
-						>
 							<span
 								className={cn(
-									'flex size-[26px] items-center justify-center rounded-full text-xs',
+									'truncate text-[12.5px]',
 									current
-										? 'bg-accent text-white'
+										? 'text-text font-semibold'
 										: done
-											? 'bg-success/15 text-success'
-											: 'border-border-strong border'
+											? 'text-text-muted'
+											: 'text-text-faint max-[560px]:sr-only',
+									!current && 'max-[560px]:sr-only'
 								)}
 							>
-								{done ? <CheckIcon size={13} /> : number}
+								{t(`names.${key}`)}
 							</span>
-							{t(key)}
-						</span>
-					</li>
-				)
-			})}
-		</ol>
+						</li>
+					)
+				})}
+			</ol>
+		</div>
 	)
 }
 
 function Card({ children }: { children: React.ReactNode }) {
-	return (
-		<section className="border-glass-border bg-surface-raised mx-auto flex w-full max-w-[720px] flex-col gap-5 rounded-[28px] border p-7 shadow-(--shadow-card)">
-			{children}
-		</section>
-	)
+	return <section className="flex w-full flex-col gap-4">{children}</section>
 }
 
 /** The questions asked before planning, each with a box for its answer. */
@@ -704,19 +715,19 @@ function Questions({
 					onAnswer(questions.map((question, index) => ({ question, answer: answers[index] ?? '' })))
 				}}
 			>
-				<h2 className="text-text text-[25px] font-extrabold tracking-[-0.02em]">
+				<h2 className="text-text text-[clamp(28px,3vw,40px)] leading-[1.02] tracking-[-0.03em]">
 					{t('questions.title')}
 				</h2>
 				{questions.map((question, index) => (
 					<label key={question} className="flex flex-col gap-1.5">
-						<span className="text-text text-sm font-bold">{question}</span>
+						<span className="text-text font-semibold">{question}</span>
 						<input
 							value={answers[index] ?? ''}
 							onChange={(event) =>
 								setAnswers((all) => all.map((a, i) => (i === index ? event.target.value : a)))
 							}
 							maxLength={MAX_ANSWER_LENGTH}
-							className="border-border-strong bg-surface-inset text-text focus-visible:border-accent/60 focus-visible:ring-accent-soft h-12 rounded-[14px] border px-4 text-base focus-visible:ring-4 focus-visible:outline-none"
+							className="border-border-strong bg-surface text-text focus-visible:border-accent h-[46px] rounded border px-3.5 text-[15px] focus-visible:outline-none"
 						/>
 					</label>
 				))}
@@ -965,25 +976,15 @@ function PlanView({
 		...entries.filter((entry) => entry.row === 'note').map(({ text }) => text)
 	]
 	return (
-		<section
-			role="status"
-			aria-label={t('label')}
-			className="border-border bg-surface flex w-full flex-col gap-4 rounded-[20px] border p-6"
-		>
-			<div className="flex items-center justify-between gap-3">
-				<span className="text-accent-fg flex items-center gap-1.5 text-xs font-extrabold tracking-[0.14em] uppercase">
-					<SparkleIcon size={13} />
-					{t('label')}
-				</span>
-				<span className="bg-surface-hover text-text-muted rounded-full px-2.5 py-1 text-[11px] font-bold">
-					{t('notApplied')}
-				</span>
-			</div>
-			<div className="flex flex-col gap-1.5">
-				<h2 className="text-text text-[25px] leading-tight font-extrabold tracking-[-0.02em]">
+		<section role="status" aria-label={t('label')} className="flex w-full flex-col gap-4">
+			<div className="flex flex-col gap-2.5">
+				<p className="text-accent-fg font-mono text-[11.5px] tracking-[0.08em] uppercase">
+					{t('label')} · {t('notApplied')}
+				</p>
+				<h2 className="text-text text-[clamp(28px,3vw,40px)] leading-[1.02] tracking-[-0.03em]">
 					{t(`making.${summary.making}`, { length })}
 				</h2>
-				{summary.summary && <p className="text-text-muted text-[13px]">{summary.summary}</p>}
+				{summary.summary && <p className="text-text-muted">{summary.summary}</p>}
 			</div>
 			{shortNote && (
 				<p
@@ -997,30 +998,26 @@ function PlanView({
 				</p>
 			)}
 			{notes.length > 0 && (
-				<ul className="text-text-muted -mt-2 flex flex-col gap-0.5 text-[13px]">
+				<ul className="text-text-muted flex flex-col gap-0.5 text-[13.5px]">
 					{notes.map((note) => (
 						<li key={note}>{note}</li>
 					))}
 				</ul>
 			)}
-			<ul className="grid gap-2.5 sm:grid-cols-2">
-				{rows.map(({ key, Icon, texts }) => (
+			<ol className="border-border border-t">
+				{rows.map(({ key, texts }) => (
 					<li
 						key={key}
-						className="border-border bg-surface-inset flex items-start gap-3 rounded-xl border p-3"
+						className="rt-fade-in border-border grid grid-cols-[7.5em_minmax(0,1fr)] items-baseline gap-x-4 gap-y-1 border-b py-[11px] max-[560px]:grid-cols-1"
 					>
-						<span className="bg-accent-soft text-accent-fg flex size-8 shrink-0 items-center justify-center rounded-lg">
-							<Icon size={15} />
-						</span>
+						<span className="text-text-faint text-[13.5px]">{t(`rows.${key}`)}</span>
 						<span className="flex min-w-0 flex-col gap-0.5">
-							<span className="text-text-faint text-[11px] font-bold">{t(`rows.${key}`)}</span>
 							{texts.map((text, index) => (
 								<span
 									key={text}
-									className={cn(
-										'text-[13px] leading-snug',
-										index === 0 ? 'text-text font-extrabold' : 'text-text-muted'
-									)}
+									className={
+										index === 0 ? 'text-text font-semibold' : 'text-text-muted text-[13px]'
+									}
 								>
 									{text}
 								</span>
@@ -1028,17 +1025,12 @@ function PlanView({
 						</span>
 					</li>
 				))}
-			</ul>
-			<div
-				className={cn(
-					'flex flex-col gap-1 rounded-xl p-3',
-					problems === null ? 'bg-surface-inset' : 'bg-success/10'
-				)}
-			>
+			</ol>
+			<div className="flex flex-col gap-1">
 				<p
 					className={cn(
-						'flex items-center gap-1.5 text-sm font-extrabold',
-						problems === null ? 'text-text' : 'text-success'
+						'flex items-center gap-1.5 text-[13.5px] font-semibold',
+						problems === null ? 'text-text-muted' : 'text-success'
 					)}
 				>
 					{problems !== null && <CheckIcon size={14} />}
@@ -1057,8 +1049,8 @@ function PlanView({
 				)}
 			</div>
 			{summary.cannotDo.length > 0 && (
-				<div className="border-border bg-surface-inset flex flex-col gap-1 rounded-2xl border p-4">
-					<p className="text-text text-sm font-extrabold">{t('cannotDo')}</p>
+				<div className="border-border flex flex-col gap-1 rounded-[14px] border p-4">
+					<p className="text-text text-sm font-semibold">{t('cannotDo')}</p>
 					<ul className="text-text-muted list-disc pl-5 text-sm">
 						{summary.cannotDo.map((line) => (
 							<li key={line}>{line}</li>
@@ -1067,23 +1059,16 @@ function PlanView({
 				</div>
 			)}
 			<div className="flex flex-wrap items-center gap-2">
-				<Button type="button" className="rounded-[10px]" onClick={() => onApply(lines)}>
+				<Button type="button" onClick={() => onApply(lines)}>
 					{t('apply')}
-					<ArrowRightIcon size={14} />
 				</Button>
-				<Button
-					type="button"
-					variant="outline"
-					className="rounded-[10px]"
-					onClick={() => onManual(lines)}
-				>
-					<ManualIcon size={15} />
+				<Button type="button" variant="outline" onClick={() => onManual(lines)}>
 					{t('manual')}
 				</Button>
-				<Button type="button" variant="outline" className="rounded-[10px]" onClick={onCancel}>
+				<Button type="button" variant="outline" onClick={onCancel}>
 					{t('change')}
 				</Button>
-				<Button type="button" variant="ghost" className="ml-auto rounded-[10px]" onClick={onCancel}>
+				<Button type="button" variant="ghost" className="ml-auto" onClick={onCancel}>
 					{t('cancel')}
 				</Button>
 			</div>
@@ -1099,8 +1084,8 @@ function Preview({ video }: { video: Video | null }) {
 	const t = useTranslations('Make.chat')
 	const plan = useTranslations('Make.plan')
 	return (
-		<div className="flex shrink-0 flex-col items-center gap-2">
-			<div className="bg-night relative h-[440px] w-[248px] overflow-hidden rounded-[18px] border border-white/20">
+		<div className="flex shrink-0 flex-col gap-2.5">
+			<div className="bg-night relative aspect-9/16 w-[clamp(200px,24vw,280px)] overflow-hidden rounded-[18px] shadow-(--shadow-card)">
 				{video && (
 					<video
 						src={video.url}
@@ -1110,11 +1095,11 @@ function Preview({ video }: { video: Video | null }) {
 						className="size-full object-cover"
 					/>
 				)}
-				<span className="text-ink pointer-events-none absolute top-3 left-3 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-extrabold tracking-wider uppercase">
+				<span className="text-ink pointer-events-none absolute top-2.5 left-2.5 rounded-[7px] bg-white/92 px-2 py-[3px] font-mono text-[11px] font-bold uppercase">
 					{plan('preview')}
 				</span>
 			</div>
-			<span className="text-text-faint text-[11px]">{plan('previewNote')}</span>
+			<span className="text-text-faint max-w-[260px] text-[13px]">{plan('previewNote')}</span>
 		</div>
 	)
 }
@@ -1131,8 +1116,8 @@ function AttachedVideo({ file, onReplace }: { file: File; onReplace: () => void 
 	const [meta, setMeta] = useState<{ seconds: number; height: number } | null>(null)
 	const size = `${(file.size / BYTES_PER_MB).toFixed(file.size < 10 * BYTES_PER_MB ? 1 : 0)} MB`
 	return (
-		<div className="bg-surface-hover flex flex-wrap items-center gap-4 rounded-[18px] p-3.5">
-			<span className="bg-night relative h-14 w-24 shrink-0 overflow-hidden rounded-xl">
+		<div className="bg-surface-hover flex flex-wrap items-center gap-3 rounded p-2">
+			<span className="bg-night relative aspect-video w-[76px] shrink-0 overflow-hidden rounded-lg">
 				<video
 					// The file's own URL, for as long as this shows it.
 					ref={(element) => {
@@ -1158,12 +1143,18 @@ function AttachedVideo({ file, onReplace }: { file: File; onReplace: () => void 
 				)}
 			</span>
 			<span className="flex min-w-0 flex-1 flex-col">
-				<span className="text-text truncate text-[15px] font-extrabold">{file.name}</span>
-				<span className="text-text-muted text-[13px]">
+				<span className="text-text truncate font-semibold">{file.name}</span>
+				<span className="text-text-faint text-[13px]">
 					{meta && meta.height > 0 ? t('ready', { quality: `${meta.height}p`, size }) : size}
 				</span>
 			</span>
-			<Button type="button" variant="outline" aria-label={t('changeVideo')} onClick={onReplace}>
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				aria-label={t('changeVideo')}
+				onClick={onReplace}
+			>
 				{t('replace')}
 			</Button>
 		</div>

@@ -5,39 +5,39 @@
    both declares them as real CSS variables and generates the matching
    Tailwind utilities (e.g. --radius-lg below gives you `rounded-lg`). */
 @theme {
-	--radius-sm: 7px;
-	--radius: 11px;
+	--radius-sm: 8px;
+	--radius: 12px;
 	--radius-lg: 14px;
-	--radius-xl: 18px;
+	--radius-xl: 20px;
 	--radius-2xl: 24px;
-	--radius-3xl: 30px;
-	/* The brand's four colours, the same in both themes (the logo, the dots,
-	   the gradients, the coloured bullets). */
-	--color-brand-violet: #6d5bff;
-	--color-brand-purple: #9b6bff;
-	--color-brand-blue: #4c7dff;
-	--color-brand-lilac: #d9c2ff;
-	/* What stays dark in both themes (the closing band, a video's frame), and
-	   the ink on a white button there. */
-	--color-night: #09081a;
-	--color-ink: #0b0c14;
-	/* A zoom's box and the word being said, drawn on the video. */
-	--color-zoom: #ffd27a;
+	--radius-3xl: 28px;
+	/* The brand's colours, the same in both themes (the logo's dot, the
+	   gradient lines, the duotone on the site's pictures). */
+	--color-brand-violet: #8f7eff;
+	--color-brand-purple: #9b8bff;
+	--color-brand-blue: #4c6bff;
+	--color-brand-lilac: #d3c9ff;
+	/* What stays dark in both themes (a video's frame), and the ink on a
+	   white button there. */
+	--color-night: #0b0a1a;
+	--color-ink: #14122b;
+	/* A zoom's box drawn on the video. */
+	--color-zoom: #b5a9ff;
 	/* The theme switch's knob in the dark, and its sun in the light. */
-	--color-knob: #2a2d3a;
-	--color-sun: #e8590c;
+	--color-knob: #1c1940;
+	--color-sun: #5b45f0;
 	/* The design's easing: quick out, soft landing. */
 	--ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 /* The font families come from next/font (layout.tsx), as variables on <html>:
-   Manrope for the interface and headings, Instrument Serif for the large
-   display lines (an italic gradient word in each), Geist Mono for timecodes. */
+   Funnel Sans for reading, Funnel Display for headlines (set large and
+   tight, never italic or highlighted), JetBrains Mono for timecodes and
+   labels. */
 @theme inline {
-	--font-sans: var(--font-manrope), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-	--font-display: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
-	--font-serif: var(--font-instrument), Georgia, 'Times New Roman', serif;
-	--font-mono: var(--font-geist-mono), ui-monospace, 'SFMono-Regular', Menlo, monospace;
+	--font-sans: var(--font-funnel-sans), 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
+	--font-display: var(--font-funnel-display), 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
+	--font-mono: var(--font-jetbrains-mono), ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
 /* Color tokens are declared on :root (swappable at runtime) and re-exposed
@@ -45,96 +45,108 @@
    reference these variables live rather than inlining today's computed
    value at build time. See DESIGN.md for the full token table.
 
-   Two schemes, one violet accent. Dark is the default (a video editor is
-   judged against footage); light is `data-theme="light"` on <html>, set
-   before first paint by the script in layout.tsx from the visitor's choice.
-   `color-scheme` makes native UI (video controls, scrollbars, form fields)
-   follow. `--accent` fills (buttons, the playhead, selected chips) and
-   carries white ink; `--accent-fg` is the accent as text or an icon, a
-   lighter violet on dark and a deeper one on light so it reads on both. */
+   Two schemes, one violet accent, from the owner's design: roughly 60%
+   base, 30% raised surfaces and lines, 10% accent, the accent only for what
+   you can press or what is happening now, and no orange or yellow anywhere.
+   Dark is the default (a video editor is judged against footage); light is
+   `data-theme="light"` on <html>, set before first paint by the script in
+   layout.tsx from the visitor's choice. `color-scheme` makes native UI
+   follow. `--accent` fills buttons and the playhead and carries
+   `--accent-ink` (dark on the dark theme's light violet, white on the light
+   theme's deep one); `--accent-fg` is the accent as text or an icon.
+   `--cut` (pink) marks only what gets cut or is being recorded: filler
+   words, pauses, removed parts. */
 /* A part of a page can also wear one theme whatever the page's (data-theme on
-   any element): the day-and-night picture on the landing page. */
+   any element). */
 :root,
 [data-theme='dark'] {
 	color-scheme: dark;
-	--bg: #09081a;
-	--surface: #121122;
-	--surface-hover: #1b1a2d;
-	--surface-inset: #07061a;
-	--surface-raised: #17152e;
-	--border: rgb(255 255 255 / 0.08);
-	--border-strong: rgb(255 255 255 / 0.17);
-	--text: #f4f3fa;
-	--text-muted: rgb(244 243 250 / 0.7);
-	--text-faint: rgb(244 243 250 / 0.55);
-	--accent: #6d5bff;
-	--accent-hover: #7b6bff;
-	--accent-fg: #b8acff;
-	--accent-ink: #ffffff;
-	--accent-soft: rgb(109 91 255 / 0.16);
-	--accent-secondary: #9b6bff;
-	--accent-glow: rgb(109 91 255 / 0.35);
-	--blue: #4c7dff;
-	--lilac: #d9c2ff;
-	/* The solid button that sits beside the gradient one: white on dark, ink on light. */
-	--contrast: #ffffff;
-	--contrast-ink: #0b0a16;
-	--success: #4ade9b;
-	--warning: #ffd27a;
-	--danger: #ff6b7a;
-	--filler: #ffb067;
-	/* The page's glow: violet from the top, blue from the right. */
-	--glow-violet: rgb(109 91 255 / 0.22);
-	--glow-blue: rgb(76 125 255 / 0.14);
-	--orb-violet: rgb(155 107 255 / 0.55);
-	--orb-blue: rgb(76 125 255 / 0.5);
-	--glass: rgb(255 255 255 / 0.06);
-	--glass-border: rgb(255 255 255 / 0.09);
-	--shadow-card: 0 30px 80px -30px rgb(0 0 0 / 0.75);
-	--gradient-text: linear-gradient(90deg, #d9c2ff, #9b6bff, #6d5bff, #4c7dff, #d9c2ff);
+	--bg: #0b0a1a;
+	--surface: #151330;
+	--surface-hover: #1c1940;
+	--surface-inset: #100e24;
+	--surface-raised: #151330;
+	--border: rgb(196 188 255 / 0.12);
+	--border-strong: rgb(196 188 255 / 0.22);
+	--text: #f1efff;
+	--text-muted: #aba6cf;
+	--text-faint: #8c87b6;
+	--accent: #8f7eff;
+	--accent-hover: #9d8fff;
+	--accent-fg: #b5a9ff;
+	--accent-ink: #0b0a1a;
+	--accent-soft: rgb(181 169 255 / 0.16);
+	--accent-secondary: #7c9cff;
+	--accent-glow: rgb(143 126 255 / 0.35);
+	--blue: #7c9cff;
+	--lilac: #d3c9ff;
+	/* The solid button that sits beside the accent one: the text colour, inverted. */
+	--contrast: #f1efff;
+	--contrast-ink: #0b0a1a;
+	--success: #6ee7c1;
+	--warning: #f27bcb;
+	--danger: #ff6b8a;
+	--filler: #f27bcb;
+	--cut: #f27bcb;
+	--cut-soft: rgb(242 123 203 / 0.16);
+	--glow-violet: rgb(143 126 255 / 0.16);
+	--glow-blue: rgb(124 156 255 / 0.1);
+	--orb-violet: rgb(155 139 255 / 0.4);
+	--orb-blue: rgb(76 107 255 / 0.4);
+	--glass: rgb(21 19 48 / 0.72);
+	--glass-border: rgb(196 188 255 / 0.12);
+	--shadow-card: 0 40px 100px -40px rgb(0 0 0 / 0.8);
+	--gradient-text: linear-gradient(90deg, #d3c9ff, #b5a9ff, #7c9cff);
+	/* The words drifting behind the landing page, and the cut ones among them. */
+	--river: rgb(214 206 255 / 0.055);
+	--river-cut: rgb(242 123 203 / 0.13);
 	/* The picked option of a segmented control, and a slider's empty track. */
-	--selected: rgb(255 255 255 / 0.13);
-	--track: rgb(255 255 255 / 0.12);
+	--selected: rgb(181 169 255 / 0.16);
+	--track: rgb(196 188 255 / 0.22);
 }
 
 :root[data-theme='light'],
 [data-theme='light'] {
 	color-scheme: light;
-	--bg: #f7f6fd;
+	--bg: #f5f4fb;
 	--surface: #ffffff;
-	--surface-hover: #efeef8;
-	--surface-inset: #f3f2fb;
+	--surface-hover: #f1effb;
+	--surface-inset: #eceaf7;
 	--surface-raised: #ffffff;
-	--border: rgb(20 18 50 / 0.09);
-	--border-strong: rgb(20 18 50 / 0.18);
-	--text: #12111f;
-	--text-muted: rgb(18 17 31 / 0.7);
-	--text-faint: rgb(18 17 31 / 0.62);
-	--accent: #6d5bff;
-	--accent-hover: #5c49f2;
-	--accent-fg: #4f3fd9;
+	--border: rgb(30 24 90 / 0.11);
+	--border-strong: rgb(30 24 90 / 0.2);
+	--text: #14122b;
+	--text-muted: #514c78;
+	--text-faint: #686391;
+	--accent: #5b45f0;
+	--accent-hover: #4b36e0;
+	--accent-fg: #4b36e0;
 	--accent-ink: #ffffff;
-	--accent-soft: rgb(109 91 255 / 0.1);
-	--accent-secondary: #7b3fd6;
-	--accent-glow: rgb(109 91 255 / 0.28);
-	--blue: #2f5bd9;
-	--lilac: #7b3fd6;
-	--contrast: #12111f;
+	--accent-soft: rgb(75 54 224 / 0.13);
+	--accent-secondary: #2f5be0;
+	--accent-glow: rgb(91 69 240 / 0.28);
+	--blue: #2f5be0;
+	--lilac: #7a68f2;
+	--contrast: #14122b;
 	--contrast-ink: #ffffff;
-	--success: #0b7656;
-	--warning: #a8640a;
+	--success: #0e7a5b;
+	--warning: #b0267a;
 	--danger: #c5282e;
-	--filler: #b4570f;
-	--glow-violet: rgb(109 91 255 / 0.16);
-	--glow-blue: rgb(76 125 255 / 0.1);
-	--orb-violet: rgb(155 107 255 / 0.35);
-	--orb-blue: rgb(76 125 255 / 0.3);
-	--glass: rgb(255 255 255 / 0.62);
-	--glass-border: rgb(11 12 20 / 0.09);
-	--shadow-card: 0 24px 60px -24px rgb(30 20 80 / 0.28);
-	--gradient-text: linear-gradient(90deg, #4f3fd9, #7b3fd6, #2f5bd9, #4f3fd9);
-	--selected: rgb(20 18 50 / 0.08);
-	--track: rgb(20 18 50 / 0.1);
+	--filler: #b0267a;
+	--cut: #b0267a;
+	--cut-soft: rgb(176 38 122 / 0.1);
+	--glow-violet: rgb(91 69 240 / 0.1);
+	--glow-blue: rgb(47 91 224 / 0.07);
+	--orb-violet: rgb(124 104 255 / 0.3);
+	--orb-blue: rgb(90 134 255 / 0.3);
+	--glass: rgb(255 255 255 / 0.78);
+	--glass-border: rgb(30 24 90 / 0.11);
+	--shadow-card: 0 40px 90px -40px rgb(40 30 120 / 0.35);
+	--gradient-text: linear-gradient(90deg, #4b36e0, #7a68f2, #2f5be0);
+	--river: rgb(40 30 120 / 0.045);
+	--river-cut: rgb(176 38 122 / 0.1);
+	--selected: rgb(75 54 224 / 0.13);
+	--track: rgb(30 24 90 / 0.2);
 }
 
 @theme inline {
@@ -169,6 +181,8 @@
 	--color-warning: var(--warning);
 	--color-danger: var(--danger);
 	--color-filler: var(--filler);
+	--color-cut: var(--cut);
+	--color-cut-soft: var(--cut-soft);
 	--shadow-card: var(--shadow-card);
 }
 
@@ -183,6 +197,18 @@ body {
 	-webkit-font-smoothing: antialiased;
 }
 
+/* Headlines in Funnel Display, set tight; a class on the heading still wins. */
+@layer base {
+	h1,
+	h2,
+	h3 {
+		font-family: var(--font-display);
+		font-weight: 500;
+		letter-spacing: -0.03em;
+		text-wrap: balance;
+	}
+}
+
 ::selection {
 	background-color: var(--accent-glow);
 }
@@ -191,13 +217,13 @@ body {
 	outline-color: var(--accent-fg);
 }
 
-/* The brand gradient, as a fill (buttons, the logo) and as text (the italic
-   word in each display heading). */
+/* The accent as a fill (buttons, the AI's marks), and the design's one
+   gradient: support blue into the accent (progress lines, borders). */
 @utility bg-brand {
-	background-image: linear-gradient(135deg, #6d5bff, #9b6bff);
+	background-color: var(--accent);
 }
 @utility bg-brand-wide {
-	background-image: linear-gradient(135deg, #6d5bff, #9b6bff 35%, #4c7dff 70%, #d9c2ff);
+	background-image: linear-gradient(135deg, var(--accent), var(--blue));
 }
 @utility text-gradient {
 	background-image: var(--gradient-text);
@@ -205,8 +231,6 @@ body {
 	background-clip: text;
 	-webkit-background-clip: text;
 	color: transparent;
-	/* Instrument Serif's italic leans past its box: room so the clip keeps it. */
-	padding-right: 0.08em;
 }
 /* The page's soft glow behind a heading. */
 @utility bg-glow {
@@ -218,14 +242,58 @@ body {
 /* Motion: light, and none at all for anyone who asks for less. */
 @keyframes rt-rise {
 	from {
-		opacity: 0;
-		transform: translateY(48px);
-		filter: blur(8px);
+		opacity: 0.15;
+		transform: translateY(40px);
 	}
 	to {
 		opacity: 1;
 		transform: none;
-		filter: none;
+	}
+}
+@keyframes rt-slide {
+	from {
+		transform: translateX(12%);
+	}
+	to {
+		transform: translateX(-8%);
+	}
+}
+@keyframes rt-drift {
+	from {
+		transform: translateX(0);
+	}
+	to {
+		transform: translateX(-50%);
+	}
+}
+@keyframes rt-snip {
+	0%,
+	14% {
+		max-width: 2.6em;
+		background: transparent;
+		color: inherit;
+		text-decoration: none;
+		opacity: 1;
+	}
+	22%,
+	36% {
+		max-width: 2.6em;
+		background: var(--cut-soft);
+		color: var(--cut);
+		text-decoration: line-through;
+		opacity: 1;
+	}
+	48%,
+	86% {
+		max-width: 0;
+		opacity: 0;
+	}
+	96%,
+	100% {
+		max-width: 2.6em;
+		background: transparent;
+		color: inherit;
+		opacity: 1;
 	}
 }
 @keyframes rt-float {
@@ -294,11 +362,29 @@ body {
 		.rt-reveal {
 			animation: rt-rise linear both;
 			animation-timeline: view();
-			animation-range: entry 0% entry 60%;
+			animation-range: entry 0% cover 32%;
 		}
 	}
 	.rt-rise {
 		animation: rt-rise 0.9s var(--ease-out-soft) both;
+	}
+	/* Words drifting sideways behind a panel (sign-in); the cut ones marked. */
+	.rt-drift {
+		animation: rt-drift 60s linear infinite;
+	}
+	.rt-drift-back {
+		animation: rt-drift 75s linear infinite reverse;
+	}
+	/* A filler word marked pink, cut, then back: one take fixed, on a loop. */
+	.rt-snip {
+		animation: rt-snip 7s var(--ease-out-soft) infinite;
+	}
+	/* The closing wordmark slides sideways as it scrolls through the view. */
+	@supports (animation-timeline: view()) {
+		.rt-wordmark {
+			animation: rt-slide linear both;
+			animation-timeline: view();
+		}
 	}
 	.rt-float {
 		animation: rt-float 6s ease-in-out infinite;
@@ -336,8 +422,8 @@ body {
 			filter 0.2s ease;
 	}
 	.rt-btn:hover {
-		transform: translateY(-2px);
-		box-shadow: 0 18px 40px -14px rgb(109 91 255 / 0.55);
+		transform: translateY(-1px);
+		box-shadow: 0 14px 30px -14px var(--accent);
 	}
 }
 

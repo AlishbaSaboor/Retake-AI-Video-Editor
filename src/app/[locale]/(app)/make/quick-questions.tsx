@@ -43,16 +43,16 @@ function Choices<T extends string>({
 	]
 	return (
 		<fieldset className="flex flex-col gap-2">
-			<legend className="text-text mb-2 text-sm font-bold">{legend}</legend>
+			<legend className="text-text mb-2 font-semibold">{legend}</legend>
 			<div className="flex flex-wrap gap-2">
 				{all.map(({ key, option, text }) => (
 					<label
 						key={key}
 						className={cn(
-							'has-focus-visible:outline-accent relative inline-flex h-[38px] cursor-pointer items-center rounded-full border px-3.5 text-[13.5px] font-bold transition-colors has-focus-visible:outline-2',
+							'has-focus-visible:outline-accent relative inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-[13.5px] transition-colors has-focus-visible:outline-2',
 							value === option
-								? 'border-accent/60 bg-accent-soft text-accent-fg'
-								: 'border-border text-text-muted hover:border-border-strong hover:text-text'
+								? 'border-accent bg-accent-soft text-text font-semibold'
+								: 'border-border-strong text-text-muted hover:border-accent hover:text-text'
 						)}
 					>
 						{/* Over the whole pill, unseen: a click anywhere on it picks it. */}
@@ -86,7 +86,7 @@ function TextChoice({
 	const id = useId()
 	return (
 		<div className="flex flex-col gap-1.5">
-			<label htmlFor={id} className="text-text text-sm font-bold">
+			<label htmlFor={id} className="text-text font-semibold">
 				{label}
 			</label>
 			<Input
@@ -95,7 +95,7 @@ function TextChoice({
 				onChange={(event) => onChange(event.target.value)}
 				maxLength={MAX_BRIEF_PART_LENGTH}
 				placeholder={placeholder}
-				className="h-11 rounded-[14px] px-4 text-base"
+				className="bg-surface h-[46px] rounded px-3.5 text-[15px]"
 			/>
 		</div>
 	)
@@ -145,11 +145,11 @@ export function QuickQuestions({
 			<div className="flex flex-col gap-1.5">
 				<h2
 					id="quick-questions-title"
-					className="text-text text-[25px] font-extrabold tracking-[-0.02em]"
+					className="text-text text-[clamp(28px,3vw,40px)] leading-[1.02] tracking-[-0.03em]"
 				>
 					{t('title')}
 				</h2>
-				<p className="text-text-muted text-sm">{t('intro')}</p>
+				<p className="text-text-muted text-[16.5px]">{t('intro')}</p>
 			</div>
 			{has('kind') && (
 				<Choices
