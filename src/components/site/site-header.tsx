@@ -15,9 +15,9 @@ const PUBLIC_LINKS = [
 
 /**
  * The public pages' top bar: a floating glass pill with the logo, the
- * site's pages (the one you're on marked with a dot), the theme switch and
- * Open Retake, which takes you into the app (via logging in, when accounts
- * are on). On a phone the pages fold into a menu.
+ * site's pages (the one you're on marked), the theme switch and Open
+ * Retake, which takes you into the app (via logging in, when accounts are
+ * on). On a phone the pages fold into a menu.
  */
 export async function SiteHeader() {
 	const t = await getTranslations('Site.nav')
@@ -25,29 +25,26 @@ export async function SiteHeader() {
 	const open = (
 		<Link
 			href="/home"
-			className="rt-btn bg-contrast text-contrast-ink focus-visible:outline-accent inline-flex h-11 shrink-0 items-center rounded-full px-5 text-[15px] font-bold focus-visible:outline-2 focus-visible:outline-offset-2"
+			className="rt-btn bg-accent text-accent-ink focus-visible:outline-accent inline-flex h-11 shrink-0 items-center rounded-full px-[18px] text-[15px] font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
 		>
 			{t('open')}
 		</Link>
 	)
 	return (
-		<header className="sticky top-0 z-40 px-[clamp(12px,3vw,32px)] pt-3.5">
-			<div className="border-glass-border bg-glass mx-auto flex h-[62px] max-w-[1188px] items-center gap-2 rounded-full border py-2 pr-2 pl-[18px] backdrop-blur-[20px] backdrop-saturate-[1.4]">
-				<Logo />
-				<nav
-					aria-label={t('label')}
-					className="hidden flex-1 items-center justify-center gap-1 md:flex"
-				>
+		<header className="sticky top-0 z-40 px-[clamp(12px,3vw,28px)] pt-3">
+			<div className="border-border bg-glass mx-auto flex max-w-[1240px] items-center gap-2 rounded-full border py-2 pr-2 pl-4 backdrop-blur-[16px] backdrop-saturate-[1.4]">
+				<Logo className="mr-auto" />
+				<nav aria-label={t('label')} className="hidden items-center gap-0.5 md:flex">
 					<NavLinks items={items} variant="site" />
 				</nav>
-				<div className="ml-auto flex items-center gap-2 md:ml-0">
+				<div className="flex items-center gap-2">
 					<ThemeToggle variant="site" className="hidden sm:inline-flex" />
 					<span className="hidden sm:inline-flex">{open}</span>
 					<MobileMenu
 						summary={
 							<summary
 								aria-label={t('menu')}
-								className="bg-surface-hover text-text flex size-11 cursor-pointer list-none items-center justify-center rounded-full [&::-webkit-details-marker]:hidden"
+								className="border-border text-text flex size-11 cursor-pointer list-none items-center justify-center rounded-full border [&::-webkit-details-marker]:hidden"
 							>
 								<MenuIcon size={20} />
 							</summary>
@@ -55,7 +52,7 @@ export async function SiteHeader() {
 					>
 						<nav
 							aria-label={t('label')}
-							className="border-glass-border bg-surface absolute right-0 mt-3 flex w-64 flex-col gap-1 rounded-3xl border p-2 shadow-(--shadow-card)"
+							className="border-border bg-surface absolute right-0 mt-3 flex w-64 flex-col gap-1 rounded-3xl border p-2 shadow-(--shadow-card)"
 						>
 							<NavLinks items={items} variant="menu" />
 							<div className="border-border mt-1 flex items-center justify-between gap-2 border-t px-1 pt-3 pb-1">

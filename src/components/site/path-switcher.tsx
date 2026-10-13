@@ -51,10 +51,10 @@ export function PathSwitcher({
 							if (sibling instanceof HTMLElement) sibling.focus()
 						}}
 						className={cn(
-							'focus-visible:outline-accent h-12 rounded-full px-6 text-base font-bold transition-colors focus-visible:outline-2',
+							'focus-visible:outline-accent h-11 rounded-full px-5 text-[15px] font-semibold transition-colors focus-visible:outline-2',
 							index === picked
-								? 'bg-contrast text-contrast-ink'
-								: 'text-text hover:bg-surface-hover'
+								? 'bg-accent text-accent-ink'
+								: 'text-text-muted hover:bg-border hover:text-text'
 						)}
 					>
 						{each.name}

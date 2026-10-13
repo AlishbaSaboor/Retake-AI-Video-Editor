@@ -17,7 +17,7 @@ export default async function ProjectsPage() {
 		<main className="mx-auto flex w-full max-w-[1176px] flex-col gap-8 px-5 pt-12 pb-20">
 			<div className="rt-rise flex flex-wrap items-end justify-between gap-5">
 				<div className="flex flex-col gap-2">
-					<h1 className="text-text font-serif text-[clamp(48px,5vw,64px)] leading-none tracking-[-0.02em]">
+					<h1 className="text-text font-display text-[clamp(48px,5vw,64px)] leading-none font-medium tracking-[-0.02em]">
 						{t.rich('heading', { em: emphasis('gradient') })}
 					</h1>
 					<p className="text-text-muted text-[17px]">{t('description')}</p>

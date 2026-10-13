@@ -11,8 +11,6 @@ import { formatTimecode } from '../../model/timeline-scale'
 // it (the "AI studio"), and a way into the full editor on the same project.
 // These pieces only show things; the editor decides which view is on.
 
-const DOTS = ['bg-brand-violet', 'bg-brand-purple', 'bg-brand-blue', 'bg-brand-lilac'] as const
-
 /** The top bar's switch between the chat-only view and the full editor. */
 export function ModeSwitch({
 	studio,
@@ -30,7 +28,7 @@ export function ModeSwitch({
 		<div
 			role="group"
 			aria-label={t('modes')}
-			className="border-border bg-glass flex gap-0.5 rounded-[12px] border p-[3px]"
+			className="border-border bg-surface flex gap-0.5 rounded border p-[3px]"
 		>
 			{options.map(({ key, on, icon }) => {
 				const active = studio === on
@@ -41,10 +39,10 @@ export function ModeSwitch({
 						aria-pressed={active}
 						onClick={() => onChange(on)}
 						className={cn(
-							'focus-visible:outline-accent inline-flex h-[34px] items-center gap-1.5 rounded-[9px] px-3.5 text-[13.5px] transition-colors focus-visible:outline-2',
+							'focus-visible:outline-accent inline-flex h-[34px] items-center gap-[7px] rounded-[9px] px-[13px] text-sm whitespace-nowrap transition-colors focus-visible:outline-2',
 							active
-								? 'bg-brand font-extrabold text-white'
-								: 'text-text-muted hover:text-text font-bold'
+								? 'bg-accent text-accent-ink font-semibold'
+								: 'text-text-muted hover:text-text font-medium'
 						)}
 					>
 						{icon}
@@ -60,40 +58,30 @@ export function ModeSwitch({
 export function MadeWithIntro({ made }: { made: MadeWith }) {
 	const t = useTranslations('Editor.studio')
 	return (
-		<div className="flex flex-col gap-3 px-5 pt-5">
-			<div className="flex items-center gap-3">
-				<span className="bg-brand flex size-9 shrink-0 items-center justify-center rounded-[11px] text-white">
-					<SparkleIcon size={17} />
+		<div className="flex flex-col">
+			<div className="border-border flex flex-col border-b px-5 py-4">
+				<span className="font-display text-text text-lg font-semibold tracking-[-0.02em]">
+					{t('title')}
 				</span>
-				<span className="flex flex-col">
-					<span className="text-text text-base font-extrabold">{t('title')}</span>
-					<span className="text-text-muted text-xs">{t('help')}</span>
-				</span>
+				<span className="text-text-faint text-[13px]">{t('help')}</span>
 			</div>
-			<p className="bg-brand ml-auto max-w-[85%] rounded-[16px_16px_4px_16px] px-3.5 py-2.5 text-sm font-semibold text-white">
-				{made.request}
-			</p>
-			<section
-				aria-label={t('applied')}
-				className="border-border bg-surface-inset flex flex-col gap-2 rounded-[16px_16px_16px_4px] border p-3.5"
-			>
-				<p className="text-success flex items-center gap-1.5 text-[13.5px] font-extrabold">
-					<CheckIcon size={14} />
-					{t('appliedLength', { length: formatTimecode(Math.round(made.editedSeconds)) })}
+			<div className="flex flex-col gap-3.5 px-5 pt-[18px]">
+				<p className="bg-accent text-accent-ink ml-auto max-w-[85%] rounded-[14px_14px_4px_14px] px-3.5 py-2.5 font-medium">
+					{made.request}
 				</p>
-				<ul className="flex flex-col gap-1">
-					{made.lines.map((line, index) => (
-						<li key={line} className="text-text flex items-start gap-2 text-[13px] leading-snug">
-							<span
-								aria-hidden
-								className={cn('mt-1.5 size-1.5 shrink-0 rounded-full', DOTS[index % DOTS.length])}
-							/>
-							{line}
-						</li>
-					))}
-				</ul>
-				<p className="text-text-faint text-xs">{t('undoHint')}</p>
-			</section>
+				<section aria-label={t('applied')} className="flex max-w-[94%] flex-col gap-2">
+					<p className="text-success flex items-center gap-1.5 font-semibold">
+						<CheckIcon size={15} />
+						{t('appliedLength', { length: formatTimecode(Math.round(made.editedSeconds)) })}
+					</p>
+					<ul className="text-text-muted flex list-disc flex-col gap-[3px] pl-[18px] text-[14.5px]">
+						{made.lines.map((line) => (
+							<li key={line}>{line}</li>
+						))}
+					</ul>
+					<p className="text-text-faint text-[13px]">{t('undoHint')}</p>
+				</section>
+			</div>
 		</div>
 	)
 }
@@ -112,20 +100,20 @@ export function StudioCards({
 	return (
 		<div className="grid w-full gap-3 sm:grid-cols-2 xl:col-start-2! xl:row-span-2 xl:row-start-1 xl:grid-cols-1 xl:self-end">
 			<div className="border-border bg-surface flex flex-col gap-1.5 rounded-[18px] border p-4">
-				<span className="text-text-faint text-[11px] font-extrabold tracking-[0.12em] uppercase">
+				<span className="text-text-faint font-mono text-[11px] tracking-[0.12em] uppercase">
 					{t('yourEdit')}
 				</span>
-				<span className="text-text font-mono text-[28px] leading-none font-semibold">
+				<span className="text-text font-display text-[40px] leading-none tracking-[-0.04em] tabular-nums">
 					{formatTimecode(Math.round(editedSeconds))}
 				</span>
 				<span className="text-text-muted text-[13px]">
 					{t('from', { length: formatTimecode(Math.round(made.originalSeconds)) })}
 				</span>
 			</div>
-			<div className="border-accent/40 bg-accent-soft flex flex-col gap-2 rounded-[18px] border p-4">
-				<span className="text-text text-[15px] font-extrabold">{t('finer')}</span>
+			<div className="border-border bg-surface flex flex-col gap-2 rounded-[18px] border p-4">
+				<span className="text-text text-[15px] font-semibold">{t('finer')}</span>
 				<span className="text-text-muted text-[13px] leading-snug">{t('finerBody')}</span>
-				<Button type="button" variant="contrast" className="mt-1 self-start" onClick={onManual}>
+				<Button type="button" variant="outline" className="mt-1 self-start" onClick={onManual}>
 					<ManualIcon />
 					{t('manual')}
 				</Button>
