@@ -1,6 +1,6 @@
 import { decodeAudio } from '@/app/[locale]/editor/audio/take-audio'
 import { captureClientError } from '@/lib/observability/capture-client-error'
-import type { MusicTrack } from './make-plan'
+import type { MusicTrack } from './make-context'
 
 /** A track from public/music, fetched and decoded; null when it can't be had. */
 export async function loadTrack(name: string): Promise<MusicTrack<AudioBuffer> | null> {
