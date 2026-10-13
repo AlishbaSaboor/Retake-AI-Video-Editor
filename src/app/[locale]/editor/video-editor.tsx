@@ -43,11 +43,12 @@ import { CommandBar, type AttachedAs, type FollowUps } from './components/assist
 import { planFollowUp } from './components/assistant/make-follow-ups'
 import { setSideOpen, useSideOpen } from './components/shell/editor-layout-store'
 import { EditorShell } from './components/shell/editor-shell'
-import { EditorTimeline, type LaneItem } from './components/timeline/editor-timeline'
+import { EditorTimeline } from './components/timeline/editor-timeline'
 import { JobProgress, type Job } from './components/shell/editor-status'
 import { HistoryControls } from './components/shell/history-controls'
 import { useEditorShortcuts } from './components/shell/use-editor-shortcuts'
-import { ItemToolbar, type Timing } from './components/preview/item-toolbar'
+import { ItemToolbar } from './components/preview/item-toolbar'
+import { usePickedItem } from './components/preview/use-picked-item'
 import { LeaveGuard } from './components/shell/leave-guard'
 import {
 	AnnotatePanel,
@@ -195,9 +196,6 @@ import { decodeAudio } from './audio/take-audio'
 import { VideoFileInput } from './components/shell/video-file-input'
 import { formatTimecode } from './model/timeline-scale'
 
-/** The Text lane's ids for Make it's key lines, numbered after it. */
-const KEY_LINE_ID = 'key-line-'
-
 /** A project saved before caption modes kept "word by word" as a yes or no. */
 const wordByWord = (saved: object) => 'captionWords' in saved && saved.captionWords === true
 
@@ -340,12 +338,11 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	const [transform, setTransform] = useState<PictureTransform>(IDENTITY_TRANSFORM)
 	const [transformMode, setTransformMode] = useState<TransformMode | null>(null)
 	// The side panels, shown or hidden; remembered in this browser. The open
-	// tool on the rail; what's picked on the video; the title while it's dragged.
+	// tool on the rail; what's picked on the video (usePickedItem); the title while it's dragged.
 	const panelsShown = useSideOpen('panels')
 	const [openTool, setOpenTool] = useState('assistant')
 	// The highlights pop-up: open over the editor, which it never changes.
 	const [highlightsOpen, setHighlightsOpen] = useState(false)
-	const [picked, setPicked] = useState<Picked | null>(null)
 	const [titleDraft, setTitleDraft] = useState<TitleCard | null>(null)
 	const [clipSelection, setClipSelection] = useState<ClipSelection | null>(null)
 	// Aiming the zoom on the video: the whole frame shows, with the zoom's area on it.
@@ -1753,157 +1750,36 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	}
 
 	const canEdit = !showOriginal
-	// What's picked, only while it's still there (an undo can take it away).
-	const pickedNow: Picked | null =
-		picked?.kind === 'title' && title
-			? picked
-			: picked?.kind === 'logo' && watermark
-				? picked
-				: picked?.kind === 'lowerThird' && lowerThird
-					? picked
-					: picked?.kind === 'annotation' && annotations.some((item) => item.id === picked.id)
-						? picked
-						: null
-	const annotationName = (item: Annotation) =>
-		t('annotations.item', {
-			kind: t(`annotations.kinds.${item.kind}`),
-			number: annotations.indexOf(item) + 1
-		})
-	const pickedAnnotation =
-		pickedNow?.kind === 'annotation'
-			? annotations.find((item) => item.id === pickedNow.id)
-			: undefined
-	const pickedName =
-		pickedNow?.kind === 'annotation'
-			? pickedAnnotation
-				? annotationName(pickedAnnotation)
-				: ''
-			: pickedNow
-				? t(`onVideo.kinds.${pickedNow.kind}`)
-				: ''
-	const pickedTiming: Timing | null =
-		pickedNow?.kind === 'title' && title
-			? { startSeconds: title.startSeconds, endSeconds: title.startSeconds + title.durationSeconds }
-			: pickedNow?.kind === 'lowerThird' && lowerThird
-				? {
-						startSeconds: lowerThird.startSeconds,
-						endSeconds: lowerThird.startSeconds + lowerThird.durationSeconds
-					}
-				: pickedAnnotation
-					? { startSeconds: pickedAnnotation.startSeconds, endSeconds: pickedAnnotation.endSeconds }
-					: null
-
-	function retimePicked(timing: Timing) {
-		const durationSeconds = timing.endSeconds - timing.startSeconds
-		if (pickedNow?.kind === 'title' && title)
-			changeTitle({ ...title, startSeconds: timing.startSeconds, durationSeconds })
-		if (pickedNow?.kind === 'lowerThird' && lowerThird)
-			changeLowerThird({ ...lowerThird, startSeconds: timing.startSeconds, durationSeconds })
-		if (pickedAnnotation) changeAnnotation({ ...pickedAnnotation, ...timing })
-	}
-
-	function deletePicked() {
-		if (pickedNow?.kind === 'title') changeTitle(null)
-		if (pickedNow?.kind === 'lowerThird') changeLowerThird(null)
-		if (pickedNow?.kind === 'logo') {
-			recordEdit()
-			setWatermark(null)
-		}
-		if (pickedAnnotation) removeAnnotation(pickedAnnotation.id)
-		pick(null)
-	}
-
-	/** Replace: a logo's file, or a title's or text's words (their field, focused). */
-	const replacePicked =
-		pickedNow?.kind === 'logo'
-			? () => pickLogo(watermark?.corner ?? 'bottom-right')
-			: pickedNow?.kind === 'title' || pickedAnnotation?.kind === 'text'
-				? () => {
-						setOpenTool('text')
-						setSideOpen('panels', true)
-						requestAnimationFrame(() =>
-							document.querySelector<HTMLInputElement>('[data-picked-words]')?.focus()
-						)
-					}
-				: undefined
-
-	// The Text lane: everything over the video, in the edited video's time.
-	const textItems: LaneItem[] = [
-		...(title
-			? [
-					{
-						id: 'title',
-						label: title.text,
-						startSeconds: title.startSeconds,
-						endSeconds: title.startSeconds + title.durationSeconds,
-						selected: pickedNow?.kind === 'title'
-					}
-				]
-			: []),
-		// Make it's key lines: shown, and a click goes to them; changed by undo or reset only.
-		...autoTitles.map((line, index) => ({
-			id: `${KEY_LINE_ID}${index}`,
-			label: line.text,
-			startSeconds: line.startSeconds,
-			endSeconds: line.startSeconds + line.durationSeconds
-		})),
-		...(lowerThird
-			? [
-					{
-						id: 'lowerThird',
-						label: lowerThird.name,
-						startSeconds: lowerThird.startSeconds,
-						endSeconds: lowerThird.startSeconds + lowerThird.durationSeconds,
-						selected: pickedNow?.kind === 'lowerThird'
-					}
-				]
-			: []),
-		...annotations.map((item) => ({
-			id: item.id,
-			label: item.kind === 'text' ? item.text : annotationName(item),
-			startSeconds: item.startSeconds,
-			endSeconds: item.endSeconds,
-			selected: pickedNow?.kind === 'annotation' && pickedNow.id === item.id
-		})),
-		...(watermark
-			? [
-					{
-						id: 'logo',
-						label: t('onVideo.kinds.logo'),
-						startSeconds: 0,
-						endSeconds: editedSeconds,
-						selected: pickedNow?.kind === 'logo'
-					}
-				]
-			: []),
-		...(captionsOn
-			? [
-					{
-						id: 'captions',
-						label: t('graphics.captions'),
-						startSeconds: 0,
-						endSeconds: editedSeconds
-					}
-				]
-			: [])
-	]
-
-	function selectText(id: string) {
-		const keyLine = id.startsWith(KEY_LINE_ID) ? textItems.find((item) => item.id === id) : null
-		if (keyLine) return seekEdited(keyLine.startSeconds)
-		setSideOpen('panels', true)
-		if (id === 'captions') return setOpenTool('captions')
-		if (id === 'title' || id === 'lowerThird' || id === 'logo') {
-			pick({ kind: id })
-			setOpenTool('text')
-		} else {
-			pick({ kind: 'annotation', id })
-			const item = annotations.find((each) => each.id === id)
-			setOpenTool(item?.kind === 'text' ? 'text' : 'annotate')
-		}
-		const at = textItems.find((item) => item.id === id)
-		if (at && id !== 'logo') seekEdited(at.startSeconds)
-	}
+	const {
+		setPicked,
+		pickedNow,
+		pickedName,
+		pickedTiming,
+		retimePicked,
+		deletePicked,
+		replacePicked,
+		textItems,
+		selectText
+	} = usePickedItem({
+		t,
+		title,
+		watermark,
+		lowerThird,
+		annotations,
+		autoTitles,
+		captionsOn,
+		editedSeconds,
+		changeTitle,
+		changeLowerThird,
+		changeAnnotation,
+		removeAnnotation,
+		recordEdit,
+		setWatermark,
+		pick,
+		pickLogo,
+		seekEdited,
+		setOpenTool
+	})
 
 	const tool = (
 		id: string,
