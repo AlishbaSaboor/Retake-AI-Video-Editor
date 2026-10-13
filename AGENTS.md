@@ -65,18 +65,6 @@ of one monolithic instructions file.
   owner, which must stay exempt). `pnpm check:rls` reads the database in CI
   to prove all three, and the Supabase wrappers are typed to their auth
   surface so a data call through them doesn't compile.
-- **[Authorization](docs/rules/authorization.md)** — admin-console RBAC:
-  `AdminMember` seat (ordered `AdminRole` enum tier + additive
-  `permissionGrants`), the `src/lib/rbac/` catalog + `getAdminContext`
-  gates, the factory `authorize` option, and the `<AuthzProvider>`/`<Can>`
-  client surface; `requirePermission` is the real boundary, RLS the
-  backstop. Governs staff only — creators/brands/end-users are separate
-  products, not roles.
-- **[Feature flags](docs/rules/feature-flags.md)** — provider-agnostic,
-  typed `FLAGS` registry resolved through an ordered chain (DB override >
-  DB flag > PostHog > static default), server + client surfaces, and the
-  `flags.manage`-gated admin toggle action; PostHog is one provider, not
-  the system.
 - **[State management](docs/rules/state-management.md)** — TanStack Query
   for server state, local state/URL params for client-only state, no
   global store by default.

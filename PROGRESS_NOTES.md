@@ -13,14 +13,15 @@ session with no memory of it can carry on. Read this whole file, then
 > - **The allowance comes back** only for an unset key or a 4xx/5xx reply; an unusable reply, a timeout or any other error keeps it used (`src/server/ai/not-charged.ts`).
 > - **An unset AI key** sends no request, shows "The AI isn't available right now", and the log names the setting.
 > - **Every AI call** goes through `src/server/ai/` with a required time limit (30 or 60 s) and an output cap, and writes one `ai_usage` row, priced when written.
-> - **Tests:** 722 unit (1 skipped on Windows), 142 e2e in 28 files, 6 database tests (`pnpm test:db`) on real Postgres.
+> - **Tests:** 679 unit (1 skipped on Windows), 142 e2e in 28 files, 6 database tests (`pnpm test:db`) on real Postgres.
 > - **CI:** commits (pull requests only), check, ai-models, build, e2e (4 shards), migrations, db-tests.
 > - **Largest code:** `VideoEditor` is one 2,572-line function (`video-editor.tsx`, lines 236 to 2807); `make-plan.ts` is 2,058 lines, `planMake` 82.
-> - **Unused template code:** admin roles and feature flags, 1,557 lines (`src/lib/rbac`, `src/lib/flags`, `src/server/actions/feature-flags.ts`).
+> - **No admin console, feature flags, API routes or production-migrations workflow** (removed in 3zzo); their tables `admin_members`, `feature_flags` and `feature_flag_overrides` stay in the schema, unused, until a migration drops them.
 > - **Decisions, trade-offs and known limits:** ARCHITECTURE.md.
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **Unused template code removed** (section 3zzo).
 > - **Docs true of main; the allowance back only when not charged**
 >   (section 3zzn).
 > - **A short README** (section 3zzm).
@@ -500,6 +501,32 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzo. Unused template code removed (2026-10-13)
+
+- **Removed, each shown unused first** (every import, exported name, string
+  path, config and doc searched): `src/lib/rbac`, `src/lib/flags`,
+  `src/server/actions/feature-flags.ts`, `src/server/api` (the route
+  factory and its cron check; there are no API routes), the `/admin` layout
+  (it had no page, so `/admin` was already a 404) and `/admin` in
+  `SESSION_PAGES`, and `.github/workflows/deploy-migrations.yml` (already
+  disabled on GitHub; there is no production database).
+- **Trimmed:** `validatedAction` loses its `authorize` option (no action
+  passed one); `provisionUser` only upserts the User row (no email domain
+  mapped to an admin seat).
+- **Schema:** the User model moved from `example.prisma` to `user.prisma`,
+  unchanged; comments only elsewhere. No migration, and
+  `pnpm prisma:migrate:generate:check` reports no drift. The
+  `admin_members`, `feature_flags` and `feature_flag_overrides` tables stay
+  until a migration of their own drops them.
+- **Docs:** `docs/rules/authorization.md` and `feature-flags.md` deleted with
+  their AGENTS.md entries; mentions of the route factory, the workflow and
+  the production database reworded.
+- **Tests:** the removed modules' 6 test files (43 tests) deleted with them;
+  4 files lose their mock of `@/lib/rbac/context` and `proxy.test.mts`
+  counts `/admin` as public (approved). 679 unit tests pass.
 
 ---
 

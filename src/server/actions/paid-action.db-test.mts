@@ -31,9 +31,6 @@ mock.module(import.meta.resolve('@/lib/supabase/server'), {
 		})
 	}
 })
-mock.module(import.meta.resolve('@/lib/rbac/context'), {
-	namedExports: { enforceAuthorize: async () => ({}) }
-})
 mock.module(import.meta.resolve('@/lib/observability/capture-error'), {
 	namedExports: { captureError: (error: unknown) => normalizeError(error) }
 })
