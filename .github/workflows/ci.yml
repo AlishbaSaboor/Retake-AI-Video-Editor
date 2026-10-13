@@ -209,3 +209,43 @@ jobs:
       # its ENABLE ROW LEVEL SECURITY migration lands. See docs/rules/auth.md.
       - name: Verify RLS on every table
         run: pnpm check:rls
+
+  # The tests that need a real database (`*.db-test.mts`, `pnpm test:db`):
+  # the daily allowance's ceiling under requests at once, and a paid action
+  # writing its real allowance and ai_usage rows. Its own Postgres, as the
+  # migrations job has, but nothing else: read-only, no secrets, no app
+  # token, nothing generated or committed. The providers are faked at the
+  # network edge; no AI call leaves the runner.
+  db-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # DIRECT_URL because the schema declares it (see the migrations job).
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply the committed migrations
+        run: pnpm exec prisma migrate deploy
+      - run: pnpm test:db
