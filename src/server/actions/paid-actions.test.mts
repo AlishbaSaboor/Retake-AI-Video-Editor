@@ -407,7 +407,7 @@ test('simultaneous requests can never take more than the ceiling', async () => {
 	}
 })
 
-test('a provider that fails or times out gives the call back; one that answers, even unusably, counts', async () => {
+test('a provider that refuses gives the call back; one that answers, even unusably, or times out, counts', async () => {
 	session = SIGNED_IN
 	allowances.clear()
 	const today = Date.now()
@@ -416,16 +416,16 @@ test('a provider that fails or times out gives the call back; one that answers, 
 	const failed = await PAID[2]!.call()
 	assert.equal(failed.ok, false)
 	assert.equal(used('transcript', today), 0)
-	// Gemini never answers: given up at its limit, and given back.
+	// Gemini never answers: given up at its limit, and kept used (it may still have run and been charged).
 	geminiAnswer = hangUntilAborted
 	const { result } = await settledAfter(30_000, PAID[0]!.call)
 	assert.equal((result as { status?: number }).status, 504)
-	assert.equal(used('command', today), 0)
+	assert.equal(used('command', today), 1)
 	// Gemini answers with something unusable: the provider was paid, so it counts.
 	geminiAnswer = async () => ({ text: 'not json' })
 	const answered = await PAID[0]!.call()
 	assert.equal(answered.ok, true)
-	assert.equal(used('command', today), 1)
+	assert.equal(used('command', today), 2)
 	geminiAnswer = async () => ({ text: '{}' })
 	deepgramAnswer = async () =>
 		Response.json({

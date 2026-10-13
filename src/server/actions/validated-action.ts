@@ -5,6 +5,7 @@ import { captureError } from '@/lib/observability/capture-error'
 import { enforceAuthorize, type AdminContext } from '@/lib/rbac/context'
 import type { Permission } from '@/lib/rbac/permissions'
 import type { AiAllowanceKind } from '@/lib/ai-limits'
+import { providerDidNotCharge } from '@/server/ai/not-charged'
 import { requireUser } from '@/server/auth/session'
 import { allowanceUsedUp, giveBackAllowance, takeAllowance } from '@/server/lib/ai-allowance'
 
@@ -33,8 +34,10 @@ export function validatedAction<InputSchema extends z.ZodType, Output>(config: {
 	// signedIn. One of the user's daily allowance is taken AFTER input
 	// parsing (a malformed request costs nothing) and BEFORE the handler
 	// calls the provider; at the ceiling it refuses with the reset time and
-	// calls nothing. Given back if the handler fails (the provider failed or
-	// timed out), so only calls that were answered count.
+	// calls nothing. Given back only when the handler fails because the
+	// provider certainly didn't charge (src/server/ai/not-charged.ts): an
+	// unset key, or a 4xx or 5xx reply. A reply that can't be used, a
+	// timeout or any other error keeps it used.
 	allowance?: AiAllowanceKind
 	handler: (input: z.infer<InputSchema>) => Promise<Output>
 }) {
@@ -56,10 +59,12 @@ export function validatedAction<InputSchema extends z.ZodType, Output>(config: {
 			try {
 				return { ok: true, data: await config.handler(input) }
 			} catch (error) {
-				// A failed give-back only costs the user that one call.
-				await giveBackAllowance(user.id, kind, day).catch((giveBackError: unknown) =>
-					captureError(giveBackError, { feature: 'ai_allowance' })
-				)
+				if (providerDidNotCharge(error)) {
+					// A failed give-back only costs the user that one call.
+					await giveBackAllowance(user.id, kind, day).catch((giveBackError: unknown) =>
+						captureError(giveBackError, { feature: 'ai_allowance' })
+					)
+				}
 				throw error
 			}
 		} catch (error) {

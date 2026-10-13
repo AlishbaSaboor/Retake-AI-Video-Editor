@@ -4,9 +4,25 @@ Written 2026-10-02 at the end of a long Claude Code session, so that a fresh
 session with no memory of it can carry on. Read this whole file, then
 `AGENTS.md` and `CLAUDE.md`, before touching anything.
 
-> **Read this first: where things stand right now**
+> **Read this first: where things stand on `main`** (updated 2026-10-13)
 >
-> - Branch `main`. Updated 2026-10-13.
+> - **Retake:** a local-first AI video editor: Make it with AI, a manual timeline editor, and automatic cleanup with re-recording.
+> - **Pages:** landing, Privacy, sign-in, Home, Projects, Make it, the editor. No Pricing, Features, How it works or Contact page; old URLs redirect (`MOVED_PAGES`, `next.config.ts`).
+> - **No contact form or `CONTACT_IP_SECRET`** (removed in #50); `contact_messages` is kept, read by `pnpm contact:messages`.
+> - **Seven paid AI actions,** signed-in only, each taking one of a daily allowance per kind: 300 typed commands, 200 spoken, 30 transcripts, 30 highlight searches, 60 Make it steps (`src/lib/ai-limits.ts`).
+> - **The allowance comes back** only for an unset key or a 4xx/5xx reply; an unusable reply, a timeout or any other error keeps it used (`src/server/ai/not-charged.ts`).
+> - **An unset AI key** sends no request, shows "The AI isn't available right now", and the log names the setting.
+> - **Every AI call** goes through `src/server/ai/` with a required time limit (30 or 60 s) and an output cap, and writes one `ai_usage` row, priced when written.
+> - **Tests:** 722 unit (1 skipped on Windows), 142 e2e in 28 files, 6 database tests (`pnpm test:db`) on real Postgres.
+> - **CI:** commits (pull requests only), check, ai-models, build, e2e (4 shards), migrations, db-tests.
+> - **Largest code:** `VideoEditor` is one 2,572-line function (`video-editor.tsx`, lines 236 to 2807); `make-plan.ts` is 2,058 lines, `planMake` 82.
+> - **Unused template code:** admin roles and feature flags, 1,557 lines (`src/lib/rbac`, `src/lib/flags`, `src/server/actions/feature-flags.ts`).
+> - **Decisions, trade-offs and known limits:** ARCHITECTURE.md.
+
+> **History, newest first (each entry was true when it was written)**
+>
+> - **Docs true of main; the allowance back only when not charged**
+>   (section 3zzn).
 > - **A short README** (section 3zzm).
 > - **Tests against real Postgres and the real Gemini SDK** (section 3zzl).
 > - **Contact code removed; daily AI limit in the FAQ** (section 3zzk).
@@ -484,6 +500,32 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzn. Docs true of main; the allowance back only when not charged (2026-10-13)
+
+- **The give-back rule** (`src/server/ai/not-charged.ts`, used by
+  `validatedAction`): the allowance comes back only for an unset key, or a
+  4xx or 5xx reply. A 2xx reply that can't be used, a timeout or any other
+  error keeps it used. A timeout was given back before; it now counts,
+  because the provider may still have run and charged. `rethrowAiError`
+  keeps the provider's error as the `cause` of the AppError it throws, so
+  the rule still sees it.
+- **An unset key** throws `AiKeyMissingError` (`src/lib/ai-failure.ts`),
+  classified as `'key'`: the generic message, the setting named in the log,
+  no request sent. It used to be a plain `Error`, reported as a bug.
+- **Gemini's `timeoutMs` is required**, as Deepgram's already was.
+  `src/server/ai/google.type-test.ts` checks it at type-check time.
+- **Tests:** `allowance-give-back.test.mts` (6, one per row of the table, for
+  both providers). Two existing tests changed, approved: the timeout row in
+  `paid-actions.test.mts` (kept used, so 1 and then 2 where it was 0 and
+  1), and the cap test in `google.test.mts` passes a time limit.
+- **Docs:** ARCHITECTURE.md gains the rule's table; its line numbers,
+  scaffolding size, known limits (the db-tests job) and next steps
+  corrected. This file's top box was rewritten as the current state, each
+  line checked against the code, with the earlier entries kept below as
+  history.
 
 ---
 

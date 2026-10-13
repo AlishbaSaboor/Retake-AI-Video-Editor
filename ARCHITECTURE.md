@@ -200,15 +200,29 @@ Each signed-in user has a daily allowance per kind of AI action (typed
 commands 300, spoken commands 200, transcripts 30, highlight searches 30,
 Make it steps 60, where a plan and its automatic check use two and each
 change asked in the chat uses one), counted per UTC day in `ai_allowances`. Taking one is a single
-conditional update, so simultaneous requests can't go past the ceiling. A
-call whose provider fails or times out is given back. `ai_usage` is left
-alone because another system reads it.
+conditional update, so simultaneous requests can't go past the ceiling.
+`ai_usage` is left alone because another system reads it.
+
+A failed call gives its allowance back only when the provider certainly
+didn't charge for it:
+
+| Case                                        | Given back | Why                                                                  |
+| ------------------------------------------- | ---------- | -------------------------------------------------------------------- |
+| The key isn't set                           | Yes        | No request was sent                                                  |
+| The provider answers 4xx                    | Yes        | It refused the request (a refused key, a usage limit, a bad request) |
+| The provider answers 5xx                    | Yes        | It failed the request, so there's no answer to bill                  |
+| It answers 2xx, but the reply can't be used | No         | It answered, so it charged; the fault is in the reply                |
+| Timeout                                     | No         | We stopped waiting; it may still have run and charged                |
+| Anything else (a dropped connection, a bug) | No         | Nothing shows the call was free                                      |
+
+A timeout counts against the allowance even though the person got no
+answer: that's the price of never letting a charged call count as free.
 _Trade-off:_ a ceiling, not a budget: at these numbers one account could
 still spend about $4.58 a day, at the highest cost per call recorded in
 `ai_usage` by 2026-10-11 (the estimates in `src/lib/ai-limits.ts` give
 about $4.40).
 Proof: `src/lib/ai-limits.ts`, `src/server/lib/ai-allowance.ts`,
-`prisma/schema/ai-allowance.prisma`.
+`src/server/ai/not-charged.ts`, `prisma/schema/ai-allowance.prisma`.
 
 ### Contact messages, kept
 
@@ -243,16 +257,20 @@ Proof: `instrumentation-client.ts`, `src/proxy.ts`.
 - **Projects are per-browser**: they don't follow a user to another browser
   or device.
 - **Large files**: the `VideoEditor` component is one function of about
-  2,560 lines (`src/app/[locale]/editor/video-editor.tsx`, lines 236 to
-  2793), and `make-plan.ts` is 2,058 lines: the reply's and the check's
+  2,570 lines (`src/app/[locale]/editor/video-editor.tsx`, lines 236 to
+  2807), and `make-plan.ts` is 2,058 lines: the reply's and the check's
   shapes, the planner's steps and the plan-to-plan comparison, in one file
   (`planMake` itself is 82).
 - **Unused template scaffolding**: the admin roles, feature flags and their
-  admin action (1,560 lines in `src/lib/rbac`, `src/lib/flags` and
+  admin action (1,557 lines in `src/lib/rbac`, `src/lib/flags` and
   `src/server/actions/feature-flags.ts`, plus the 71-line route factory in
   `src/server/api/route-factory.ts`) aren't used by the product.
 - **CI doesn't exercise real sign-in**: it runs with accounts off, and the
   sign-in checks are covered by unit tests with the session mocked.
+- **One paid action runs against real Postgres**: CI's `db-tests` job
+  (`pnpm test:db`) runs the allowance's ceiling and `parseEditCommand`
+  through the real Gemini SDK, with the network faked; the other six paid
+  actions are covered by unit tests with the database and providers mocked.
 
 ## Scope: local-first, not deployed
 
@@ -291,13 +309,10 @@ tuned for strangers on the internet.
 1. Bound Make it's reply: a length limit on each of its lists in the
    reply's schema and a thinking budget, so the plan's output cap can be
    proven rather than measured.
-2. Test the real paths: the allowance's ceiling against Postgres, and a
-   paid action through the real wrapper with fake providers at the network
-   edge.
-3. Remove the unused admin and feature-flag scaffolding.
-4. Split `make-plan.ts` into files by concern, then the `VideoEditor`
+2. Remove the unused admin and feature-flag scaffolding.
+3. Split `make-plan.ts` into files by concern, then the `VideoEditor`
    component into hooks by concern, one at a time.
-5. Run e2e against a real local Supabase in CI, so sign-in is exercised
+4. Run e2e against a real local Supabase in CI, so sign-in is exercised
    there.
-6. Offer a way to move a project between browsers (an export and import of
+5. Offer a way to move a project between browsers (an export and import of
    the saved project).
