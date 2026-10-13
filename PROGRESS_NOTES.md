@@ -7,6 +7,7 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-13.
+> - **A short README** (section 3zzm).
 > - **Tests against real Postgres and the real Gemini SDK** (section 3zzl).
 > - **Contact code removed; daily AI limit in the FAQ** (section 3zzk).
 > - **One landing page; the editor fits the window** (section 3zzj).
@@ -483,6 +484,26 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzm. A short README (2026-10-13)
+
+- **Rewritten** to the owner's outline, read in two minutes: what Retake
+  is, its three features, how it works (what goes to Deepgram, Gemini and
+  OpenRouter; Sentry and PostHog only with their keys), the stack, the real
+  folders, running it locally, tests (including `pnpm test:db`), a pointer
+  to ARCHITECTURE.md, and the scope, with "Next: music for Make it is
+  planned".
+- **Dropped:** production settings, contact messages, the CI and scripts
+  tables and "working in this repo" (AGENTS.md, ARCHITECTURE.md and
+  `package.json` hold them). Nothing linked to those sections.
+- **Corrected:** an unset AI key fails as a generic error; "The AI isn't
+  available right now" is only for a key the provider refuses. Make it and
+  highlights need both keys, since both read the Deepgram transcript.
+- **Verified:** every script in `package.json`, every path with
+  `git cat-file -e`, and the read-only commands run (`--help`/`--version`,
+  `pnpm dlx supabase status`).
 
 ---
 
