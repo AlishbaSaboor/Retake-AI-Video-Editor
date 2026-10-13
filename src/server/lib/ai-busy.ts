@@ -50,6 +50,7 @@ export function rethrowAiError(provider: Provider, feature: string) {
 			status,
 			...(setup && { setting: KEY_SETTING[provider] })
 		})
-		throw new AppError(aiFailureMessage(failure), { status })
+		// The provider's error as the cause: whether the allowance comes back depends on it.
+		throw new AppError(aiFailureMessage(failure), { status, cause: error })
 	}
 }
