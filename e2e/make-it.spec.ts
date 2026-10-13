@@ -709,8 +709,7 @@ test('a plan that never comes back is given up after about a minute, with a plai
 
 test("a refused key or a usage limit shows the server's plain words", async ({ page }) => {
 	await mockMakeActions(page, WORDS, [reply()])
-	const refused =
-		'The Gemini API key was refused. Check GEMINI_API_KEY in .env.local, then try again.'
+	const refused = "The AI isn't available right now. Try again later."
 	// The plan request comes back as the server answers a refused key.
 	await page.route(
 		(url) => url.pathname.endsWith('/make'),
