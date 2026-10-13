@@ -7,6 +7,7 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-13.
+> - **Tests against real Postgres and the real Gemini SDK** (section 3zzl).
 > - **Contact code removed; daily AI limit in the FAQ** (section 3zzk).
 > - **One landing page; the editor fits the window** (section 3zzj).
 > - **Redesign** (section 3zzi): the whole site and app in the owner's new
@@ -482,6 +483,40 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzl. Tests that run the real thing: Postgres and the Gemini SDK (2026-10-13)
+
+- **Why:** the allowance's ceiling was only tested against an in-memory
+  fake, and no paid action ran through the real Gemini wrapper and SDK.
+- **`pnpm test:db`** runs `src/**/*.db-test.mts` (one file at a time)
+  against a real Postgres; `pnpm test` doesn't match them and needs no
+  database. Locally: `DATABASE_URL=<the local Supabase's> pnpm test:db`.
+- **`assertLocalDatabase`** (`src/server/db/local-database.ts`) refuses any
+  host but `localhost`, `127.0.0.1` or `[::1]`, and a missing or invalid URL
+  fails the run instead of letting it pass unrun.
+- **`ai-allowance.db-test.mts` (4):** the ceiling under many requests at
+  once, for each kind; only what's left is taken; giving back at once frees
+  one each and stops at zero; separate counts per user, kind and UTC day.
+- **`paid-action.db-test.mts` (2):** the real `parseEditCommand`, with
+  Gemini and OpenRouter faked at `fetch` (any other URL throws): the request
+  on the wire (model, key, `maxOutputTokens` 1024), the allowance row, the
+  `ai_usage` row priced at 24 micro-USD; a 503 gives the allowance back and
+  records the failure.
+- **Only their own rows:** fresh random users; `ai_usage` rows found by the
+  fake's own request ids, or as the single failed row carrying its 503 (more
+  than one and nothing is deleted). A before/after snapshot of the local
+  database (counts and an md5 of every row) was identical; only the
+  `ai_usage` id sequence moved (487 to 489).
+- **CI:** a new `db-tests` job (Postgres 16 service, `contents: read`, no
+  secrets): `migrate deploy`, then `pnpm test:db`. Added lines only; the
+  six existing jobs are byte-for-byte unchanged.
+- **Local e2e:** 140/142 in the full run; the two command tests that failed
+  waited on a 3.2 s and a 5.3 s request (see 4c) and passed when rerun. The
+  first attempt never got past sign-in: Docker's port forwarding to the
+  Supabase gateway (54321) was stuck; `docker restart
+supabase_kong_t1-alishbasaboor` fixed it, with no data touched.
 
 ---
 
