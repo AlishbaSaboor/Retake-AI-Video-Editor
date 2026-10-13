@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import posthog from 'posthog-js'
+import { POSTHOG_INIT_OPTIONS } from '@/lib/posthog/init-options'
 
 // A direct-to-storage upload is an XHR/fetch to a presigned URL, and Sentry's
 // breadcrumb records that URL verbatim — including the signature and access-key
@@ -26,8 +27,8 @@ Sentry.init({
 if (process.env.NEXT_PUBLIC_POSTHOG_KEY) {
 	posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
 		api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com',
-		person_profiles: 'identified_only',
-		capture_pageview: false // captured manually on route change — see AnalyticsProvider in src/lib/analytics
+		// Only the typed events and page views are sent: see the module.
+		...POSTHOG_INIT_OPTIONS
 	})
 }
 

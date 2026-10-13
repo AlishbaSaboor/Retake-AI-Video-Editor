@@ -86,6 +86,22 @@ would still need, including request-size limits, is in
 [ARCHITECTURE.md](ARCHITECTURE.md#scope-local-first-not-deployed); the GitHub and Vercel
 setup is in `docs/CI_CD_SETUP.md`.
 
+## Contact messages
+
+Messages sent from the Contact us page are kept in the local database and
+nowhere else: nothing is emailed or sent to an outside service. They're
+personal data (a name, an email and what was written), so they stay there.
+To read them:
+
+```bash
+pnpm contact:messages            # the latest 20, newest first
+pnpm contact:messages --limit 5
+```
+
+It reads `DATABASE_URL` from `.env.local`, runs one read-only select, never
+prints the hashed IP, and refuses to run unless the database is on this
+machine.
+
 ## Tests
 
 ```bash
@@ -129,17 +145,18 @@ on every push to `main`.
 
 ## Scripts
 
-| Command                                    | What it does                                                                       |
-| ------------------------------------------ | ---------------------------------------------------------------------------------- |
-| `pnpm dev` / `build` / `start`             | Next.js                                                                            |
-| `pnpm lint` / `typecheck` / `format:check` | The CI gates                                                                       |
-| `pnpm test`                                | Unit tests, `scripts/*.test.mjs` and `src/**/*.test.mts`                           |
-| `pnpm test:e2e`                            | Playwright; starts the app itself unless `E2E_BASE_URL` is set                     |
-| `pnpm check:env`                           | Every `process.env.X` in `src/` is declared in `.env.example` and `src/lib/env.ts` |
-| `pnpm check:secrets`                       | No credential in the source or the committed session logs                          |
-| `pnpm check:standards`                     | Every standard in `docs/STANDARDS.md` is wired up                                  |
-| `pnpm check:rls`                           | Every table has row level security on, no policies, never forced                   |
-| `pnpm check:ai-models`                     | Every model the code calls is still priced by OpenRouter                           |
-| `pnpm prisma:generate`                     | Regenerate the Prisma client after a schema change                                 |
-| `pnpm prisma:migrate:generate:check`       | Dry-run the migration CI would write                                               |
-| `pnpm db:run-once`                         | Apply `prisma/run-once.sql` once, as a deploy does                                 |
+| Command                                    | What it does                                                                               |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `pnpm dev` / `build` / `start`             | Next.js                                                                                    |
+| `pnpm lint` / `typecheck` / `format:check` | The CI gates                                                                               |
+| `pnpm test`                                | Unit tests, `scripts/*.test.mjs` and `src/**/*.test.mts`                                   |
+| `pnpm test:e2e`                            | Playwright; starts the app itself unless `E2E_BASE_URL` is set                             |
+| `pnpm check:env`                           | Every `process.env.X` in `src/` is declared in `.env.example` and `src/lib/env.ts`         |
+| `pnpm check:secrets`                       | No credential in the source or the committed session logs                                  |
+| `pnpm check:standards`                     | Every standard in `docs/STANDARDS.md` is wired up                                          |
+| `pnpm check:rls`                           | Every table has row level security on, no policies, never forced                           |
+| `pnpm check:ai-models`                     | Every model the code calls is still priced by OpenRouter                                   |
+| `pnpm contact:messages`                    | The latest 20 Contact us messages (`--limit N`, at most 200), from the local database only |
+| `pnpm prisma:generate`                     | Regenerate the Prisma client after a schema change                                         |
+| `pnpm prisma:migrate:generate:check`       | Dry-run the migration CI would write                                                       |
+| `pnpm db:run-once`                         | Apply `prisma/run-once.sql` once, as a deploy does                                         |

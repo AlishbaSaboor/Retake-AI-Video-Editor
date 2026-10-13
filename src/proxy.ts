@@ -6,8 +6,10 @@ import type { AuthOnlySupabaseClient } from '@/lib/supabase/auth-only'
 
 const intlProxy = createIntlMiddleware(routing)
 
-// Refreshes the Supabase session cookie on every request, then hands off to
-// next-intl's locale routing. Order matters: Supabase's cookie writes have
+// Refreshes the Supabase session cookie on the pages that use the session
+// (SESSION_PAGES), then hands off to next-intl's locale routing. A public
+// page (the landing page, Features, Pricing, Contact, ...) never reads the
+// session, so it makes no call to Supabase. Order matters: Supabase's cookie writes have
 // to survive whatever next-intl's proxy does next (redirect or rewrite), so
 // we run Supabase first and copy its Set-Cookie headers onto whatever
 // response next-intl produces — not the other way around.
@@ -20,7 +22,7 @@ export default async function proxy(request: NextRequest) {
 	// then nothing is guarded, as nothing could be checked).
 	let signedIn: boolean | null = null
 
-	if (supabaseUrl && supabasePublishableKey) {
+	if (supabaseUrl && supabasePublishableKey && SESSION_PAGES.some(within(pagePath(request)))) {
 		// Typed to the auth surface like the wrappers in src/lib/supabase/ —
 		// this is the one other place the SDK is constructed, and it exists
 		// only to refresh the session cookie.
@@ -80,16 +82,31 @@ export default async function proxy(request: NextRequest) {
 const SIGNED_IN_PAGES = ['/home', '/make', '/projects', '/editor']
 const SIGN_IN_PAGE = '/login'
 const AFTER_SIGN_IN = '/home'
+/**
+ * Every page that reads the session (its own render, or the signed-in actions
+ * posted to it): the signed-in pages, sign-in itself and the admin console.
+ * Only these refresh the session cookie.
+ */
+const SESSION_PAGES = [...SIGNED_IN_PAGES, SIGN_IN_PAGE, '/admin']
+
+/** The request's locale prefix ('' for the default locale) and its path without it. */
+function localePath(request: NextRequest): { prefix: string; path: string } {
+	const { pathname } = request.nextUrl
+	const [, first] = pathname.split('/')
+	const prefix = first && (routing.locales as readonly string[]).includes(first) ? `/${first}` : ''
+	return { prefix, path: pathname.slice(prefix.length) || '/' }
+}
+const pagePath = (request: NextRequest) => localePath(request).path
+/** Whether `path` is `page` or a page under it. */
+const within = (path: string) => (page: string) => path === page || path.startsWith(`${page}/`)
 
 /** Where a request should go instead, if anywhere: signed-out visitors to sign in, signed-in ones past it. */
 function guardRedirect(request: NextRequest, signedIn: boolean | null): URL | null {
 	if (signedIn === null) return null
 	// The default locale is unprefixed; strip any other locale's prefix to match.
-	const { pathname, search } = request.nextUrl
-	const [, first] = pathname.split('/')
-	const prefix = first && (routing.locales as readonly string[]).includes(first) ? `/${first}` : ''
-	const path = pathname.slice(prefix.length) || '/'
-	const under = (page: string) => path === page || path.startsWith(`${page}/`)
+	const { search } = request.nextUrl
+	const { prefix, path } = localePath(request)
+	const under = within(path)
 	if (!signedIn && SIGNED_IN_PAGES.some(under)) {
 		const url = new URL(`${prefix}${SIGN_IN_PAGE}`, request.url)
 		url.searchParams.set('next', `${path}${search}`)
