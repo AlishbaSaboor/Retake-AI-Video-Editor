@@ -27,17 +27,16 @@ COLUMN`/`SET NOT NULL`, which needs hand-written data-preserving SQL via
 - No SQL-editor writes against staging or production, ever, for schema or
   data. One-off data fixes go in `prisma/run-once.sql` (next section),
   through the same PR/CI path.
-- `.github/workflows/deploy-migrations.yml` applies migrations to
-  production on every push to `main`, then runs `prisma/run-once.sql` (next
-  section). Flag deploy _ordering_ when a query depends on a new column —
-  app deploy and the migration job aren't guaranteed to be sequenced yet.
+- There's no production database: Retake isn't deployed, so migrations are
+  applied only to CI's throwaway Postgres and to your local database
+  (`pnpm exec prisma migrate deploy`).
 
 ## Run-once SQL — `prisma/run-once.sql`
 
 The one SQL file outside `migrations/` that you hand-write. Whatever it
-holds runs **once per database**, on the next deploy: `deploy-migrations.yml` applies it to
-production right after `prisma migrate deploy` and before the zero-drift
-check. It is for one-off changes that aren't a schema change — fix a value,
+holds runs **once per database**: CI's migrations job applies it to a
+throwaway Postgres right after `prisma migrate deploy`, and
+`pnpm db:run-once` applies it to your local database. It is for one-off changes that aren't a schema change — fix a value,
 insert reference rows, backfill a column, replace a view, add an extension
 or a grant.
 
@@ -80,5 +79,4 @@ apply here. See the design guide's "central decision" section for why
 Prisma's CI-generated model was chosen over the Supabase-CLI alternative.
 
 See `docs/CI_CD_SETUP.md` for what GitHub secrets this workflow needs
-(`MIGRATIONS_TOKEN`, the `production-database` environment) before it works
-end to end.
+(`MIGRATIONS_TOKEN`) before it works end to end.

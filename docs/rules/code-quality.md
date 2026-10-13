@@ -96,8 +96,8 @@ genuinely self-evident values don't need one.
 - **Errors go through `captureError`/`captureClientError`, never
   `console.error` or a direct `Sentry.captureException` call**, in
   application code — see `docs/rules/error-handling.md`.
-  `src/server/api/route-factory.ts` is the reference: it catches, calls
-  `captureError`, and returns the normalized message, never a raw
+  `src/server/actions/validated-action.ts` is the reference: it catches,
+  calls `captureError`, and returns the normalized message, never a raw
   `console.error`. The logger records _what happened_; Sentry records _what
   broke_ — `docs/rules/logging.md` draws the line.
 - **User-facing messages are friendly, never implementation.** A response

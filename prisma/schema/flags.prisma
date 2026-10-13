@@ -1,10 +1,8 @@
-// DB-backed feature flags (docs/rules/feature-flags.md). FeatureFlag is the
-// global on/off config, written only through the flags.manage-gated admin
-// action (src/server/actions/feature-flags.ts) and read server-side via Prisma
-// (src/lib/flags/server.ts). FeatureFlagOverride is a per-user pin.
-//
-// FeatureFlag is GLOBAL config, not user-scoped, so it gets NO RLS statement —
-// it's gated by the flags.manage admin action, not a user-owned row.
+// The template's database-backed feature flags. Retake has no feature flags,
+// and no code reads or writes these tables: they're kept only because
+// dropping them is a migration (with admin_members, in authz.prisma), left
+// for its own change. FeatureFlag was global config; FeatureFlagOverride a
+// per-user pin.
 model FeatureFlag {
 	key            String   @id
 	enabled        Boolean  @default(false)
@@ -13,8 +11,7 @@ model FeatureFlag {
 	//   variant        a forced global variant for a variant/experiment flag
 	//   variantWeights a { "control": 50, "test": 50 } split for a
 	//                  PostHog-independent A/B/n (used only when no forced variant)
-	//   payload        the flag's JSON payload (validated against its schema on read)
-	// See src/lib/flags/server.ts and docs/rules/feature-flags.md.
+	//   payload        the flag's JSON payload
 	variant        String?
 	variantWeights Json?
 	payload        Json?
@@ -30,14 +27,14 @@ model FeatureFlag {
 // cohort/percentage targeting is PostHog's job.
 //
 // feature_flag_overrides IS user-scoped, so its create migration ENABLEs ROW
-// LEVEL SECURITY (no policy, no FORCE) — see docs/rules/feature-flags.md.
+// LEVEL SECURITY (no policy, no FORCE) — see docs/rules/auth.md.
 model FeatureFlagOverride {
 	id      String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 	flagKey String
 	userId  String  @db.Uuid
 	enabled Boolean
-	// A pin can force a specific variant or payload for this user, not just
-	// on/off (both nullable). See src/lib/flags/server.ts.
+	// A pin could force a specific variant or payload for this user, not just
+	// on/off (both nullable).
 	variant String?
 	payload Json?
 

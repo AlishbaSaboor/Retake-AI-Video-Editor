@@ -3,9 +3,9 @@
 - Formatting is prettier's (`.prettierrc.json`: tabs, no semicolons, single
   quotes, no trailing commas, width 100, Tailwind classes auto-sorted). Run
   `pnpm format`; never hand-format against it.
-- Every API route has a Zod input schema parsed at runtime
-  (`createApiRoute`/`createCronRoute` in `src/server/api/route-factory.ts`
-  enforce this). No hand-written wire types — derive them with `z.infer`.
+- Every Server Action has a Zod input schema parsed at runtime
+  (`validatedAction` in `src/server/actions/validated-action.ts` enforces
+  this). No hand-written wire types — derive them with `z.infer`.
 - Functions taking more than one argument take a single object param.
   Booleans are prefixed `is`/`has`/`should`/`can`. Null checks use `== null`
   / `!= null`. No `@ts-ignore`/`@ts-expect-error` — fix the type or narrow

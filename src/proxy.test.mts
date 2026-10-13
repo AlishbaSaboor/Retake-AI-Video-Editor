@@ -45,7 +45,9 @@ const PUBLIC = [
 	'/en/features',
 	'/no-such-page',
 	'/homepage',
-	'/editorial'
+	'/editorial',
+	'/admin',
+	'/admin/flags'
 ]
 const SESSION = [
 	'/home',
@@ -55,8 +57,6 @@ const SESSION = [
 	'/editor',
 	'/editor?project=1',
 	'/login',
-	'/admin',
-	'/admin/flags',
 	'/en/editor'
 ]
 

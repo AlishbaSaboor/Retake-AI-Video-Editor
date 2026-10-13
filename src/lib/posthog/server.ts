@@ -18,7 +18,7 @@ export function getPostHogServerClient() {
 		// flags it can't evaluate locally (e.g. some experiments). Accepts a
 		// personal (phx_) or project-secret (phs_) key; without it, flag reads
 		// still work, just always over the network. Server-only — never the
-		// client bundle. See docs/rules/feature-flags.md.
+		// client bundle.
 		secretKey: process.env.POSTHOG_PERSONAL_API_KEY
 	})
 
