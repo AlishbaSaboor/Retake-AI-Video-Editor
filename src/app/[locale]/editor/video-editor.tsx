@@ -3,7 +3,6 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { captureClientError } from '@/lib/observability/capture-client-error'
 import { Button } from '@/components/ui/button'
 import {
 	ArticleIcon,
@@ -133,22 +132,8 @@ import { inCorner, LOGO_TYPES, resizedLogo } from './overlays/logo'
 import { LogoBox } from './components/preview/logo-box'
 import { ZoomPanel } from './components/panels/motion-panels'
 import { ZoomBox } from './components/preview/zoom-box'
-import {
-	ProjectList,
-	ProjectPanel,
-	RelinkPanel,
-	type SaveStatus
-} from './components/panels/project-panel'
-import {
-	deleteProject,
-	isStorageFull,
-	listProjects,
-	missingMedia,
-	openProject,
-	relinkMedia,
-	saveProject,
-	type MediaRef
-} from './projects/projects'
+import { ProjectList, ProjectPanel, RelinkPanel } from './components/panels/project-panel'
+import { listProjects } from './projects/projects'
 import type { Transcript } from './audio/transcript'
 import { fadeLevelAt, overlapsClips, type TransitionKind } from './model/transitions'
 import {
@@ -193,6 +178,7 @@ import { extractBlocker, extractedItem, speechSpans, type AudioItem } from './mo
 import { AudioLanePanel } from './components/panels/audio-lane-panel'
 import { probeVideo, type AddedVideo } from './model/sources'
 import { decodeAudio } from './audio/take-audio'
+import { PROJECTS_KEY, useProjectFile } from './projects/use-project-file'
 import { VideoFileInput } from './components/shell/video-file-input'
 import { formatTimecode } from './model/timeline-scale'
 
@@ -201,10 +187,6 @@ const wordByWord = (saved: object) => 'captionWords' in saved && saved.captionWo
 
 /** The main video; a reopened project brings its saved transcript. */
 type LoadedVideo = { file: File; url: string; name: string; transcript?: Transcript | null }
-
-/** Once saved, a project saves itself this long after the last change. */
-const AUTOSAVE_DELAY_MS = 1500
-const PROJECTS_KEY = ['projects']
 
 /** The preview's grade filters' id prefix. */
 const PREVIEW_GRADE = 'preview-grade'
@@ -262,12 +244,6 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	const hasDuration = isKnownDuration(durationSeconds)
 	const range: TrimRange = trim ?? { startSeconds: 0, endSeconds: durationSeconds }
 	const analysis = useTakeAnalysis(video)
-	// The project being edited once saved, and how its saving stands.
-	const [project, setProject] = useState<{ id: string; name: string } | null>(null)
-	const [saveStatus, setSaveStatus] = useState<SaveStatus>('unsaved')
-	const [savedAt, setSavedAt] = useState<number | null>(null)
-	// A project to open whose media the browser no longer holds: what to find.
-	const [relink, setRelink] = useState<{ id: string; missing: MediaRef[] } | null>(null)
 	const queryClient = useQueryClient()
 	const projects = useQuery({ queryKey: PROJECTS_KEY, queryFn: listProjects })
 	// Source ranges playback skips, from Clean up. Like trim, a
@@ -655,95 +631,6 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		setAutoZooms(saved.autoZooms ?? [])
 	}
 
-	/** Saves the project under `name` (a new one the first time): its media once, its edit each time. */
-	async function save(name: string) {
-		if (!video) return
-		const id = project?.id ?? crypto.randomUUID()
-		// Outside the try: the React Compiler can't compile a `? :` inside one.
-		const transcript =
-			analysis.transcript.status === 'ready' ? analysis.transcript.transcript : null
-		setSaveStatus('saving')
-		// What this save holds: a change made while it runs is still unsaved.
-		const saving = history
-		try {
-			const at = await saveProject({
-				id,
-				name,
-				main: video.file,
-				transcript,
-				edit: snapshot
-			})
-			setProject({ id, name })
-			setSaveStatus('saved')
-			setSavedAt(at)
-			setSavedHistory(saving)
-			void queryClient.invalidateQueries({ queryKey: PROJECTS_KEY })
-		} catch (error) {
-			const { userMessage } = captureClientError(error, { feature: 'save_project' })
-			setSaveStatus('failed')
-			toast({
-				variant: 'destructive',
-				title: t('projects.saveFailed'),
-				description: isStorageFull(error) ? t('projects.storageFull') : userMessage
-			})
-		}
-	}
-
-	/**
-	 * Opens a saved project in place of this edit: its media found first (or
-	 * asked for, when the browser no longer holds it), then its video, its
-	 * transcript and its edit, with no history.
-	 */
-	async function openSaved(id: string) {
-		try {
-			const missing = await missingMedia(id)
-			if (missing.length > 0) {
-				setRelink({ id, missing })
-				return
-			}
-			const opened = await openProject(id, decodeAudio)
-			if (!opened) {
-				toast({ variant: 'destructive', title: t('projects.cantOpen') })
-				return
-			}
-			playback.pause()
-			setRelink(null)
-			loadFile(opened.main, opened.transcript)
-			applySnapshot(opened.edit)
-			addedUrlsRef.current.push(...opened.urls)
-			setProject({ id: opened.id, name: opened.name })
-			setSaveStatus('saved')
-			setSavedAt(opened.savedAt)
-		} catch (error) {
-			const { userMessage } = captureClientError(error, { feature: 'open_project' })
-			toast({ variant: 'destructive', title: t('projects.cantOpen'), description: userMessage })
-		}
-	}
-
-	/** A file picked for missing media: kept if it's the same file, then opening goes on. */
-	async function relinkFile(ref: MediaRef, file: File) {
-		if (!relink) return
-		if (!(await relinkMedia(ref, file))) {
-			toast({
-				variant: 'destructive',
-				title: t('projects.wrongFile', { name: file.name, wanted: ref.name })
-			})
-			return
-		}
-		const missing = relink.missing.filter((m) => m.key !== ref.key)
-		if (missing.length > 0) setRelink({ ...relink, missing })
-		else void openSaved(relink.id)
-	}
-
-	async function removeProject(id: string) {
-		await deleteProject(id)
-		if (project?.id === id) {
-			setProject(null)
-			setSaveStatus('unsaved')
-		}
-		void queryClient.invalidateQueries({ queryKey: PROJECTS_KEY })
-	}
-
 	function handleLoadedMetadata(element: HTMLVideoElement) {
 		setPicture({ width: element.videoWidth, height: element.videoHeight })
 		if (isKnownDuration(element.duration)) {
@@ -1009,18 +896,30 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		applyTrim(step.restore.trim, step.restore.trim?.startSeconds ?? 0)
 	}
 
-	// Once saved, the project saves itself a moment after each change to the
-	// edit (any of the snapshot's pieces; not playback or the playhead).
-	const autosave = useEffectEvent(() => {
-		if (project && saveStatus !== 'saving') void save(project.name)
-	})
-	// The project's id, not its object: a save sets it again, and that's no change.
-	const projectId = project?.id
-	useEffect(() => {
-		const timer = setTimeout(autosave, AUTOSAVE_DELAY_MS)
-		return () => clearTimeout(timer)
-	}, [
-		projectId,
+	const {
+		project,
+		setProject,
+		saveStatus,
+		setSaveStatus,
+		savedAt,
+		relink,
+		setRelink,
+		save,
+		openSaved,
+		relinkFile,
+		removeProject
+	} = useProjectFile({
+		t,
+		video,
+		analysis,
+		history,
+		snapshot,
+		setSavedHistory,
+		queryClient,
+		playback,
+		loadFile,
+		applySnapshot,
+		addedUrlsRef,
 		trim,
 		cuts,
 		clips,
@@ -1037,7 +936,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		sourceTrims,
 		lowerThird,
 		zoom
-	])
+	})
 
 	/** A file attached in the chat, used as what it is: another video, the logo, or a sound. */
 	function attachFile(file: File): AttachedAs {
