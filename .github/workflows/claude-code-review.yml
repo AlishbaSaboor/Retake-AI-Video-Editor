@@ -54,7 +54,7 @@ jobs:
           # The migrations job commits the generated migration as
           # github-actions[bot]; that push re-fires this event with a bot actor,
           # and the action refuses a non-human actor unless it is named here.
-          allowed_bots: "github-actions"
+          allowed_bots: 'github-actions'
           track_progress: true
           claude_args: >-
             --allowedTools "Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
