@@ -7,6 +7,19 @@ import { TimeoutError } from './with-timeout'
 
 export type AiFailure = 'timeout' | 'key' | 'quota' | 'busy'
 
+/**
+ * A provider's key isn't set, so no request was sent: the server's setup,
+ * reported as a refused key is. Names the setting, never a value.
+ */
+export class AiKeyMissingError extends Error {
+	readonly setting: string
+	constructor(setting: string) {
+		super(`${setting} is not set`)
+		this.name = 'AiKeyMissingError'
+		this.setting = setting
+	}
+}
+
 /** The status (and message) an SDK error carries: Gemini's ApiError, our DeepgramError. */
 const statusError = z.object({ status: z.number(), message: z.string().optional() })
 
@@ -15,6 +28,7 @@ const KEY_MESSAGE = /api[ _]?key/i
 
 export function aiFailureOf(error: unknown): AiFailure | null {
 	if (error instanceof TimeoutError) return 'timeout'
+	if (error instanceof AiKeyMissingError) return 'key'
 	const parsed = statusError.safeParse(error)
 	if (!parsed.success) return null
 	const { status, message = '' } = parsed.data

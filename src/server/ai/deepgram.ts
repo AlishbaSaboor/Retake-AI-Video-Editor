@@ -1,5 +1,6 @@
 import 'server-only'
 import { z } from 'zod'
+import { AiKeyMissingError } from '@/lib/ai-failure'
 import { env } from '@/lib/env'
 import { withTimeout } from '@/lib/with-timeout'
 import { trackAiCall } from '@/server/lib/ai-usage/sink'
@@ -66,7 +67,7 @@ export function transcribeAudio(
 	const { timeoutMs, ...tracked } = context
 	return trackAiCall({ provider: 'deepgram', ...tracked }, () =>
 		withTimeout(timeoutMs, async (signal) => {
-			if (!env.DEEPGRAM_API_KEY) throw new Error('DEEPGRAM_API_KEY is not set')
+			if (!env.DEEPGRAM_API_KEY) throw new AiKeyMissingError('DEEPGRAM_API_KEY')
 			const params = new URLSearchParams({
 				model: context.model,
 				filler_words: 'true',

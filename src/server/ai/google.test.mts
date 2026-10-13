@@ -181,7 +181,7 @@ test('each action that calls Gemini sends its own feature’s cap', async () => 
 test('a cap passed by the caller never replaces the feature’s', async () => {
 	reset()
 	await generateContent(
-		{ feature: 'parse_edit_command', model: 'gemini-3.5-flash-lite' },
+		{ feature: 'parse_edit_command', model: 'gemini-3.5-flash-lite', timeoutMs: 30_000 },
 		{ contents: 'x', config: { maxOutputTokens: 999_999 } }
 	)
 	assert.equal(sent[0]?.maxOutputTokens, 1024)
