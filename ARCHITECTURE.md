@@ -57,15 +57,15 @@ are only the route (`page.tsx`, `layout.tsx`), its server actions
 (`actions.ts`) and `video-editor.tsx`, the component that wires the rest
 together. Each test sits next to the file it tests.
 
-| Folder        | What's in it                                                                                                                                                                             |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `model/`      | The edit itself, as plain TypeScript: clips and their order, cuts, speed, transitions, picture transforms, color, the audio lane, added videos, undo history.                            |
-| `overlays/`   | What's drawn over the picture: titles, lower thirds, captions, logos, annotations, motion, designed frames, text styles.                                                                 |
-| `audio/`      | Reading the recording: the transcript, silences and audio problems, filler cuts, and re-recording a sentence.                                                                            |
-| `assistant/`  | Typed and spoken commands and highlights: the shapes Gemini must reply in, and the plans they become.                                                                                    |
-| `export/`     | Turning the edit into a video file.                                                                                                                                                      |
-| `projects/`   | Saving and opening projects, and the hand-off from Home or Make it into the editor.                                                                                                      |
-| `components/` | The interface, by area: `shell/` (top bar, tool rail, save state), `preview/` (the player and what is dragged on it), `timeline/`, `panels/` (the tool panels), `assistant/` (the chat). |
+| Folder        | What's in it                                                                                                                                                                                                                                        |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `model/`      | The edit itself, as plain TypeScript: clips and their order, cuts, speed, transitions, picture transforms, color, the audio lane, added videos, undo history.                                                                                       |
+| `overlays/`   | What's drawn over the picture: titles, lower thirds, captions, logos, annotations, motion, designed frames, text styles.                                                                                                                            |
+| `audio/`      | Reading the recording: the transcript, silences and audio problems, filler cuts, and re-recording a sentence.                                                                                                                                       |
+| `assistant/`  | Typed and spoken commands and highlights: the shapes Gemini must reply in, and the plans they become.                                                                                                                                               |
+| `export/`     | Turning the edit into a video file.                                                                                                                                                                                                                 |
+| `projects/`   | Saving and opening projects, and the hand-off from Home or Make it into the editor.                                                                                                                                                                 |
+| `components/` | The interface, by area: `shell/` (top bar, tool rail, save state, and `useEditorShortcuts`: undo and redo from the keyboard), `preview/` (the player and what is dragged on it), `timeline/`, `panels/` (the tool panels), `assistant/` (the chat). |
 
 The files a reviewer is most likely to want:
 
@@ -260,8 +260,10 @@ Proof: `instrumentation-client.ts`, `src/proxy.ts`.
   the tab in front, and the recording is held in memory until it ends.
 - **Projects are per-browser**: they don't follow a user to another browser
   or device.
-- **A large component**: `VideoEditor` is one function of about 2,570 lines
-  (`src/app/[locale]/editor/video-editor.tsx`, lines 236 to 2807).
+- **A large component**: `VideoEditor` is one function of about 2,550 lines
+  (`src/app/[locale]/editor/video-editor.tsx`, lines 237 to 2789). Its state
+  and effects are moving into hooks by concern, one per PR; the keyboard
+  shortcuts are the first (`components/shell/use-editor-shortcuts.ts`).
 - **One type-only import cycle**: `make-reply.ts` imports a value
   (`MAX_BRIEF_PART_LENGTH`) from `make-questions.ts`, which imports
   `make-presets.ts`; both of those import types (`MakeReply`, `CaptionLook`,
