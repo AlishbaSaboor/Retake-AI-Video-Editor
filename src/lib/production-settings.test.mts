@@ -6,29 +6,18 @@ const SUPABASE = {
 	NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
 	NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test'
 }
-// A placeholder key, not a real one.
-const KEY = 'test-key-'.repeat(4)
 /** Everything a production server needs. */
-const ALL = { ...SUPABASE, CONTACT_IP_SECRET: KEY }
+const ALL = SUPABASE
 
 test('a production server needs both Supabase settings; development, tests and the build do not', () => {
 	assert.deepEqual(missingProductionSettings({ NODE_ENV: 'production' }), [
 		'NEXT_PUBLIC_SUPABASE_URL',
-		'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
-		'CONTACT_IP_SECRET'
+		'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'
 	])
 	assert.deepEqual(
-		missingProductionSettings({
-			NODE_ENV: 'production',
-			NEXT_PUBLIC_SUPABASE_URL: 'x',
-			CONTACT_IP_SECRET: KEY
-		}),
+		missingProductionSettings({ NODE_ENV: 'production', NEXT_PUBLIC_SUPABASE_URL: 'x' }),
 		['NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY']
 	)
-	// The contact form's key, on its own.
-	assert.deepEqual(missingProductionSettings({ NODE_ENV: 'production', ...SUPABASE }), [
-		'CONTACT_IP_SECRET'
-	])
 	// Set but empty is missing too.
 	assert.deepEqual(
 		missingProductionSettings({
@@ -57,10 +46,7 @@ test('at boot, production without them logs which to set and exits with a non-ze
 		exit: (code: number) => void exits.push(code)
 	}
 	assert.equal(
-		stopWithoutProductionSettings(
-			{ NODE_ENV: 'production', NEXT_PUBLIC_SUPABASE_URL: 'x', CONTACT_IP_SECRET: KEY },
-			stop
-		),
+		stopWithoutProductionSettings({ NODE_ENV: 'production', NEXT_PUBLIC_SUPABASE_URL: 'x' }, stop),
 		true
 	)
 	assert.deepEqual(said, [
@@ -72,18 +58,14 @@ test('at boot, production without them logs which to set and exits with a non-ze
 	])
 	assert.deepEqual(exits, [1])
 
-	// The contact form's key missing too: a sentence for each, then what to do.
+	// Both missing: one sentence naming both, then what to do.
 	said.length = 0
 	stopWithoutProductionSettings({ NODE_ENV: 'production' }, stop)
 	assert.deepEqual(said, [
 		{
 			message:
-				"Accounts aren't set up: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY must be set in production, or every paid AI action refuses. The contact form's limit isn't set up: CONTACT_IP_SECRET must be set in production, or one sender can't be told from another. Set them, then start again.",
-			missing: [
-				'NEXT_PUBLIC_SUPABASE_URL',
-				'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
-				'CONTACT_IP_SECRET'
-			]
+				"Accounts aren't set up: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY must be set in production, or every paid AI action refuses. Set them, then start again.",
+			missing: ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY']
 		}
 	])
 	assert.deepEqual(exits, [1, 1])

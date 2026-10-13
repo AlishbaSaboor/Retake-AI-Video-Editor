@@ -7,6 +7,7 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-13.
+> - **Contact code removed; daily AI limit in the FAQ** (section 3zzk).
 > - **One landing page; the editor fits the window** (section 3zzj).
 > - **Redesign** (section 3zzi): the whole site and app in the owner's new
 >   design: violet-black, Funnel type, the landing page as scroll scenes.
@@ -481,6 +482,28 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzk. The contact form's code removed; the daily limit in the FAQ (2026-10-13)
+
+- **Removed, unused since the Contact page went:** the contact action, its
+  per-sender limit and its schema (`src/app/[locale]/(site)/contact/`), and
+  their four test files. Nothing else imported them.
+- **`CONTACT_IP_SECRET` removed:** from the production boot check, `env.ts`,
+  `.env.example`, README and ARCHITECTURE.md. A production server needs only
+  the two Supabase settings now.
+- **Kept:** the `contact_messages` table (no migration; the schema change is
+  comments only, and `pnpm prisma:migrate:generate:check` finds no drift)
+  and `pnpm contact:messages`, for the messages already sent.
+- **The FAQ** now says the AI has a daily limit for each account ("such as
+  60 Make it steps"), resetting at midnight UTC; the number comes from
+  `DAILY_AI_LIMITS` through a placeholder, checked by a unit test.
+- **Stale comments fixed:** `ai-limits.ts`, `proxy.ts`, and the template's
+  example pricing experiment flag.
+- **Tests:** the production-settings and env tests no longer expect the
+  secret (approved); the 32-character secret test and the four contact
+  test files deleted with the code; one new unit test for the FAQ line.
 
 ---
 
