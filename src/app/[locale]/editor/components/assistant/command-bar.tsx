@@ -8,7 +8,6 @@ import {
 	CleanupIcon,
 	ImageIcon,
 	MicIcon,
-	MusicIcon,
 	SendIcon,
 	SparkleIcon,
 	SpinnerIcon,
@@ -87,8 +86,7 @@ const EXAMPLES = [
 const FOLLOW_UP_EXAMPLES = [
 	{ key: 'shorter', icon: TimingIcon },
 	{ key: 'intro', icon: CleanupIcon },
-	{ key: 'captions', icon: CaptionsIcon },
-	{ key: 'music', icon: MusicIcon }
+	{ key: 'captions', icon: CaptionsIcon }
 ] as const
 
 /**
