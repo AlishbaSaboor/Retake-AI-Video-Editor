@@ -15,12 +15,13 @@ session with no memory of it can carry on. Read this whole file, then
 > - **Every AI call** goes through `src/server/ai/` with a required time limit (30 or 60 s) and an output cap, and writes one `ai_usage` row, priced when written.
 > - **Tests:** 679 unit (1 skipped on Windows), 142 e2e in 28 files, 6 database tests (`pnpm test:db`) on real Postgres.
 > - **CI:** commits (pull requests only), check, ai-models, build, e2e (4 shards), migrations, db-tests.
-> - **Largest code:** `VideoEditor` is one 2,348-line function (`video-editor.tsx`, lines 217 to 2564), being split into hooks one PR at a time (3 done; the plan is in section 3zzr). Make it's planner is split by concern: `make-plan.ts` (231 lines: `planMake`, 82, and re-exports) and `make-reply`, `make-request`, `make-context`, `make-cut`, `make-look`, `make-summary` (102 to 499 lines each).
+> - **Largest code:** `VideoEditor` is one 2,260-line function (`video-editor.tsx`, lines 209 to 2468), being split into hooks one PR at a time (4 done; the plan is in section 3zzr). Make it's planner is split by concern: `make-plan.ts` (231 lines: `planMake`, 82, and re-exports) and `make-reply`, `make-request`, `make-context`, `make-cut`, `make-look`, `make-summary` (102 to 499 lines each).
 > - **No admin console, feature flags, API routes or production-migrations workflow** (removed in 3zzo); their tables `admin_members`, `feature_flags` and `feature_flag_overrides` stay in the schema, unused, until a migration drops them.
 > - **Decisions, trade-offs and known limits:** ARCHITECTURE.md.
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **VideoEditor's fourth hook: re-recording** (section 3zzt).
 > - **VideoEditor's third hook: the project file** (section 3zzs).
 > - **VideoEditor's second hook: the picked item** (section 3zzr).
 > - **VideoEditor's first hook: keyboard shortcuts** (section 3zzq).
@@ -505,6 +506,23 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzt. VideoEditor's fourth hook: re-recording (2026-10-14)
+
+- **PR 6.4:** re-recording a sentence moves to `audio/use-re-record.ts` in
+  two calls, because the edit's `segments` read its state before playback
+  exists and its handlers need playback: `useReRecord` (the three
+  `useState` calls and `otherReplacements`) is called where that state was,
+  and `useReRecordActions` (open, set joins by ear, move a join, preview the
+  join or the take, apply, close) where those handlers were. Moved line for
+  line; no effect or ref moved. Every hook call is in the same position as
+  before, `useState` included (76 calls, the same sequence).
+  `video-editor.tsx`: 2,641 to 2,545 lines.
+- **e2e:** no local run: Docker wasn't running (local Supabase down). CI's
+  four dev-mode shards (accounts off) are the full-suite result;
+  `re-record.spec.ts` (5 tests) runs in shard 4. Real sign-in isn't exercised.
 
 ---
 

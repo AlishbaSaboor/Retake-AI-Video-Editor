@@ -61,7 +61,7 @@ together. Each test sits next to the file it tests.
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `model/`      | The edit itself, as plain TypeScript: clips and their order, cuts, speed, transitions, picture transforms, color, the audio lane, added videos, undo history.                                                                                                                                                               |
 | `overlays/`   | What's drawn over the picture: titles, lower thirds, captions, logos, annotations, motion, designed frames, text styles.                                                                                                                                                                                                    |
-| `audio/`      | Reading the recording: the transcript, silences and audio problems, filler cuts, and re-recording a sentence.                                                                                                                                                                                                               |
+| `audio/`      | Reading the recording: the transcript, silences and audio problems, filler cuts, and re-recording a sentence (`useReRecord` for its state, `useReRecordActions` for opening, previewing, applying and closing it).                                                                                                          |
 | `assistant/`  | Typed and spoken commands and highlights: the shapes Gemini must reply in, and the plans they become.                                                                                                                                                                                                                       |
 | `export/`     | Turning the edit into a video file.                                                                                                                                                                                                                                                                                         |
 | `projects/`   | Saving and opening projects, and the hand-off from Home or Make it into the editor; `useProjectFile`: the editor's save, open, relink, delete and autosave.                                                                                                                                                                 |
@@ -260,12 +260,12 @@ Proof: `instrumentation-client.ts`, `src/proxy.ts`.
   the tab in front, and the recording is held in memory until it ends.
 - **Projects are per-browser**: they don't follow a user to another browser
   or device.
-- **A large component**: `VideoEditor` is one function of about 2,350 lines
-  (`src/app/[locale]/editor/video-editor.tsx`, lines 217 to 2564). Its state
+- **A large component**: `VideoEditor` is one function of about 2,260 lines
+  (`src/app/[locale]/editor/video-editor.tsx`, lines 209 to 2468). Its state
   and effects are moving into hooks by concern, one per PR; so far the
   keyboard shortcuts (`components/shell/use-editor-shortcuts.ts`), the
-  picked item (`components/preview/use-picked-item.ts`) and the project file
-  (`projects/use-project-file.ts`).
+  picked item (`components/preview/use-picked-item.ts`), the project file
+  (`projects/use-project-file.ts`) and re-recording (`audio/use-re-record.ts`).
 - **One type-only import cycle**: `make-reply.ts` imports a value
   (`MAX_BRIEF_PART_LENGTH`) from `make-questions.ts`, which imports
   `make-presets.ts`; both of those import types (`MakeReply`, `CaptionLook`,
