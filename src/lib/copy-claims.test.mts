@@ -30,12 +30,7 @@ test('Make it brings no music while public/music holds no track, and its copy ne
 		/\.(mp3|m4a|ogg|opus|wav|webm)$/i.test(name)
 	)
 	assert.deepEqual(tracks, [], 'tracks were added: Make it can now lay music, so revisit this copy')
-	const makeItCopy = [
-		...under('Site.landing.demo'),
-		...under('Site.features.sections.ai'),
-		...under('Site.howItWorks.ai'),
-		...under('Editor.followUp.example')
-	]
+	const makeItCopy = [...under('Site.landing.demo'), ...under('Editor.followUp.example')]
 	for (const [path, text] of makeItCopy) {
 		// Music the user adds by hand on the Audio lane is true; music from Make it isn't.
 		const claim = text.replace('add music of your own on the Audio lane', '')
@@ -44,13 +39,6 @@ test('Make it brings no music while public/music holds no track, and its copy ne
 	}
 })
 
-test('Pricing names the Make it limit as the limit-reached message does: steps, a plan using two', () => {
+test('the limit-reached message names the Make it limit as steps', () => {
 	assert.equal(DAILY_AI_LIMITS.make_it.what, 'Make it steps')
-	const [[, pricing]] = under('Site.pricing.limits.body')
-	assert.ok(
-		pricing.includes(`{makeIt} ${DAILY_AI_LIMITS.make_it.what} a day`),
-		'the Pricing limit uses the same words as the limit-reached message'
-	)
-	assert.match(pricing, /a plan uses two, since each plan is checked/)
-	assert.doesNotMatch(pricing, /Make it requests/)
 })

@@ -58,7 +58,7 @@ import { TitleBox } from './components/preview/title-box'
 import { ToolRail, type Tool } from './components/shell/tool-rail'
 import { ProjectTitle } from './components/shell/project-title'
 import { takeStart, type MadeWith } from './projects/editor-start'
-import { MadeWithIntro, ModeSwitch, StudioCards } from './components/shell/studio'
+import { MadeWithIntro, ModeSwitch, StudioCards, StudioChatHeader } from './components/shell/studio'
 import type { CommandContext, CommandPlan, TextTarget } from './assistant/edit-command'
 import { isOriginalEdit, ORIGINAL_EDIT, type EditSnapshot } from './model/edit-snapshot'
 import { ExportButton, useVideoExport } from './export/export-button'
@@ -1951,6 +1951,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 								onAttach={attachFile}
 								initialCommand={startCommand}
 								followUps={followUps}
+								intro={studio && made ? <MadeWithIntro made={made} /> : null}
 							/>
 						)
 					},
@@ -2298,10 +2299,12 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 				onPanelsShown={(shown) => setSideOpen('panels', shown)}
 				railRight={studio}
 				// The chat-only view: the picture, with Your edit and Want finer control beside it.
+				// The full editor fits the window (from lg): the picture takes the room
+				// the tools above it, its controls and the timeline leave.
 				mainClassName={
 					studio
 						? 'xl:grid xl:grid-cols-[minmax(0,1fr)_260px] xl:content-start xl:gap-x-6 xl:[&>*]:col-start-1'
-						: undefined
+						: 'lg:gap-3 lg:p-4'
 				}
 				title={
 					video ? (
@@ -2344,7 +2347,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 							open={openTool}
 							onOpen={setOpenTool}
 							disabledNote={showOriginal ? t('original.toolsNote') : null}
-							chatOnly={studio && made ? <MadeWithIntro made={made} /> : null}
+							chatOnly={studio && made ? <StudioChatHeader /> : null}
 						/>
 					) : null
 				}
@@ -2377,7 +2380,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 									</button>
 								</div>
 							) : studio ? null : (
-								<div className="flex flex-wrap items-start justify-center gap-2">
+								<div className="flex shrink-0 flex-wrap items-start justify-center gap-2">
 									<div
 										role="toolbar"
 										aria-label={t('videoTools.label')}
@@ -2430,8 +2433,16 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 									)}
 								</div>
 							))}
-						<div className="relative">
+						<div
+							className={cn(
+								'relative',
+								// The room left over, as a size container the player fills.
+								!studio &&
+									'lg:[container-type:size] lg:flex lg:min-h-[180px] lg:flex-1 lg:items-center lg:justify-center'
+							)}
+						>
 							<PictureFrame
+								fit={!studio}
 								picture={pictureSize}
 								transform={shownTransform}
 								zoom={shownZoom}
@@ -2620,8 +2631,9 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 						{hasDuration && (
 							<div
 								className={cn(
-									'mx-auto grid w-full grid-cols-[1fr_auto_1fr] items-center gap-3',
-									PLAYER_WIDTH
+									'mx-auto grid w-full shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-3',
+									PLAYER_WIDTH,
+									!studio && 'lg:max-w-none'
 								)}
 							>
 								<span className="text-text-muted font-mono text-sm">
@@ -2723,6 +2735,8 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 				)}
 				{video && hasDuration && !studio && (
 					<EditorTimeline
+						// No taller than about half the column: its lanes scroll inside it beyond that.
+						className="shrink-0 lg:max-h-[46%]"
 						view={showOriginal ? 'original' : 'edited'}
 						takeSeconds={durationSeconds}
 						editedSeconds={editedSeconds}

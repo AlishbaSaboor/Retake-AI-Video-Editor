@@ -46,6 +46,9 @@ export default async function LocaleLayout({
 		// is one more reason React mustn't compare that element's attributes.
 		<html
 			lang={locale}
+			// The section links scroll smoothly (globals.css); this keeps Next's
+			// route changes from scrolling smoothly too.
+			data-scroll-behavior="smooth"
 			suppressHydrationWarning
 			className={cn(funnelSans.variable, funnelDisplay.variable, jetbrainsMono.variable)}
 		>

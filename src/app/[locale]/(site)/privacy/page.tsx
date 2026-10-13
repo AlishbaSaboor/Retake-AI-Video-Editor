@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
 import { DisplayHeading, Eyebrow, emphasis } from '@/components/site/display'
-import { Link } from '@/i18n/routing'
 
 export async function generateMetadata(): Promise<Metadata> {
 	const t = await getTranslations('Site.privacy')
@@ -11,7 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
 /** Each section, and how many lines it has. */
 const SECTIONS = [
 	{ key: 'who', lines: 1 },
-	{ key: 'collect', lines: 4 },
+	{ key: 'collect', lines: 3 },
 	{ key: 'use', lines: 1 },
 	{ key: 'ai', lines: 3 },
 	{ key: 'keep', lines: 1 },
@@ -53,18 +52,6 @@ export default async function PrivacyPage() {
 						</section>
 					))}
 				</div>
-				<p className="text-text-muted mt-10 text-base">
-					{t.rich('questions', {
-						link: (chunks) => (
-							<Link
-								href="/contact"
-								className="text-accent-fg font-bold underline-offset-4 hover:underline"
-							>
-								{chunks}
-							</Link>
-						)
-					})}
-				</p>
 			</div>
 		</main>
 	)
