@@ -60,36 +60,25 @@ In `.env.local`, from `supabase status`: `DATABASE_URL` and `DIRECT_URL`
 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Add `GEMINI_API_KEY` and
 `DEEPGRAM_API_KEY` for the AI features; without them the app runs, and those
 features fail with "The AI isn't available right now. Try again later." (the
-server log names the missing setting). `CONTACT_IP_SECRET` is optional locally. Every
-variable is explained in `.env.example`. Create an account on the sign-in
+server log names the missing setting). Every variable is explained in `.env.example`. Create an account on the sign-in
 page to use the app.
 
 ## Production settings
 
-| Setting                                                            | Needed for                                                                   |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| `DATABASE_URL`                                                     | The database (validated at boot)                                             |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Sign-in. Without them the server logs which is missing and exits             |
-| `CONTACT_IP_SECRET`                                                | The contact form's per-sender limit. Without it the server logs it and exits |
-| `GEMINI_API_KEY`, `DEEPGRAM_API_KEY`                               | The AI features (the server starts without them)                             |
+| Setting                                                            | Needed for                                                       |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `DATABASE_URL`                                                     | The database (validated at boot)                                 |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Sign-in. Without them the server logs which is missing and exits |
+| `GEMINI_API_KEY`, `DEEPGRAM_API_KEY`                               | The AI features (the server starts without them)                 |
 
-`CONTACT_IP_SECRET` is the key a sender's IP is hashed with, so no IP is
-stored. Make it random and at least 32 characters:
-
-```bash
-openssl rand -hex 32
-```
-
-Set it in the host's environment, never in the repo, and keep it the same
-across deploys (changing it resets every sender's count). What a hosted launch
-would still need, including request-size limits, is in
+What a hosted launch would still need, including request-size limits, is in
 [ARCHITECTURE.md](ARCHITECTURE.md#scope-local-first-not-deployed); the GitHub and Vercel
 setup is in `docs/CI_CD_SETUP.md`.
 
 ## Contact messages
 
-Messages sent from the Contact us page (removed on 2026-10-13) are kept in
-the local database and
+Messages sent from the Contact us page before it was removed (2026-10-13;
+nothing sends them now) are kept in the local database and
 nowhere else: nothing is emailed or sent to an outside service. They're
 personal data (a name, an email and what was written), so they stay there.
 To read them:

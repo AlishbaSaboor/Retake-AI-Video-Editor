@@ -210,25 +210,18 @@ about $4.40).
 Proof: `src/lib/ai-limits.ts`, `src/server/lib/ai-allowance.ts`,
 `prisma/schema/ai-allowance.prisma`.
 
-### A limit on the contact form
+### Contact messages, kept
 
-The Contact us page was removed on 2026-10-13, so no page sends messages
-now; its server action, its limit and its tests are kept as they were, and
-the messages already sent stay readable. The form had a hidden honeypot field and a per-sender limit
-counted from the saved messages: 5 an hour per sender, 30 an hour shared by
-senders who can't be told apart. The count and the insert run in one
-Serializable transaction, so sends at once can't pass the count together (a
-send that still overlaps after three tries is refused). A sender is stored
-only as an HMAC of their IP with `CONTACT_IP_SECRET`, never the IP. Every
-check refuses with the same plain message. The messages are personal data
-(a name, an email and what was written) and stay in the local database:
-`pnpm contact:messages` prints the latest ones, read-only, and refuses any
-database not on this machine.
-_Trade-off:_ the IP is read from the last `x-forwarded-for` entry, which is
-trustworthy behind a host that sets it (Vercel) but could be set by a
-client on a server with no proxy in front.
-Proof: `src/app/[locale]/(site)/contact/actions.ts`, `contact-limit.ts`,
-`scripts/contact-messages.mjs`.
+The Contact us page was removed on 2026-10-13, and its server code (the
+action, its per-sender limit and the key it hashed IPs with) with it, so
+nothing writes messages now. The messages already sent stay in the
+`contact_messages` table, which is kept as it was (no migration): they're
+personal data (a name, an email and what was written) and stay in the
+local database. `pnpm contact:messages` prints the latest ones, read-only,
+and refuses any database not on this machine.
+_Trade-off:_ there's no way to reach the project through the site during
+the beta (the Privacy page says so).
+Proof: `prisma/schema/contact.prisma`, `scripts/contact-messages.mjs`.
 
 ### Analytics without autocapture, and the session only where it's read
 
@@ -271,8 +264,7 @@ tuned for strangers on the internet.
 **To run it locally:**
 
 - `DATABASE_URL`, always (the server won't start without it).
-- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and
-  `CONTACT_IP_SECRET` (at least 32 characters; `openssl rand -hex 32`). A
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. A
   production server started without one logs which are missing and exits
   (`src/lib/production-settings.ts`); in development they're optional.
 - `GEMINI_API_KEY` and `DEEPGRAM_API_KEY`, for the AI features. The server
@@ -293,7 +285,6 @@ tuned for strangers on the internet.
 | Sign-in rate limits per visitor            | Sign-in runs as a server action, so Supabase's per-IP limits see the server's address                                                                                                                                                                                   | One person signs in                                                     |
 | Migrations ordered before the app's deploy | `.github/workflows/deploy-migrations.yml` applies migrations on every push to `main`, independently of any app deploy                                                                                                                                                   | No app is deployed                                                      |
 | A user id on `ai_usage`                    | Spend can't be traced to an account (`prisma/schema/ai-usage.prisma`)                                                                                                                                                                                                   | `ai_usage` is a contract with the MOAD dashboard and isn't changed here |
-| A trusted client IP for the contact limit  | It reads the last `x-forwarded-for` entry, trustworthy only behind a host or proxy that sets it                                                                                                                                                                         | Locally there's one sender                                              |
 
 ## What I'd do next
 
@@ -302,7 +293,7 @@ tuned for strangers on the internet.
    proven rather than measured.
 2. Test the real paths: the allowance's ceiling against Postgres, and a
    paid action through the real wrapper with fake providers at the network
-   edge, and the contact limit's transaction against Postgres.
+   edge.
 3. Remove the unused admin and feature-flag scaffolding.
 4. Split `make-plan.ts` into files by concern, then the `VideoEditor`
    component into hooks by concern, one at a time.

@@ -42,3 +42,17 @@ test('Make it brings no music while public/music holds no track, and its copy ne
 test('the limit-reached message names the Make it limit as steps', () => {
 	assert.equal(DAILY_AI_LIMITS.make_it.what, 'Make it steps')
 })
+
+test('the FAQ says there is a daily AI limit per account, its number from DAILY_AI_LIMITS, reset at midnight UTC', () => {
+	const [[, answer]] = under('Site.faq.items.free.answer')
+	assert.ok(answer.includes(`{makeIt} ${DAILY_AI_LIMITS.make_it.what}`), answer)
+	assert.match(answer, /daily limit for each account/)
+	assert.match(answer, /resets at midnight UTC/)
+	// The landing page fills {makeIt} from the limit that's enforced, not a number of its own.
+	const scenes = readFileSync(
+		new URL('../components/site/landing/landing-scenes.tsx', import.meta.url),
+		'utf8'
+	)
+	assert.match(scenes, /makeIt: DAILY_AI_LIMITS\.make_it\.perDay/)
+	assert.doesNotMatch(answer, /\d/)
+})

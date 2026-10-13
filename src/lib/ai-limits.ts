@@ -1,7 +1,7 @@
 // Each signed-in user's daily ceiling on the paid AI actions, by kind, so a
 // cheap one can't use up a costly one's allowance. The one place to change
-// the numbers: the actions (src/server/lib/ai-allowance.ts) and the Pricing
-// page both read them from here. A change ships like any other code change
+// the numbers: the actions (src/server/lib/ai-allowance.ts) and the landing
+// page's FAQ read them from here. A change ships like any other code change
 // (a PR, CI, merge, deploy); it takes effect for today's counts at once.
 //
 // Worst case at these numbers, by the highest cost each call has been seen
