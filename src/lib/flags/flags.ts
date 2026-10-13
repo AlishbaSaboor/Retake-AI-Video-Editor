@@ -131,7 +131,7 @@ export const FLAGS = {
 		variants: ['control', 'value_first', 'simple'],
 		default: 'control',
 		kind: 'experiment',
-		description: 'Pricing page presentation A/B/n test.',
+		description: 'Example experiment flag from the template (Retake has no pricing page).',
 		owner: 'web-team'
 	}
 } as const satisfies Readonly<Record<string, FlagDef>>

@@ -8,8 +8,6 @@ const SUPABASE = {
 	NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
 	NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test'
 }
-// A placeholder key, not a real one.
-const KEY = 'test-key-'.repeat(4)
 
 let copy = 0
 /** Loads env.ts as a server starting with `vars` would. */
@@ -31,8 +29,7 @@ test('production without the Supabase settings stops at load, saying what to set
 		load({
 			NODE_ENV: 'production',
 			NEXT_PUBLIC_SUPABASE_URL: undefined,
-			NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: undefined,
-			CONTACT_IP_SECRET: KEY
+			NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: undefined
 		}),
 		{
 			message:
@@ -40,27 +37,11 @@ test('production without the Supabase settings stops at load, saying what to set
 		}
 	)
 	// With them, it loads; and the build loads without them.
-	await load({ NODE_ENV: 'production', ...SUPABASE, CONTACT_IP_SECRET: KEY })
+	await load({ NODE_ENV: 'production', ...SUPABASE })
 	await load({
 		NODE_ENV: 'production',
 		NEXT_PHASE: 'phase-production-build',
 		NEXT_PUBLIC_SUPABASE_URL: undefined,
 		NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: undefined
 	})
-})
-
-test("the contact form's key: required for a production server, and never a short, typed one", async () => {
-	await assert.rejects(
-		load({ NODE_ENV: 'production', ...SUPABASE, CONTACT_IP_SECRET: undefined }),
-		{
-			message:
-				"The contact form's limit isn't set up: CONTACT_IP_SECRET must be set in production, or one sender can't be told from another. Set them, then start again."
-		}
-	)
-	// Under 32 characters: refused wherever it's set.
-	await assert.rejects(load({ CONTACT_IP_SECRET: 'too-short' }), {
-		message: 'Invalid environment variables — see console output above'
-	})
-	// Optional outside production.
-	await load({ NODE_ENV: 'development', CONTACT_IP_SECRET: undefined })
 })

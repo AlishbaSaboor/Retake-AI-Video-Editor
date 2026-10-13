@@ -1551,7 +1551,7 @@
 				},
 				"free": {
 					"question": "Is Retake free?",
-					"answer": "Yes. Retake is free while it's in beta, with every feature included."
+					"answer": "Yes. Retake is free while it's in beta, with every feature included. The AI has a daily limit for each account, such as {makeIt} Make it steps, and it resets at midnight UTC."
 				},
 				"asking": {
 					"question": "Will it change my video without asking?",

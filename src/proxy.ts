@@ -8,8 +8,8 @@ const intlProxy = createIntlMiddleware(routing)
 
 // Refreshes the Supabase session cookie on the pages that use the session
 // (SESSION_PAGES), then hands off to next-intl's locale routing. A public
-// page (the landing page, Features, Pricing, Contact, ...) never reads the
-// session, so it makes no call to Supabase. Order matters: Supabase's cookie writes have
+// page (the landing page, Privacy) never reads the session, so it makes no
+// call to Supabase. Order matters: Supabase's cookie writes have
 // to survive whatever next-intl's proxy does next (redirect or rewrite), so
 // we run Supabase first and copy its Set-Cookie headers onto whatever
 // response next-intl produces — not the other way around.
