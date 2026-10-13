@@ -3,7 +3,6 @@
 import { useTransition } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-import { SignOutIcon } from '@/components/ui/icons'
 import { signOut } from '@/app/[locale]/(auth)/login/actions'
 import { useRouter } from '@/i18n/routing'
 
@@ -16,7 +15,7 @@ export function SignOutButton({ email }: { email: string }) {
 			type="button"
 			variant="ghost"
 			title={email}
-			className="h-[38px] px-3 font-bold"
+			className="h-[38px] rounded-[10px] px-3 text-[14.5px] font-normal"
 			disabled={pending}
 			onClick={() =>
 				startTransition(async () => {
@@ -26,8 +25,7 @@ export function SignOutButton({ email }: { email: string }) {
 				})
 			}
 		>
-			<SignOutIcon />
-			<span className="max-sm:sr-only">{t('signOut')}</span>
+			{t('signOut')}
 		</Button>
 	)
 }

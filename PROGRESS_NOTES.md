@@ -7,6 +7,8 @@ session with no memory of it can carry on. Read this whole file, then
 > **Read this first: where things stand right now**
 >
 > - Branch `main`. Updated 2026-10-13.
+> - **Redesign** (section 3zzi): the whole site and app in the owner's new
+>   design: violet-black, Funnel type, the landing page as scroll scenes.
 > - **Hardening** (section 3zzh): no admin seat from an email domain, an
 >   output-token cap per Gemini feature, PostHog without autocapture or
 >   recording, an atomic contact limit and `pnpm contact:messages`, no
@@ -478,6 +480,44 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzi. Redesign to the owner's new design (2026-10-13)
+
+The whole site and app restyled to the owner's design (`design/Retake (1)/`:
+`index.html`, `app.html` and `notes.html`; kept out of the repo). Logic,
+routes, settings and features unchanged; all text in `messages/en.json`.
+
+- **The system** (DESIGN.md): a violet-black base mirrored in light, one
+  violet accent (light violet with dark text on the dark theme), support
+  blue, pink only for what gets cut, green for done; no orange or yellow, no
+  glows or orbs. Funnel Display / Funnel Sans / JetBrains Mono. No italic or
+  highlighted word in a headline (a message's `<em>` reads plain).
+- **Landing page** rebuilt as the design's scroll scenes
+  (`src/components/site/landing/`): one sentence edited live, the five
+  fixes on a pinned stage, Make it step by step, the tools on a sideways
+  track, the promises, the first questions, the outlined wordmark, over a
+  river of spoken words and a corner timecode. One batched scroll listener;
+  reduced motion lays it out plainly. The footage is Retake's own sample
+  trip (`public/site/clip`) in the design's duotone; the design's stock
+  photos aren't used. New copy in `Site.landingPage`; the old landing's
+  messages are left in place, unused.
+- **Other public pages** keep their content, in the new type and colours;
+  Contact's questions use the landing page's FAQ rows.
+- **App**: sign-in as the design's split screen; Home's two ways in (the
+  AI one recommended, the manual one a drop row); Make it's four-step
+  progress bar and the plan as a written list; the editor's and studio's
+  bar, segmented switches and chat in the new style.
+- **Copy made true where the design wasn't**: the promise that only the
+  audio and the pictures leave the browser (commands and the transcript go
+  to Gemini too), the password hint (6 characters, not 8), no strength
+  meter; "Apply", the real button, on the landing page's plan.
+- **Not matched**: see the PR. Notably Features' and How it works' app
+  screenshots are still the old look (regenerating them needs the Pexels
+  footage and ffmpeg: `pnpm shots`, CREDITS.md).
+- **Tests**: e2e updated only where the UI changed on purpose (the landing
+  page test, the sign-up heading, the light theme's background colour).
 
 ---
 

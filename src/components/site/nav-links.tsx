@@ -11,8 +11,8 @@ function isCurrent(pathname: string, href: string): boolean {
 }
 
 /**
- * A bar's links, the page you're on marked: in the site's pill a small blue
- * dot under it, in the app's bar a filled tab. Also the phone menu's list.
+ * A bar's links, the page you're on marked with the faint fill the others
+ * get on hover. Also the phone menu's list.
  */
 export function NavLinks({
 	items,
@@ -30,28 +30,17 @@ export function NavLinks({
 				href={href}
 				aria-current={current ? 'page' : undefined}
 				className={cn(
-					'focus-visible:outline-accent relative inline-flex items-center gap-2 font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
-					variant === 'site' && 'hover:text-text h-11 rounded-full px-3.5 text-[15px]',
-					variant === 'site' && (current ? 'text-text' : 'text-text-muted'),
-					variant === 'app' && 'h-[38px] rounded-[11px] px-3.5 text-sm font-bold',
+					'focus-visible:outline-accent hover:bg-border hover:text-text relative inline-flex items-center gap-2 font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
+					current ? 'text-text bg-border' : 'text-text-muted',
+					variant === 'site' && 'h-10 rounded-full px-3.5 text-[15px]',
 					variant === 'app' &&
-						(current
-							? 'bg-surface-hover text-text'
-							: 'text-text-muted hover:bg-surface-hover hover:text-text'),
-					variant === 'menu' && 'h-11 rounded-xl px-3 text-[15px]',
-					variant === 'menu' &&
-						(current ? 'bg-surface-hover text-text' : 'text-text-muted hover:text-text')
+						'h-[38px] rounded-[10px] px-3 text-[14.5px] whitespace-nowrap max-[400px]:px-2',
+					variant === 'menu' && 'h-11 rounded-xl px-3 text-[15px]'
 				)}
 			>
 				{icon}
 				{/* The app bar shows only the icons on a phone; the name is still read out. */}
-				<span className={cn(variant === 'app' && 'max-sm:sr-only')}>{label}</span>
-				{variant === 'site' && current && (
-					<span
-						aria-hidden
-						className="bg-blue absolute bottom-0.5 left-1/2 size-[5px] -translate-x-1/2 rounded-full"
-					/>
-				)}
+				<span className={cn(variant === 'app' && icon && 'max-sm:sr-only')}>{label}</span>
 			</Link>
 		)
 	})

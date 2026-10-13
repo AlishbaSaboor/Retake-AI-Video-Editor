@@ -43,13 +43,16 @@ export default async function PricingPage() {
 						<div className="flex flex-wrap items-end justify-between gap-6">
 							<div className="flex flex-col gap-1">
 								<Eyebrow as="span">{t('plan')}</Eyebrow>
-								<h2 id="plan" className="text-text font-serif text-[80px] leading-none">
+								<h2
+									id="plan"
+									className="text-text font-display text-[80px] leading-none font-medium"
+								>
 									{t('price')}
 								</h2>
 							</div>
 							<Link
 								href="/home"
-								className="rt-btn bg-contrast text-contrast-ink focus-visible:outline-accent inline-flex h-14 items-center rounded-full px-7 text-base font-bold focus-visible:outline-2 focus-visible:outline-offset-2"
+								className="rt-btn bg-accent text-accent-ink focus-visible:outline-accent inline-flex min-h-[52px] items-center rounded-full px-6 text-base font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
 							>
 								{t('start')}
 							</Link>

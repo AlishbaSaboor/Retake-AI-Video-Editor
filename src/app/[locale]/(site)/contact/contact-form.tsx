@@ -13,10 +13,10 @@ import {
 } from './contact-schema'
 
 const field =
-	'border-border-strong bg-surface-inset text-text placeholder:text-text-faint hover:border-text-faint focus-visible:outline-accent w-full rounded-[14px] border px-4 text-base transition-colors focus-visible:outline-2 focus-visible:-outline-offset-1'
-const label = 'text-text text-sm font-bold'
+	'border-border-strong bg-surface text-text placeholder:text-text-faint focus-visible:border-accent w-full rounded border px-3.5 text-[15.5px] transition-colors focus-visible:shadow-[0_0_0_4px_var(--accent-soft)] focus-visible:outline-none'
+const label = 'text-text text-[13.5px] font-semibold'
 const pill =
-	'rt-btn bg-contrast text-contrast-ink focus-visible:outline-accent inline-flex h-[54px] items-center gap-2 self-start rounded-full px-[26px] text-base font-bold focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60'
+	'rt-btn bg-accent text-accent-ink focus-visible:outline-accent inline-flex min-h-[52px] items-center gap-2 self-start rounded-full px-6 text-base font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60'
 
 export function ContactForm() {
 	const t = useTranslations('Site.contact.form')
@@ -25,13 +25,13 @@ export function ContactForm() {
 	const [error, setError] = useState<string | null>(null)
 
 	const card =
-		'border-glass-border bg-surface-raised flex flex-col rounded-[28px] border p-[clamp(20px,3vw,36px)] shadow-(--shadow-card)'
+		'border-border bg-surface flex flex-col rounded-3xl border p-[clamp(20px,3vw,36px)] shadow-(--shadow-card)'
 
 	if (sent) {
 		return (
 			<div role="status" className={cn(card, 'items-start gap-3')}>
 				<SuccessIcon size={30} className="text-success" />
-				<h2 className="text-text font-serif text-4xl">{t('sentTitle')}</h2>
+				<h2 className="text-text font-display text-4xl font-medium">{t('sentTitle')}</h2>
 				<p className="text-text-muted">{t('sentBody')}</p>
 				<button type="button" className={cn(pill, 'mt-2')} onClick={() => setSent(false)}>
 					{t('another')}

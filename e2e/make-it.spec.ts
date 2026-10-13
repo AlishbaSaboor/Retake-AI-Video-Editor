@@ -955,7 +955,7 @@ test('a follow-up in the chat changes the plan: questions first, what changed, C
 	const chat = page.getByRole('region', { name: 'Chat' })
 	await expect(chat).toBeVisible({ timeout: 30_000 })
 	const yourEdit = page.getByText('Your edit', { exact: true }).locator('..')
-	const firstLength = (await yourEdit.locator('.font-mono').textContent()) ?? ''
+	const firstLength = (await yourEdit.locator('.tabular-nums').textContent()) ?? ''
 	expect(firstLength).toMatch(/^0:0\d$/)
 
 	// The chat speaks of the plan now.
@@ -993,7 +993,7 @@ test('a follow-up in the chat changes the plan: questions first, what changed, C
 	// Cancel: nothing changes.
 	await answer.getByRole('button', { name: 'Cancel' }).click()
 	await expect(chat).toContainText('Cancelled. The plan stays as it was.')
-	await expect(yourEdit.locator('.font-mono')).toHaveText(firstLength)
+	await expect(yourEdit.locator('.tabular-nums')).toHaveText(firstLength)
 
 	// Asked again and applied: the edit is the new plan.
 	await box.fill('make it shorter')
@@ -1002,11 +1002,11 @@ test('a follow-up in the chat changes the plan: questions first, what changed, C
 	await expect(again).toContainText('What would change:', { timeout: 60_000 })
 	await again.getByRole('button', { name: 'Apply changes' }).click()
 	await expect(chat).toContainText('Applied. Undo, at the top, goes back to the plan before.')
-	await expect(yourEdit.locator('.font-mono')).toHaveText(`0:0${lengths?.[2]}`)
+	await expect(yourEdit.locator('.tabular-nums')).toHaveText(`0:0${lengths?.[2]}`)
 
 	// Undo: back to the plan before the follow-up.
 	await page.getByRole('button', { name: 'Undo' }).click()
-	await expect(yourEdit.locator('.font-mono')).toHaveText(firstLength)
+	await expect(yourEdit.locator('.tabular-nums')).toHaveText(firstLength)
 
 	// A follow-up now changes that plan (sentence 2 back in), and says plainly what it can't do.
 	await box.fill('add stock footage of a city')

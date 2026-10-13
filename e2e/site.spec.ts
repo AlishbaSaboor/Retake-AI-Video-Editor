@@ -3,41 +3,63 @@ import { test, expect } from '@playwright/test'
 // The public site, as a visitor who isn't signed in sees it.
 test.use({ storageState: { cookies: [], origins: [] } })
 
-test('the landing page tells the story, shows Make it and the promises; the header has the pages, the theme switch and Open Retake', async ({
+test('the landing page edits one sentence, then shows the five fixes, Make it, the tools, the promises and the questions; the header has the pages, the theme switch and Open Retake', async ({
 	page
 }) => {
 	await page.goto('/')
 	await expect(
-		page.getByRole('heading', { level: 1, name: 'Keep the moment. Lose the mess.' })
+		page.getByRole('heading', { level: 1, name: 'Fix the take you already have.' })
 	).toBeVisible()
 	for (const heading of [
-		"From “I'll fix it later” to done, in five scenes.",
-		'One sentence in. A finished edit out.',
-		'Three promises',
-		'Edit by lamplight, or by daylight.',
-		'Your next video starts here.'
+		'One recording, five small fixes.',
+		'Say what it should become.',
+		'Or take the timeline yourself.',
+		'What you can count on',
+		'Questions people ask first.',
+		'Bring a video you have already recorded.'
 	])
 		await expect(page.getByRole('heading', { level: 2, name: heading })).toBeVisible()
-	// The contact form and the questions are on the contact page, not here.
+	// The contact form is on the contact page, not here.
 	await expect(page.getByLabel('Message')).toHaveCount(0)
 
-	// The five scenes: the stepper follows the scroll.
-	const scenes = page.getByRole('navigation', { name: 'The five scenes' })
-	await page.locator('#story-tidy').evaluate((scene) => scene.scrollIntoView({ block: 'center' }))
-	await expect(scenes.getByRole('link', { name: 'Tidy up' })).toHaveAttribute(
-		'aria-current',
-		'step'
+	// The five fixes follow the scroll: halfway through the scene, the third is the one shown.
+	const story = page.getByRole('region', { name: 'How Retake fixes a recording' })
+	await story.evaluate((scene: HTMLElement) =>
+		window.scrollTo(
+			0,
+			window.scrollY +
+				scene.getBoundingClientRect().top +
+				(scene.offsetHeight - window.innerHeight) * 0.5
+		)
 	)
+	// The step being shown is drawn in; the others are faded out (opacity 0).
+	await expect(
+		story.getByRole('heading', { level: 3, name: 'Fix one sentence. No reshoot.' })
+	).toHaveCSS('opacity', '1')
+	await expect(
+		story.getByRole('heading', { level: 3, name: 'Lose the ums. Keep the point.' })
+	).toHaveCSS('opacity', '0')
 
-	// Make it: a style changes what was asked for; the slider compares.
-	const styles = page.getByRole('radiogroup', { name: 'Style' })
-	await styles.getByRole('radio', { name: 'Funny' }).click()
-	await expect(styles.getByRole('radio', { name: 'Funny' })).toHaveAttribute('aria-checked', 'true')
-	await expect(page.getByText('You said: “Make it funny”. Drag to compare.')).toBeVisible()
-	const compare = page.getByRole('slider', { name: 'Compare before and after' })
-	await compare.focus()
-	await compare.press('ArrowRight')
-	await expect(compare).toHaveValue('51')
+	// Make it, step by step: the request types itself as you scroll in.
+	const make = page.getByRole('region', { name: 'Make it with AI, step by step' })
+	await make.evaluate((scene: HTMLElement) =>
+		window.scrollTo(
+			0,
+			window.scrollY +
+				scene.getBoundingClientRect().top +
+				(scene.offsetHeight - window.innerHeight) * 0.125
+		)
+	)
+	await expect(make.getByText('Make this an Instagram reel', { exact: true })).toBeVisible()
+
+	// The questions: each opens its answer below it, and closes it again.
+	const firstQuestion = page.getByText('Will it change my video without asking?')
+	const firstAnswer = page.getByText(/^No\. Every AI edit shows you a plan or a preview first/)
+	await expect(firstAnswer).toBeHidden()
+	await firstQuestion.click()
+	await expect(firstAnswer).toBeVisible()
+	await firstQuestion.click()
+	await expect(firstAnswer).toBeHidden()
 
 	// The header: the pages, the theme switch and Open Retake, nothing else.
 	const header = page.getByRole('banner')
@@ -140,7 +162,7 @@ test.describe('signed in', () => {
 		await expect(toggle).toHaveAttribute('aria-checked', 'true')
 		// The page really is light: the background, not just the attribute.
 		const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
-		expect(background).toBe('rgb(247, 246, 253)')
+		expect(background).toBe('rgb(245, 244, 251)')
 
 		await page.goto('/projects')
 		expect(await theme()).toBe('light')
@@ -238,7 +260,9 @@ test('the app pages ask a signed-out visitor to log in, when accounts are on', a
 	await expect(page.getByRole('heading', { level: 1, name: 'Welcome back.' })).toBeVisible()
 	await expect(page.getByRole('form', { name: 'Log in to Retake' })).toBeVisible()
 	await page.getByRole('button', { name: 'Create an account' }).click()
-	await expect(page.getByRole('heading', { level: 1, name: 'Make an account.' })).toBeVisible()
+	await expect(
+		page.getByRole('heading', { level: 1, name: 'Start with what you have.' })
+	).toBeVisible()
 	await expect(page.getByRole('form', { name: 'Create your account' })).toBeVisible()
 	// The password can be shown, and hidden again.
 	const password = page.getByLabel('Password', { exact: true })

@@ -9,41 +9,24 @@ const FOOTER_LINKS = [
 	{ href: '/privacy', key: 'privacy' }
 ] as const
 
-/** The brand's four colours, as dots at the foot of every page. */
-const DOTS = ['bg-brand-violet', 'bg-brand-purple', 'bg-brand-blue', 'bg-brand-lilac'] as const
-
+/** One line under a thin rule: the copyright and the site's pages. */
 export async function SiteFooter() {
 	const t = await getTranslations('Site')
 	return (
-		<footer className="border-border mt-16 border-t">
-			<div className="mx-auto flex max-w-[1160px] flex-col gap-8 px-5 pt-10 pb-12 md:px-0">
-				<div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-					<div className="flex max-w-[300px] flex-col gap-1">
-						<span className="text-text font-serif text-[34px] leading-tight">Retake</span>
-						<p className="text-text-muted text-[15px] leading-6">{t('footer.tagline')}</p>
-					</div>
-					<nav aria-label={t('footer.label')} className="-mx-2.5 flex flex-wrap">
-						{FOOTER_LINKS.map(({ href, key }) => (
-							<Link
-								key={href}
-								href={href}
-								className="text-text hover:text-accent-fg focus-visible:outline-accent inline-flex h-11 items-center rounded-lg px-2.5 text-[15px] font-semibold transition-colors focus-visible:outline-2"
-							>
-								{t(`nav.${key}`)}
-							</Link>
-						))}
-					</nav>
-				</div>
-				<div className="flex items-center justify-between gap-4">
-					<span className="text-text-faint text-sm">
-						{t('footer.copyright', { year: new Date().getFullYear() })}
-					</span>
-					<span aria-hidden className="flex gap-1.5">
-						{DOTS.map((dot) => (
-							<span key={dot} className={`${dot} size-3.5 rounded-full`} />
-						))}
-					</span>
-				</div>
+		<footer className="border-border relative z-[1] border-t">
+			<div className="text-text-faint mx-auto flex max-w-[1240px] flex-wrap items-center gap-x-7 gap-y-3 px-[clamp(16px,4vw,48px)] py-[26px] text-sm">
+				<span>{t('footer.copyright', { year: new Date().getFullYear() })}</span>
+				<nav aria-label={t('footer.label')} className="-mx-2 flex flex-wrap">
+					{FOOTER_LINKS.map(({ href, key }) => (
+						<Link
+							key={href}
+							href={href}
+							className="text-text-muted hover:text-text focus-visible:outline-accent inline-flex h-11 items-center rounded-lg px-2 transition-colors focus-visible:outline-2"
+						>
+							{t(`nav.${key}`)}
+						</Link>
+					))}
+				</nav>
 			</div>
 		</footer>
 	)

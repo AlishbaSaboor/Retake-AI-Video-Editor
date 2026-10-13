@@ -20,7 +20,7 @@ export function CompareToggle({ showOriginal, onChange }: CompareToggleProps) {
 		<div
 			role="group"
 			aria-label={t('label')}
-			className="border-border bg-glass flex gap-0.5 rounded-[11px] border p-[3px]"
+			className="border-border bg-surface flex gap-0.5 rounded border p-[3px]"
 		>
 			{VIEWS.map((view) => {
 				const isActive = view.showOriginal === showOriginal
@@ -31,8 +31,8 @@ export function CompareToggle({ showOriginal, onChange }: CompareToggleProps) {
 						variant="ghost"
 						className={
 							isActive
-								? 'bg-selected text-text hover:bg-selected rounded-lg px-3.5 font-extrabold'
-								: 'rounded-lg px-3.5'
+								? 'bg-surface-hover text-text hover:bg-surface-hover rounded-[9px] px-[13px] font-semibold whitespace-nowrap'
+								: 'rounded-[9px] px-[13px] font-medium whitespace-nowrap'
 						}
 						aria-pressed={isActive}
 						onClick={() => onChange(view.showOriginal)}

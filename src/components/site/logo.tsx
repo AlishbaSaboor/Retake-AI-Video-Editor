@@ -1,37 +1,29 @@
 import { Link } from '@/i18n/routing'
 import { cn } from '@/lib/cn'
 
-/** The mark alone: a take going round again, on the brand gradient. */
+/** The mark alone: a take going round again, its dot in the accent. */
 export function LogoMark({ className }: { className?: string }) {
 	return (
-		<span
-			aria-hidden
-			className={cn(
-				'bg-brand-wide flex size-[30px] shrink-0 items-center justify-center rounded-[10px]',
-				className
-			)}
-		>
-			<svg width="18" height="18" viewBox="0 0 30 30" fill="none">
-				<path
-					d="M21.5 11.2A7.5 7.5 0 1 0 22.5 15"
-					stroke="#fff"
-					strokeWidth="2.6"
-					strokeLinecap="round"
-				/>
-				<path
-					d="M22.4 7.4v4.4H18"
-					stroke="#fff"
-					strokeWidth="2.6"
-					strokeLinecap="round"
-					strokeLinejoin="round"
-				/>
-				<circle cx="15" cy="15" r="3" fill="#fff" />
-			</svg>
-		</span>
+		<svg aria-hidden viewBox="0 0 32 32" fill="none" className={cn('size-7 shrink-0', className)}>
+			<path
+				d="M26.5 13A11 11 0 1 0 27 19"
+				stroke="currentColor"
+				strokeWidth="2.6"
+				strokeLinecap="round"
+			/>
+			<path
+				d="M27.4 7.6v6.2h-6.2"
+				stroke="currentColor"
+				strokeWidth="2.6"
+				strokeLinecap="round"
+				strokeLinejoin="round"
+			/>
+			<circle cx="16" cy="16" r="3.4" fill="var(--accent)" />
+		</svg>
 	)
 }
 
-/** The wordmark: the mark beside "Retake" in the display serif. */
+/** The wordmark: the mark beside "Retake" in the display face. */
 export function Logo({
 	href = '/',
 	compact = false,
@@ -46,7 +38,7 @@ export function Logo({
 		<Link
 			href={href}
 			className={cn(
-				'text-text focus-visible:outline-accent inline-flex items-center gap-2.5 rounded-lg font-serif text-[26px] leading-none tracking-[-0.01em] focus-visible:outline-2 focus-visible:outline-offset-4',
+				'text-text focus-visible:outline-accent font-display inline-flex items-center gap-2.5 rounded-lg text-[21px] leading-none font-semibold tracking-[-0.03em] focus-visible:outline-2 focus-visible:outline-offset-4',
 				className
 			)}
 		>

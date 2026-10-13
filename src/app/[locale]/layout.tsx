@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Geist_Mono, Instrument_Serif, Manrope } from 'next/font/google'
+import { Funnel_Display, Funnel_Sans, JetBrains_Mono } from 'next/font/google'
 import { NextIntlClientProvider, hasLocale } from 'next-intl'
 import { notFound } from 'next/navigation'
 import { routing } from '@/i18n/routing'
@@ -15,14 +15,15 @@ export const metadata: Metadata = {
 	description: 'A video editor for the web. Keep the moment, lose the mess.'
 }
 
-const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope' })
-const instrument = Instrument_Serif({
+// Funnel Sans for reading, Funnel Display for headlines, JetBrains Mono for
+// timecodes and labels (the design's three), self-hosted at build.
+const funnelSans = Funnel_Sans({ subsets: ['latin'], variable: '--font-funnel-sans' })
+const funnelDisplay = Funnel_Display({ subsets: ['latin'], variable: '--font-funnel-display' })
+const jetbrainsMono = JetBrains_Mono({
 	subsets: ['latin'],
-	weight: '400',
-	style: ['normal', 'italic'],
-	variable: '--font-instrument'
+	weight: ['400', '500'],
+	variable: '--font-jetbrains-mono'
 })
-const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
 
 export default async function LocaleLayout({
 	children,
@@ -46,7 +47,7 @@ export default async function LocaleLayout({
 		<html
 			lang={locale}
 			suppressHydrationWarning
-			className={cn(manrope.variable, instrument.variable, geistMono.variable)}
+			className={cn(funnelSans.variable, funnelDisplay.variable, jetbrainsMono.variable)}
 		>
 			<head>
 				{/* A plain <script>, run by the browser as it reads the page, so a
