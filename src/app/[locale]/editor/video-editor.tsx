@@ -46,6 +46,7 @@ import { EditorShell } from './components/shell/editor-shell'
 import { EditorTimeline, type LaneItem } from './components/timeline/editor-timeline'
 import { JobProgress, type Job } from './components/shell/editor-status'
 import { HistoryControls } from './components/shell/history-controls'
+import { useEditorShortcuts } from './components/shell/use-editor-shortcuts'
 import { ItemToolbar, type Timing } from './components/preview/item-toolbar'
 import { LeaveGuard } from './components/shell/leave-guard'
 import {
@@ -1041,22 +1042,6 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		zoom
 	])
 
-	// Ctrl/⌘+Z undoes; Ctrl/⌘+Shift+Z or Ctrl+Y redoes: in the Edited view,
-	// and not while typing (there they're the field's own).
-	const handleShortcut = useEffectEvent((event: KeyboardEvent) => {
-		if (event.defaultPrevented || event.altKey || !(event.ctrlKey || event.metaKey)) return
-		const target = event.target instanceof HTMLElement ? event.target : null
-		if (target && (target.isContentEditable || target.closest('input, textarea, select, dialog')))
-			return
-		if (showOriginal) return
-		const key = event.key.toLowerCase()
-		const action =
-			key === 'z' ? (event.shiftKey ? redoEdit : undoEdit) : key === 'y' ? redoEdit : null
-		if (!action) return
-		event.preventDefault()
-		action()
-	})
-
 	/** A file attached in the chat, used as what it is: another video, the logo, or a sound. */
 	function attachFile(file: File): AttachedAs {
 		if (file.type.startsWith('video/')) {
@@ -1084,10 +1069,7 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 	if (video && analysis.transcript.status === 'transcribing')
 		jobs.push({ id: 'transcribing', label: t('status.transcribing') })
 
-	useEffect(() => {
-		window.addEventListener('keydown', handleShortcut)
-		return () => window.removeEventListener('keydown', handleShortcut)
-	}, [])
+	useEditorShortcuts({ showOriginal, undoEdit, redoEdit })
 
 	function followPlayhead(seconds: number, index: number | null) {
 		setCurrentTimeSeconds(seconds)
