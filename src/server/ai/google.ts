@@ -6,6 +6,7 @@ import {
 	type GenerateContentParameters,
 	type GenerateContentResponse
 } from '@google/genai'
+import { AiKeyMissingError } from '@/lib/ai-failure'
 import { withTimeout } from '@/lib/with-timeout'
 import { env } from '@/lib/env'
 import { trackAiCall } from '@/server/lib/ai-usage/sink'
@@ -28,7 +29,7 @@ import type { AiUsageMeta } from '@/server/lib/ai-usage/track'
 // AI call that needs it, not every page whose module graph reaches this file.
 let client: GoogleGenAI | undefined
 function gemini(): GoogleGenAI {
-	if (!env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not set')
+	if (!env.GEMINI_API_KEY) throw new AiKeyMissingError('GEMINI_API_KEY')
 	client ??= new GoogleGenAI({ apiKey: env.GEMINI_API_KEY })
 	return client
 }
@@ -79,7 +80,7 @@ export type AiContext = {
 	model: TrackedModel
 	meta?: AiUsageMeta
 	/** Give up after this long: the request is aborted and the call fails with a TimeoutError (recorded). */
-	timeoutMs?: number
+	timeoutMs: number
 }
 
 /** Pictures read at medium detail (~256 tokens each). The SDK's own value, so callers needn't import it. */
@@ -91,7 +92,7 @@ export const MEDIA_RESOLUTION_MEDIUM = MediaResolution.MEDIA_RESOLUTION_MEDIUM
  *
  * ```ts
  * const response = await generateContent(
- *   { feature: 'parse_edit_command', model: 'gemini-3.5-flash-lite', meta: { project_id: projectId } },
+ *   { feature: 'parse_edit_command', model: 'gemini-3.5-flash-lite', timeoutMs: 30_000, meta: { project_id: projectId } },
  *   { contents: command }
  * )
  * ```
@@ -106,23 +107,23 @@ export function generateContent(
 ): Promise<GenerateContentResponse> {
 	const { timeoutMs, ...tracked } = context
 	const maxOutputTokens = GEMINI_MAX_OUTPUT_TOKENS[context.feature]
-	const call = (abortSignal?: AbortSignal) =>
+	const call = (abortSignal: AbortSignal) =>
 		gemini().models.generateContent({
 			...params,
 			model: context.model,
 			// The feature's cap wins over anything the caller passed.
-			config: { ...params.config, maxOutputTokens, ...(abortSignal && { abortSignal }) }
+			config: { ...params.config, maxOutputTokens, abortSignal }
 		})
-	return trackAiCall({ provider: 'google', ...tracked }, () =>
-		timeoutMs ? withTimeout(timeoutMs, call) : call()
-	).then((response) => {
-		if (response.candidates?.[0]?.finishReason === CUT_OFF) {
-			log.warn('AI reply cut off by its output cap', {
-				provider: 'google',
-				feature: context.feature,
-				maxOutputTokens
-			})
+	return trackAiCall({ provider: 'google', ...tracked }, () => withTimeout(timeoutMs, call)).then(
+		(response) => {
+			if (response.candidates?.[0]?.finishReason === CUT_OFF) {
+				log.warn('AI reply cut off by its output cap', {
+					provider: 'google',
+					feature: context.feature,
+					maxOutputTokens
+				})
+			}
+			return response
 		}
-		return response
-	})
+	)
 }
