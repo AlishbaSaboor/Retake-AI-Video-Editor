@@ -15,12 +15,13 @@ session with no memory of it can carry on. Read this whole file, then
 > - **Every AI call** goes through `src/server/ai/` with a required time limit (30 or 60 s) and an output cap, and writes one `ai_usage` row, priced when written.
 > - **Tests:** 679 unit (1 skipped on Windows), 142 e2e in 28 files, 6 database tests (`pnpm test:db`) on real Postgres.
 > - **CI:** commits (pull requests only), check, ai-models, build, e2e (4 shards), migrations, db-tests.
-> - **Largest code:** `VideoEditor` is one 2,572-line function (`video-editor.tsx`, lines 236 to 2807). Make it's planner is split by concern: `make-plan.ts` (231 lines: `planMake`, 82, and re-exports) and `make-reply`, `make-request`, `make-context`, `make-cut`, `make-look`, `make-summary` (102 to 499 lines each).
+> - **Largest code:** `VideoEditor` is one 2,553-line function (`video-editor.tsx`, lines 237 to 2789), being split into hooks one PR at a time (1 of 13 done). Make it's planner is split by concern: `make-plan.ts` (231 lines: `planMake`, 82, and re-exports) and `make-reply`, `make-request`, `make-context`, `make-cut`, `make-look`, `make-summary` (102 to 499 lines each).
 > - **No admin console, feature flags, API routes or production-migrations workflow** (removed in 3zzo); their tables `admin_members`, `feature_flags` and `feature_flag_overrides` stay in the schema, unused, until a migration drops them.
 > - **Decisions, trade-offs and known limits:** ARCHITECTURE.md.
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **VideoEditor's first hook: keyboard shortcuts** (section 3zzq).
 > - **make-plan.ts split by concern** (section 3zzp).
 > - **Unused template code removed** (section 3zzo).
 > - **Docs true of main; the allowance back only when not charged**
@@ -502,6 +503,27 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzq. VideoEditor's first hook: keyboard shortcuts (2026-10-14)
+
+- **The plan:** `VideoEditor` (one function, lines 236 to 2807 on main) is
+  split into hooks by concern, one per PR, safest first: shortcuts, media
+  URLs, edit history, cut editor, re-record, player clock, project file,
+  picked item, edited timeline, adding items, the edit document, the
+  assistant, then the tools config. Each is a pure move: same effects in
+  the same order, same dependency arrays. The owner decides after each PR
+  whether to continue.
+- **PR 1:** `useEditorShortcuts` (`components/shell/use-editor-shortcuts.ts`)
+  holds the Ctrl/⌘+Z handler (a `useEffectEvent`) and its `keydown` effect,
+  moved line for line, dependency array `[]`. It's called where the effect
+  was; no hook sat between the two, so the hook order is unchanged.
+  `video-editor.tsx`: 2,884 to 2,866 lines.
+- **e2e:** no local run. Free memory fell to 0.7 GB (of 7.4) even after
+  apps were closed, too little for a dev or production server plus
+  Chromium; CI's four dev-mode shards (accounts off) are the full-suite
+  result, so real sign-in isn't exercised for this PR.
 
 ---
 
