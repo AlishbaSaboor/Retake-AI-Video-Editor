@@ -2,6 +2,7 @@ import { getTranslations } from 'next-intl/server'
 import { ArrowRightIcon, CheckIcon } from '@/components/ui/icons'
 import { DisplayHeading, Eyebrow, Lead } from '@/components/site/display'
 import { Link } from '@/i18n/routing'
+import { DAILY_AI_LIMITS } from '@/lib/ai-limits'
 import { cn } from '@/lib/cn'
 import s from './landing.module.css'
 
@@ -650,7 +651,8 @@ export async function Questions({
 							<summary className="focus-visible:outline-accent rounded-md focus-visible:outline-2">
 								{t(`faq.items.${key}.question`)}
 							</summary>
-							<p>{t(`faq.items.${key}.answer`)}</p>
+							{/* An answer may quote a daily limit: the number from where it's enforced. */}
+							<p>{t(`faq.items.${key}.answer`, { makeIt: DAILY_AI_LIMITS.make_it.perDay })}</p>
 						</details>
 					))}
 				</div>

@@ -1,8 +1,7 @@
 // What a production server can't run without, and what each is for: the
 // Supabase settings that turn accounts on (without them every paid AI
-// action refuses: they require a signed-in user), and the secret the contact
-// form's limit hashes senders' IPs with. A deployment missing one stops at
-// boot instead of serving a broken app. Kept apart from env.ts so the boot
+// action refuses: they require a signed-in user). A deployment missing one
+// stops at boot instead of serving a broken app. Kept apart from env.ts so the boot
 // check can run before env.ts loads (it throws on the same thing).
 
 const PRODUCTION_SETTINGS: ReadonlyArray<{
@@ -14,11 +13,6 @@ const PRODUCTION_SETTINGS: ReadonlyArray<{
 		names: ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'],
 		missing: (names) =>
 			`Accounts aren't set up: ${names} must be set in production, or every paid AI action refuses.`
-	},
-	{
-		names: ['CONTACT_IP_SECRET'],
-		missing: (names) =>
-			`The contact form's limit isn't set up: ${names} must be set in production, or one sender can't be told from another.`
 	}
 ]
 
