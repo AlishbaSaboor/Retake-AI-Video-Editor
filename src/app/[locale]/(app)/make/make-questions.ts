@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { MakeReply } from './make-plan'
+import type { MakeReply } from './make-reply'
 import { PRESETS, presetNamed, type Preset } from './make-presets'
 
 // Make it's quick questions: fixed choices on one screen before the plan,
