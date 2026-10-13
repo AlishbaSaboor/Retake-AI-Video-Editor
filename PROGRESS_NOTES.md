@@ -15,12 +15,13 @@ session with no memory of it can carry on. Read this whole file, then
 > - **Every AI call** goes through `src/server/ai/` with a required time limit (30 or 60 s) and an output cap, and writes one `ai_usage` row, priced when written.
 > - **Tests:** 679 unit (1 skipped on Windows), 142 e2e in 28 files, 6 database tests (`pnpm test:db`) on real Postgres.
 > - **CI:** commits (pull requests only), check, ai-models, build, e2e (4 shards), migrations, db-tests.
-> - **Largest code:** `VideoEditor` is one 2,431-line function (`video-editor.tsx`, lines 235 to 2665), being split into hooks one PR at a time (2 done; the plan is in section 3zzr). Make it's planner is split by concern: `make-plan.ts` (231 lines: `planMake`, 82, and re-exports) and `make-reply`, `make-request`, `make-context`, `make-cut`, `make-look`, `make-summary` (102 to 499 lines each).
+> - **Largest code:** `VideoEditor` is one 2,348-line function (`video-editor.tsx`, lines 217 to 2564), being split into hooks one PR at a time (3 done; the plan is in section 3zzr). Make it's planner is split by concern: `make-plan.ts` (231 lines: `planMake`, 82, and re-exports) and `make-reply`, `make-request`, `make-context`, `make-cut`, `make-look`, `make-summary` (102 to 499 lines each).
 > - **No admin console, feature flags, API routes or production-migrations workflow** (removed in 3zzo); their tables `admin_members`, `feature_flags` and `feature_flag_overrides` stay in the schema, unused, until a migration drops them.
 > - **Decisions, trade-offs and known limits:** ARCHITECTURE.md.
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **VideoEditor's third hook: the project file** (section 3zzs).
 > - **VideoEditor's second hook: the picked item** (section 3zzr).
 > - **VideoEditor's first hook: keyboard shortcuts** (section 3zzq).
 > - **make-plan.ts split by concern** (section 3zzp).
@@ -504,6 +505,25 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzs. VideoEditor's third hook: the project file (2026-10-14)
+
+- **PR 6.3:** `useProjectFile` (`projects/use-project-file.ts`) holds the
+  project, its save status, when it was saved and the media to relink, with
+  `save`, `openSaved`, `relinkFile`, `removeProject` and autosave (its effect
+  event, `projectId` and its effect), moved line for line, with
+  `AUTOSAVE_DELAY_MS` and `PROJECTS_KEY` (exported: the projects query uses it).
+- **Autosave's effect** is called where it was, and its dependency list is
+  the same 17 names in the same order (`projectId` plus 16 of the edit's
+  pieces, passed in as themselves and typed `unknown`: only compared, never
+  read). `useQueryClient` and `useQuery` stay in the component, so their own
+  effects keep their place; only four `useState` calls run later in the hook
+  order. `video-editor.tsx`: 2,742 to 2,641 lines.
+- **e2e:** no local run: Docker wasn't running (local Supabase down). CI's
+  four dev-mode shards (accounts off) are the full-suite result; real
+  sign-in isn't exercised.
 
 ---
 
