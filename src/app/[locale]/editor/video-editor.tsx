@@ -3,7 +3,6 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button } from '@/components/ui/button'
 import {
 	ArticleIcon,
 	CaptionsIcon,
@@ -96,6 +95,20 @@ import {
 } from './overlays/overlays'
 import { previewWindow, reRecordBlocker, type ReplacementTake } from './audio/re-record'
 import { useReRecord, useReRecordActions } from './audio/use-re-record'
+import { VideoToolButton } from './components/preview/video-tool-button'
+import { VideosPanel } from './components/panels/videos-panel'
+import {
+	BOUNDARY_NUDGE_SECONDS,
+	NEW_ITEM_SECONDS,
+	NEW_MARK_RECT,
+	NEW_TEXT_RECT,
+	NO_LANE,
+	NO_SPEECH,
+	PREVIEW_GRADE,
+	overlaps,
+	type LoadedVideo,
+	wordByWord
+} from './video-editor-helpers'
 import { ReRecordPanel } from './components/panels/re-record-panel'
 import { JoinEditor } from './components/timeline/join-editor'
 import { joinViews, planSentenceSplice } from './audio/sentence-splice'
@@ -173,29 +186,6 @@ import { decodeAudio } from './audio/take-audio'
 import { PROJECTS_KEY, useProjectFile } from './projects/use-project-file'
 import { VideoFileInput } from './components/shell/video-file-input'
 import { formatTimecode } from './model/timeline-scale'
-
-/** A project saved before caption modes kept "word by word" as a yes or no. */
-const wordByWord = (saved: object) => 'captionWords' in saved && saved.captionWords === true
-
-/** The main video; a reopened project brings its saved transcript. */
-type LoadedVideo = { file: File; url: string; name: string; transcript?: Transcript | null }
-
-/** The preview's grade filters' id prefix. */
-const PREVIEW_GRADE = 'preview-grade'
-/** No lane sound: what playback gets outside the Edited view (one array, so it never looks changed). */
-const NO_LANE: AudioItem[] = []
-const NO_SPEECH: SourceRange[] = []
-/** A title added by its button shows this long, from the playhead. */
-const NEW_ITEM_SECONDS = 3
-/** Where new text and a new box, blur or pixelate go: the middle of the picture. */
-const NEW_TEXT_RECT = { x: 0.3, y: 0.66, width: 0.4, height: 0.14 }
-const NEW_MARK_RECT = { x: 0.35, y: 0.3, width: 0.3, height: 0.4 }
-/** How far into a clip a seek to its start goes when that moment also ends another clip. */
-const BOUNDARY_NUDGE_SECONDS = 0.01
-/** An added video's timeline has no cuts, takes, silences, fillers or audio flags: the main one's. */
-
-const overlaps = (a: SourceRange, b: SourceRange) =>
-	a.startSeconds < b.endSeconds && a.endSeconds > b.startSeconds
 
 /**
  * Pick a video, watch it, scrub it on the timeline and edit it. The file is
@@ -2464,82 +2454,5 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 				)}
 			</EditorShell>
 		</>
-	)
-}
-
-/** A button on the bar over the video: an icon, its name said and shown on hover. */
-function VideoToolButton({
-	label,
-	pressed,
-	onClick,
-	children
-}: {
-	label: string
-	pressed: boolean
-	onClick: () => void
-	children: React.ReactNode
-}) {
-	return (
-		<button
-			type="button"
-			aria-label={label}
-			title={label}
-			aria-pressed={pressed}
-			onClick={onClick}
-			className="text-text-muted hover:bg-surface-hover hover:text-text aria-pressed:bg-surface-hover aria-pressed:text-text focus-visible:outline-accent inline-flex size-8 items-center justify-center rounded-md focus-visible:outline-2"
-		>
-			{children}
-		</button>
-	)
-}
-
-/** The project's videos: the main one, and any added after it; add another, or replace the main one. */
-function VideosPanel({
-	main,
-	added,
-	canEdit,
-	onAdd,
-	replace,
-	input
-}: {
-	main: string
-	added: string[]
-	canEdit: boolean
-	onAdd: () => void
-	/** The main video's file picker, inside the Replace label. */
-	replace: React.ReactNode
-	input: React.ReactNode
-}) {
-	const t = useTranslations('Editor.videos')
-	return (
-		<section aria-label={t('label')} className="flex flex-col gap-4">
-			<Button type="button" disabled={!canEdit} onClick={onAdd} className="self-start">
-				<VideoIcon />
-				{t('add')}
-			</Button>
-			{input}
-			<ul className="flex flex-col gap-1.5">
-				{[main, ...added].map((name, index) => (
-					<li
-						key={`${index}-${name}`}
-						className="border-border bg-surface flex items-center gap-3 rounded-lg border px-3 py-2.5"
-					>
-						<VideoIcon className="text-text-faint shrink-0" />
-						<span className="text-text min-w-0 flex-1 truncate text-sm">{name}</span>
-						<span className="text-text-faint text-xs">{index === 0 ? t('main') : t('added')}</span>
-					</li>
-				))}
-			</ul>
-			<label
-				className={cn(
-					'border-border text-text hover:bg-surface-hover has-[:focus-visible]:outline-accent inline-flex h-9 cursor-pointer items-center gap-2 self-start rounded-md border px-3 text-sm font-medium has-[:focus-visible]:outline-2',
-					!canEdit && 'pointer-events-none opacity-40'
-				)}
-			>
-				{t('replace')}
-				{replace}
-			</label>
-			<p className="text-text-muted text-xs">{t('help')}</p>
-		</section>
 	)
 }

@@ -15,12 +15,13 @@ session with no memory of it can carry on. Read this whole file, then
 > - **Every AI call** goes through `src/server/ai/` with a required time limit (30 or 60 s) and an output cap, and writes one `ai_usage` row, priced when written.
 > - **Tests:** 679 unit (1 skipped on Windows), 142 e2e in 28 files, 6 database tests (`pnpm test:db`) on real Postgres.
 > - **CI:** commits (pull requests only), check, ai-models, build, e2e (4 shards), migrations, db-tests.
-> - **Largest code:** `VideoEditor` is one 2,260-line function (`video-editor.tsx`, lines 209 to 2468), being split into hooks one PR at a time (4 done; the plan is in section 3zzr). Make it's planner is split by concern: `make-plan.ts` (231 lines: `planMake`, 82, and re-exports) and `make-reply`, `make-request`, `make-context`, `make-cut`, `make-look`, `make-summary` (102 to 499 lines each).
+> - **Largest code:** `VideoEditor` is one 2,260-line function (`video-editor.tsx`, lines 199 to 2458, a 2,458-line file), being split one PR at a time (4 hooks and the file's helpers done; the plan is in section 3zzr). Make it's planner is split by concern: `make-plan.ts` (231 lines: `planMake`, 82, and re-exports) and `make-reply`, `make-request`, `make-context`, `make-cut`, `make-look`, `make-summary` (102 to 499 lines each).
 > - **No admin console, feature flags, API routes or production-migrations workflow** (removed in 3zzo); their tables `admin_members`, `feature_flags` and `feature_flag_overrides` stay in the schema, unused, until a migration drops them.
 > - **Decisions, trade-offs and known limits:** ARCHITECTURE.md.
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **VideoEditor's helpers and two small components in their own files** (section 3zzu).
 > - **VideoEditor's fourth hook: re-recording** (section 3zzt).
 > - **VideoEditor's third hook: the project file** (section 3zzs).
 > - **VideoEditor's second hook: the picked item** (section 3zzr).
@@ -506,6 +507,25 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzu. VideoEditor's helpers and two small components in their own files (2026-10-14)
+
+- **PR 6.5:** the file-level constants and helpers above `VideoEditor`
+  (`wordByWord`, `LoadedVideo`, `PREVIEW_GRADE`, `NO_LANE`, `NO_SPEECH`,
+  `NEW_ITEM_SECONDS`, `NEW_TEXT_RECT`, `NEW_MARK_RECT`,
+  `BOUNDARY_NUDGE_SECONDS`, `overlaps`) move to `video-editor-helpers.ts`,
+  and the two components after it to `components/preview/video-tool-button.tsx`
+  and `components/panels/videos-panel.tsx`. Each line unchanged; `export`
+  added so the component can import them. `VideoEditor`'s body is
+  byte-identical, so no hook, effect or dependency array moved.
+  `video-editor.tsx`: 2,545 to 2,458 lines.
+- **Carried over, unchanged:** a doc comment that already stood alone, with
+  nothing under it ("An added video's timeline has no cuts, takes, silences,
+  fillers or audio flags: the main one's."), moved with the constants.
+- **e2e:** no local run: Docker wasn't running (local Supabase down). CI's
+  four dev-mode shards (accounts off) are the full-suite result.
 
 ---
 
@@ -4593,6 +4613,12 @@ Not changed.
   `clip-speed.spec.ts:130` (exported 3.59 s for 3 s) and `motion.spec.ts:236`
   (a pop-in frame missed) failed and passed on a rerun; real-time export
   under load, neither touches the contact form or sign-in.
+
+- 2026-10-14, CI on PR #59 (`useReRecord`), shard 1:
+  `annotations.spec.ts:131` (boxes and blurs in the preview and the export)
+  failed once on a frame's brightness in the blurred area (`a frame inBlur:
+[0.109, 0.806, 1.786, ...]`) and passed on CI's retry; real-time export on
+  the CI runner, and the PR moved only re-recording's state and handlers.
 
 ### 4d. Low memory on this machine (observed 2026-10-02)
 
