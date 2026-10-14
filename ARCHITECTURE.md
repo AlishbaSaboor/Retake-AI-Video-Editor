@@ -292,10 +292,6 @@ Proof: `instrumentation-client.ts`, `src/proxy.ts`.
   TypeScript compiles (`import type`), so at runtime the modules load in one
   direction and there's no cycle. It's the cycle `make-plan.ts` had with the
   same two files before it was split.
-- **Unused template tables**: `admin_members`, `feature_flags` and
-  `feature_flag_overrides` (`prisma/schema/authz.prisma`, `flags.prisma`)
-  are still in the schema, though no code reads or writes them, because
-  dropping them is a migration of its own.
 - **CI doesn't exercise real sign-in**: it runs with accounts off, and the
   sign-in checks are covered by unit tests with the session mocked.
 - **The paid actions meet real Postgres, but never a real provider**: CI's
@@ -341,10 +337,8 @@ tuned for strangers on the internet.
 1. Bound Make it's reply: a length limit on each of its lists in the
    reply's schema and a thinking budget, so the plan's output cap can be
    proven rather than measured.
-2. Drop the unused `admin_members`, `feature_flags` and
-   `feature_flag_overrides` tables, in a migration of their own.
-3. Split the `VideoEditor` component into hooks by concern, one at a time.
-4. Run e2e against a real local Supabase in CI, so sign-in is exercised
+2. Split the `VideoEditor` component into hooks by concern, one at a time.
+3. Run e2e against a real local Supabase in CI, so sign-in is exercised
    there.
-5. Offer a way to move a project between browsers (an export and import of
+4. Offer a way to move a project between browsers (an export and import of
    the saved project).
