@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import {
 	AlertIcon,
@@ -23,9 +22,7 @@ import { useTakeAnalysis } from '@/app/[locale]/editor/audio/use-take-analysis'
 import { useRouter } from '@/i18n/routing'
 import { cn } from '@/lib/cn'
 import { clearMakeStart, peekMakeStart } from './make-start'
-import { captureFrames } from './frames'
 import {
-	frameTimes,
 	MAX_ANSWER_LENGTH,
 	MAX_MAKE_SECONDS,
 	MAX_REQUEST_LENGTH,
@@ -36,7 +33,8 @@ import {
 import { questionsToAsk, type MakeChoices, type QuestionId } from './make-questions'
 import { QuickQuestions } from './quick-questions'
 import { MakeRequestForm } from './make-request-form'
-import { buildPlan, type Ask, type Video } from './make-plan-request'
+import { useMakePlan } from './use-make-plan'
+import { type Ask, type Video } from './make-plan-request'
 
 const SECONDS_PER_MINUTE = 60
 /** How much of the opening line the plan quotes. */
@@ -79,39 +77,11 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 		return () => URL.revokeObjectURL(videoUrl)
 	}, [videoUrl])
 
-	const frames = useQuery({
-		queryKey: ['make-frames', video?.url],
-		queryFn: () => (video ? captureFrames(video.url, frameTimes(video.durationSeconds)) : []),
-		enabled: video !== null,
-		staleTime: Infinity,
-		retry: false
-	})
-
-	const transcriptState = analysis.transcript
-	const transcriptReady =
-		transcriptState.status === 'ready' || transcriptState.status === 'no_audio'
-	const transcript = transcriptState.status === 'ready' ? transcriptState.transcript : null
-	const fillerCuts = analysis.fillerPlans.flatMap((plan) =>
-		plan.kind === 'cut' ? [{ startSeconds: plan.startSeconds, endSeconds: plan.endSeconds }] : []
-	)
-
-	// Kept for the session: the same request on the same video doesn't pay twice.
-	const plan = useQuery({
-		queryKey: ['make-plan', video?.url, ask],
-		queryFn: async () => {
-			if (!video || !ask || !frames.data) throw new Error('nothing to plan')
-			return buildPlan({
-				video,
-				ask,
-				frames: frames.data,
-				transcript,
-				fillerCuts,
-				unclear: t('errors.planning')
-			})
-		},
-		enabled: video !== null && ask !== null && frames.data !== undefined && transcriptReady,
-		staleTime: Infinity,
-		retry: false
+	const { frames, transcriptReady, transcript, fillerCuts, plan, failed } = useMakePlan({
+		video,
+		ask,
+		analysis,
+		t
 	})
 
 	function pick(next: File) {
@@ -205,17 +175,6 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 		router.push('/editor')
 	}
 
-	// Plain words for each step that can fail; never an error's own text.
-	const failed =
-		transcriptState.status === 'failed'
-			? transcriptState.plain
-				? transcriptState.error
-				: t('errors.transcript')
-			: frames.isError
-				? t('errors.pictures')
-				: plan.isError
-					? plan.error.message
-					: null
 	const step = reading
 		? t('steps.reading')
 		: !transcriptReady

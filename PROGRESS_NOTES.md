@@ -21,6 +21,7 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **Make it's plan queries in their own hook** (section 3zzzc).
 > - **Make it's request form out of MakeIt** (section 3zzzb).
 > - **Make it's plan request out of MakeIt** (section 3zzza).
 > - **VideoEditor's tools in their own hook** (section 3zzz).
@@ -513,6 +514,33 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzzc. Make it's plan queries in their own hook (2026-10-14)
+
+Local branch `local/architecture`, not pushed. The last of the three moves
+out of `MakeIt` (see 3zzza, 3zzzb).
+
+- **The move:** the `frames` and `plan` queries, the transcript's values
+  between them (`transcriptState`, `transcriptReady`, `transcript`,
+  `fillerCuts`) and `failed`, 46 lines, into `useMakePlan`
+  (`make/use-make-plan.ts`, 73 lines), called where the `frames` query was,
+  with `video`, `ask`, `analysis` and `t`. It returns what the rest of
+  `MakeIt` reads: `frames`, `transcriptReady`, `transcript`, `fillerCuts`,
+  `plan`, `failed`. `step` stays (it reads `reading`).
+- **Proved the same:** the 46 moved lines are identical (compared with line
+  endings ignored: the comparison file was written with Windows ones; the
+  source is LF). `MakeIt`'s hook calls are the same up to the effects, then
+  `useMakePlan` where the two `useQuery` calls were; it makes those two, in
+  the same order. No runtime import cycle.
+- **Left as agreed:** the video's state (`useMakeVideo` would need calls both
+  ways with the request's), the stage chain, `apply()` and `PlanView` (321
+  lines, the file's largest piece now).
+- **Size:** `make-it.tsx` 833 to 792 lines. Over the three moves: the file
+  1,162 to 792, `MakeIt` 494 to 256 lines (lines 54 to 309).
+- **Tests:** none changed; unit 684. Make it's e2e specs on a production
+  build (:3200, invalid AI keys): 41/41 in 13.1 minutes.
 
 ---
 
