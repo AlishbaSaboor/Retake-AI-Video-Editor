@@ -14,13 +14,14 @@ session with no memory of it can carry on. Read this whole file, then
 > - **An unset AI key** sends no request, shows "The AI isn't available right now", and the log names the setting.
 > - **Every AI call** goes through `src/server/ai/` with a required time limit (30 or 60 s) and an output cap, and writes one `ai_usage` row, priced when written.
 > - **Tests:** 679 unit (1 skipped on Windows), 142 e2e in 28 files, 6 database tests (`pnpm test:db`) on real Postgres.
-> - **CI:** commits (pull requests only), check, ai-models, build, e2e (4 shards), migrations, db-tests.
+> - **CI:** commits (pull requests only), check, ai-models, build, e2e (4 shards), migrations, db-tests. Since 2026-10-13 GitHub hasn't started jobs (billing; section 3zzv).
 > - **Largest code:** `VideoEditor` is one 2,260-line function (`video-editor.tsx`, lines 199 to 2458, a 2,458-line file), being split one PR at a time (4 hooks and the file's helpers done; the plan is in section 3zzr). Make it's planner is split by concern: `make-plan.ts` (231 lines: `planMake`, 82, and re-exports) and `make-reply`, `make-request`, `make-context`, `make-cut`, `make-look`, `make-summary` (102 to 499 lines each).
 > - **No admin console, feature flags, API routes or production-migrations workflow** (removed in 3zzo); their tables `admin_members`, `feature_flags` and `feature_flag_overrides` stay in the schema, unused, until a migration drops them.
 > - **Decisions, trade-offs and known limits:** ARCHITECTURE.md.
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **CI blocked by GitHub billing; main checked locally** (section 3zzv).
 > - **VideoEditor's helpers and two small components in their own files** (section 3zzu).
 > - **VideoEditor's fourth hook: re-recording** (section 3zzt).
 > - **VideoEditor's third hook: the project file** (section 3zzs).
@@ -507,6 +508,35 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzv. CI blocked by GitHub billing; main checked locally (2026-10-14)
+
+- **What happened:** on `32bf00e` (the #60 merge), CI run
+  [38473323154](https://github.com/8xplays/t1-alishbasaboor/actions/runs/38473323154)
+  failed every job within 3 seconds, with no runner and no step run. Each job
+  carries GitHub's message: "The job was not started because recent account
+  payments have failed or your spending limit needs to be increased. Please
+  check the 'Billing & plans' section in your settings". **Not a code
+  failure:** the code never ran.
+- **The same code passed:** #60's own run,
+  [38471244261](https://github.com/8xplays/t1-alishbasaboor/actions/runs/38471244261)
+  on `df13989`, passed every job (check, build, migrations, ai-models,
+  db-tests, e2e 1 to 4 with no flaky test, commits). `32bf00e` has the same
+  tree as `df13989` (`2ff51ec`).
+- **Checked locally on `32bf00e` instead:** lint, typecheck (0 errors),
+  `check:env`, `check:secrets`, `check:standards` (24/24), the unit tests
+  (679: 678 pass, 1 skipped on Windows) and the production build all pass.
+  `format:check` fails only on three untracked files in `design/`, which
+  aren't in the repo; Prettier on all 483 tracked files passes, which is
+  what CI's clean checkout checks.
+- **Not run locally:** `pnpm test:db` (Docker wasn't running, so no local
+  Postgres) and the e2e suite (1.7 GB free, under the 2 GB needed for a
+  server and Chromium). So the migrations, db-tests, ai-models and e2e jobs
+  have no local stand-in for this commit.
+- **Until billing is fixed** (the account's Settings, Billing & plans), no CI
+  job runs on main or any pull request; no refactor goes ahead meanwhile.
 
 ---
 
