@@ -21,6 +21,7 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **Make it's plan request out of MakeIt** (section 3zzza).
 > - **VideoEditor's tools in their own hook** (section 3zzz).
 > - **All seven paid actions tested against real Postgres** (section 3zzy).
 > - **One Supabase call per paid action** (section 3zzx).
@@ -511,6 +512,29 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzza. Make it's plan request out of MakeIt (2026-10-14)
+
+Local branch `local/architecture`, not pushed. The first of three moves out
+of `MakeIt` (`make/make-it.tsx`, a 494-line component in a 1,162-line file):
+this one, then the request form (a component), then the plan's queries (a
+hook). Its video state, the stage chain, `apply()` and `PlanView` stay.
+
+- **The move:** the plan query's body (as `buildPlan()`), `requestPlan`,
+  `checkPlan` and the `Video` and `Ask` types, 114 lines, into
+  `make/make-plan-request.ts` (164 lines, no React). The query keeps its key,
+  its `enabled`, and its `nothing to plan` guard, and calls `buildPlan`.
+- **Proved the same:** `diff -w` of the moved lines shows only `export` on
+  the two types, three lines that read `frames` and `unclear` instead of
+  `frames.data` and `t('errors.planning')`, and one ternary Prettier put on
+  one line (the same tokens). `MakeIt`'s hook calls: the same 16, in the same
+  order. No runtime import cycle.
+- **Size:** `make-it.tsx` 1,162 to 1,038 lines.
+- **Tests:** none changed; unit 684. Make it's e2e specs (`make-it`,
+  `make-questions`, `make-presets`) on a production build (:3200, invalid AI
+  keys): 41/41 in 13.1 minutes.
 
 ---
 
