@@ -21,6 +21,7 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **One Supabase call per paid action** (section 3zzx).
 > - **Docs say it isn't deployed; CRON_SECRET removed** (section 3zzw).
 > - **VideoEditor's helpers and two small components in their own files** (section 3zzu).
 > - **VideoEditor's fourth hook: re-recording** (section 3zzt).
@@ -508,6 +509,42 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzx. One Supabase call per paid action (2026-10-14)
+
+Local branch `local/architecture`, not pushed.
+
+- **The change:** `src/proxy.ts` no longer looks the session up for a server
+  action (a POST with Next's `next-action` header) posted to a signed-in page
+  (`/home`, `/make`, `/projects`, `/editor`). The action checks it itself
+  (`validatedAction` → `requireUser`, a 401 when it can't confirm it), and its
+  Supabase client saves a refreshed session in the action's response. Page
+  loads, POSTs without the header, and `/login` and its actions are unchanged.
+  The comment in `src/lib/supabase/server.ts` that said the proxy refreshes
+  on every request is corrected.
+- **Behaviour change, deliberate:** a signed-out paid-action call on a
+  signed-in page used to get the proxy's 307 to `/login`, which the page
+  showed as Next's "UnrecognizedActionError: Server Action … was not found on
+  the server"; it now gets the action's own refusal, shown as "Couldn't run
+  that command — Sign in to use this."
+- **Proved in a browser** (production builds of the old and new proxy on
+  :3200, real local Supabase, the e2e user, no AI keys so nothing left the
+  machine): (a) signed out on the editor and (b) the session ended on
+  Supabase's side while the editor was open both show "Sign in to use this."
+  (before: the UnrecognizedActionError); (c) signed in with an access token
+  marked expired, the call gets through and the session is refreshed, its new
+  cookie set on the action's own response. Auth's log for (c): one token
+  refresh and 3 user lookups, against 4 before (the proxy's is the one gone).
+  The two `ai_usage` error rows it wrote were removed (457 rows before and
+  after).
+- **Tests:** 3 new in `proxy.test.mts` (an action POST to a signed-in page:
+  no Supabase call, no redirect; a POST without the header still guarded;
+  `/login` actions unchanged) and 2 in the new `server.test.mts` (a refresh in
+  an action is written to the response's cookies; in a Server Component it's
+  skipped quietly). With the change removed, the first proxy test fails. The
+  existing refusal tests for the 7 paid actions are unchanged.
 
 ---
 

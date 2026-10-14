@@ -195,10 +195,15 @@ message. Proof: `src/app/[locale]/editor/audio/take-audio.ts`
 
 The sign-in redirect in `src/proxy.ts` lets a request through when Supabase
 can't be reached, so each of the seven paid actions checks the session
-itself and refuses with a 401 when it can't confirm it. A production server
-won't start without the Supabase settings (it logs which to set and exits).
-Every provider call has a time limit (30 or 60 s).
-_Trade-off:_ if Supabase is down, the AI features are down too.
+itself and refuses with a 401 when it can't confirm it; the page shows
+"Sign in to use this." The proxy doesn't look the session up for a server
+action posted to a signed-in page at all: the action's own check is the
+only one, so a paid action makes one call to Supabase, not two, and a
+session refreshed during it is saved in the action's response. A production
+server won't start without the Supabase settings (it logs which to set and
+exits). Every provider call has a time limit (30 or 60 s).
+_Trade-off:_ if Supabase is down, the AI features are down too; a
+signed-out action call isn't redirected to sign in, it's refused in place.
 Proof: `src/server/auth/session.ts` (`requireUser`),
 `src/server/actions/validated-action.ts`, `src/lib/production-settings.ts`,
 `instrumentation.ts`.
@@ -252,7 +257,8 @@ PostHog gets the typed events and page views only: autocapture and session
 recording are off in code (`src/lib/posthog/init-options.ts`), whatever
 PostHog's own settings say. The proxy refreshes the Supabase session only
 on the pages that read it (the signed-in pages and sign-in), so a public
-page makes no call to Supabase.
+page makes no call to Supabase; nor does a server action posted to a
+signed-in page, which checks and refreshes the session itself.
 _Trade-off:_ PostHog's heatmaps and replays aren't available; a new page
 that reads the session must be added to `SESSION_PAGES` in `src/proxy.ts`.
 Proof: `instrumentation-client.ts`, `src/proxy.ts`.
