@@ -9,10 +9,14 @@ const intlProxy = createIntlMiddleware(routing)
 // Refreshes the Supabase session cookie on the pages that use the session
 // (SESSION_PAGES), then hands off to next-intl's locale routing. A public
 // page (the landing page, Privacy) never reads the session, so it makes no
-// call to Supabase. Order matters: Supabase's cookie writes have
-// to survive whatever next-intl's proxy does next (redirect or rewrite), so
-// we run Supabase first and copy its Set-Cookie headers onto whatever
-// response next-intl produces — not the other way around.
+// call to Supabase; nor does a server action posted to a signed-in page,
+// which checks the session itself (validatedAction → requireUser, failing
+// closed with a 401) and saves a refreshed one through its own cookies, so
+// one paid action makes one call to Supabase, not two. Order matters:
+// Supabase's cookie writes have to survive whatever next-intl's proxy does
+// next (redirect or rewrite), so we run Supabase first and copy its
+// Set-Cookie headers onto whatever response next-intl produces — not the
+// other way around.
 export default async function proxy(request: NextRequest) {
 	let supabaseResponse = NextResponse.next({ request })
 
@@ -22,7 +26,12 @@ export default async function proxy(request: NextRequest) {
 	// then nothing is guarded, as nothing could be checked).
 	let signedIn: boolean | null = null
 
-	if (supabaseUrl && supabasePublishableKey && SESSION_PAGES.some(within(pagePath(request)))) {
+	if (
+		supabaseUrl &&
+		supabasePublishableKey &&
+		SESSION_PAGES.some(within(pagePath(request))) &&
+		!(isServerAction(request) && SIGNED_IN_PAGES.some(within(pagePath(request))))
+	) {
 		// Typed to the auth surface like the wrappers in src/lib/supabase/ —
 		// this is the one other place the SDK is constructed, and it exists
 		// only to refresh the session cookie.
@@ -97,6 +106,9 @@ function localePath(request: NextRequest): { prefix: string; path: string } {
 	return { prefix, path: pathname.slice(prefix.length) || '/' }
 }
 const pagePath = (request: NextRequest) => localePath(request).path
+/** A server action's call: Next posts it to the page with this header (its ACTION_HEADER). */
+const isServerAction = (request: NextRequest) =>
+	request.method === 'POST' && request.headers.has('next-action')
 /** Whether `path` is `page` or a page under it. */
 const within = (path: string) => (page: string) => path === page || path.startsWith(`${page}/`)
 
