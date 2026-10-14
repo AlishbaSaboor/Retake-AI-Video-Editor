@@ -21,6 +21,7 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **VideoEditor's tools in their own hook** (section 3zzz).
 > - **All seven paid actions tested against real Postgres** (section 3zzy).
 > - **One Supabase call per paid action** (section 3zzx).
 > - **Docs say it isn't deployed; CRON_SECRET removed** (section 3zzw).
@@ -510,6 +511,39 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzz. VideoEditor's tools in their own hook (2026-10-14)
+
+Local branch `local/architecture`, not pushed.
+
+- **The move:** the rail's tools (the `tool()` helper and the `tools` array:
+  14 tools, each an icon and its panel's JSX), 330 lines of `VideoEditor`,
+  moved unchanged into `useEditorTools`
+  (`components/shell/use-editor-tools.tsx`, 602 lines). It's called where the
+  block was, with the 87 editor values it reads passed by name; all 87 are
+  declared earlier in `VideoEditor` (lines 200 to 1546 before), so nothing
+  was reordered. 33 imports went with it (31 panels and icons,
+  `resizedLogo`, `transitionInto`); six used by both files are imported in
+  both.
+- **A hook, not a plain function:** React Compiler compiles only components
+  and hooks. As a hook, each panel's element stays memoized on the values it
+  reads; a plain function wouldn't be compiled, and the open panel would
+  re-render on every playback frame (the playhead is one of the 87).
+  ARCHITECTURE.md's known limits say so.
+- **Proved the same:** the 330 moved lines are byte-for-byte identical to
+  the block they replace (`diff` and `diff -w` both empty). Every other change
+  to `video-editor.tsx` is in its imports, plus the call; two imports left with
+  only types became `import type`. The hook-call order in `VideoEditor` is
+  unchanged: the same 75 calls in the same order, with `useEditorTools` 76th,
+  after them all. No runtime import cycle, before or after.
+- **Size:** `video-editor.tsx` 2,458 to 2,180 lines; `VideoEditor` 2,260 to
+  2,019 lines (lines 162 to 2180).
+- **Tests:** none changed; unit 684, database 13. Full e2e on a production
+  build (:3200, invalid AI keys): 141/142 in 36 minutes. `make-it.spec.ts:808`
+  timed out waiting for an export's download, then passed twice when rerun
+  alone; it's on the Make it page, which doesn't use `VideoEditor` (see 4c).
 
 ---
 
@@ -4726,6 +4760,13 @@ Not changed.
   failed once on a frame's brightness in the blurred area (`a frame inBlur:
 [0.109, 0.806, 1.786, ...]`) and passed on CI's retry; real-time export on
   the CI runner, and the PR moved only re-recording's state and handlers.
+
+- 2026-10-14, local branch `local/architecture` (`useEditorTools`), a full
+  run on a production build on :3200 (2.4 to 3.0 GB free): `make-it.spec.ts:808`
+  (a reel of a meeting) timed out at 150 s waiting for the export's download,
+  then passed twice when rerun alone against the same server (2.1 GB free).
+  Real-time export under load. Make it builds no tool panels, and the move
+  changed no line of them.
 
 ### 4d. Low memory on this machine (observed 2026-10-02)
 
