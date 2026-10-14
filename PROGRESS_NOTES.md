@@ -21,6 +21,7 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **All seven paid actions tested against real Postgres** (section 3zzy).
 > - **One Supabase call per paid action** (section 3zzx).
 > - **Docs say it isn't deployed; CRON_SECRET removed** (section 3zzw).
 > - **VideoEditor's helpers and two small components in their own files** (section 3zzu).
@@ -509,6 +510,46 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzy. All seven paid actions tested against real Postgres (2026-10-14)
+
+Local branch `local/architecture`, not pushed.
+
+- **What's new:** `paid-action.db-test.mts` ran only `parseEditCommand`; it
+  now runs the other six as well (`findHighlights`, `planMakeIt`,
+  `checkMakePlan`, `followUpMakeIt`, `transcribeTake`,
+  `transcribeVoiceCommand`): the real action, allowance, wrapper (the real
+  Gemini SDK; Deepgram's own `fetch`) and usage sink, against real Postgres.
+  Gemini, Deepgram and OpenRouter answer through the stand-in `fetch`; any
+  other URL throws, so no real call can leave.
+- **Each test checks:** the action's result; what went on the wire (Gemini:
+  model, key, the feature's output cap, the plan's two pictures at medium
+  detail, no pictures in the check or the follow-up; Deepgram: `nova-3`,
+  `filler_words`, `punctuate`, the `Token` header, `audio/wav`, the audio
+  bytes whole); the right allowance kind taken by one; and the one `ai_usage`
+  row, priced (Gemini by tokens, e.g. 900 micro-USD for the plan; Deepgram
+  per minute: 4,300 for a minute, 215 for 3 seconds). A seventh new test: a
+  busy Deepgram (503) shows the plain message, gives the voice allowance
+  back, and records the failure unpriced.
+- **Only their own rows:** one fresh random user; `ai_usage` rows removed by
+  the fake's own request ids, or as the single failed row carrying its 503.
+  Local counts before and after: `ai_usage` 457 (max id 491), `ai_allowances`
+  10, `users` 5, `auth.users` 5, identical; no `test-` request id left. A
+  snapshot of every public table, `auth.users`, `auth.sessions` and
+  `auth.refresh_tokens` (count and an md5 of every row) was identical before
+  and after a run; only the `ai_usage` id sequence moved (546 to 555: nine
+  rows written, nine removed).
+- **The tests can fail:** with the highlights action set to the command
+  allowance, Deepgram's `filler_words` off, and the plan's medium detail
+  removed, the highlights, both Deepgram and the plan tests failed; restored
+  after.
+- **Unchanged:** the two existing tests. Their helpers `waitForUsage` and
+  `used` gained an optional feature and kind, defaulting to the typed
+  command's, so their calls read as before.
+- **Tests:** database tests 6 to 13; unit 684, unchanged. Full e2e on a
+  production build (:3200, invalid AI keys): 142/142 in 33.4 minutes.
 
 ---
 
