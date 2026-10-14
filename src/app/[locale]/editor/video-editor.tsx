@@ -3,41 +3,21 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-	ArticleIcon,
-	CaptionsIcon,
-	CleanupIcon,
-	ColourIcon,
-	CropIcon,
-	DrawIcon,
-	MusicIcon,
-	PauseIcon,
-	PlayIcon,
-	ProjectsIcon,
-	SelectIcon,
-	SparkleIcon,
-	HighlightIcon,
-	SpeedIcon,
-	TextIcon,
-	TransitionIcon,
-	VideoIcon
-} from '@/components/ui/icons'
+import { CropIcon, DrawIcon, PauseIcon, PlayIcon, SelectIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { toast } from '@/lib/toast'
 import { AnnotationLayer } from './components/preview/annotation-layer'
-import { AnnotationPanel, useAnnotationTools } from './components/panels/annotation-panel'
+import { useAnnotationTools } from './components/panels/annotation-panel'
 import { newSpan, type Annotation, type NewAnnotation, type Rect } from './overlays/annotations'
 import { keptSeconds, mergeCuts, planCleanup, type Cut, type Edit } from './model/cleanup'
 import { DEFAULT_CLIP_AUDIO, type ClipAudio } from './model/clip-audio'
-import { ClipAudioPanel } from './components/panels/clip-audio-panel'
-import { CleanupPanel } from './components/panels/cleanup-bar'
 import type { ClipSelection } from './model/clip-selection'
 import { CompareToggle } from './components/preview/compare-toggle'
 import { captionAt, editedCaptions, editedWords, type CaptionMode } from './overlays/captions'
 import { cardRect, type Design } from './overlays/design'
 import { DesignCanvas } from './components/preview/design-canvas'
 import { isPlanEdit, type MadePlan } from '@/app/[locale]/(app)/make/make-plan'
-import { CommandBar, type AttachedAs, type FollowUps } from './components/assistant/command-bar'
+import type { AttachedAs, FollowUps } from './components/assistant/command-bar'
 import { planFollowUp } from './components/assistant/make-follow-ups'
 import { setSideOpen, useSideOpen } from './components/shell/editor-layout-store'
 import { EditorShell } from './components/shell/editor-shell'
@@ -48,23 +28,18 @@ import { useEditorShortcuts } from './components/shell/use-editor-shortcuts'
 import { ItemToolbar } from './components/preview/item-toolbar'
 import { usePickedItem } from './components/preview/use-picked-item'
 import { LeaveGuard } from './components/shell/leave-guard'
-import {
-	AnnotatePanel,
-	TextLogoPanel,
-	type MarkKind,
-	type Picked
-} from './components/panels/on-video-panels'
+import type { MarkKind, Picked } from './components/panels/on-video-panels'
 import { TitleBox } from './components/preview/title-box'
-import { ToolRail, type Tool } from './components/shell/tool-rail'
+import { ToolRail } from './components/shell/tool-rail'
+import { useEditorTools } from './components/shell/use-editor-tools'
 import { ProjectTitle } from './components/shell/project-title'
 import { takeStart, type MadeWith } from './projects/editor-start'
-import { MadeWithIntro, ModeSwitch, StudioCards, StudioChatHeader } from './components/shell/studio'
+import { ModeSwitch, StudioCards, StudioChatHeader } from './components/shell/studio'
 import type { CommandContext, CommandPlan, TextTarget } from './assistant/edit-command'
 import { isOriginalEdit, ORIGINAL_EDIT, type EditSnapshot } from './model/edit-snapshot'
 import { ExportButton, useVideoExport } from './export/export-button'
 import { totalSeconds } from './export/export-video'
 import { FillerCutEditor } from './components/timeline/filler-cut-editor'
-import { CaptionsPanel, GraphicsPanel } from './components/panels/graphics-panel'
 import { cutEditorWindow, initialCutRange, moveCutEdge, type FillerPlan } from './audio/filler-cuts'
 import { emptyHistory, record, redo, reset, undo, type Step } from './model/history'
 import { OverlayPreview } from './components/preview/overlay-preview'
@@ -78,12 +53,7 @@ import {
 	withRotation,
 	type PictureTransform
 } from './model/transform'
-import {
-	CropBox,
-	RotateHandle,
-	TransformPanel,
-	type TransformMode
-} from './components/panels/transform-panel'
+import { CropBox, RotateHandle, type TransformMode } from './components/panels/transform-panel'
 import {
 	editedSecondsAt,
 	readLogo,
@@ -96,7 +66,6 @@ import {
 import { previewWindow, reRecordBlocker, type ReplacementTake } from './audio/re-record'
 import { useReRecord, useReRecordActions } from './audio/use-re-record'
 import { VideoToolButton } from './components/preview/video-tool-button'
-import { VideosPanel } from './components/panels/videos-panel'
 import {
 	BOUNDARY_NUDGE_SECONDS,
 	NEW_ITEM_SECONDS,
@@ -113,7 +82,6 @@ import { ReRecordPanel } from './components/panels/re-record-panel'
 import { JoinEditor } from './components/timeline/join-editor'
 import { joinViews, planSentenceSplice } from './audio/sentence-splice'
 import { SpeedToggle } from './components/preview/speed-toggle'
-import { TransitionPanel } from './components/panels/transition-panel'
 import {
 	clipMatrix,
 	gradeFilterId,
@@ -122,7 +90,7 @@ import {
 	type ColorGrade,
 	type ColorMatrix
 } from './model/color-grade'
-import { ColorPanel, GradeFilters } from './components/panels/color-panel'
+import { GradeFilters } from './components/panels/color-panel'
 import { DEFAULT_TEXT_STYLE, type TextStyle } from './overlays/text-style'
 import {
 	NO_ANIMATION,
@@ -134,11 +102,10 @@ import {
 	type Motion,
 	type Zoom
 } from './overlays/motion'
-import { inCorner, LOGO_TYPES, resizedLogo } from './overlays/logo'
+import { inCorner, LOGO_TYPES } from './overlays/logo'
 import { LogoBox } from './components/preview/logo-box'
-import { ZoomPanel } from './components/panels/motion-panels'
 import { ZoomBox } from './components/preview/zoom-box'
-import { ProjectList, ProjectPanel, RelinkPanel } from './components/panels/project-panel'
+import { ProjectList, RelinkPanel } from './components/panels/project-panel'
 import { listProjects } from './projects/projects'
 import type { Transcript } from './audio/transcript'
 import { fadeLevelAt, overlapsClips, type TransitionKind } from './model/transitions'
@@ -158,7 +125,6 @@ import {
 	type SourceEdits,
 	withClipColor,
 	setTransition,
-	transitionInto,
 	mergeClips,
 	moveClip,
 	playableSegments,
@@ -174,17 +140,14 @@ import {
 	type TrimEdge,
 	type TrimRange
 } from './model/timeline-scale'
-import { TranscriptPanel } from './components/panels/transcript-panel'
-import { HighlightsDialog, HighlightsPanel } from './components/panels/highlights-dialog'
+import { HighlightsDialog } from './components/panels/highlights-dialog'
 import { UploadDropzone } from './components/shell/upload-dropzone'
 import { useSequencePlayback, type SourceUrls } from './components/preview/use-sequence-playback'
 import { useTakeAnalysis } from './audio/use-take-analysis'
 import { extractBlocker, extractedItem, speechSpans, type AudioItem } from './model/audio-lane'
-import { AudioLanePanel } from './components/panels/audio-lane-panel'
 import { probeVideo, type AddedVideo } from './model/sources'
 import { decodeAudio } from './audio/take-audio'
 import { PROJECTS_KEY, useProjectFile } from './projects/use-project-file'
-import { VideoFileInput } from './components/shell/video-file-input'
 import { formatTimecode } from './model/timeline-scale'
 
 /**
@@ -1574,336 +1537,95 @@ export function VideoEditor({ openProjectId = null }: { openProjectId?: string |
 		setOpenTool
 	})
 
-	const tool = (
-		id: string,
-		group: Tool['group'],
-		icon: React.ReactNode,
-		panel: React.ReactNode
-	): Tool => ({
-		id,
-		group,
-		icon,
-		label: t(`tools.rail.${id}.label`),
-		help: t(`tools.rail.${id}.help`),
-		keywords: t(`tools.rail.${id}.keywords`),
-		panel
+	const tools = useEditorTools({
+		t,
+		video,
+		hasDuration,
+		canEdit,
+		pickedNow,
+		pick,
+		seekEdited,
+		recordEdit,
+		editedSeconds,
+		editedNow,
+		annotations,
+		title,
+		watermark,
+		lowerThird,
+		sequence,
+		replacements,
+		commandContext,
+		applyCommand,
+		attachFile,
+		startCommand,
+		followUps,
+		studio,
+		made,
+		analysis,
+		playback,
+		openReRecord,
+		replacedSpans,
+		openHighlights,
+		removableSeconds,
+		fillerCuts,
+		applyCleanup,
+		captionsOn,
+		changeCaptions,
+		captionMode,
+		changeCaptionMode,
+		captionStyle,
+		changeCaptionStyle,
+		addTitleNow,
+		addTextNow,
+		pickLogo,
+		addLogo,
+		changeTitle,
+		changeAnnotation,
+		changeWatermark,
+		moveWatermark,
+		setWatermark,
+		changeLowerThird,
+		pictureSize,
+		transform,
+		logoInputRef,
+		annotationTools,
+		addMark,
+		removeAnnotation,
+		audioItems,
+		extractBlockers,
+		pickAudio,
+		addAudioFile,
+		extractClip,
+		changeAudioItem,
+		deleteAudioItem,
+		audioInputRef,
+		addedVideos,
+		pickVideo,
+		addVideo,
+		loadFile,
+		videoInputRef,
+		picture,
+		transformMode,
+		changeTransformMode,
+		changeTransform,
+		zoom,
+		zoomAreaMode,
+		aimZoom,
+		changeZoom,
+		color,
+		changeColor,
+		changeClipAudio,
+		setClipsSpeed,
+		edit,
+		sourceEdits,
+		changeTransition,
+		project,
+		saveStatus,
+		savedAt,
+		projects,
+		openSaved,
+		removeProject
 	})
-	const tools: Tool[] =
-		video && hasDuration
-			? [
-					{
-						...tool('assistant', 'assist', <SparkleIcon size={18} />, null),
-						fill: true,
-						panel: (
-							<CommandBar
-								context={commandContext}
-								hasWatermark={watermark !== null}
-								onApply={applyCommand}
-								onAttach={attachFile}
-								initialCommand={startCommand}
-								followUps={followUps}
-								intro={studio && made ? <MadeWithIntro made={made} /> : null}
-							/>
-						)
-					},
-					tool(
-						'transcript',
-						'assist',
-						<ArticleIcon size={18} />,
-						<TranscriptPanel
-							state={analysis.transcript}
-							onSeek={playback.seek}
-							onReRecord={analysis.loudness && canEdit ? openReRecord : undefined}
-							replacedSpans={replacedSpans}
-							silences={analysis.silences}
-							fillerPlans={analysis.fillerPlans}
-							audioIssues={analysis.audioIssues}
-						/>
-					),
-					tool(
-						'highlights',
-						'assist',
-						<HighlightIcon size={18} />,
-						<HighlightsPanel onOpen={openHighlights} />
-					),
-					tool(
-						'cleanup',
-						'fix',
-						<CleanupIcon size={18} />,
-						<CleanupPanel
-							removableSeconds={removableSeconds}
-							editedSeconds={editedSeconds}
-							canEdit={canEdit}
-							silenceCount={analysis.silences.length}
-							fillerCutCount={fillerCuts.length}
-							fillerReviewCount={analysis.fillerPlans.length - fillerCuts.length}
-							onApply={applyCleanup}
-							reading={
-								analysis.transcript.status === 'analyzing' ||
-								analysis.transcript.status === 'transcribing'
-							}
-						/>
-					),
-					tool(
-						'captions',
-						'add',
-						<CaptionsIcon size={18} />,
-						<CaptionsPanel
-							captionsOn={captionsOn}
-							onCaptionsChange={changeCaptions}
-							captionMode={captionMode}
-							onCaptionModeChange={changeCaptionMode}
-							captionStyle={captionStyle}
-							onCaptionStyleChange={changeCaptionStyle}
-							canEdit={canEdit}
-						/>
-					),
-					tool(
-						'text',
-						'add',
-						<TextIcon size={18} />,
-						<>
-							<TextLogoPanel
-								title={title}
-								lowerThird={lowerThird}
-								watermark={watermark}
-								texts={annotations.flatMap((item, index) =>
-									item.kind === 'text' ? [{ item, number: index + 1 }] : []
-								)}
-								picked={pickedNow}
-								canEdit={canEdit}
-								onPick={(next) => {
-									pick(next)
-									const at =
-										next.kind === 'title'
-											? title?.startSeconds
-											: next.kind === 'lowerThird'
-												? lowerThird?.startSeconds
-												: next.kind === 'annotation'
-													? annotations.find((item) => item.id === next.id)?.startSeconds
-													: undefined
-									if (at !== undefined) seekEdited(at)
-								}}
-								onAddTitle={addTitleNow}
-								onAddText={addTextNow}
-								onAddLogo={() => pickLogo(watermark?.corner ?? 'bottom-right')}
-								onTitleChange={changeTitle}
-								onTextChange={changeAnnotation}
-								onLogoSize={(size) =>
-									watermark &&
-									changeWatermark(resizedLogo(watermark, outputSize(pictureSize, transform), size))
-								}
-								more={
-									<GraphicsPanel
-										key={title ? JSON.stringify(title) : 'no title'}
-										title={title}
-										watermark={watermark}
-										onTitleChange={changeTitle}
-										onPickLogo={pickLogo}
-										onCornerChange={moveWatermark}
-										onLogoChange={changeWatermark}
-										frame={outputSize(pictureSize, transform)}
-										onRemoveWatermark={() => {
-											recordEdit()
-											setWatermark(null)
-										}}
-										lowerThird={lowerThird}
-										onLowerThirdChange={changeLowerThird}
-									/>
-								}
-							/>
-							<input
-								ref={logoInputRef}
-								type="file"
-								accept={LOGO_TYPES.join(',')}
-								aria-label={t('graphics.logoInput')}
-								className="sr-only"
-								tabIndex={-1}
-								onChange={(event) => {
-									const file = event.currentTarget.files?.[0]
-									// Cleared so picking the same file again still counts.
-									event.currentTarget.value = ''
-									if (file) void addLogo(file)
-								}}
-							/>
-						</>
-					),
-					tool(
-						'annotate',
-						'add',
-						<DrawIcon size={18} />,
-						<AnnotatePanel
-							marks={annotations.flatMap((item, index) =>
-								item.kind === 'text' ? [] : [{ item, number: index + 1 }]
-							)}
-							picked={pickedNow}
-							drawing={annotationTools.tool === 'pencil'}
-							canEdit={canEdit}
-							onPick={(next) => {
-								pick(next)
-								const item =
-									next.kind === 'annotation'
-										? annotations.find((each) => each.id === next.id)
-										: undefined
-								if (item) seekEdited(item.startSeconds)
-							}}
-							onAdd={addMark}
-							onDraw={(on) => {
-								pick(null)
-								annotationTools.setTool(on ? 'pencil' : null)
-							}}
-							more={
-								<AnnotationPanel
-									tools={annotationTools}
-									annotations={annotations}
-									editedSeconds={editedSeconds}
-									playheadSeconds={editedNow}
-									onChange={changeAnnotation}
-									onErase={removeAnnotation}
-								/>
-							}
-						/>
-					),
-					tool(
-						'audio',
-						'add',
-						<MusicIcon size={18} />,
-						<>
-							<AudioLanePanel
-								items={audioItems}
-								editedSeconds={editedSeconds}
-								playheadSeconds={editedNow}
-								extractBlockers={extractBlockers}
-								canEdit={canEdit}
-								onAddFile={pickAudio}
-								onExtract={(index) => void extractClip(index)}
-								onChange={changeAudioItem}
-								onDelete={deleteAudioItem}
-							/>
-							<input
-								ref={audioInputRef}
-								type="file"
-								accept="audio/*"
-								aria-label={t('audioLane.fileInput')}
-								className="sr-only"
-								tabIndex={-1}
-								onChange={(event) => {
-									const file = event.currentTarget.files?.[0]
-									// Cleared so picking the same file again still counts.
-									event.currentTarget.value = ''
-									if (file) void addAudioFile(file)
-								}}
-							/>
-						</>
-					),
-					tool(
-						'videos',
-						'add',
-						<VideoIcon size={18} />,
-						<VideosPanel
-							main={video.name}
-							added={addedVideos.map((added) => added.name)}
-							canEdit={canEdit}
-							onAdd={pickVideo}
-							replace={<VideoFileInput onFile={(file) => loadFile(file)} />}
-							input={
-								<input
-									ref={videoInputRef}
-									type="file"
-									accept="video/*"
-									aria-label={t('addVideoInput')}
-									className="sr-only"
-									tabIndex={-1}
-									onChange={(event) => {
-										const file = event.currentTarget.files?.[0]
-										// Cleared so picking the same file again still counts.
-										event.currentTarget.value = ''
-										if (file) void addVideo(file)
-									}}
-								/>
-							}
-						/>
-					),
-					tool(
-						'frame',
-						'adjust',
-						<CropIcon size={18} />,
-						<>
-							{picture && (
-								<TransformPanel
-									key={JSON.stringify(transform)}
-									transform={transform}
-									picture={picture}
-									mode={transformMode}
-									canEdit={canEdit}
-									onModeChange={changeTransformMode}
-									onChange={changeTransform}
-								/>
-							)}
-							<ZoomPanel
-								key={JSON.stringify(zoom)}
-								zoom={zoom}
-								editedSeconds={editedSeconds}
-								playheadSeconds={editedNow}
-								canEdit={canEdit}
-								aiming={zoomAreaMode}
-								onAim={aimZoom}
-								onChange={changeZoom}
-							/>
-						</>
-					),
-					tool(
-						'colour',
-						'adjust',
-						<ColourIcon size={18} />,
-						<ColorPanel
-							video={color}
-							clips={sequence.map((clip) => clip.color)}
-							canEdit={canEdit}
-							onChange={changeColor}
-						/>
-					),
-					tool(
-						'speed',
-						'adjust',
-						<SpeedIcon size={18} />,
-						<ClipAudioPanel
-							clips={sequence}
-							withTake={sequence.map((clip) => clipHasTake(clip, replacements))}
-							inLane={sequence.map((clip) => clip.soundInLane === true)}
-							canEdit={canEdit}
-							onChange={changeClipAudio}
-							onSpeedChange={(index, speed) => setClipsSpeed(speed, index)}
-						/>
-					),
-					tool(
-						'transitions',
-						'adjust',
-						<TransitionIcon size={18} />,
-						<TransitionPanel
-							joins={sequence.slice(1).map((_, i) => ({
-								transition: transitionInto(sequence, i + 1),
-								limit: joinLimit(sequence, i + 1, edit, replacements, sourceEdits) ?? 0
-							}))}
-							canEdit={canEdit}
-							onChange={changeTransition}
-						/>
-					),
-					tool(
-						'project',
-						'project',
-						<ProjectsIcon size={18} />,
-						<ProjectPanel
-							name={project?.name ?? null}
-							status={saveStatus}
-							savedAt={savedAt}
-							projects={projects.data ?? []}
-							onOpen={(id) => void openSaved(id)}
-							onDelete={(id) => void removeProject(id)}
-						/>
-					)
-				]
-			: []
 
 	const unsaved = Boolean(video) && hasDuration && history !== savedHistory
 	const frameSize = outputSize(pictureSize, shownTransform)
