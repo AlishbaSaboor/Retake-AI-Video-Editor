@@ -66,7 +66,6 @@ jobs:
       # DIRECT_URL deliberately not set here — only the Prisma CLI's
       # migrate commands read it, never `next build` or the running app.
       DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
-      CRON_SECRET: placeholder-secret-for-build-only
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -90,7 +89,6 @@ jobs:
         shard: [1, 2, 3, 4]
     env:
       DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
-      CRON_SECRET: placeholder-secret-for-e2e-only
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
