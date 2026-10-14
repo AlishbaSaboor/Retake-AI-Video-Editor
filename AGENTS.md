@@ -130,8 +130,8 @@ of one monolithic instructions file.
   description last, once the work is actually done, not at PR-creation
   time when it can still change. Open as draft if you need a PR to exist
   before then.
-- **[Deployment](docs/rules/deployment.md)** — never deploy manually; what
-  CI/CD actually does instead.
+- **[Deployment](docs/rules/deployment.md)** — never deploy manually;
+  Retake isn't deployed, so nothing deploys on a push or a tag.
 
 `docs/STANDARDS.md` is the checklist of what every 8x repo carries — the
 files, hooks, gates and config behind the rules above — paired with the
@@ -141,9 +141,9 @@ pull request. It is also the playbook for bringing an existing repo onto
 these standards: point the script at that repo and its failures are the
 to-do list.
 
-`docs/CI_CD_SETUP.md` has the human side of this — which GitHub secrets,
-environments, and Vercel settings need to exist for the above to actually
-work, not just be documented.
+`docs/CI_CD_SETUP.md` has the human side of this — which GitHub secrets
+and settings need to exist for the above to actually work, not just be
+documented.
 
 ## Per-tool entry points
 

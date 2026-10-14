@@ -44,11 +44,14 @@ flowchart LR
 ```
 
 The file itself is played from an object URL, edited, exported and saved in
-the browser. Only four things leave it: the decoded audio (for a
-transcript, to Deepgram), the microphone recording of a spoken command (to
-Deepgram), text (typed commands, spoken commands once transcribed, the
-transcript's sentences, to Gemini) and, for Make it, the transcript plus one
-small picture every 2 seconds (to Gemini).
+the browser. Of the video and what's said in it, only four things leave
+it: the decoded audio (for a transcript, to Deepgram), the microphone
+recording of a spoken command (to Deepgram), text (typed commands, spoken
+commands once transcribed, the transcript's sentences, to Gemini) and, for
+Make it, the transcript plus one small picture every 2 seconds (to Gemini).
+Once their keys are set, PostHog also receives the typed events and page
+views (ids, enums and booleans, never the video or what's said) and Sentry
+receives error reports; with no key set, neither sends anything.
 
 ## Module map
 
@@ -57,15 +60,15 @@ are only the route (`page.tsx`, `layout.tsx`), its server actions
 (`actions.ts`), `video-editor.tsx`, the component that wires the rest
 together, and `video-editor-helpers.ts`, its constants and small helpers. Each test sits next to the file it tests.
 
-| Folder        | What's in it                                                                                                                                                                                                                                                                                                                                                                                    |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `model/`      | The edit itself, as plain TypeScript: clips and their order, cuts, speed, transitions, picture transforms, color, the audio lane, added videos, undo history.                                                                                                                                                                                                                                   |
-| `overlays/`   | What's drawn over the picture: titles, lower thirds, captions, logos, annotations, motion, designed frames, text styles.                                                                                                                                                                                                                                                                        |
-| `audio/`      | Reading the recording: the transcript, silences and audio problems, filler cuts, and re-recording a sentence (`useReRecord` for its state, `useReRecordActions` for opening, previewing, applying and closing it).                                                                                                                                                                              |
-| `assistant/`  | Typed and spoken commands and highlights: the shapes Gemini must reply in, and the plans they become.                                                                                                                                                                                                                                                                                           |
-| `export/`     | Turning the edit into a video file.                                                                                                                                                                                                                                                                                                                                                             |
-| `projects/`   | Saving and opening projects, and the hand-off from Home or Make it into the editor; `useProjectFile`: the editor's save, open, relink, delete and autosave.                                                                                                                                                                                                                                     |
-| `components/` | The interface, by area: `shell/` (top bar, tool rail, save state, and `useEditorShortcuts`: undo and redo from the keyboard), `preview/` (the player, what is dragged on it, the buttons on the bar over the video, and `usePickedItem`: what's picked on the video and the Text lane's items), `timeline/`, `panels/` (the tool panels, the Videos panel among them), `assistant/` (the chat). |
+| Folder        | What's in it                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `model/`      | The edit itself, as plain TypeScript: clips and their order, cuts, speed, transitions, picture transforms, color, the audio lane, added videos, undo history.                                                                                                                                                                                                                                                                                                  |
+| `overlays/`   | What's drawn over the picture: titles, lower thirds, captions, logos, annotations, motion, designed frames, text styles.                                                                                                                                                                                                                                                                                                                                       |
+| `audio/`      | Reading the recording: the transcript, silences and audio problems, filler cuts, and re-recording a sentence (`useReRecord` for its state, `useReRecordActions` for opening, previewing, applying and closing it).                                                                                                                                                                                                                                             |
+| `assistant/`  | Typed and spoken commands and highlights: the shapes Gemini must reply in, and the plans they become.                                                                                                                                                                                                                                                                                                                                                          |
+| `export/`     | Turning the edit into a video file.                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `projects/`   | Saving and opening projects, and the hand-off from Home or Make it into the editor; `useProjectFile`: the editor's save, open, relink, delete and autosave.                                                                                                                                                                                                                                                                                                    |
+| `components/` | The interface, by area: `shell/` (top bar, tool rail, save state, `useEditorShortcuts`: undo and redo from the keyboard, and `useEditorTools`: the rail's tools, each one's icon and panel), `preview/` (the player, what is dragged on it, the buttons on the bar over the video, and `usePickedItem`: what's picked on the video and the Text lane's items), `timeline/`, `panels/` (the tool panels, the Videos panel among them), `assistant/` (the chat). |
 
 The files a reviewer is most likely to want:
 
@@ -82,6 +85,8 @@ The files a reviewer is most likely to want:
 | `src/server/actions/validated-action.ts`               | Every server action's wrapper: the sign-in check (`signedIn`), input validation (Zod), the daily allowance (`allowance`), and errors turned into a plain `{ ok: false, error, status }`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `src/lib/ai-limits.ts`                                 | `DAILY_AI_LIMITS`: each user's daily number per kind of AI action. The one place to change them.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `src/app/[locale]/(app)/make/make-plan.ts`             | Make it's planner: `planMake` turns Gemini's reply (which sentences to keep, captions, shape, text) into a concrete edit the editor applies as one undo step, checked against what was actually said. It's a short list of named, separately tested steps, each in the file for its concern below; this file holds `planMake` and re-exports the rest, so every caller imports from `./make-plan`. The quick questions' answers (`make-questions.ts`) go in first, in place of Gemini's guess; how it looks is the look's (`make-presets.ts`).                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `src/app/[locale]/(app)/make/make-it.tsx`              | The Make it page: `MakeIt` holds the picked video, the request and what's being asked, and picks which of the four steps shows; Apply hands the plan to the editor. Its first step's form is `MakeRequestForm` (`make-request-form.tsx`); the pictures, the transcript's state and the plan come from `useMakePlan` (`use-make-plan.ts`, a hook because it runs the two queries); the plan card is `PlanView`, still in this file.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `src/app/[locale]/(app)/make/make-plan-request.ts`     | The plan as the Make it page asks for it: `buildPlan` (run by the page's plan query) asks the server for the plan, makes the edit with `planMake`, has it checked, and makes it again with the check's fixes; a failure is shown in plain words. No React.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `src/app/[locale]/(app)/make/make-reply.ts`            | The contract with Gemini: the request's limits, the reply's Zod and JSON schemas (`makeReplySchema`, `MAKE_REPLY_JSON_SCHEMA`) and the check's (`checkReplySchema`, `applyCheck`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `src/app/[locale]/(app)/make/make-request.ts`          | What the request's own words ask for (a promo, text only, the whole screen, a fit, a short form, captions), and the lines it quotes or names (`quotedLine`, `inventedNames`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `src/app/[locale]/(app)/make/make-context.ts`          | The shapes a plan is built from and into (`MakeInput`, `PlannedEdit`, `MakeSummary`) and `planContext`, through which `planMake` reads its input.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -192,10 +197,15 @@ message. Proof: `src/app/[locale]/editor/audio/take-audio.ts`
 
 The sign-in redirect in `src/proxy.ts` lets a request through when Supabase
 can't be reached, so each of the seven paid actions checks the session
-itself and refuses with a 401 when it can't confirm it. A production server
-won't start without the Supabase settings (it logs which to set and exits).
-Every provider call has a time limit (30 or 60 s).
-_Trade-off:_ if Supabase is down, the AI features are down too.
+itself and refuses with a 401 when it can't confirm it; the page shows
+"Sign in to use this." The proxy doesn't look the session up for a server
+action posted to a signed-in page at all: the action's own check is the
+only one, so a paid action makes one call to Supabase, not two, and a
+session refreshed during it is saved in the action's response. A production
+server won't start without the Supabase settings (it logs which to set and
+exits). Every provider call has a time limit (30 or 60 s).
+_Trade-off:_ if Supabase is down, the AI features are down too; a
+signed-out action call isn't redirected to sign in, it's refused in place.
 Proof: `src/server/auth/session.ts` (`requireUser`),
 `src/server/actions/validated-action.ts`, `src/lib/production-settings.ts`,
 `instrumentation.ts`.
@@ -249,7 +259,8 @@ PostHog gets the typed events and page views only: autocapture and session
 recording are off in code (`src/lib/posthog/init-options.ts`), whatever
 PostHog's own settings say. The proxy refreshes the Supabase session only
 on the pages that read it (the signed-in pages and sign-in), so a public
-page makes no call to Supabase.
+page makes no call to Supabase; nor does a server action posted to a
+signed-in page, which checks and refreshes the session itself.
 _Trade-off:_ PostHog's heatmaps and replays aren't available; a new page
 that reads the session must be added to `SESSION_PAGES` in `src/proxy.ts`.
 Proof: `instrumentation-client.ts`, `src/proxy.ts`.
@@ -260,12 +271,20 @@ Proof: `instrumentation-client.ts`, `src/proxy.ts`.
   the tab in front, and the recording is held in memory until it ends.
 - **Projects are per-browser**: they don't follow a user to another browser
   or device.
-- **A large component**: `VideoEditor` is one function of about 2,260 lines
-  (`src/app/[locale]/editor/video-editor.tsx`, lines 199 to 2458). Its state
+- **A large component**: `VideoEditor` is one function of about 2,020 lines
+  (`src/app/[locale]/editor/video-editor.tsx`, lines 162 to 2180). Its state
   and effects are moving into hooks by concern, one per PR; so far the
   keyboard shortcuts (`components/shell/use-editor-shortcuts.ts`), the
   picked item (`components/preview/use-picked-item.ts`), the project file
-  (`projects/use-project-file.ts`) and re-recording (`audio/use-re-record.ts`).
+  (`projects/use-project-file.ts`), re-recording (`audio/use-re-record.ts`)
+  and the rail's tools (`components/shell/use-editor-tools.tsx`).
+- **The tools are a hook, not a plain function**: `useEditorTools` builds
+  every tool's panel from 87 of the editor's values. React Compiler compiles
+  only components and hooks, so as a hook each panel's element stays
+  memoized on the values it reads, as it was inside `VideoEditor`; a plain
+  function wouldn't be compiled, and the open panel would re-render on every
+  frame of playback (the playhead is one of the 87). _Trade-off:_ the call
+  passes all 87 by name (89 lines), since the panels still read that many.
 - **One type-only import cycle**: `make-reply.ts` imports a value
   (`MAX_BRIEF_PART_LENGTH`) from `make-questions.ts`, which imports
   `make-presets.ts`; both of those import types (`MakeReply`, `CaptionLook`,
@@ -279,10 +298,11 @@ Proof: `instrumentation-client.ts`, `src/proxy.ts`.
   dropping them is a migration of its own.
 - **CI doesn't exercise real sign-in**: it runs with accounts off, and the
   sign-in checks are covered by unit tests with the session mocked.
-- **One paid action runs against real Postgres**: CI's `db-tests` job
-  (`pnpm test:db`) runs the allowance's ceiling and `parseEditCommand`
-  through the real Gemini SDK, with the network faked; the other six paid
-  actions are covered by unit tests with the database and providers mocked.
+- **The paid actions meet real Postgres, but never a real provider**: CI's
+  `db-tests` job (`pnpm test:db`) runs the allowance's ceiling and all seven
+  paid actions through the real Gemini SDK and Deepgram wrapper, with the
+  network faked at `fetch`. A provider's real reply, and real sign-in (the
+  session is faked there too), are not exercised.
 
 ## Scope: local-first, not deployed
 

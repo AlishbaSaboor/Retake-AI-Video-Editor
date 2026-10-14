@@ -1,9 +1,10 @@
-# CI/CD setup — GitHub and Vercel
+# CI/CD setup — GitHub
 
-What has to exist in GitHub and Vercel before this template's workflows
-actually work end to end, not just look correct in the YAML. Do this once,
-right after `template-setup` (see `.claude/skills/template-setup/`), before
-the first real PR.
+What has to exist in GitHub before this repo's workflows actually work end
+to end, not just look correct in the YAML. Do this once, right after
+`template-setup` (see `.claude/skills/template-setup/`), before the first
+real PR. Retake isn't deployed, so there's no hosting to set up (see
+`docs/rules/deployment.md`).
 
 ## GitHub
 
@@ -87,66 +88,9 @@ model's prompt doesn't get a free pass), that needs an `OPENAI_API_KEY`
 repository secret and a `codex-code-review.yml` workflow — not included by
 default here; see the design guide's open decisions.
 
-## Vercel
+## Hosting
 
-### Connect the repo
-
-Vercel dashboard → Add New → Project → import this GitHub repo. Framework
-preset auto-detects as Next.js; root directory stays `.` (this template is
-a flat app, not a monorepo — see the design guide's open decisions if that
-changes). No Vercel-side build command changes are needed.
-
-### Environment variables
-
-Project Settings → Environment Variables. Mirror `.env.example` — every
-variable there except the ones below needs a value in at least the
-Production environment, and usually Preview too if you want preview
-deployments to work fully:
-
-| Variable                                                 | Set in Vercel?                            | Note                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| -------------------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                           | Yes, Production + Preview                 | Pooled connection (port 6543). Consider a separate Preview-only database/branch so preview deployments don't share production data.                                                                                                                                                                                                                                                                                                                                                                         |
-| `DIRECT_URL`                                             | **No**                                    | Only the Prisma CLI's `migrate` commands read this, never the running app (see `src/lib/env.ts`) — GitHub Actions sets it directly as a job env var when needed. **Do not set it in Vercel:** the deployed app never reads it, so it sits there as a full-DDL `postgres` credential with no function. `prisma generate` is the one Prisma command that doesn't need it and the only one a Vercel build runs, so nothing fails to signal the mistake — three projects carried it unnoticed until 2026-09-09. |
-| `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT` | Yes                                       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `SENTRY_AUTH_TOKEN`                                      | Yes, mark **Sensitive**                   | Needed at _build_ time (source-map upload), not just runtime — Vercel builds run with your env vars available, so this has to be set here even though it's never read by the deployed app itself.                                                                                                                                                                                                                                                                                                           |
-| `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`    | Yes                                       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `POSTHOG_PERSONAL_API_KEY`                               | Yes, if using server-side flag evaluation |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `NEXT_PUBLIC_DEFAULT_LOCALE`                             | Yes                                       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `CRON_SECRET`                                            | Only for cron routes                      | MOAD generates it separately for production and preview. Cron routes reject all requests when unset.                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `NEXT_PUBLIC_APP_URL`                                    | Yes, per environment                      | Production gets the real domain; Preview can usually be left pointing at production or use Vercel's `VERCEL_URL` — decide per project, this template doesn't presume one.                                                                                                                                                                                                                                                                                                                                   |
-
-### Git integration behavior — decide this explicitly
-
-By default, Vercel auto-deploys every push: `main` → Production, every
-other branch/PR → a Preview deployment. That's what this template assumes
-and requires no extra setup.
-
-The org also has a **tag-gated release pattern** in active use (8x-brands):
-`vercel.json` sets `"git": { "deploymentEnabled": false }` so pushes to
-`main` only run CI, and a separate GitHub Actions workflow deploys to
-production only on a `v*` tag push (`vercel pull` → `vercel build --prod`
-→ `vercel deploy --prebuilt --prod`), matching the release process in the
-org's root-level `deployment.md` rule (`git tag vX.Y.Z` + `gh release
-create`). This template does **not** implement that by default — decide
-explicitly which one this project wants rather than assuming; if it's the
-tag-gated flow, copy 8x-brands' `vercel.json` and
-`.github/workflows/deploy-production.yml` as the starting point rather
-than writing it from scratch.
-
-## Shared database previews
-
-MOAD gives Vercel production and previews the same `DATABASE_URL` and
-Supabase Auth credentials. There is no additional preview database by default.
-Preview actions can change live data, so use intentional test accounts and
-avoid production-changing automated tests.
-
-PR CI validates migrations and `prisma/run-once.sql` against a throwaway
-Postgres service. Only the production deployment workflow applies them to
-the live database after merge. Never run PR migrations against the shared
-production database. Features needing new schema become usable after that
-migration has deployed.
-
-MOAD generates separate production and preview `CRON_SECRET` values and keeps
-existing values on retries. An unset secret disables cron access without
-preventing unrelated routes from booting. A separate preview database remains
-an explicit project choice.
+None. Retake isn't deployed (`docs/rules/deployment.md`): there's no Vercel
+project and no preview or production database. Pull-request CI validates the
+migrations and `prisma/run-once.sql` against a throwaway Postgres service;
+nothing applies them to a hosted database.

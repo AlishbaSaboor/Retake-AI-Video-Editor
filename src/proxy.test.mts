@@ -84,3 +84,55 @@ test('the sign-in guard is unchanged: signed out to sign in, signed in past it',
 	assert.equal((await visit('/editor')).location, null)
 	signedIn = false
 })
+
+/** A request as Next posts a server action to a page: POST, with the `next-action` header. */
+const post = async (path: string, { action }: { action: boolean }) => {
+	getUserCalls = 0
+	const response = await proxy(
+		new NextRequest(new URL(path, 'http://localhost:3000'), {
+			method: 'POST',
+			headers: action ? { 'next-action': 'abc123' } : {}
+		})
+	)
+	return { calls: getUserCalls, location: response.headers.get('location') }
+}
+
+test('a server action posted to a signed-in page makes no call to Supabase and is not redirected: the action checks the session itself', async () => {
+	for (const who of [false, true]) {
+		signedIn = who
+		for (const path of [
+			'/editor',
+			'/make',
+			'/home',
+			'/projects',
+			'/editor?project=1',
+			'/en/editor'
+		]) {
+			assert.deepEqual(
+				await post(path, { action: true }),
+				{ calls: 0, location: null },
+				`${path}, signed ${who ? 'in' : 'out'}`
+			)
+		}
+	}
+	signedIn = false
+})
+
+test('a POST without the action header is still checked and guarded', async () => {
+	signedIn = false
+	assert.deepEqual(await post('/editor', { action: false }), {
+		calls: 1,
+		location: 'http://localhost:3000/login?next=%2Feditor'
+	})
+})
+
+test('the sign-in page is unchanged for actions: still refreshed, and a signed-in visitor still sent past it', async () => {
+	signedIn = false
+	assert.deepEqual(await post('/login', { action: true }), { calls: 1, location: null })
+	signedIn = true
+	assert.deepEqual(await post('/login', { action: true }), {
+		calls: 1,
+		location: 'http://localhost:3000/home'
+	})
+	signedIn = false
+})
