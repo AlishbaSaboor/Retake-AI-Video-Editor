@@ -288,10 +288,11 @@ Proof: `instrumentation-client.ts`, `src/proxy.ts`.
   dropping them is a migration of its own.
 - **CI doesn't exercise real sign-in**: it runs with accounts off, and the
   sign-in checks are covered by unit tests with the session mocked.
-- **One paid action runs against real Postgres**: CI's `db-tests` job
-  (`pnpm test:db`) runs the allowance's ceiling and `parseEditCommand`
-  through the real Gemini SDK, with the network faked; the other six paid
-  actions are covered by unit tests with the database and providers mocked.
+- **The paid actions meet real Postgres, but never a real provider**: CI's
+  `db-tests` job (`pnpm test:db`) runs the allowance's ceiling and all seven
+  paid actions through the real Gemini SDK and Deepgram wrapper, with the
+  network faked at `fetch`. A provider's real reply, and real sign-in (the
+  session is faked there too), are not exercised.
 
 ## Scope: local-first, not deployed
 
