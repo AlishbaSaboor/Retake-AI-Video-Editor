@@ -21,6 +21,7 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **Make it's request form out of MakeIt** (section 3zzzb).
 > - **Make it's plan request out of MakeIt** (section 3zzza).
 > - **VideoEditor's tools in their own hook** (section 3zzz).
 > - **All seven paid actions tested against real Postgres** (section 3zzy).
@@ -512,6 +513,33 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzzb. Make it's request form out of MakeIt (2026-10-14)
+
+Local branch `local/architecture`, not pushed. The second of the three moves
+out of `MakeIt` (see 3zzza).
+
+- **The move:** the first step's form (145 lines: the drop area, the
+  attached video, the request box and its count, the examples, attach, voice
+  and submit, the problem message) into `MakeRequestForm`
+  (`make/make-request-form.tsx`, 250 lines), with what only it uses:
+  `dragging`, `inputRef`, `EXAMPLES`, and `AttachedVideo` with
+  `BYTES_PER_MB` (`AttachedVideo` had to go with it: left in `make-it.tsx`,
+  the form would import it back from there, a runtime cycle). Its props keep
+  the names the form already used (`setRequest`, `pick`, `start`), so not a
+  line of it changed.
+- **Proved the same:** the 213 moved lines are byte-for-byte identical.
+  `MakeIt`'s hook calls lost exactly `useRef` (`inputRef`) and one `useState`
+  (`dragging`), the two moved as agreed; the form calls `useTranslations`,
+  `useRef`, `useState`. No runtime import cycle.
+- **Behaviour:** the same, as far as can be told: `dragging` now resets when
+  the form unmounts, which happens only on a stage change, and a drop always
+  clears it before `pick`.
+- **Size:** `make-it.tsx` 1,038 to 833 lines.
+- **Tests:** none changed; unit 684. Make it's e2e specs on a production
+  build (:3200, invalid AI keys): 41/41 in 13.2 minutes.
 
 ---
 
