@@ -50,9 +50,6 @@ const envSchema = z.object({
 	// for the same reason: a transcript made without it fails on its own.
 	DEEPGRAM_API_KEY: z.string().optional(),
 
-	// Required by cron routes only; an unset secret must not break unrelated pages.
-	CRON_SECRET: z.string().optional(),
-
 	NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
 
 	// Attached as the app_version property on every analytics event — optional,

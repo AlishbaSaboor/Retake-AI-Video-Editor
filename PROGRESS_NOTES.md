@@ -21,6 +21,13 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **Make it's plan queries in their own hook** (section 3zzzc).
+> - **Make it's request form out of MakeIt** (section 3zzzb).
+> - **Make it's plan request out of MakeIt** (section 3zzza).
+> - **VideoEditor's tools in their own hook** (section 3zzz).
+> - **All seven paid actions tested against real Postgres** (section 3zzy).
+> - **One Supabase call per paid action** (section 3zzx).
+> - **Docs say it isn't deployed; CRON_SECRET removed** (section 3zzw).
 > - **CI blocked by GitHub billing; main checked locally** (section 3zzv).
 > - **VideoEditor's helpers and two small components in their own files** (section 3zzu).
 > - **VideoEditor's fourth hook: re-recording** (section 3zzt).
@@ -508,6 +515,220 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzzc. Make it's plan queries in their own hook (2026-10-14)
+
+Local branch `local/architecture`, not pushed. The last of the three moves
+out of `MakeIt` (see 3zzza, 3zzzb).
+
+- **The move:** the `frames` and `plan` queries, the transcript's values
+  between them (`transcriptState`, `transcriptReady`, `transcript`,
+  `fillerCuts`) and `failed`, 46 lines, into `useMakePlan`
+  (`make/use-make-plan.ts`, 73 lines), called where the `frames` query was,
+  with `video`, `ask`, `analysis` and `t`. It returns what the rest of
+  `MakeIt` reads: `frames`, `transcriptReady`, `transcript`, `fillerCuts`,
+  `plan`, `failed`. `step` stays (it reads `reading`).
+- **Proved the same:** the 46 moved lines are identical (compared with line
+  endings ignored: the comparison file was written with Windows ones; the
+  source is LF). `MakeIt`'s hook calls are the same up to the effects, then
+  `useMakePlan` where the two `useQuery` calls were; it makes those two, in
+  the same order. No runtime import cycle.
+- **Left as agreed:** the video's state (`useMakeVideo` would need calls both
+  ways with the request's), the stage chain, `apply()` and `PlanView` (321
+  lines, the file's largest piece now).
+- **Size:** `make-it.tsx` 833 to 792 lines. Over the three moves: the file
+  1,162 to 792, `MakeIt` 494 to 256 lines (lines 54 to 309).
+- **Tests:** none changed; unit 684. Make it's e2e specs on a production
+  build (:3200, invalid AI keys): 41/41 in 13.1 minutes.
+
+---
+
+## 3zzzb. Make it's request form out of MakeIt (2026-10-14)
+
+Local branch `local/architecture`, not pushed. The second of the three moves
+out of `MakeIt` (see 3zzza).
+
+- **The move:** the first step's form (145 lines: the drop area, the
+  attached video, the request box and its count, the examples, attach, voice
+  and submit, the problem message) into `MakeRequestForm`
+  (`make/make-request-form.tsx`, 250 lines), with what only it uses:
+  `dragging`, `inputRef`, `EXAMPLES`, and `AttachedVideo` with
+  `BYTES_PER_MB` (`AttachedVideo` had to go with it: left in `make-it.tsx`,
+  the form would import it back from there, a runtime cycle). Its props keep
+  the names the form already used (`setRequest`, `pick`, `start`), so not a
+  line of it changed.
+- **Proved the same:** the 213 moved lines are byte-for-byte identical.
+  `MakeIt`'s hook calls lost exactly `useRef` (`inputRef`) and one `useState`
+  (`dragging`), the two moved as agreed; the form calls `useTranslations`,
+  `useRef`, `useState`. No runtime import cycle.
+- **Behaviour:** the same, as far as can be told: `dragging` now resets when
+  the form unmounts, which happens only on a stage change, and a drop always
+  clears it before `pick`.
+- **Size:** `make-it.tsx` 1,038 to 833 lines.
+- **Tests:** none changed; unit 684. Make it's e2e specs on a production
+  build (:3200, invalid AI keys): 41/41 in 13.2 minutes.
+
+---
+
+## 3zzza. Make it's plan request out of MakeIt (2026-10-14)
+
+Local branch `local/architecture`, not pushed. The first of three moves out
+of `MakeIt` (`make/make-it.tsx`, a 494-line component in a 1,162-line file):
+this one, then the request form (a component), then the plan's queries (a
+hook). Its video state, the stage chain, `apply()` and `PlanView` stay.
+
+- **The move:** the plan query's body (as `buildPlan()`), `requestPlan`,
+  `checkPlan` and the `Video` and `Ask` types, 114 lines, into
+  `make/make-plan-request.ts` (164 lines, no React). The query keeps its key,
+  its `enabled`, and its `nothing to plan` guard, and calls `buildPlan`.
+- **Proved the same:** `diff -w` of the moved lines shows only `export` on
+  the two types, three lines that read `frames` and `unclear` instead of
+  `frames.data` and `t('errors.planning')`, and one ternary Prettier put on
+  one line (the same tokens). `MakeIt`'s hook calls: the same 16, in the same
+  order. No runtime import cycle.
+- **Size:** `make-it.tsx` 1,162 to 1,038 lines.
+- **Tests:** none changed; unit 684. Make it's e2e specs (`make-it`,
+  `make-questions`, `make-presets`) on a production build (:3200, invalid AI
+  keys): 41/41 in 13.1 minutes.
+
+---
+
+## 3zzz. VideoEditor's tools in their own hook (2026-10-14)
+
+Local branch `local/architecture`, not pushed.
+
+- **The move:** the rail's tools (the `tool()` helper and the `tools` array:
+  14 tools, each an icon and its panel's JSX), 330 lines of `VideoEditor`,
+  moved unchanged into `useEditorTools`
+  (`components/shell/use-editor-tools.tsx`, 602 lines). It's called where the
+  block was, with the 87 editor values it reads passed by name; all 87 are
+  declared earlier in `VideoEditor` (lines 200 to 1546 before), so nothing
+  was reordered. 33 imports went with it (31 panels and icons,
+  `resizedLogo`, `transitionInto`); six used by both files are imported in
+  both.
+- **A hook, not a plain function:** React Compiler compiles only components
+  and hooks. As a hook, each panel's element stays memoized on the values it
+  reads; a plain function wouldn't be compiled, and the open panel would
+  re-render on every playback frame (the playhead is one of the 87).
+  ARCHITECTURE.md's known limits say so.
+- **Proved the same:** the 330 moved lines are byte-for-byte identical to
+  the block they replace (`diff` and `diff -w` both empty). Every other change
+  to `video-editor.tsx` is in its imports, plus the call; two imports left with
+  only types became `import type`. The hook-call order in `VideoEditor` is
+  unchanged: the same 75 calls in the same order, with `useEditorTools` 76th,
+  after them all. No runtime import cycle, before or after.
+- **Size:** `video-editor.tsx` 2,458 to 2,180 lines; `VideoEditor` 2,260 to
+  2,019 lines (lines 162 to 2180).
+- **Tests:** none changed; unit 684, database 13. Full e2e on a production
+  build (:3200, invalid AI keys): 141/142 in 36 minutes. `make-it.spec.ts:808`
+  timed out waiting for an export's download, then passed twice when rerun
+  alone; it's on the Make it page, which doesn't use `VideoEditor` (see 4c).
+
+---
+
+## 3zzy. All seven paid actions tested against real Postgres (2026-10-14)
+
+Local branch `local/architecture`, not pushed.
+
+- **What's new:** `paid-action.db-test.mts` ran only `parseEditCommand`; it
+  now runs the other six as well (`findHighlights`, `planMakeIt`,
+  `checkMakePlan`, `followUpMakeIt`, `transcribeTake`,
+  `transcribeVoiceCommand`): the real action, allowance, wrapper (the real
+  Gemini SDK; Deepgram's own `fetch`) and usage sink, against real Postgres.
+  Gemini, Deepgram and OpenRouter answer through the stand-in `fetch`; any
+  other URL throws, so no real call can leave.
+- **Each test checks:** the action's result; what went on the wire (Gemini:
+  model, key, the feature's output cap, the plan's two pictures at medium
+  detail, no pictures in the check or the follow-up; Deepgram: `nova-3`,
+  `filler_words`, `punctuate`, the `Token` header, `audio/wav`, the audio
+  bytes whole); the right allowance kind taken by one; and the one `ai_usage`
+  row, priced (Gemini by tokens, e.g. 900 micro-USD for the plan; Deepgram
+  per minute: 4,300 for a minute, 215 for 3 seconds). A seventh new test: a
+  busy Deepgram (503) shows the plain message, gives the voice allowance
+  back, and records the failure unpriced.
+- **Only their own rows:** one fresh random user; `ai_usage` rows removed by
+  the fake's own request ids, or as the single failed row carrying its 503.
+  Local counts before and after: `ai_usage` 457 (max id 491), `ai_allowances`
+  10, `users` 5, `auth.users` 5, identical; no `test-` request id left. A
+  snapshot of every public table, `auth.users`, `auth.sessions` and
+  `auth.refresh_tokens` (count and an md5 of every row) was identical before
+  and after a run; only the `ai_usage` id sequence moved (546 to 555: nine
+  rows written, nine removed).
+- **The tests can fail:** with the highlights action set to the command
+  allowance, Deepgram's `filler_words` off, and the plan's medium detail
+  removed, the highlights, both Deepgram and the plan tests failed; restored
+  after.
+- **Unchanged:** the two existing tests. Their helpers `waitForUsage` and
+  `used` gained an optional feature and kind, defaulting to the typed
+  command's, so their calls read as before.
+- **Tests:** database tests 6 to 13; unit 684, unchanged. Full e2e on a
+  production build (:3200, invalid AI keys): 142/142 in 33.4 minutes.
+
+---
+
+## 3zzx. One Supabase call per paid action (2026-10-14)
+
+Local branch `local/architecture`, not pushed.
+
+- **The change:** `src/proxy.ts` no longer looks the session up for a server
+  action (a POST with Next's `next-action` header) posted to a signed-in page
+  (`/home`, `/make`, `/projects`, `/editor`). The action checks it itself
+  (`validatedAction` → `requireUser`, a 401 when it can't confirm it), and its
+  Supabase client saves a refreshed session in the action's response. Page
+  loads, POSTs without the header, and `/login` and its actions are unchanged.
+  The comment in `src/lib/supabase/server.ts` that said the proxy refreshes
+  on every request is corrected.
+- **Behaviour change, deliberate:** a signed-out paid-action call on a
+  signed-in page used to get the proxy's 307 to `/login`, which the page
+  showed as Next's "UnrecognizedActionError: Server Action … was not found on
+  the server"; it now gets the action's own refusal, shown as "Couldn't run
+  that command — Sign in to use this."
+- **Proved in a browser** (production builds of the old and new proxy on
+  :3200, real local Supabase, the e2e user, no AI keys so nothing left the
+  machine): (a) signed out on the editor and (b) the session ended on
+  Supabase's side while the editor was open both show "Sign in to use this."
+  (before: the UnrecognizedActionError); (c) signed in with an access token
+  marked expired, the call gets through and the session is refreshed, its new
+  cookie set on the action's own response. Auth's log for (c): one token
+  refresh and 3 user lookups, against 4 before (the proxy's is the one gone).
+  The two `ai_usage` error rows it wrote were removed (457 rows before and
+  after).
+- **Tests:** 3 new in `proxy.test.mts` (an action POST to a signed-in page:
+  no Supabase call, no redirect; a POST without the header still guarded;
+  `/login` actions unchanged) and 2 in the new `server.test.mts` (a refresh in
+  an action is written to the response's cookies; in a Server Component it's
+  skipped quietly). With the change removed, the first proxy test fails. The
+  existing refusal tests for the 7 paid actions are unchanged.
+
+---
+
+## 3zzw. Docs say it isn't deployed; CRON_SECRET removed (2026-10-14)
+
+Local branch `local/architecture`, not pushed (GitHub CI is blocked by billing).
+
+- **`docs/rules/deployment.md`** said the app auto-deploys to Vercel on a push
+  to `main`; it now says Retake isn't deployed (no Vercel project, no
+  `vercel.json`, no deploy workflow) and points to ARCHITECTURE.md's Scope.
+- **`docs/CI_CD_SETUP.md`** is GitHub only: its Vercel section (connecting
+  the repo, a Vercel environment-variable table, auto-deploy against
+  tag-gated) and "Shared database previews" (which named a production
+  deployment workflow that #54 removed) give way to a short "Hosting: none".
+  AGENTS.md's two lines about them and the `.env.example` header follow.
+- **`CRON_SECRET`** removed from `src/lib/env.ts` and `.env.example`: nothing
+  reads it (there are no cron routes). `ci.yml` still sets it for the build
+  and e2e jobs (lines 69 and 93), left for the owner, since this work
+  doesn't touch `.github/`. `Bearer $CRON_SECRET` stays where it's the secret
+  scanner's example of a placeholder (`secrets.md`, `check-secrets` and its
+  test).
+- **ARCHITECTURE.md**'s "Only four things leave it" now says those four are
+  what leaves of the video and what's said in it, and that PostHog (typed
+  events and page views) and Sentry (error reports) send too once their
+  keys are set.
+- **Not changed:** the `.env.example` comments with conditional Vercel
+  advice, `docs/STANDARDS.md` (the org-wide checklist) and the `.claude/`
+  skill texts.
 
 ---
 
@@ -4649,6 +4870,13 @@ Not changed.
   failed once on a frame's brightness in the blurred area (`a frame inBlur:
 [0.109, 0.806, 1.786, ...]`) and passed on CI's retry; real-time export on
   the CI runner, and the PR moved only re-recording's state and handlers.
+
+- 2026-10-14, local branch `local/architecture` (`useEditorTools`), a full
+  run on a production build on :3200 (2.4 to 3.0 GB free): `make-it.spec.ts:808`
+  (a reel of a meeting) timed out at 150 s waiting for the export's download,
+  then passed twice when rerun alone against the same server (2.1 GB free).
+  Real-time export under load. Make it builds no tool panels, and the move
+  changed no line of them.
 
 ### 4d. Low memory on this machine (observed 2026-10-02)
 

@@ -1,12 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import {
 	AlertIcon,
-	AttachIcon,
 	CaptionsIcon,
 	CropIcon,
 	MusicIcon,
@@ -14,56 +12,30 @@ import {
 	TimingIcon,
 	VideoIcon,
 	CheckIcon,
-	LockIcon,
-	SpinnerIcon,
-	UploadIcon
+	SpinnerIcon
 } from '@/components/ui/icons'
 import { handOffStart } from '@/app/[locale]/editor/projects/editor-start'
 import { setSideOpen } from '@/app/[locale]/editor/components/shell/editor-layout-store'
 import { probeVideo } from '@/app/[locale]/editor/model/sources'
 import { formatTimecode } from '@/app/[locale]/editor/model/timeline-scale'
-import type { Size } from '@/app/[locale]/editor/model/transform'
 import { useTakeAnalysis } from '@/app/[locale]/editor/audio/use-take-analysis'
-import { VoiceCommandButton } from '@/app/[locale]/editor/components/assistant/voice-command-button'
 import { useRouter } from '@/i18n/routing'
 import { cn } from '@/lib/cn'
-import { captureClientError } from '@/lib/observability/capture-client-error'
-import { isPlainAiStatus } from '@/lib/ai-failure'
-import { withTimeout } from '@/lib/with-timeout'
-import { checkMakePlan, planMakeIt } from './actions'
 import { clearMakeStart, peekMakeStart } from './make-start'
-import { loadTrack } from './music-track'
-import { captureFrames, framePixels } from './frames'
-import { dominantColour } from './video-colours'
 import {
-	FRAME_SEPARATOR,
-	frameTimes,
 	MAX_ANSWER_LENGTH,
 	MAX_MAKE_SECONDS,
 	MAX_REQUEST_LENGTH,
-	planMake,
-	applyCheck,
-	checkFound,
-	CHECK_TIMEOUT_MS,
-	describePlan,
-	PAGE_GRACE_MS,
-	PLAN_TIMEOUT_MS,
 	type BriefPart,
-	type CheckReply,
 	type MakeAnswer,
-	type MakeReply,
 	type MakeSummary
 } from './make-plan'
 import { questionsToAsk, type MakeChoices, type QuestionId } from './make-questions'
 import { QuickQuestions } from './quick-questions'
+import { MakeRequestForm } from './make-request-form'
+import { useMakePlan } from './use-make-plan'
+import { type Ask, type Video } from './make-plan-request'
 
-/** The starting points, each with its dot's colour. */
-const EXAMPLES = [
-	{ key: 'reel', dot: 'bg-brand-violet' },
-	{ key: 'funny', dot: 'bg-brand-purple' },
-	{ key: 'professional', dot: 'bg-brand-blue' },
-	{ key: 'ad', dot: 'bg-brand-lilac' }
-] as const
 const SECONDS_PER_MINUTE = 60
 /** How much of the opening line the plan quotes. */
 const OPENER_WORDS = 10
@@ -74,53 +46,6 @@ function firstWords(text: string, count: number): string {
 	return words.length > count ? `${words.slice(0, count).join(' ')}…` : text
 }
 
-/** The picked video, read: where it plays from, how long it is, its picture's size. */
-type Video = { file: File; url: string; durationSeconds: number; picture: Size }
-/**
- * What's being planned: the request, the answers to the quick questions
- * (null when none were shown), and the answers to any Gemini asked.
- */
-type Ask = { request: string; choices: MakeChoices | null; answers: MakeAnswer[] }
-
-/**
- * Asks the server for a plan. A failure comes back as what to tell the
- * user: the server's own words for a refused key, a usage limit or a busy
- * AI (written for people), `unclear` for anything else (no answer in time
- * included), which is never shown as it is. The page stops waiting a little
- * after the server's own time limit, whatever happens to the request.
- */
-async function requestPlan(input: Parameters<typeof planMakeIt>[0], unclear: string) {
-	let result: Awaited<ReturnType<typeof planMakeIt>>
-	try {
-		result = await withTimeout(PLAN_TIMEOUT_MS + PAGE_GRACE_MS, () => planMakeIt(input))
-	} catch (error) {
-		captureClientError(error, { feature: 'make_it' })
-		throw new Error(unclear)
-	}
-	if (!result.ok) throw new Error(isPlainAiStatus(result.status) ? result.error : unclear)
-	return result.data
-}
-
-/**
- * The second check of a plan against its request. Its failure never stops
- * the plan: it's reported, and the plan shows as first made, saying so.
- */
-async function checkPlan(
-	request: string,
-	choices: MakeChoices | null,
-	planText: string
-): Promise<CheckReply | null> {
-	try {
-		const result = await withTimeout(CHECK_TIMEOUT_MS + PAGE_GRACE_MS, () =>
-			checkMakePlan({ request, ...(choices && { choices }), planText })
-		)
-		return result.ok ? result.data : null
-	} catch (error) {
-		captureClientError(error, { feature: 'make_it_check' })
-		return null
-	}
-}
-
 /**
  * Make it: pick a video, say what it should become, and Retake plans the
  * whole edit (asking first when the request is unclear). The plan is shown
@@ -129,7 +54,6 @@ async function checkPlan(
 export function MakeIt({ heading }: { heading: React.ReactNode }) {
 	const t = useTranslations('Make')
 	const router = useRouter()
-	const inputRef = useRef<HTMLInputElement>(null)
 	// A video and request handed over from the home page's Make it card, if any.
 	const [file, setFile] = useState<File | null>(() => peekMakeStart()?.file ?? null)
 	const [request, setRequest] = useState(() => peekMakeStart()?.request ?? '')
@@ -139,7 +63,6 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 	const [asking, setAsking] = useState<{ request: string; shown: QuestionId[] } | null>(null)
 	const [problem, setProblem] = useState<'notVideo' | 'tooLong' | null>(null)
 	const [reading, setReading] = useState(false)
-	const [dragging, setDragging] = useState(false)
 	const analysis = useTakeAnalysis(video)
 	// Past the limit, the request is kept as typed and Make it waits for it to be shortened.
 	const overLimit = request.length > MAX_REQUEST_LENGTH
@@ -154,100 +77,11 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 		return () => URL.revokeObjectURL(videoUrl)
 	}, [videoUrl])
 
-	const frames = useQuery({
-		queryKey: ['make-frames', video?.url],
-		queryFn: () => (video ? captureFrames(video.url, frameTimes(video.durationSeconds)) : []),
-		enabled: video !== null,
-		staleTime: Infinity,
-		retry: false
-	})
-
-	const transcriptState = analysis.transcript
-	const transcriptReady =
-		transcriptState.status === 'ready' || transcriptState.status === 'no_audio'
-	const transcript = transcriptState.status === 'ready' ? transcriptState.transcript : null
-	const fillerCuts = analysis.fillerPlans.flatMap((plan) =>
-		plan.kind === 'cut' ? [{ startSeconds: plan.startSeconds, endSeconds: plan.endSeconds }] : []
-	)
-
-	// Kept for the session: the same request on the same video doesn't pay twice.
-	const plan = useQuery({
-		queryKey: ['make-plan', video?.url, ask],
-		queryFn: async () => {
-			if (!video || !ask || !frames.data) throw new Error('nothing to plan')
-			const { reply, tracks } = await requestPlan(
-				{
-					request: ask.request,
-					...(ask.choices && { choices: ask.choices }),
-					answers: ask.answers,
-					durationSeconds: video.durationSeconds,
-					sentences: (transcript?.segments ?? []).map(({ startSeconds, endSeconds, text }) => ({
-						startSeconds,
-						endSeconds,
-						text
-					})),
-					frames: frames.data.join(FRAME_SEPARATOR)
-				},
-				t('errors.planning')
-			)
-			if (!reply) return { kind: 'none' } as const
-			if (reply.questions.length > 0) {
-				return { kind: 'questions', questions: reply.questions } as const
-			}
-			const music = reply.music ? await loadTrack(reply.music) : null
-			// The video's own colour, for its look: from the pictures already taken.
-			const videoColour = dominantColour(await framePixels(frames.data))
-			const plan = (
-				planned: MakeReply,
-				tooShort: { keepOut: number[] } | null = null,
-				unchecked = false
-			) =>
-				planMake({
-					reply: planned,
-					request: ask.request,
-					durationSeconds: video.durationSeconds,
-					picture: video.picture,
-					transcript,
-					fillerCuts,
-					music,
-					musicAvailable: tracks.length > 0,
-					tooShort,
-					unchecked,
-					choices: ask.choices,
-					videoColour
-				})
-			const musicAvailable = tracks.length > 0
-			// The plan as made, then checked against the request and made again
-			// with the check's fixes, if it found anything to fix (lengthened,
-			// when it found the edit too short); made again unchecked when the
-			// check couldn't run (a screen recording then shows whole).
-			const first = plan(reply)
-			const check = await checkPlan(
-				ask.request,
-				ask.choices,
-				describePlan(reply, first.summary, first.edit.clips ?? [], transcript?.segments ?? [])
-			)
-			const made =
-				check === null
-					? plan(reply, null, true)
-					: checkFound(check)
-						? plan(
-								applyCheck(reply, check),
-								check.tooShort ? { keepOut: check.dropSentences } : null
-							)
-						: first
-			return {
-				kind: 'plan',
-				...made,
-				music,
-				musicAvailable,
-				videoColour,
-				problems: check?.problems ?? null
-			} as const
-		},
-		enabled: video !== null && ask !== null && frames.data !== undefined && transcriptReady,
-		staleTime: Infinity,
-		retry: false
+	const { frames, transcriptReady, transcript, fillerCuts, plan, failed } = useMakePlan({
+		video,
+		ask,
+		analysis,
+		t
 	})
 
 	function pick(next: File) {
@@ -341,17 +175,6 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 		router.push('/editor')
 	}
 
-	// Plain words for each step that can fail; never an error's own text.
-	const failed =
-		transcriptState.status === 'failed'
-			? transcriptState.plain
-				? transcriptState.error
-				: t('errors.transcript')
-			: frames.isError
-				? t('errors.pictures')
-				: plan.isError
-					? plan.error.message
-					: null
 	const step = reading
 		? t('steps.reading')
 		: !transcriptReady
@@ -473,151 +296,15 @@ export function MakeIt({ heading }: { heading: React.ReactNode }) {
 
 	return frame(
 		1,
-		<form
-			className="flex flex-col gap-5"
-			onSubmit={(event) => {
-				event.preventDefault()
-				void start()
-			}}
-		>
-			<div className="w-full">
-				<section
-					onDragOver={(event) => {
-						event.preventDefault()
-						setDragging(true)
-					}}
-					onDragLeave={() => setDragging(false)}
-					onDrop={(event) => {
-						event.preventDefault()
-						setDragging(false)
-						const dropped = event.dataTransfer.files[0]
-						if (dropped) pick(dropped)
-					}}
-					className={cn(
-						'flex flex-col gap-4 rounded-[18px] transition-shadow',
-						dragging && 'ring-accent-glow ring-4'
-					)}
-				>
-					{file ? (
-						<AttachedVideo
-							key={`${file.name}|${file.size}|${file.lastModified}`}
-							file={file}
-							onReplace={() => inputRef.current?.click()}
-						/>
-					) : (
-						<button
-							type="button"
-							onClick={() => inputRef.current?.click()}
-							className="border-border-strong text-text-muted hover:border-accent hover:bg-accent-soft focus-visible:outline-accent flex min-h-[150px] flex-col items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-dashed px-6 py-[18px] text-center transition-colors focus-visible:outline-2"
-						>
-							<span className="text-accent-fg">
-								<UploadIcon size={26} />
-							</span>
-							<span className="text-text text-[15px] font-semibold">{t('chooseVideo')}</span>
-							<span className="text-text-faint text-[13px]">{t('dropHint')}</span>
-						</button>
-					)}
-					<input
-						ref={inputRef}
-						type="file"
-						accept="video/*"
-						className="sr-only"
-						tabIndex={-1}
-						aria-label={t('videoLabel')}
-						onChange={(event) => {
-							const picked = event.target.files?.[0]
-							event.target.value = ''
-							if (picked) pick(picked)
-						}}
-					/>
-					<div className="border-border-strong bg-surface-inset focus-within:border-accent flex flex-col gap-1 rounded-[14px] border px-3.5 py-3">
-						<label
-							htmlFor="make-request"
-							className="text-text-faint font-mono text-[11.5px] tracking-[0.08em] uppercase"
-						>
-							{t('requestLabel')}
-						</label>
-						<textarea
-							id="make-request"
-							value={request}
-							onChange={(event) => setRequest(event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === 'Enter' && !event.shiftKey) {
-									event.preventDefault()
-									void start()
-								}
-							}}
-							rows={2}
-							aria-describedby="make-request-count"
-							aria-invalid={overLimit}
-							placeholder={t('placeholder')}
-							className="text-text placeholder:text-text-faint font-display w-full resize-none bg-transparent text-xl tracking-[-0.015em] focus-visible:outline-none"
-						/>
-						<p
-							id="make-request-count"
-							role={overLimit ? 'alert' : undefined}
-							className={cn('text-xs', overLimit ? 'text-danger font-semibold' : 'text-text-faint')}
-						>
-							{overLimit
-								? t('requestOver', {
-										count: request.length - MAX_REQUEST_LENGTH,
-										max: MAX_REQUEST_LENGTH
-									})
-								: t('requestLeft', { count: MAX_REQUEST_LENGTH - request.length })}
-						</p>
-					</div>
-					<div className="flex flex-wrap gap-1.5">
-						{EXAMPLES.map(({ key }) => (
-							<button
-								key={key}
-								type="button"
-								onClick={() => setRequest(t(`examples.${key}`))}
-								className={cn(
-									'focus-visible:outline-accent inline-flex items-center rounded-full border px-3 py-1.5 text-[13.5px] transition-colors focus-visible:outline-2',
-									request === t(`examples.${key}`)
-										? 'border-accent bg-accent-soft text-text font-semibold'
-										: 'border-border-strong text-text-muted hover:border-accent hover:text-text'
-								)}
-							>
-								{t(`examples.${key}`)}
-							</button>
-						))}
-					</div>
-					<div className="flex items-center gap-2">
-						<button
-							type="button"
-							aria-label={t('attach')}
-							title={t('attach')}
-							onClick={() => inputRef.current?.click()}
-							className="border-border-strong text-text-muted hover:text-text hover:bg-border focus-visible:outline-accent flex size-11 items-center justify-center rounded border transition-colors focus-visible:outline-2"
-						>
-							<AttachIcon size={17} />
-						</button>
-						<VoiceCommandButton
-							onText={(text) =>
-								setRequest((typed) => (typed.trim() ? `${typed.trim()} ${text}` : text))
-							}
-						/>
-						<Button
-							type="submit"
-							className="ml-auto"
-							disabled={!file || !request.trim() || overLimit}
-						>
-							{t('makeIt')}
-						</Button>
-					</div>
-				</section>
-			</div>
-			{problem && (
-				<p role="alert" className="text-danger text-center text-sm">
-					{t(`errors.${problem}`, { minutes: MAX_MAKE_SECONDS / 60 })}
-				</p>
-			)}
-			<p className="text-text-faint flex items-start gap-2 text-[13px]">
-				<LockIcon size={14} className="mt-0.5 shrink-0" />
-				{t('steps.note')}
-			</p>
-		</form>
+		<MakeRequestForm
+			file={file}
+			request={request}
+			setRequest={setRequest}
+			overLimit={overLimit}
+			problem={problem}
+			pick={pick}
+			start={start}
+		/>
 	)
 }
 
@@ -1100,63 +787,6 @@ function Preview({ video }: { video: Video | null }) {
 				</span>
 			</div>
 			<span className="text-text-faint max-w-[260px] text-[13px]">{plan('previewNote')}</span>
-		</div>
-	)
-}
-
-const BYTES_PER_MB = 1024 * 1024
-
-/**
- * The picked video as an attachment: a still from it with its length, its
- * name, its picture size and file size, and Replace. Read from the file in
- * the browser, only to show it.
- */
-function AttachedVideo({ file, onReplace }: { file: File; onReplace: () => void }) {
-	const t = useTranslations('Make')
-	const [meta, setMeta] = useState<{ seconds: number; height: number } | null>(null)
-	const size = `${(file.size / BYTES_PER_MB).toFixed(file.size < 10 * BYTES_PER_MB ? 1 : 0)} MB`
-	return (
-		<div className="bg-surface-hover flex flex-wrap items-center gap-3 rounded p-2">
-			<span className="bg-night relative aspect-video w-[76px] shrink-0 overflow-hidden rounded-lg">
-				<video
-					// The file's own URL, for as long as this shows it.
-					ref={(element) => {
-						if (!element) return
-						const url = URL.createObjectURL(file)
-						element.src = `${url}#t=0.5`
-						return () => URL.revokeObjectURL(url)
-					}}
-					muted
-					playsInline
-					preload="metadata"
-					aria-hidden
-					onLoadedMetadata={(event) => {
-						const { duration, videoHeight } = event.currentTarget
-						setMeta({ seconds: Number.isFinite(duration) ? duration : 0, height: videoHeight })
-					}}
-					className="size-full object-cover"
-				/>
-				{meta && meta.seconds > 0 && (
-					<span className="absolute right-1 bottom-1 rounded bg-black/70 px-1 font-mono text-[10px] text-white">
-						{formatTimecode(meta.seconds)}
-					</span>
-				)}
-			</span>
-			<span className="flex min-w-0 flex-1 flex-col">
-				<span className="text-text truncate font-semibold">{file.name}</span>
-				<span className="text-text-faint text-[13px]">
-					{meta && meta.height > 0 ? t('ready', { quality: `${meta.height}p`, size }) : size}
-				</span>
-			</span>
-			<Button
-				type="button"
-				variant="outline"
-				size="sm"
-				aria-label={t('changeVideo')}
-				onClick={onReplace}
-			>
-				{t('replace')}
-			</Button>
 		</div>
 	)
 }
