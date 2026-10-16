@@ -4,17 +4,15 @@
 //
 // User.id is NOT @default: per docs/rules/auth.md, User.id IS the Supabase
 // auth user's uuid, set explicitly when the row is first created, never
-// generated app-side. @db.Uuid matches AdminMember.userId @db.Uuid
-// (prisma/schema/authz.prisma) so the FK types agree.
+// generated app-side.
 //
 // users is user-scoped, so its create migration ENABLEs ROW LEVEL SECURITY
 // (no policy, no FORCE) — see docs/rules/auth.md.
 model User {
-	id          String       @id @db.Uuid
-	email       String       @unique
-	createdAt   DateTime     @default(now()) @db.Timestamptz(6)
-	updatedAt   DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
-	adminMember AdminMember?
+	id        String   @id @db.Uuid
+	email     String   @unique
+	createdAt DateTime @default(now()) @db.Timestamptz(6)
+	updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
 	@@map("users")
 }

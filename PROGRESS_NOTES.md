@@ -16,11 +16,12 @@ session with no memory of it can carry on. Read this whole file, then
 > - **Tests:** 679 unit (1 skipped on Windows), 142 e2e in 28 files, 6 database tests (`pnpm test:db`) on real Postgres.
 > - **CI:** commits (pull requests only), check, ai-models, build, e2e (4 shards), migrations, db-tests. Since 2026-10-13 GitHub hasn't started jobs (billing; section 3zzv).
 > - **Largest code:** `VideoEditor` is one 2,260-line function (`video-editor.tsx`, lines 199 to 2458, a 2,458-line file), being split one PR at a time (4 hooks and the file's helpers done; the plan is in section 3zzr). Make it's planner is split by concern: `make-plan.ts` (231 lines: `planMake`, 82, and re-exports) and `make-reply`, `make-request`, `make-context`, `make-cut`, `make-look`, `make-summary` (102 to 499 lines each).
-> - **No admin console, feature flags, API routes or production-migrations workflow** (removed in 3zzo); their tables `admin_members`, `feature_flags` and `feature_flag_overrides` stay in the schema, unused, until a migration drops them.
+> - **No admin console, feature flags, API routes or production-migrations workflow** (removed in 3zzo); their tables `admin_members`, `feature_flags` and `feature_flag_overrides` were dropped in 3zzzd.
 > - **Decisions, trade-offs and known limits:** ARCHITECTURE.md.
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **Three leftovers: CRON_SECRET in CI, PlanView, the unused tables** (section 3zzzd).
 > - **Make it's plan queries in their own hook** (section 3zzzc).
 > - **Make it's request form out of MakeIt** (section 3zzzb).
 > - **Make it's plan request out of MakeIt** (section 3zzza).
@@ -515,6 +516,37 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzzd. Three leftovers: CRON_SECRET in CI, PlanView, the unused tables (2026-10-14)
+
+Branch `chore/architecture-leftovers`, three commits.
+
+- **`CRON_SECRET`:** the two placeholder lines in `ci.yml` (build and e2e
+  jobs) removed. Nothing reads it: it left `env.ts` in 3zzw and there's no
+  cron route. The `.claude/` skill texts still mention it; they weren't
+  part of this change.
+- **`PlanView`:** moved from `make-it.tsx` into `make/plan-view.tsx` with
+  the names only it uses (`SECONDS_PER_MINUTE`, `OPENER_WORDS`, `firstWords`,
+  `PlanRow`, `PLAN_ROWS`), which would otherwise be imported back from
+  `make-it.tsx`, a runtime cycle. The 343 moved lines are byte-for-byte
+  identical apart from `export` on `PlanView`. `make-it.tsx` 792 to 436
+  lines.
+- **Tables dropped:** `admin_members`, `feature_flags`,
+  `feature_flag_overrides` and the `AdminRole` enum. `authz.prisma` and
+  `flags.prisma` are gone, and so is `User.adminMember`. No code, script or
+  seed read them, and all three were empty locally. The migration
+  (`20261014162931_drop_unused_template_tables`) is hand-written, because
+  the generator refuses any `DROP TABLE` (exit 2). That's the exception
+  `docs/rules/migrations.md` allows. Its SQL is exactly what
+  `prisma migrate diff` gives from the old schema to the new.
+  - **Replayed on a throwaway database:** every migration applies, there's
+    no drift, the generator finds nothing to add, and `check:rls` passes on
+    the 5 tables left.
+  - **The local dev database** keeps the three tables until
+    `pnpm exec prisma migrate deploy` is run there.
+  - **`contact_messages`** is untouched.
 
 ---
 
