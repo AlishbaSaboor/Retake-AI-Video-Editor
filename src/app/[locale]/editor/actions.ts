@@ -5,6 +5,9 @@ import { deepgramWords, transcribeAudio } from '@/server/ai/deepgram'
 import { generateContent } from '@/server/ai/google'
 import { validatedAction } from '@/server/actions/validated-action'
 import { rethrowAiError } from '@/server/lib/ai-busy'
+import { AppError } from '@/lib/errors/app-error'
+import type { SessionUser } from '@/server/auth/session'
+import { createTakeUpload, readTakeUpload, removeTakeUpload } from '@/server/storage/take-audio'
 import {
 	EDIT_COMMAND_JSON_SCHEMA,
 	editCommandSchema,
@@ -18,7 +21,7 @@ import {
 	numberedSentences,
 	type HighlightPick
 } from './assistant/highlights'
-import { MAX_AUDIO_BASE64_LENGTH } from './audio/take-audio'
+import { MAX_AUDIO_BASE64_LENGTH, MAX_AUDIO_BYTES } from './audio/take-audio'
 import { toTranscript, type Transcript } from './audio/transcript'
 import { MAX_VOICE_BASE64_LENGTH } from './assistant/voice-command'
 
@@ -37,6 +40,8 @@ const COMMAND_TIMEOUT_MS = 30_000
 const HIGHLIGHTS_TIMEOUT_MS = 60_000
 const TAKE_TIMEOUT_MS = 60_000
 const VOICE_TIMEOUT_MS = 30_000
+// A take upload's path: <user id>/<upload id>.wav, two UUIDs.
+const MAX_TAKE_PATH_LENGTH = 100
 
 const UNSUPPORTED: EditCommand = {
 	action: 'unsupported',
@@ -211,23 +216,58 @@ export const findHighlights = validatedAction({
 	}
 })
 
+/** A take's 16 kHz mono WAV, transcribed by Deepgram. */
+async function transcribeWav(audio: Uint8Array): Promise<Transcript> {
+	const response = await transcribeAudio(
+		{ feature: 'transcribe_take', model: 'nova-3', timeoutMs: TAKE_TIMEOUT_MS },
+		audio,
+		'audio/wav'
+	).catch(rethrowAiError('deepgram', 'transcribe_take'))
+	return toTranscript(deepgramWords(response))
+}
+
+/** The signed-in user an action's wrapper already looked up (signedIn: true guarantees one). */
+function signedInUserId(user: SessionUser | null): string {
+	if (!user) throw new AppError('Sign in to use this.', { status: 401, code: 'unauthorized' })
+	return user.id
+}
+
 /**
- * Transcribes a take's audio (16 kHz mono WAV, base64) with Deepgram, which
- * keeps filler words and times every word against the audio — the timing
- * filler clean-up is built on. Malformed replies fail validation inside the
- * wrapper and surface as an error, never as an empty "no speech" transcript.
+ * Where the browser uploads a long take's audio (over MAX_INLINE_TRANSCRIBE_SECONDS),
+ * which is too big for one Server Action request on Vercel: a one-time
+ * signed URL into the user's own folder of the take-audio bucket. No
+ * allowance is taken here; transcribeTake takes it.
+ */
+export const startTakeUpload = validatedAction({
+	signedIn: true,
+	input: z.object({ bytes: z.number().int().positive().max(MAX_AUDIO_BYTES) }),
+	handler: async (_input, { user }) => createTakeUpload(signedInUserId(user), MAX_AUDIO_BYTES)
+})
+
+/**
+ * Transcribes a take's audio (16 kHz mono WAV) with Deepgram, which keeps
+ * filler words and times every word against the audio — the timing filler
+ * clean-up is built on. A short take comes inline (base64); a long one was
+ * uploaded first (startTakeUpload) and comes as its path, read only if it's
+ * the user's own and deleted once used. Malformed replies fail validation
+ * inside the wrapper and surface as an error, never as an empty "no speech"
+ * transcript.
  */
 export const transcribeTake = validatedAction({
 	signedIn: true,
 	allowance: 'transcript',
-	input: z.object({ audioBase64: z.string().min(1).max(MAX_AUDIO_BASE64_LENGTH) }),
-	handler: async ({ audioBase64 }): Promise<Transcript> => {
-		const response = await transcribeAudio(
-			{ feature: 'transcribe_take', model: 'nova-3', timeoutMs: TAKE_TIMEOUT_MS },
-			Buffer.from(audioBase64, 'base64'),
-			'audio/wav'
-		).catch(rethrowAiError('deepgram', 'transcribe_take'))
-		return toTranscript(deepgramWords(response))
+	input: z.union([
+		z.object({ audioBase64: z.string().min(1).max(MAX_AUDIO_BASE64_LENGTH) }),
+		z.object({ audioPath: z.string().min(1).max(MAX_TAKE_PATH_LENGTH) })
+	]),
+	handler: async (input, { user }): Promise<Transcript> => {
+		if ('audioBase64' in input) return transcribeWav(Buffer.from(input.audioBase64, 'base64'))
+		const audio = await readTakeUpload(signedInUserId(user), input.audioPath)
+		try {
+			return await transcribeWav(audio)
+		} finally {
+			await removeTakeUpload(input.audioPath)
+		}
 	}
 })
 

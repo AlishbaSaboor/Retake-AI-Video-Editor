@@ -37,6 +37,14 @@ There's no fourth "authenticated Supabase client for data" tier the way
 some other org repos have it — this template has no data-access role for
 Supabase at all, on purpose.
 
+**One exception, for files in transit, not data:** a take longer than 70 s
+is too big for one request to a Vercel Function, so the browser uploads its
+audio to the private `take-audio` Storage bucket with a one-time signed URL,
+and the transcript action reads it (only from the user's own folder),
+sends it to Deepgram and deletes it (`src/server/storage/take-audio.ts`).
+That uses `createStorageOnlyClient` (`src/lib/supabase/storage-only.ts`),
+typed to the Storage surface only, with the secret key, server-side.
+
 That is enforced by the type system, not by review. Both wrappers return
 `AuthOnlySupabaseClient` (`src/lib/supabase/auth-only.ts`), the client's
 auth surface and nothing else, so `supabase.from()` or `.rpc()` fails

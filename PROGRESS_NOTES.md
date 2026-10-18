@@ -6,7 +6,7 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **Read this first: where things stand on `main`** (updated 2026-10-13)
 >
-> - **Retake:** a local-first AI video editor: Make it with AI, a manual timeline editor, and automatic cleanup with re-recording.
+> - **Retake:** an AI video editor: Make it with AI, a manual timeline editor, and automatic cleanup with re-recording. Deployed on Vercel with a hosted Supabase project (section 3zzze, `docs/rules/deployment.md`); the video is decoded, edited and exported in the browser.
 > - **Pages:** landing, Privacy, sign-in, Home, Projects, Make it, the editor. No Pricing, Features, How it works or Contact page; old URLs redirect (`MOVED_PAGES`, `next.config.ts`).
 > - **No contact form or `CONTACT_IP_SECRET`** (removed in #50); `contact_messages` is kept, read by `pnpm contact:messages`.
 > - **Seven paid AI actions,** signed-in only, each taking one of a daily allowance per kind: 300 typed commands, 200 spoken, 30 transcripts, 30 highlight searches, 60 Make it steps (`src/lib/ai-limits.ts`).
@@ -21,6 +21,7 @@ session with no memory of it can carry on. Read this whole file, then
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **Ready for Vercel and a hosted Supabase project** (section 3zzze).
 > - **Three leftovers: CRON_SECRET in CI, PlanView, the unused tables** (section 3zzzd).
 > - **Make it's plan queries in their own hook** (section 3zzzc).
 > - **Make it's request form out of MakeIt** (section 3zzzb).
@@ -516,6 +517,59 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzze. Ready for Vercel and a hosted Supabase project (2026-10-18)
+
+Branch `chore/deploy-vercel-supabase`.
+
+- **Build:** `build` is now `prisma generate && next build`, so Vercel's
+  build makes the Prisma client itself (`postinstall` alone can be skipped
+  by a restored cache).
+- **Prisma for Supabase:** the schema already had `url` (pooled) and
+  `directUrl` (migrations). `.env.example` now gives both in Supabase's
+  format: the transaction pooler (6543) with
+  `?pgbouncer=true&connection_limit=1`, and the session pooler (5432) for
+  migrations.
+- **Nothing depends on local Docker or localhost** in the app. The only
+  localhost default, `NEXT_PUBLIC_APP_URL`, is read by no code.
+  `supabase/config.toml` configures only the local Supabase; it now turns
+  Storage on there too.
+- **Request size (Vercel: 4.5 MB per request):**
+  - **The transcript:** it sent a take's WAV as base64, up to ~12.8 MB.
+    Now a take up to 70 s still goes inline (at most ~3.0 MB). A longer
+    one is uploaded by the browser straight to the private `take-audio`
+    Storage bucket with a one-time signed URL (`startTakeUpload`), and
+    `transcribeTake` gets its path. It reads the file only from the
+    user's own folder, sends it to Deepgram through the same tracked
+    wrapper, and deletes it.
+  - **A failure before Deepgram** (someone else's path, the upload never
+    arrived, Storage not set up) gives the allowance back
+    (`ProviderNotCalledError`).
+  - **Make it's pictures:** they were allowed up to 60 KB each (~10.2 MB
+    worst case). Now capped at 20 KB, re-encoded at a lower JPEG quality
+    in the rare case one is bigger; a typical picture is ~10 KB and
+    unchanged.
+  - **Worst-case requests**, measured: inline take 2.99 MB, voice 1.28 MB,
+    Make it 4.23 MB (typical 1.5 MB). `request-limits.test.mts` keeps
+    them under.
+- **`validatedAction`** now passes the signed-in user it already looked up
+  to the handler, so an ownership check costs no second Supabase call.
+- **Export** uses `MediaRecorder`, not ffmpeg.wasm: no COOP/COEP headers
+  needed, none added.
+- **Docs:** deployment, auth, migrations, CI/CD setup, README,
+  ARCHITECTURE and AGENTS say it's deployed, and how.
+- **Tests:** 684 to 699 unit.
+  - `take-upload.test.mts` (8): the real actions, Storage module and
+    Supabase client, with Storage and Deepgram faked at `fetch`.
+  - `send-take-audio.test.mts` (4): inline or upload, and the upload
+    request matches supabase-js's `uploadToSignedUrl`.
+  - `request-limits.test.mts` (3).
+  - Removing the ownership check or the deletion makes the matching tests
+    fail.
+- **Not verified:** a real upload to Supabase Storage. Docker isn't running
+  and there's no hosted project yet; the request mirrors supabase-js's own.
 
 ---
 

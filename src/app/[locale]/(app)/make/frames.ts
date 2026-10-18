@@ -4,9 +4,25 @@
 // is on screen and where a face is, at a few kilobytes and a fixed token
 // cost each.
 
+import { MAX_FRAME_BASE64_LENGTH } from './make-plan'
+
 /** The longer side of each picture, in pixels. */
 const FRAME_SIDE = 256
-const JPEG_QUALITY = 0.7
+/**
+ * JPEG qualities tried in turn until a picture fits MAX_FRAME_BASE64_LENGTH:
+ * the first nearly always does; a very busy picture needs a lower one.
+ */
+const JPEG_QUALITIES = [0.7, 0.5, 0.35, 0.2, 0.1]
+
+/** The canvas as a JPEG, base64 without its data: prefix, at the best quality that fits. */
+function encodeFrame(canvas: HTMLCanvasElement): string {
+	let frame = ''
+	for (const quality of JPEG_QUALITIES) {
+		frame = canvas.toDataURL('image/jpeg', quality).replace(/^data:[^,]*,/, '')
+		if (frame.length <= MAX_FRAME_BASE64_LENGTH) break
+	}
+	return frame
+}
 
 function seek(video: HTMLVideoElement, seconds: number): Promise<void> {
 	return new Promise((resolve, reject) => {
@@ -38,7 +54,7 @@ export async function captureFrames(url: string, times: readonly number[]): Prom
 		for (const [index, seconds] of times.entries()) {
 			if (index > 0) await seek(video, seconds)
 			context.drawImage(video, 0, 0, canvas.width, canvas.height)
-			frames.push(canvas.toDataURL('image/jpeg', JPEG_QUALITY).replace(/^data:[^,]*,/, ''))
+			frames.push(encodeFrame(canvas))
 		}
 		return frames
 	} finally {

@@ -7,32 +7,33 @@
 /** 16 kHz mono — what speech models sample at anyway, and 4× smaller than 44.1 kHz stereo. */
 export const ANALYSIS_SAMPLE_RATE = 16_000
 
-/**
- * Longest take sent for transcription. Gemini takes at most ~20 MB inline
- * per request; 5 minutes of 16 kHz 16-bit WAV is ~9.6 MB (~12.8 MB as
- * base64). next.config.ts's serverActions.bodySizeLimit is sized to match.
- */
+/** Longest take sent for transcription: 5 minutes of 16 kHz 16-bit WAV is ~9.6 MB. */
 export const MAX_TRANSCRIBE_SECONDS = 300
 
 const WAV_HEADER_BYTES = 44
 const BYTES_PER_SAMPLE = 2
 
-/** Upper bound on a transcript request's base64 audio, for input validation. */
-export const MAX_AUDIO_BASE64_LENGTH =
-	4 *
-	Math.ceil(
-		(WAV_HEADER_BYTES + MAX_TRANSCRIBE_SECONDS * ANALYSIS_SAMPLE_RATE * BYTES_PER_SAMPLE) / 3
-	)
+/** A take's WAV size at this many seconds. */
+const wavBytes = (seconds: number) =>
+	WAV_HEADER_BYTES + seconds * ANALYSIS_SAMPLE_RATE * BYTES_PER_SAMPLE
+
+/** The longest take's WAV: the most the take-audio upload bucket accepts. */
+export const MAX_AUDIO_BYTES = wavBytes(MAX_TRANSCRIBE_SECONDS)
 
 /**
- * Request size the transcript action must be allowed: the longest audio
- * plus headroom for the action's own encoding. next.config.ts applies it to
- * BOTH limits a request to /editor passes through — the Server Action body
- * limit and the proxy's body buffer. The proxy one is easy to miss: it
- * silently keeps only the first 10 MB by default, so a take over ~4 minutes
- * arrived cut off mid-string and failed as an unterminated-JSON error.
+ * Longest take sent inline, as base64 inside the transcript action's own
+ * request. A request to a Vercel Function carries at most 4.5 MB
+ * (MAX_ACTION_REQUEST_BYTES): 70 s is ~3 MB as base64. A longer take is
+ * uploaded to Supabase Storage first and sent as its path
+ * (send-take-audio.ts, src/server/storage/take-audio.ts).
  */
-export const TRANSCRIBE_REQUEST_LIMIT_BYTES = MAX_AUDIO_BASE64_LENGTH + 1024 * 1024
+export const MAX_INLINE_TRANSCRIBE_SECONDS = 70
+
+/** The longest inline take's WAV. */
+export const MAX_INLINE_AUDIO_BYTES = wavBytes(MAX_INLINE_TRANSCRIBE_SECONDS)
+
+/** Upper bound on an inline transcript request's base64 audio, for input validation. */
+export const MAX_AUDIO_BASE64_LENGTH = 4 * Math.ceil(MAX_INLINE_AUDIO_BYTES / 3)
 
 export type Silence = { startSeconds: number; endSeconds: number }
 

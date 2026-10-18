@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { captureError } from '@/lib/observability/capture-error'
 import type { AiAllowanceKind } from '@/lib/ai-limits'
 import { providerDidNotCharge } from '@/server/ai/not-charged'
-import { requireUser } from '@/server/auth/session'
+import { requireUser, type SessionUser } from '@/server/auth/session'
 import { allowanceUsedUp, giveBackAllowance, takeAllowance } from '@/server/lib/ai-allowance'
 
 export type ActionResult<Output> =
@@ -30,7 +30,10 @@ export function validatedAction<InputSchema extends z.ZodType, Output>(config: {
 	// unset key, or a 4xx or 5xx reply. A reply that can't be used, a
 	// timeout or any other error keeps it used.
 	allowance?: AiAllowanceKind
-	handler: (input: z.infer<InputSchema>) => Promise<Output>
+	// `user` is the signed-in user the wrapper already looked up (null when
+	// the action isn't signedIn), so a handler can check ownership without a
+	// second Supabase call.
+	handler: (input: z.infer<InputSchema>, context: { user: SessionUser | null }) => Promise<Output>
 }) {
 	return async function (rawInput: unknown): Promise<ActionResult<Output>> {
 		try {
@@ -38,14 +41,14 @@ export function validatedAction<InputSchema extends z.ZodType, Output>(config: {
 
 			const input = config.input.parse(rawInput)
 			if (!user || config.allowance === undefined) {
-				return { ok: true, data: await config.handler(input) }
+				return { ok: true, data: await config.handler(input, { user }) }
 			}
 			const kind = config.allowance
 			const now = new Date()
 			const day = await takeAllowance(user.id, kind, now)
 			if (!day) throw allowanceUsedUp(kind, now)
 			try {
-				return { ok: true, data: await config.handler(input) }
+				return { ok: true, data: await config.handler(input, { user }) }
 			} catch (error) {
 				if (providerDidNotCharge(error)) {
 					// A failed give-back only costs the user that one call.

@@ -55,8 +55,9 @@ of one monolithic instructions file.
   once per database on the next deploy, after the migrations, tracked by
   content hash in the `_run_once_sql` ledger so it never repeats.
 - **[Auth](docs/rules/auth.md)** — Supabase Auth by default for anything
-  with real user accounts, removed entirely for landing pages; auth only,
-  never a second path to application data. Authorization is enforced in the
+  with real user accounts, removed entirely for landing pages; auth (plus
+  one private Storage bucket for long takes' audio in transit), never a
+  second path to application data. Authorization is enforced in the
   API/action layer (session + ownership guards) because Prisma connects
   directly, not through PostgREST. Keep the Supabase Data API **off**, and
   still enable RLS with **no policies** on every table — a deny-by-default
@@ -64,7 +65,7 @@ of one monolithic instructions file.
   API is switched on later. Don't `FORCE` it (Prisma connects as the table
   owner, which must stay exempt). `pnpm check:rls` reads the database in CI
   to prove all three, and the Supabase wrappers are typed to their auth
-  surface so a data call through them doesn't compile.
+  (or Storage) surface so a data call through them doesn't compile.
 - **[State management](docs/rules/state-management.md)** — TanStack Query
   for server state, local state/URL params for client-only state, no
   global store by default.
@@ -130,8 +131,10 @@ of one monolithic instructions file.
   description last, once the work is actually done, not at PR-creation
   time when it can still change. Open as draft if you need a PR to exist
   before then.
-- **[Deployment](docs/rules/deployment.md)** — never deploy manually;
-  Retake isn't deployed, so nothing deploys on a push or a tag.
+- **[Deployment](docs/rules/deployment.md)** — Vercel deploys from Git
+  (production from `main`, previews from PRs) with a hosted Supabase
+  project; never deploy manually, and apply migrations before the deploy
+  that needs them.
 
 `docs/STANDARDS.md` is the checklist of what every 8x repo carries — the
 files, hooks, gates and config behind the rules above — paired with the

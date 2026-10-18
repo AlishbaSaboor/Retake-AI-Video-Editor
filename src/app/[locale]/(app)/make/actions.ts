@@ -13,6 +13,7 @@ import {
 	FRAME_SEPARATOR,
 	MAKE_REPLY_JSON_SCHEMA,
 	makeReplySchema,
+	MAX_FRAME_BASE64_LENGTH,
 	MAX_FRAMES,
 	MAX_MAKE_SECONDS,
 	MAX_ANSWER_LENGTH,
@@ -29,8 +30,6 @@ import { choiceWords, makeChoicesSchema, type MakeChoices } from './make-questio
 /** The free-licence tracks Make it may lay under an edit (see LICENSES there). */
 const MUSIC_FOLDER = path.join(process.cwd(), 'public', 'music')
 const MUSIC_FILE = /\.(mp3|m4a|ogg|opus|wav|webm)$/i
-/** A small JPEG of a frame, base64: about 10 KB at the size the page takes them. */
-const MAX_FRAME_BASE64_LENGTH = 60_000
 const MAX_SENTENCES = 400
 const MAX_SENTENCE_LENGTH = 1000
 /** Follow-ups already made, given again as what the plan has been through. */
