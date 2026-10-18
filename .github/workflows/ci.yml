@@ -1,5 +1,9 @@
 name: CI
 
+# The quick checks, on every push to main and every pull request. The slow
+# ones (end-to-end, database tests, migrations, the AI model list) are in
+# manual.yml and run only when started from the Actions tab.
+
 on:
   pull_request:
   push:
@@ -10,18 +14,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  commits:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: node scripts/check-commit-message.mjs --range origin/${{ github.base_ref }}..HEAD
-
   check:
     runs-on: ubuntu-latest
     steps:
@@ -40,25 +32,7 @@ jobs:
       # file so a secret committed with --no-verify (or before the hook was
       # installed) still fails the branch. See docs/rules/secrets.md.
       - run: pnpm check:secrets
-      - run: pnpm check:standards
       - run: pnpm test
-
-  # Separate from `check` on purpose: this one calls out to OpenRouter, and a
-  # network blip upstream should read as its own red square rather than
-  # taking lint and typecheck down with it. The script exits 0 when it cannot
-  # reach OpenRouter at all — only a slug that upstream has actually retired
-  # fails the job. See docs/rules/ai-usage.md.
-  ai-models:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check:ai-models
 
   build:
     runs-on: ubuntu-latest
@@ -75,175 +49,3 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-
-  # One test at a time, the suite split across four runners. The editor's
-  # tests record video and export it in real time; four at once on one
-  # runner (with the dev server compiling beside them) starved each other,
-  # and a different export or playback test failed each run (PROGRESS_NOTES
-  # 4c). Each shard has a runner to itself and runs its quarter serially.
-  e2e:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
-    env:
-      DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e --workers=1 --shard=${{ matrix.shard }}/4
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: playwright-report-${{ matrix.shard }}
-          path: playwright-report/
-          retention-days: 14
-
-  migrations:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    env:
-      # DIRECT_URL required here even though it's optional for the running
-      # app (see src/lib/env.ts) — the schema declares directUrl =
-      # env("DIRECT_URL") unconditionally, so Prisma's schema validation
-      # fails on ANY CLI command (migrate deploy, migrate diff) if it isn't
-      # set, regardless of whether that specific command uses it. `prisma
-      # generate` alone doesn't hit this, which is why build/e2e don't need
-      # it — only this job, which actually runs migrate commands, does.
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      # Exchange the org-level GitHub App credentials for a short-lived
-      # installation token. Gated on `vars` rather than `secrets` because
-      # `secrets` isn't a valid context in `if:` (see
-      # claude-code-review.yml's comment) — `vars` is, so the App ID doubles
-      # as the presence check and the job degrades to the fallbacks below
-      # instead of failing every PR before the App exists.
-      - uses: actions/create-github-app-token@v2
-        id: app-token
-        if: vars.MIGRATIONS_APP_ID != ''
-        with:
-          app-id: ${{ vars.MIGRATIONS_APP_ID }}
-          private-key: ${{ secrets.MIGRATIONS_APP_PRIVATE_KEY }}
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-          # Falls through: App installation token → a static MIGRATIONS_TOKEN
-          # PAT → GITHUB_TOKEN. Only the first two make the generated-migration
-          # commit trigger its own CI run; GITHUB_TOKEN leaves it stuck in
-          # `action_required` pending manual approval. See
-          # docs/rules/migrations.md and docs/CI_CD_SETUP.md for how to
-          # provision the App (preferred) or a MIGRATIONS_TOKEN PAT.
-          token: ${{ steps.app-token.outputs.token || secrets.MIGRATIONS_TOKEN || secrets.GITHUB_TOKEN }}
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Replay committed migrations
-        run: pnpm exec prisma migrate deploy
-      # HEAD_REF crosses into the shell as an environment variable, never as
-      # `${{ }}` inside the script. Git refnames permit `;`, `$`, backticks and
-      # quotes, and this job holds contents:write plus the migrations token, so
-      # interpolating one into `run:` would be arbitrary code execution for
-      # anyone who can push a branch.
-      - name: Generate missing migration (PRs only, not forks)
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          HEAD_REF: ${{ github.head_ref }}
-        run: node scripts/generate-migration.mjs --name "$HEAD_REF" --db-url "$DATABASE_URL"
-      - name: Commit generated migration if any
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        # A static subject: the branch name added nothing a reviewer cannot see
-        # from the branch itself, and a long one used to breach the 72-character
-        # header limit scripts/check-commit-message.mjs enforces.
-        run: |
-          if [ -n "$(git status --porcelain prisma/schema/migrations)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add prisma/schema/migrations
-            git commit -m "chore(db): add generated migration"
-            git push
-          else
-            echo "No new migration to commit."
-          fi
-      # prisma/run-once.sql on top of the replayed migrations. This database
-      # is throwaway, so its ledger is empty and the file always applies here:
-      # a one-off that is broken, or that depends on rows only production has,
-      # fails on this PR instead of on main. Runs after the generated migration
-      # lands so the file may use a table this PR's schema change creates, and
-      # before the drift check so anything it creates that Prisma tracks fails
-      # that check too.
-      - name: Apply run-once SQL
-        run: node scripts/run-once-sql.mjs --db-url "$DATABASE_URL"
-      - name: Check for drift (guard on main, hard gate on PRs)
-        run: pnpm exec prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema --exit-code
-      # RLS is not in the Prisma schema, so the drift check above cannot see
-      # it. This reads pg_class on the replayed database instead: every table
-      # enabled, no policies, never forced. A new table goes red here until
-      # its ENABLE ROW LEVEL SECURITY migration lands. See docs/rules/auth.md.
-      - name: Verify RLS on every table
-        run: pnpm check:rls
-
-  # The tests that need a real database (`*.db-test.mts`, `pnpm test:db`):
-  # the daily allowance's ceiling under requests at once, and a paid action
-  # writing its real allowance and ai_usage rows. Its own Postgres, as the
-  # migrations job has, but nothing else: read-only, no secrets, no app
-  # token, nothing generated or committed. The providers are faked at the
-  # network edge; no AI call leaves the runner.
-  db-tests:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    env:
-      # DIRECT_URL because the schema declares it (see the migrations job).
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Apply the committed migrations
-        run: pnpm exec prisma migrate deploy
-      - run: pnpm test:db

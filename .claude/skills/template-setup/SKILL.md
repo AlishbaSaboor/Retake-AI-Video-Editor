@@ -174,7 +174,6 @@ Regardless of internal/external, tell the user they still need to do these outsi
 - Create a fresh Postgres database and set `DATABASE_URL`/`DIRECT_URL`. If this project has accounts (Supabase Auth is wired in), that's the same Supabase project — set `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`/`SUPABASE_SECRET_KEY` from its dashboard at the same time.
 - Create a fresh Sentry project and set `NEXT_PUBLIC_SENTRY_DSN`/`SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN`.
 - Create a fresh PostHog project and set `NEXT_PUBLIC_POSTHOG_KEY`.
-- Provision `MIGRATIONS_TOKEN` (see `docs/CI_CD_SETUP.md`) before the first real schema change, or the CI-generated migration commit's own run sits in `action_required` waiting on manual approval.
 - If the project tracks AI spend, tell whoever runs MOAD that this project's
   Supabase database has an `ai_usage` table to read. That is the only step,
   and no skill can do it.

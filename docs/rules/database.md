@@ -18,4 +18,3 @@ the icon and AI-SDK rules: `@prisma/client` may be imported as a value only
 in `src/server/db/client.ts` (type imports are fine anywhere), and `pg`,
 `postgres`, and the other drivers and ORMs have no importer at all. Supabase's
 own client can't reach data either — see `docs/rules/auth.md`.
-`pnpm check:standards` confirms the rule is in effect.

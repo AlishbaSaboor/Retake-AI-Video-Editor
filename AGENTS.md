@@ -48,9 +48,9 @@ of one monolithic instructions file.
 
 - **[Database access](docs/rules/database.md)** — Prisma only, no raw
   SQL clients, no Supabase `.from()`/`.rpc()` for data.
-- **[Migrations](docs/rules/migrations.md)** — CI generates and commits
-  migrations from a schema diff; never hand-write a file under
-  `prisma/schema/migrations/`. One-off SQL that isn't a schema change (a
+- **[Migrations](docs/rules/migrations.md)** — `scripts/generate-migration.mjs`
+  generates migrations from a schema diff against your local database;
+  never hand-write a file under `prisma/schema/migrations/`. One-off SQL that isn't a schema change (a
   data fix, reference rows, a view) goes in `prisma/run-once.sql`: it runs
   once per database on the next deploy, after the migrations, tracked by
   content hash in the `_run_once_sql` ledger so it never repeats.
@@ -63,8 +63,8 @@ of one monolithic instructions file.
   still enable RLS with **no policies** on every table — a deny-by-default
   lock so no anon/authenticated role can ever read a row, even if the Data
   API is switched on later. Don't `FORCE` it (Prisma connects as the table
-  owner, which must stay exempt). `pnpm check:rls` reads the database in CI
-  to prove all three, and the Supabase wrappers are typed to their auth
+  owner, which must stay exempt). `pnpm check:rls` reads the database (the
+  manual `migrations` job) to prove all three, and the Supabase wrappers are typed to their auth
   (or Storage) surface so a data call through them doesn't compile.
 - **[State management](docs/rules/state-management.md)** — TanStack Query
   for server state, local state/URL params for client-only state, no
@@ -125,8 +125,8 @@ of one monolithic instructions file.
   feature already exists and you're adjusting it.
 - **[Commits](docs/rules/commits.md)** — don't over-commit (every push is a
   real CI bill — verify locally with `local-review` before committing, not
-  after CI fails), plus Conventional Commits message format, enforced by a
-  shared hook + CI job.
+  after CI fails), plus Conventional Commits message format, enforced by the
+  `commit-msg` hook.
 - **[Pull requests](docs/rules/pull-requests.md)** — write the title and
   description last, once the work is actually done, not at PR-creation
   time when it can still change. Open as draft if you need a PR to exist
@@ -136,17 +136,9 @@ of one monolithic instructions file.
   project; never deploy manually, and apply migrations before the deploy
   that needs them.
 
-`docs/STANDARDS.md` is the checklist of what every 8x repo carries — the
-files, hooks, gates and config behind the rules above — paired with the
-deterministic check that proves each item is still wired:
-`pnpm check:standards` (`scripts/check-standards.mjs`), run in CI on every
-pull request. It is also the playbook for bringing an existing repo onto
-these standards: point the script at that repo and its failures are the
-to-do list.
-
-`docs/CI_CD_SETUP.md` has the human side of this — which GitHub secrets
-and settings need to exist for the above to actually work, not just be
-documented.
+`docs/CI_CD_SETUP.md` lists the GitHub workflows: `ci.yml` (lint,
+typecheck, unit tests and build on every push and pull request) and
+`manual.yml` (e2e, migrations, database tests, run by hand).
 
 ## Per-tool entry points
 
@@ -161,7 +153,7 @@ run the workflows in `.claude/skills/`):
 
 A tool that needs its own entry point (`GEMINI.md`, `QWEN.md`,
 `.cursor/rules/project.mdc`) gets one that imports this file, as
-`CLAUDE.md` does; `pnpm check:standards` checks any that exist.
+`CLAUDE.md` does.
 
 Rules go here, not in those files. If you find yourself writing an
 engineering rule into a per-tool file, it belongs in this one instead.

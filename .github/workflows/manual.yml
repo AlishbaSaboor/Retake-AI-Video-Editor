@@ -1,0 +1,143 @@
+name: Manual tests
+
+# The slow checks, run by hand: Actions -> Manual tests -> Run workflow, on
+# any branch. Nothing here runs on push or pull request (that's ci.yml).
+# None of it needs a secret, and no AI call leaves the runner.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  # One test at a time, the suite split across four runners. The editor's
+  # tests record video and export it in real time; four at once on one
+  # runner (with the dev server compiling beside them) starved each other,
+  # and a different export or playback test failed each run (PROGRESS_NOTES
+  # 4c). Each shard has a runner to itself and runs its quarter serially.
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e --workers=1 --shard=${{ matrix.shard }}/4
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-${{ matrix.shard }}
+          path: playwright-report/
+          retention-days: 14
+
+  # The committed migrations replayed onto a clean Postgres, then
+  # prisma/run-once.sql, then the checks that they match the schema and that
+  # every table has RLS on. Read-only: it never writes or commits a
+  # migration (generate them locally, docs/rules/migrations.md).
+  migrations:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # DIRECT_URL because the schema declares directUrl = env("DIRECT_URL")
+      # unconditionally, so every Prisma migrate command needs it set.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Replay committed migrations
+        run: pnpm exec prisma migrate deploy
+      # This database is throwaway, so its ledger is empty and the file
+      # always applies here: a one-off that is broken, or that depends on rows
+      # only production has, fails here. Before the drift check so anything
+      # it creates that Prisma tracks fails that check too.
+      - name: Apply run-once SQL
+        run: node scripts/run-once-sql.mjs --db-url "$DATABASE_URL"
+      - name: Check the migrations match the schema
+        run: pnpm exec prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema --exit-code
+      # RLS is not in the Prisma schema, so the drift check above cannot see
+      # it. This reads pg_class on the replayed database instead: every table
+      # enabled, no policies, never forced. See docs/rules/auth.md.
+      - name: Verify RLS on every table
+        run: pnpm check:rls
+
+  # The tests that need a real database (`*.db-test.mts`, `pnpm test:db`):
+  # the daily allowance's ceiling under requests at once, and a paid action
+  # writing its real allowance and ai_usage rows. The providers are faked at
+  # the network edge.
+  db-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # DIRECT_URL because the schema declares it (see the migrations job).
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply the committed migrations
+        run: pnpm exec prisma migrate deploy
+      - run: pnpm test:db
+
+  # Every model the app calls is still listed on OpenRouter, which prices
+  # ai_usage rows. Exits 0 when OpenRouter can't be reached; only a slug
+  # that has really been retired fails. See docs/rules/ai-usage.md.
+  ai-models:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check:ai-models

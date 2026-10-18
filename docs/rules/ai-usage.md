@@ -194,8 +194,7 @@ thing that survives the deletion, and it has to, for two reasons. It is the
 reference an agent reads on the day this project does add an AI call — every
 trap above (the cached-token disagreement, NULL-never-0, micro-USD, the
 explicit slug map) is knowledge that is expensive to re-derive and easy to
-get plausibly wrong. And `pnpm check:standards` fails on a rule that is
-linked but gone.
+get plausibly wrong.
 
 What does change is the top of this file. Replace the first paragraph with a
 note saying where the project stands, so nobody goes looking for a table

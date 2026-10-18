@@ -296,7 +296,7 @@ Proof: `instrumentation-client.ts`, `src/proxy.ts`.
   same two files before it was split.
 - **CI doesn't exercise real sign-in**: it runs with accounts off, and the
   sign-in checks are covered by unit tests with the session mocked.
-- **The paid actions meet real Postgres, but never a real provider**: CI's
+- **The paid actions meet real Postgres, but never a real provider**: the manual
   `db-tests` job (`pnpm test:db`) runs the allowance's ceiling and all seven
   paid actions through the real Gemini SDK and Deepgram wrapper, with the
   network faked at `fetch`. A provider's real reply, and real sign-in (the
@@ -319,7 +319,8 @@ local Supabase in Docker (`supabase/config.toml`).
   starts without them; an AI call then fails with "The AI isn't available
   right now. Try again later." for the person, and the log names the
   provider and the setting to check (never a key's value).
-- Migrations: CI writes them from the Prisma schema;
+- Migrations: generated locally from the Prisma schema
+  (`scripts/generate-migration.mjs`), checked by the manual `migrations` job;
   `pnpm exec prisma migrate deploy` applies them locally.
 
 **Known limits of the hosted setup:**

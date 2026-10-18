@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Applies prisma/run-once.sql to a database exactly once per version of the
-// file. ci.yml's migrations job runs it against a throwaway Postgres on
-// every PR, where the ledger is empty and the file always applies, so a
+// file. manual.yml's migrations job runs it against a throwaway Postgres,
+// where the ledger is empty and the file always applies, so a
 // broken one-off fails there instead of on main; `pnpm db:run-once` runs it
 // against the local database. docs/rules/migrations.md ("Run-once SQL") is the
 // policy for what belongs in the file.

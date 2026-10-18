@@ -37,12 +37,9 @@ that description later and trusts it.
 ## Why draft specifically, not just "remember to update it later"
 
 Draft is a real GitHub state, not a note-to-self that's easy to skip.
-`.github/workflows/claude-code-review.yml` already gates on
-`github.event.pull_request.draft == false` — a draft PR doesn't get an AI
-review pass at all, so there's no wasted review run against a description
-(or a diff) that's still changing. Marking the PR "ready for review" is
-already the natural trigger point to also finalize the description — do
-both in the same step, not as two separate things to remember.
+Marking the PR "ready for review" is the natural trigger point to also
+finalize the description — do both in the same step, not as two separate
+things to remember.
 
 ## What "done" means here
 
