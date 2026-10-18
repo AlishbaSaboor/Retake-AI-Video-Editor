@@ -36,6 +36,13 @@ export const FRAME_EVERY_SECONDS = 2
 /** Make it reads at most 5 minutes, like the transcript: one picture every 2 s of it. */
 export const MAX_MAKE_SECONDS = 300
 export const MAX_FRAMES = MAX_MAKE_SECONDS / FRAME_EVERY_SECONDS
+/**
+ * The most one picture may be, as base64: a 256-pixel JPEG is about 10 KB.
+ * With MAX_FRAMES of them and the transcript, the plan's request stays under
+ * Vercel's 4.5 MB (MAX_ACTION_REQUEST_BYTES); frames.ts re-encodes the rare
+ * bigger picture at a lower quality until it fits.
+ */
+export const MAX_FRAME_BASE64_LENGTH = 20_000
 export const MAX_QUESTIONS = 3
 /**
  * How long the plan and its second check may take on the server before

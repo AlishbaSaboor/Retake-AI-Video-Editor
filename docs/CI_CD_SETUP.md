@@ -3,8 +3,8 @@
 What has to exist in GitHub before this repo's workflows actually work end
 to end, not just look correct in the YAML. Do this once, right after
 `template-setup` (see `.claude/skills/template-setup/`), before the first
-real PR. Retake isn't deployed, so there's no hosting to set up (see
-`docs/rules/deployment.md`).
+real PR. Hosting (Vercel and the hosted Supabase project) is set up
+outside GitHub: see `docs/rules/deployment.md`.
 
 ## GitHub
 
@@ -65,8 +65,9 @@ this template without minting a new token per repo:
 
 ### Environments
 
-None. Retake isn't deployed and has no production database, so there's no
-`production-database` environment and no workflow that migrates one.
+None. No workflow migrates the hosted database, so there's no
+`production-database` environment: migrations are applied by hand before
+the deploy that needs them (`docs/rules/deployment.md`).
 
 ### Branch protection
 
@@ -90,7 +91,8 @@ default here; see the design guide's open decisions.
 
 ## Hosting
 
-None. Retake isn't deployed (`docs/rules/deployment.md`): there's no Vercel
-project and no preview or production database. Pull-request CI validates the
-migrations and `prisma/run-once.sql` against a throwaway Postgres service;
-nothing applies them to a hosted database.
+Vercel, through its GitHub integration (production from `main`, a
+preview per pull request), with a hosted Supabase project for Postgres and
+auth: `docs/rules/deployment.md`. Pull-request CI validates the migrations
+and `prisma/run-once.sql` against a throwaway Postgres service; nothing in
+CI applies them to the hosted database.

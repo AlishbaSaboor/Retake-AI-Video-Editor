@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { ActionFailure, isPlainAiStatus } from '@/lib/ai-failure'
-import { transcribeTake } from '../actions'
 import { detectAudioIssues, type AudioIssue } from './audio-quality'
+import { transcribeTakeAudio } from './send-take-audio'
 import { planFillerCut, type FillerPlan } from './filler-cuts'
 import { detectFillerWords } from './filler-words'
 import {
@@ -12,7 +12,6 @@ import {
 	encodeWav,
 	measureLoudness,
 	MAX_TRANSCRIBE_SECONDS,
-	toBase64,
 	type Loudness,
 	type Silence
 } from './take-audio'
@@ -24,8 +23,8 @@ type AudioAnalysis = {
 	audioIssues: AudioIssue[]
 	/** For placing filler cuts in the real gaps around each filler. */
 	loudness: Loudness
-	/** Null when the take is longer than MAX_TRANSCRIBE_SECONDS. */
-	audioBase64: string | null
+	/** The take as 16 kHz mono WAV, for the transcript; null when it's longer than MAX_TRANSCRIBE_SECONDS. */
+	wav: ArrayBuffer | null
 }
 
 export type TranscriptState =
@@ -68,7 +67,7 @@ export function useTakeAnalysis(
 				silences: detectSilences(samples, ANALYSIS_SAMPLE_RATE),
 				audioIssues: detectAudioIssues(channels, decoded.sampleRate, loudness),
 				loudness,
-				audioBase64: tooLong ? null : toBase64(encodeWav(samples, ANALYSIS_SAMPLE_RATE))
+				wav: tooLong ? null : encodeWav(samples, ANALYSIS_SAMPLE_RATE)
 			}
 		},
 		enabled: video !== null,
@@ -76,18 +75,16 @@ export function useTakeAnalysis(
 		retry: false
 	})
 
-	const audioBase64 = audio.data?.audioBase64 ?? null
+	const wav = audio.data?.wav ?? null
 	const saved = video?.transcript ?? null
 	const transcript = useQuery({
 		queryKey: ['take-transcript', video?.url],
 		queryFn: async () => {
 			if (saved) return saved
-			if (!audioBase64) throw new Error('No audio to transcribe')
-			const result = await transcribeTake({ audioBase64 })
-			if (!result.ok) throw new ActionFailure(result.error, result.status)
-			return result.data
+			if (!wav) throw new Error('No audio to transcribe')
+			return transcribeTakeAudio(wav)
 		},
-		enabled: audioBase64 !== null || (saved !== null && audio.data !== undefined),
+		enabled: wav !== null || (saved !== null && audio.data !== undefined),
 		staleTime: Infinity,
 		retry: false
 	})
@@ -96,7 +93,7 @@ export function useTakeAnalysis(
 		? { status: 'analyzing' }
 		: !audio.data
 			? { status: 'no_audio' }
-			: !audioBase64 && !saved
+			: !wav && !saved
 				? { status: 'too_long' }
 				: transcript.isPending
 					? { status: 'transcribing' }

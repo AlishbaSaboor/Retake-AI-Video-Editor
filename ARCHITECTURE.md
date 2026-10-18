@@ -45,7 +45,9 @@ flowchart LR
 
 The file itself is played from an object URL, edited, exported and saved in
 the browser. Of the video and what's said in it, only four things leave
-it: the decoded audio (for a transcript, to Deepgram), the microphone
+it: the decoded audio (for a transcript, to Deepgram; a take over 70 s
+passes through a private Supabase Storage bucket first, deleted once
+transcribed), the microphone
 recording of a spoken command (to Deepgram), text (typed commands, spoken
 commands once transcribed, the transcript's sentences, to Gemini) and, for
 Make it, the transcript plus one small picture every 2 seconds (to Gemini).
@@ -300,14 +302,14 @@ Proof: `instrumentation-client.ts`, `src/proxy.ts`.
   network faked at `fetch`. A provider's real reply, and real sign-in (the
   session is faked there too), are not exercised.
 
-## Scope: local-first, not deployed
+## Scope: Vercel and a hosted Supabase project
 
-Retake is built to run on one machine: `pnpm dev` (or a production build
-started locally), a local Supabase in Docker, and the developer's own
-Gemini and Deepgram keys. It isn't deployed anywhere, and nothing here is
-tuned for strangers on the internet.
+The app runs on Vercel and its Postgres and auth on a hosted Supabase
+project (`docs/rules/deployment.md`); the video never leaves the browser
+except as described above. For local development it can also run against a
+local Supabase in Docker (`supabase/config.toml`).
 
-**To run it locally:**
+**To run it (locally or on Vercel):**
 
 - `DATABASE_URL`, always (the server won't start without it).
 - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. A
@@ -320,17 +322,17 @@ tuned for strangers on the internet.
 - Migrations: CI writes them from the Prisma schema;
   `pnpm exec prisma migrate deploy` applies them locally.
 
-**What a hosted launch would need, and why each is out of scope here:**
+**Known limits of the hosted setup:**
 
-| Needed for a hosted launch                                         | Why                                                                                                                                                                                                                                                                     | Why not here                                                            |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Request-size limits that fit the host                              | A transcript sends up to about 12.8 MB in one request and a Make it plan up to about 9 MB (the server-action body limit is raised to about 13.8 MB in `next.config.ts`); many hosts cap bodies lower, Vercel at [4.5 MB](https://vercel.com/docs/functions/limitations) | A local server has no such cap                                          |
-| `maxDuration` on the long actions                                  | A plan may take up to 60 s (`PLAN_TIMEOUT_MS`); a host's default function duration may be shorter                                                                                                                                                                       | A local server has no function duration                                 |
-| A spend ceiling across all accounts                                | The daily allowance caps each account, not how many there are                                                                                                                                                                                                           | One person runs it with their own keys                                  |
-| Email confirmation or a captcha at sign-up                         | Confirmation is off (`supabase/config.toml`), so accounts are free to create                                                                                                                                                                                            | Accounts are local test accounts                                        |
-| Sign-in rate limits per visitor                                    | Sign-in runs as a server action, so Supabase's per-IP limits see the server's address                                                                                                                                                                                   | One person signs in                                                     |
-| Migrations applied to the hosted database, before the app's deploy | No workflow applies migrations anywhere but CI's throwaway Postgres; there is no production database                                                                                                                                                                    | No app is deployed                                                      |
-| A user id on `ai_usage`                                            | Spend can't be traced to an account (`prisma/schema/ai-usage.prisma`)                                                                                                                                                                                                   | `ai_usage` is a contract with the MOAD dashboard and isn't changed here |
+| Needed for a hosted launch                                         | Why                                                                                                                                   | Why not here                                                            |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `maxDuration` on the long actions                                  | A plan may take up to 60 s (`PLAN_TIMEOUT_MS`); Vercel's default with Fluid compute is 300 s, but a project without it may be shorter | Not set, so the plan's own limit applies                                |
+| A spend ceiling across all accounts                                | The daily allowance caps each account, not how many there are                                                                         | One person runs it with their own keys                                  |
+| Email confirmation or a captcha at sign-up                         | Confirmation is off (the app signs a new account straight in), so accounts are free to create                                         | The daily allowance caps what each one spends                           |
+| Sign-in rate limits per visitor                                    | Sign-in runs as a server action, so Supabase's per-IP limits see the server's address                                                 | One person signs in                                                     |
+| Migrations applied to the hosted database, before the app's deploy | No workflow applies them to the hosted database; they're applied by hand (`docs/rules/deployment.md`)                                 | One project, one owner                                                  |
+| Orphaned take uploads cleaned up                                   | A long take uploaded but never transcribed (the tab closed in between) stays in the `take-audio` bucket                               | Rare and small; no scheduled job yet                                    |
+| A user id on `ai_usage`                                            | Spend can't be traced to an account (`prisma/schema/ai-usage.prisma`)                                                                 | `ai_usage` is a contract with the MOAD dashboard and isn't changed here |
 
 ## What I'd do next
 

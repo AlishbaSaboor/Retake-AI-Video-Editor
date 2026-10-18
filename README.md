@@ -114,6 +114,8 @@ Decisions, trade-offs, scope and known limits are in
 
 ## Scope
 
-Retake is local-first: it runs on your own computer and is not deployed.
+Retake runs on Vercel with a hosted Supabase project (Postgres and auth);
+video decoding, editing and export happen in the browser. See
+[docs/rules/deployment.md](docs/rules/deployment.md).
 
 Next: music for Make it is planned.

@@ -27,9 +27,11 @@ COLUMN`/`SET NOT NULL`, which needs hand-written data-preserving SQL via
 - No SQL-editor writes against staging or production, ever, for schema or
   data. One-off data fixes go in `prisma/run-once.sql` (next section),
   through the same PR/CI path.
-- There's no production database: Retake isn't deployed, so migrations are
-  applied only to CI's throwaway Postgres and to your local database
-  (`pnpm exec prisma migrate deploy`).
+- Nothing applies migrations to the hosted Supabase database
+  automatically: apply them before the deploy that needs them, with
+  `DIRECT_URL` set to the session pooler (`docs/rules/deployment.md`). CI
+  applies them to its throwaway Postgres; `pnpm exec prisma migrate deploy`
+  applies them to your local one.
 
 ## Run-once SQL — `prisma/run-once.sql`
 

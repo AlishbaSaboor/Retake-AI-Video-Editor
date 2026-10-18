@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next'
 import createNextIntlPlugin from 'next-intl/plugin'
 import { withSentryConfig } from '@sentry/nextjs'
-import { TRANSCRIBE_REQUEST_LIMIT_BYTES } from './src/app/[locale]/editor/audio/take-audio'
+import { MAX_ACTION_REQUEST_BYTES } from './src/lib/request-limits'
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
 
@@ -40,16 +40,17 @@ const nextConfig: NextConfig = {
 		qualities: [75, 85]
 	},
 	experimental: {
-		// The transcript action receives a take's audio: up to 5 minutes of
-		// 16 kHz mono WAV, base64-encoded (~12.8 MB). Both limits below sit in
-		// its path and both default too low — 1 MB for Server Actions, 10 MB
-		// for the proxy's body buffer (src/proxy.ts runs on /editor), which
-		// truncates silently rather than rejecting. One constant drives both,
-		// derived from MAX_TRANSCRIBE_SECONDS, so they can't drift apart.
+		// The biggest Server Action requests are an inline take's audio (up to
+		// ~3 MB) and Make it's plan with its pictures (up to ~4 MB): over the
+		// 1 MB Server Actions default, and capped at Vercel's own 4.5 MB request
+		// limit (MAX_ACTION_REQUEST_BYTES). A long take's audio goes to Supabase
+		// Storage instead. Both limits below sit in a request's path: the proxy's
+		// body buffer (src/proxy.ts runs on /editor and /make) truncates silently
+		// rather than rejecting, so it's kept at the same size.
 		serverActions: {
-			bodySizeLimit: TRANSCRIBE_REQUEST_LIMIT_BYTES
+			bodySizeLimit: MAX_ACTION_REQUEST_BYTES
 		},
-		proxyClientMaxBodySize: TRANSCRIBE_REQUEST_LIMIT_BYTES
+		proxyClientMaxBodySize: MAX_ACTION_REQUEST_BYTES
 	}
 }
 

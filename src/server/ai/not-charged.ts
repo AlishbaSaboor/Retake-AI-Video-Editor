@@ -9,6 +9,7 @@ import { DeepgramError } from './deepgram'
 // | Case                                        | Given back | Why                                                                  |
 // | ------------------------------------------- | ---------- | -------------------------------------------------------------------- |
 // | The key isn't set                           | Yes        | No request was sent                                                  |
+// | It failed before the call (ProviderNotCalledError, e.g. a take's uploaded audio couldn't be read) | Yes | No request was sent |
 // | The provider answers 4xx                    | Yes        | It refused the request (a refused key, a usage limit, a bad request) |
 // | The provider answers 5xx                    | Yes        | It failed the request, so there's no answer to bill                  |
 // | It answers 2xx, but the reply can't be used | No         | It answered, so it charged; the fault is in the reply                |
@@ -20,11 +21,22 @@ import { DeepgramError } from './deepgram'
 // recognised by its name and status rather than its class, so nothing
 // outside this folder's wrapper imports the SDK.
 
+/**
+ * A paid action failed before it called the provider: nothing was sent, so
+ * nothing was charged. Thrown as the cause of the AppError the person sees.
+ */
+export class ProviderNotCalledError extends Error {
+	constructor(message: string) {
+		super(message)
+		this.name = 'ProviderNotCalledError'
+	}
+}
+
 const isHttpError = (status: unknown) => typeof status === 'number' && status >= 400 && status < 600
 
 /** One error, without what caused it. */
 function refusedItself(error: unknown): boolean {
-	if (error instanceof AiKeyMissingError) return true
+	if (error instanceof AiKeyMissingError || error instanceof ProviderNotCalledError) return true
 	if (error instanceof DeepgramError) return isHttpError(error.status)
 	return (
 		error instanceof Error &&

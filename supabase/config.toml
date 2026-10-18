@@ -114,7 +114,9 @@ port = 54324
 # sender_name = "Admin"
 
 [storage]
-enabled = false
+# On: a take longer than 70 seconds is uploaded to the take-audio bucket for
+# its transcript (src/server/storage/take-audio.ts).
+enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
