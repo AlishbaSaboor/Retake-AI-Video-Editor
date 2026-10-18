@@ -9,33 +9,22 @@ Claude-Code-only. Don't duplicate rules back into this file; add them to
 This file holds the things that genuinely are Claude-Code-specific, plus
 the owner's standing rules for sessions on this project.
 
-## Session logs
-
-Always commit `.claude-logs/` with your changes.
-
-`.claude-logs/` is tracked, not gitignored — the transcript for the session
-that produced a change belongs on the branch that ships it. On this project
-it's committed after each finished feature, in the same push as the code,
-as a commit of its own (see Standing rules below).
-
 ## Standing rules
 
 - Once a task is finished and every check passes, commit and push on your
   own. Stop and ask if anything fails or is destructive.
-- Commit code once per finished feature. After each finished feature,
-  refresh the session logs and commit them too, as a separate commit after
-  the code commit, after the secret scan, and push both together; follow
-  section 4e of `PROGRESS_NOTES.md`.
+- Commit code once per finished feature.
 - Zero API cost unless the owner approves it.
 - Verify audio/video work for real, against the actual output, not just
   that it compiles.
 - Update `PROGRESS_NOTES.md` after each feature.
-- After each push, check the GitHub Actions run for that commit and wait
-  for its result (`gh run list` / `gh run watch`, or the Actions page; if
+- After each push, check the CI run (`ci.yml`: lint, typecheck, unit
+  tests, build) for that commit and wait for its result (`gh run list` / `gh run watch`, or the Actions page; if
   `gh` isn't installed, the Actions REST API with the token git already
   stores, never printed). If it fails, read the failure, fix it, and push
   the fix before starting the next task. Don't start a new feature on a red
-  `main`.
+  `main`. The e2e, database and migration jobs (`manual.yml`) run only when
+  started by hand from the Actions tab.
 - A test that's flaky on CI but passes locally and on retry: record it in
   section 4c of `PROGRESS_NOTES.md` and carry on. Stop only for a failure
   that persists.

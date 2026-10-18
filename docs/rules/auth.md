@@ -115,9 +115,9 @@ protect a door no one uses. Enable, don't force.
 Enabling RLS is an `ALTER TABLE`, which the Prisma schema can't express, so
 it lives in a hand-written migration — one of the sanctioned exceptions in
 `docs/rules/migrations.md`. Add the `ENABLE ROW LEVEL SECURITY` statement for
-each new table in a migration alongside the one CI generates to create it.
+each new table in a migration alongside the generated one that creates it.
 
-**Enforced by `pnpm check:rls`**, which runs at the end of CI's `migrations`
+**Enforced by `pnpm check:rls`**, which runs at the end of the manual `migrations`
 job against the replayed database and reads `pg_class` and `pg_policy`
 directly: every table enabled, no policies, none forced. A new table goes
 red there until its RLS migration lands. "Every table" is deliberate — it

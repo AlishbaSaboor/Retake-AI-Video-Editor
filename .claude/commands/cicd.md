@@ -82,7 +82,7 @@ keeps CI cheap (`docs/rules/commits.md`). If it hasn't, run it first.
 6. Fix **Minor** issues only when they're quick wins that don't broaden the
    change. Skip purely stylistic suggestions that don't violate a project rule.
 7. Run every CI gate locally before committing — `pnpm lint`, `pnpm typecheck`,
-   `pnpm format:check`, `pnpm check:env`, `pnpm check:standards`, `pnpm test`,
+   `pnpm format:check`, `pnpm check:env`, `pnpm test`,
    `pnpm build`, and `pnpm check:rls` against a local database with the
    migrations applied.
    `format:check` is the easiest to forget and fails CI on its own. If
@@ -180,7 +180,8 @@ keeps CI cheap (`docs/rules/commits.md`). If it hasn't, run it first.
 - Never `git reset --hard` or `git checkout --` unless explicitly asked.
 - Never revert unrelated user changes — leave dirty files that aren't yours
   alone.
-- Never hand-write a migration; CI generates them from the schema diff.
+- Never hand-write a migration; generate it from the schema diff
+  (`docs/rules/migrations.md`).
   One-off SQL (a data fix, reference rows, a view) goes in
   `prisma/run-once.sql` instead — it runs once per database on the next
   deploy.

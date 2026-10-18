@@ -14,13 +14,15 @@ session with no memory of it can carry on. Read this whole file, then
 > - **An unset AI key** sends no request, shows "The AI isn't available right now", and the log names the setting.
 > - **Every AI call** goes through `src/server/ai/` with a required time limit (30 or 60 s) and an output cap, and writes one `ai_usage` row, priced when written.
 > - **Tests:** 679 unit (1 skipped on Windows), 142 e2e in 28 files, 6 database tests (`pnpm test:db`) on real Postgres.
-> - **CI:** commits (pull requests only), check, ai-models, build, e2e (4 shards), migrations, db-tests. Since 2026-10-13 GitHub hasn't started jobs (billing; section 3zzv).
+> - **CI:** check (lint, typecheck, format, env, secrets, unit tests) and build on every push and pull request; e2e (4 shards), migrations, db-tests and ai-models only when run by hand (`manual.yml`; section 3zzzf). Migrations are generated locally.
+> - **Repo:** the owner's own portfolio project (`origin` is `AlishbaSaboor/Retake-AI-Video-Editor`), no longer an 8x one.
 > - **Largest code:** `VideoEditor` is one 2,260-line function (`video-editor.tsx`, lines 199 to 2458, a 2,458-line file), being split one PR at a time (4 hooks and the file's helpers done; the plan is in section 3zzr). Make it's planner is split by concern: `make-plan.ts` (231 lines: `planMake`, 82, and re-exports) and `make-reply`, `make-request`, `make-context`, `make-cut`, `make-look`, `make-summary` (102 to 499 lines each).
 > - **No admin console, feature flags, API routes or production-migrations workflow** (removed in 3zzo); their tables `admin_members`, `feature_flags` and `feature_flag_overrides` were dropped in 3zzzd.
 > - **Decisions, trade-offs and known limits:** ARCHITECTURE.md.
 
 > **History, newest first (each entry was true when it was written)**
 >
+> - **A solo project: simpler CI, nothing 8x-specific** (section 3zzzf).
 > - **Ready for Vercel and a hosted Supabase project** (section 3zzze).
 > - **Three leftovers: CRON_SECRET in CI, PlanView, the unused tables** (section 3zzzd).
 > - **Make it's plan queries in their own hook** (section 3zzzc).
@@ -517,6 +519,33 @@ for more" clicked and tone skipped. Its replies are fixtures
   purpose made a named test fail, and the e2e fails without either fix. No
   existing test changed; the 100 replay scenarios are unchanged. Unit 695
   to 702; e2e 138 to 139.
+
+---
+
+## 3zzzf. A solo project: simpler CI, nothing 8x-specific (2026-10-18)
+
+Retake is now the owner's own portfolio project, in their own repo
+(`origin`: `AlishbaSaboor/Retake-AI-Video-Editor`), not an 8x one.
+
+- **`ci.yml`** (every push to `main` and every pull request): `check` (lint,
+  typecheck, Prettier, `check:env`, `check:secrets`, unit tests) and
+  `build`. The `commits` job is gone; the local `commit-msg` hook still
+  checks the format.
+- **`manual.yml`** (Actions → Manual tests → Run workflow): `e2e` (4
+  shards), `migrations`, `db-tests` and `ai-models`, unchanged apart from
+  the trigger. The tests themselves are unchanged.
+- **Migrations are generated locally now.** The `migrations` job only
+  checks (replay, run-once SQL, drift, RLS); it no longer writes or commits
+  one, so it needs no GitHub App or `MIGRATIONS_TOKEN`
+  (`docs/rules/migrations.md`).
+- **Removed as 8x-specific:** `claude-code-review.yml` (the 8x MOAD review,
+  `CLAUDE_CODE_OAUTH_TOKEN`), `scripts/check-standards.mjs`, its test and
+  `docs/STANDARDS.md` (the checklist every 8x repo carries), and the rule
+  to commit a session log with every feature. The logs already committed
+  stay; committing new ones is optional.
+- **Unit tests:** 699 to 656, all passing (the 43 removed, one of them
+  skipped on Windows, were `check-standards`' own self-tests; no app test
+  changed).
 
 ---
 
@@ -5131,22 +5160,10 @@ Not yet queued by the user:
   passes; stop and ask if anything fails or is destructive** (user's rule,
   2026-10-03, also in `CLAUDE.md`). One commit per finished piece of work
   (e.g. all of undo/redo), not per step.
-- **Code once per finished feature; the session logs with every feature**
-  (user's rule, 2026-10-04, replacing "logs only when the user says they're
-  stopping"; also in `CLAUDE.md`): after each finished feature, refresh the
-  logs, run the secret scan, and commit them as a separate commit after the
-  code commit, pushed in the same push. Commit the logs exactly as the
-  script wrote them (section 4e).
-  - One `feat(...)` commit per feature (Conventional Commits), then the
-    `chore(logs): …` commit, then one push (one CI run).
-  - Refresh `.claude-logs/` with `python3 ~/.claude/extract-log.py` (it
-    writes the session modified last: the current one).
-  - Leak-check it with: `grep -rhoE 'sb_secret_[A-Za-z0-9_-]{10,}|sb_publishable_[A-Za-z0-9_-]{10,}|eyJhbGciOi[A-Za-z0-9_.-]{20,}|AIza[0-9A-Za-z_-]{35}' .claude-logs/`.
-    A bare pattern grep matches the log's own text describing the grep;
-    that's a false positive.
-  - Also run `node scripts/check-secrets.mjs --all`.
-  - Commit with `chore(logs): update session log for …`, in the same push
-    as the feature.
+- **Code once per finished feature** (Conventional Commits). Committing
+  the session log is no longer required (2026-10-18, section 3zzzf); if one
+  is committed, refresh it with the script (section 4e) and run
+  `node scripts/check-secrets.mjs --all` first.
   - End commit messages with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
   - Git author is "Alishba Saboor".
 - **After each push, check that commit's GitHub Actions run and wait for
@@ -5154,9 +5171,9 @@ Not yet queued by the user:
   failure, fix it and push the fix before the next task; never start a new
   feature on a red `main`. `gh` isn't installed on this machine: the REST
   API works with git's stored token, read inside the command and never
-  printed (the session logs are committed):
+  printed:
   `T=$(printf "protocol=https\nhost=github.com\n\n" | git credential fill | sed -n 's/^password=//p')`,
-  then `curl -H "Authorization: Bearer $T" https://api.github.com/repos/8xplays/t1-alishbasaboor/actions/runs?head_sha=<sha>`
+  then `curl -H "Authorization: Bearer $T" https://api.github.com/repos/AlishbaSaboor/Retake-AI-Video-Editor/actions/runs?head_sha=<sha>`
   (jobs: `/actions/runs/<id>/jobs`; a job's log: `/actions/jobs/<id>/logs`).
 - **A test flaky on CI that passes locally and on retry: record it in 4c
   and carry on; stop only for a failure that persists** (user's rule,

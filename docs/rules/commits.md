@@ -51,8 +51,8 @@ same wasted-CI-run pattern.
 
 Every commit follows Conventional Commits: `type(scope): subject`. Enforced
 by `.githooks/commit-msg` (installed automatically by `pnpm install`'s
-`prepare` script) and mirrored in CI's `commits` job — both call
-`scripts/check-commit-message.mjs`, so the rule can't drift between the two.
+`prepare` script), which calls `scripts/check-commit-message.mjs`; run it
+with `--range <base>..HEAD` to check a branch's commits.
 
 Types: `feat`, `fix`, `perf`, `refactor`, `style`, `docs`, `test`, `build`,
 `ci`, `chore`, `revert`. Append `!` before the colon for a breaking change

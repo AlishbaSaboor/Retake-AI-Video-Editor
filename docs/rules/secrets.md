@@ -53,9 +53,7 @@ fix for a real one is to remove it, not to allowlist it.
 
 ## Session transcripts
 
-`.claude-logs/` (Claude Code) and `.codex-logs/` (Codex) are tracked, not
-gitignored — the transcript for the session that produced a change ships on the
-branch that ships it (see `CLAUDE.md`). Both are scanned, both are exempt from
-Prettier (they're verbatim records), and `check:standards`' `session-logs`
-check keeps both wired. Whichever agent you drive this repo with, its
-transcript goes in its own directory and is held to this rule.
+`.claude-logs/` (Claude Code) and `.codex-logs/` (Codex) hold the session
+transcripts already committed. Committing new ones is optional. Both are
+scanned and both are exempt from Prettier (they're verbatim records), so a
+transcript you do commit is held to this rule.

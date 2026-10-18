@@ -85,8 +85,8 @@ to watch out for and why.]
 - **Architecture context** — orient, don't prescribe. Point at the area and the
   established pattern; the agent writes the code.
 - **Gotchas** — relevant ones only. A UI-only issue doesn't need the migration
-  rules. A schema change does (CI generates migrations from the schema diff —
-  the agent must not hand-write one).
+  rules. A schema change does (migrations are generated from the schema diff
+  with `scripts/generate-migration.mjs` — the agent must not hand-write one).
 - **No filler sections.** No "Background" that restates the summary, no
   "Testing" that says "write tests". Every section earns its place.
 

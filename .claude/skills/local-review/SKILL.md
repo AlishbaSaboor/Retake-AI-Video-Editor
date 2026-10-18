@@ -19,7 +19,6 @@ pnpm typecheck
 pnpm format:check   # if this fails, just run `pnpm format` — it's always safe, never ask first
 pnpm check:env
 pnpm check:secrets   # scans tracked files for committed credentials
-pnpm check:standards
 pnpm check:ai-models   # skip if the project deleted AI usage tracking
 pnpm test
 DATABASE_URL="postgresql://<your local database>" pnpm check:rls   # needs the migrations applied
@@ -29,16 +28,8 @@ DATABASE_URL="postgresql://<your local database>" pnpm check:rls   # needs the m
 one: the local Postgres `dev-onboarding` set up, with
 `pnpm exec prisma migrate deploy` run against it first. Without
 `DATABASE_URL` it fails rather than skips — a skipped RLS check is the same
-as no RLS check. CI runs it at the end of the `migrations` job against the
-replayed database, so a table without RLS turns that job red.
-
-`check:standards` (`scripts/check-standards.mjs`) is the one gate that
-checks the scaffolding rather than the code: the rules index, the commit
-hook, the CI gates, the lint and TypeScript config actually in effect,
-tracked-file hygiene. A failure means a standard was unwired — usually by a
-refactor that moved or deleted something without noticing it was
-load-bearing. `docs/STANDARDS.md` lists what it looks for and how to meet
-each item.
+as no RLS check. The manual `migrations` job (`manual.yml`) runs it against
+the replayed database, so a table without RLS turns that job red.
 
 `check:ai-models` is the one gate here that calls out to the network. It
 exits 0 when OpenRouter is unreachable, so a failure means a slug this
@@ -80,7 +71,7 @@ Diff the branch against its merge-base (`git diff $(git merge-base main HEAD)...
 - **Docstrings** — flag comments that just restate the code below them; that's noise, not documentation. A missing comment on a genuinely non-obvious invariant is a real finding, an unnecessary one is too.
 - **Naming** — camelCase for JS/TS, PascalCase for components/types, `SCREAMING_SNAKE_CASE` only for true constants, snake_case only inside `@map`/`@@map` on the Prisma side.
 - **Feature scope** (`docs/rules/feature-approach.md`) — if the diff is a brand-new feature, did the PR/commit description show an 80/20 tradeoff was considered, or does it look like the fullest possible version was built without that being asked for? If it's an adjustment to something existing, scope-mimimization is the wrong lens — check test/edge-case coverage instead.
-- **Commit messages** — `git log <merge-base>..HEAD --oneline` matches Conventional Commits. Catch this locally; it's the same rule the push-time hook and CI's `commits` job enforce, just cheaper to fix before either runs.
+- **Commit messages** — `git log <merge-base>..HEAD --oneline` matches Conventional Commits. Catch this locally; it's the same rule the `commit-msg` hook enforces.
 
 ## 3. Report
 

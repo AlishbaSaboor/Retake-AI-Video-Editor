@@ -26,7 +26,6 @@
 		"db:run-once": "node scripts/run-once-sql.mjs",
 		"check:env": "node scripts/check-env-vars.mjs",
 		"check:secrets": "node scripts/check-secrets.mjs --all",
-		"check:standards": "node scripts/check-standards.mjs",
 		"check:rls": "node scripts/check-rls.mjs",
 		"contact:messages": "node --env-file-if-exists=.env.local scripts/contact-messages.mjs",
 		"check:ai-models": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/register-ts.mjs scripts/check-ai-models.mjs",
