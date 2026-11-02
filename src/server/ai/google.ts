@@ -72,8 +72,8 @@ export type GeminiFeature = keyof typeof GEMINI_MAX_OUTPUT_TOKENS
  * questions, `generate` answers none.
  *
  * `meta` takes ids, enums and booleans only — project_id, clip_id, user_id.
- * Never prompt, transcript or completion text. MOAD reads the `ai_usage`
- * table directly, so that constraint is the only thing keeping it safe.
+ * Never prompt, transcript or completion text. The `ai_usage` table is
+ * read with raw SQL, so that constraint is the only thing keeping it safe.
  */
 export type AiContext = {
 	feature: GeminiFeature

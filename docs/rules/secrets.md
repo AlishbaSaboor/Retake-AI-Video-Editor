@@ -3,10 +3,9 @@
 A credential belongs in an environment variable, read once through
 `src/lib/env.ts` — never hardcoded in source, and never committed. `.gitignore`
 blocks every `.env*` file except `.env.example`, so the files themselves can't
-land in git. The hole this rule closes is the one an agent opens: a session
-transcript is committed verbatim to `.claude-logs/` or `.codex-logs/` (see
-below), and a real `DATABASE_URL`, Supabase secret key or `Authorization`
-header that scrolled past during the session rides along into history.
+land in git. The hole this rule closes is a real `DATABASE_URL`, Supabase
+secret key or `Authorization` header pasted into a tracked file (source, a
+doc, a test fixture) and carried into history.
 
 ## The scanner is a backstop, not a licence
 
@@ -33,9 +32,7 @@ This is a backstop, exactly like `redact()` in the logger
 (`docs/rules/logging.md`) — that one scrubs the same shapes out of structured
 log fields at runtime; this one scans file text at commit time. Neither is
 permission to handle a secret carelessly. Don't paste a live credential into a
-transcript, a comment, a test fixture or a commit and lean on the scanner to
-catch it. If one scrolled through a session you're about to log, redact it in
-the transcript first — a transcript never needs the real value.
+comment, a test fixture or a commit and lean on the scanner to catch it.
 
 ## When it fires on something that isn't a secret
 
@@ -50,10 +47,3 @@ perfect. Two escape hatches, in order of preference:
 
 Reach for these only when the value genuinely is not a credential. The right
 fix for a real one is to remove it, not to allowlist it.
-
-## Session transcripts
-
-`.claude-logs/` (Claude Code) and `.codex-logs/` (Codex) hold the session
-transcripts already committed. Committing new ones is optional. Both are
-scanned and both are exempt from Prettier (they're verbatim records), so a
-transcript you do commit is held to this rule.

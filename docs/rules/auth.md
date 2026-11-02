@@ -1,15 +1,11 @@
 # Auth
 
-**Default: Supabase Auth, for anything with real user accounts.** A pure
-landing/marketing page with no sign-in gets it removed entirely — see
-"Removing auth" below. `template-setup` asks this explicitly; don't leave
-it undecided.
+**Supabase Auth, for Retake's user accounts.**
 
 ## Why Supabase Auth, not next-auth or something else
 
-This is the one place this template intentionally uses Supabase for
-something beyond a connection string — matching the pattern already proven
-in 8x-brands and legacy `8x`: **Supabase owns auth, session, and (if a
+This is the one place Retake intentionally uses Supabase for something
+beyond a connection string: **Supabase owns auth, session, and (if a
 project needs it) realtime; Prisma owns every other byte of data.** Never
 let that boundary blur — no `supabase.from()` calls for application data,
 ever (see `docs/rules/database.md`).
@@ -33,9 +29,8 @@ ever (see `docs/rules/database.md`).
    this from a path a request can reach without already being verified
    trusted.
 
-There's no fourth "authenticated Supabase client for data" tier the way
-some other org repos have it — this template has no data-access role for
-Supabase at all, on purpose.
+There's no fourth "authenticated Supabase client for data" tier — Supabase
+has no data-access role here at all, on purpose.
 
 **One exception, for files in transit, not data:** a take longer than 70 s
 is too big for one request to a Vercel Function, so the browser uploads its
@@ -59,7 +54,7 @@ realtime widens that one type deliberately — never to `from` or `rpc`.
 auth user's UUID, set explicitly when the row is first created (an auth
 webhook, or on first sign-in), never Prisma-generated
 (`@default(cuid())`). This avoids running two parallel identity systems
-that have to stay in sync. Same convention as 8x-brands and legacy `8x`.
+that have to stay in sync.
 
 ## Authorization: enforced in the app, RLS as a locked door
 
@@ -92,7 +87,7 @@ Two settings, together, make it structurally impossible for anything but
 Prisma to read application data:
 
 1. **Keep the Supabase Data API off.** Settings → API → disable it. Nothing
-   in this template talks to PostgREST or `supabase-js` for data
+   in Retake talks to PostgREST or `supabase-js` for data
    (`docs/rules/database.md`), so nothing legitimate breaks.
 2. **Enable RLS with no policies on every table**, via a migration:
 
@@ -128,27 +123,9 @@ policy is refused even on an exempt table.
 
 This whole section applies the moment a project has real user accounts.
 
-## Wiring it up (when `template-setup` says this project needs accounts)
+## Keys
 
-1. `pnpm add @supabase/supabase-js @supabase/ssr` (already the case if
-   you're reading this in a repo generated after this rule was added —
-   check `package.json` before re-adding).
-2. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
-   `SUPABASE_SECRET_KEY` from the Supabase project's dashboard
-   (Settings → API Keys). Use the `sb_publishable_…` / `sb_secret_…` keys,
-   never the legacy anon / service_role JWTs — those are disabled on every
-   8x project.
-3. Everything else — `src/proxy.ts`, `src/lib/supabase/*` — is already
-   present and working; there's nothing else to scaffold.
-
-## Removing auth (landing pages, no accounts)
-
-1. `pnpm remove @supabase/supabase-js @supabase/ssr`.
-2. Delete `src/lib/supabase/`.
-3. In `src/proxy.ts`, delete the Supabase block and go back to a plain
-   `export default createIntlMiddleware(routing)`.
-4. Remove `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`/
-   `SUPABASE_SECRET_KEY` from `.env.example` and their entries in
-   `src/lib/env.ts`.
-5. Run `pnpm check:env` and `pnpm typecheck` to confirm nothing's left
-   dangling.
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and
+`SUPABASE_SECRET_KEY` come from the Supabase project's dashboard (Settings →
+API Keys). Use the `sb_publishable_…` / `sb_secret_…` keys, never the legacy
+anon / service_role JWTs.

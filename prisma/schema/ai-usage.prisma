@@ -1,19 +1,11 @@
-// The per-repo AI spend ledger: one row per completed provider call, written
-// by src/server/lib/ai-usage/ and read by nothing in this app. MOAD queries
-// this table directly, read-only, through the Supabase Management API. That
-// makes the column contract below a cross-repo API: every project stores the
-// same units in the same shape, so a rename here is a breaking change for
-// the dashboard even though nothing in this repo imports it.
+// The AI spend ledger: one row per completed provider call, written by
+// src/server/lib/ai-usage/ and read by nothing in the app's UI; spend is
+// queried with plain SQL. Treat the units and shapes below as a contract.
 // See docs/rules/ai-usage.md.
-//
-// Delete this file and src/server/lib/ai-usage/ if the project makes no AI
-// calls — an empty table nobody writes to is worse than no table, because
-// MOAD reports it as a project at zero spend rather than one that opted out.
 model AiUsage {
 	id        BigInt   @id @default(autoincrement())
-	// `timestamptz`, not Prisma's default `timestamp`. MOAD sums across repos
-	// that may not sit in one region, and a zone that was never stored cannot
-	// be recovered later.
+	// `timestamptz`, not Prisma's default `timestamp`. A zone that was never
+	// stored cannot be recovered later.
 	createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
 	provider    String
@@ -52,8 +44,8 @@ model AiUsage {
 	// The provider's own request id, for disputes.
 	requestId String? @map("request_id")
 	// Ids only, same rule as analytics properties: brand_id, campaign_id,
-	// user_id. Never a prompt, a completion, or anything a human typed. MOAD
-	// reads this table with raw SQL, so this column is not hidden behind an
+	// user_id. Never a prompt, a completion, or anything a human typed. The
+	// table is read with raw SQL, so this column is not hidden behind an
 	// aggregate the way it used to be — the rule is the only thing keeping it
 	// safe.
 	meta      Json?

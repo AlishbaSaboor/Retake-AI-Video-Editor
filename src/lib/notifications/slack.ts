@@ -21,10 +21,8 @@ function postToSlack(text: string): void {
 // this can include real detail: Slack is a broadcast channel to the team,
 // not the public.
 //
-// This posts every occurrence with no de-duplication — fine for a
-// low-traffic template, but the org's own production repos (8x-payout,
-// legacy 8x) learned the hard way that a hot error loop floods the channel
-// until nobody reads it. If this project reaches that scale, replace the
+// This posts every occurrence with no de-duplication — fine at low traffic,
+// but a hot error loop floods the channel until nobody reads it. If this project reaches that scale, replace the
 // body of this function with a fingerprinted digest (track last-seen-at per
 // `error.name`+`context`, only post on first occurrence and again after a
 // cooldown) rather than adding a second, uncoordinated alert path.

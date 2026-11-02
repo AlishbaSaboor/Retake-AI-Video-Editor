@@ -34,7 +34,7 @@ not a silent `any`.
 
 ## No god files
 
-There's no hard line-count gate in this template's ESLint config — line
+There's no hard line-count gate in this repo's ESLint config — line
 count is a proxy, not the real signal, and a hard-enforced number produces
 exactly the kind of noise `no-magic-numbers` does (see below). The actual
 signal is responsibility count: a file mixing routing, data access,
@@ -78,7 +78,7 @@ notoriously noisy in real code (it has no default exemption for `0`, `1`,
 unmodified; a well-known typescript-eslint issue titled "false positives
 everywhere" was closed as "working as intended" rather than fixed —
 [typescript-eslint#766](https://github.com/typescript-eslint/typescript-eslint/issues/766)).
-Enforced by review instead (`local-review`'s manual pass): a numeric
+Enforced by review instead: a numeric
 literal whose meaning isn't obvious from context — a threshold, a rate, a
 timeout, a limit — gets a named constant. `data[0]`, loop counters, and
 genuinely self-evident values don't need one.

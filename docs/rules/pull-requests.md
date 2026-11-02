@@ -23,7 +23,7 @@ that description later and trusts it.
   copy for work that isn't final. A one-line placeholder is fine.
 - **Only write the real title and description once you've verified the
   work is actually done** — same bar as `docs/rules/commits.md`'s
-  don't-over-commit rule: locally verified, `local-review` clean, nothing
+  don't-over-commit rule: locally verified, every gate clean, nothing
   left to fix. At that point, mark it ready for review (`gh pr ready`) and
   write the description to reflect everything that actually happened
   across the whole branch — every commit, every fix, every scope change —
@@ -43,8 +43,8 @@ things to remember.
 
 ## What "done" means here
 
-Same definition as `docs/rules/commits.md`: locally verified with
-`local-review`, not "I think this works." Don't mark a PR ready and write
+Same definition as `docs/rules/commits.md`: locally verified, not
+"I think this works." Don't mark a PR ready and write
 its final description, then discover a bug and push another fix — that's
 the over-committing pattern from `commits.md` happening to the PR
 description specifically. If you do end up pushing after marking ready,

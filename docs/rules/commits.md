@@ -17,8 +17,8 @@ read.
 - Don't commit after every small step of a larger task. Do the work, verify
   it yourself, keep going — commit once the unit of work is actually done,
   not once each sub-step compiles.
-- **Run `local-review`'s automated gates (lint, typecheck, format, test,
-  build) before you commit, not after CI fails.** CI exists to confirm what
+- **Run the automated gates (lint, typecheck, format, test, build) before
+  you commit, not after CI fails.** CI exists to confirm what
   you already verified locally, not to be the first place a lint error or
   a type error is discovered. If you're pushing to find out whether the
   code compiles, that's the bug this rule is fixing.
@@ -32,7 +32,7 @@ read.
 - **Give the user a chance to review or test a change in chat before
   committing it**, especially for anything beyond a trivial fix. Don't
   assume a fix worked and immediately commit — confirm it, or let the user
-  confirm it, first. Per the org's own git safety protocol: never commit
+  confirm it, first. Never commit
   unless the user has asked for it, or the specific, already-agreed-upon
   unit of work is genuinely finished and verified.
 - Exception: when local reproduction is genuinely impossible (something

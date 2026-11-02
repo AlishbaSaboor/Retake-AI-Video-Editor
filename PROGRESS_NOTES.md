@@ -15,14 +15,15 @@ session with no memory of it can carry on. Read this whole file, then
 > - **Every AI call** goes through `src/server/ai/` with a required time limit (30 or 60 s) and an output cap, and writes one `ai_usage` row, priced when written.
 > - **Tests:** 679 unit (1 skipped on Windows), 142 e2e in 28 files, 6 database tests (`pnpm test:db`) on real Postgres.
 > - **CI:** check (lint, typecheck, format, env, secrets, unit tests) and build on every push and pull request; e2e (4 shards), migrations, db-tests and ai-models only when run by hand (`manual.yml`; section 3zzzf). Migrations are generated locally.
-> - **Repo:** the owner's own portfolio project (`origin` is `AlishbaSaboor/Retake-AI-Video-Editor`), no longer an 8x one.
+> - **Repo:** my own portfolio project (`origin` is `AlishbaSaboor/Retake-AI-Video-Editor`), live at https://retake-five.vercel.app. No session logs or `.claude/` in git (section 3zzzg).
 > - **Largest code:** `VideoEditor` is one 2,260-line function (`video-editor.tsx`, lines 199 to 2458, a 2,458-line file), being split one PR at a time (4 hooks and the file's helpers done; the plan is in section 3zzr). Make it's planner is split by concern: `make-plan.ts` (231 lines: `planMake`, 82, and re-exports) and `make-reply`, `make-request`, `make-context`, `make-cut`, `make-look`, `make-summary` (102 to 499 lines each).
 > - **No admin console, feature flags, API routes or production-migrations workflow** (removed in 3zzo); their tables `admin_members`, `feature_flags` and `feature_flag_overrides` were dropped in 3zzzd.
 > - **Decisions, trade-offs and known limits:** ARCHITECTURE.md.
 
 > **History, newest first (each entry was true when it was written)**
 >
-> - **A solo project: simpler CI, nothing 8x-specific** (section 3zzzf).
+> - **Trial leftovers removed; README for the portfolio** (section 3zzzg).
+> - **A solo project: simpler CI** (section 3zzzf).
 > - **Ready for Vercel and a hosted Supabase project** (section 3zzze).
 > - **Three leftovers: CRON_SECRET in CI, PlanView, the unused tables** (section 3zzzd).
 > - **Make it's plan queries in their own hook** (section 3zzzc).
@@ -346,7 +347,7 @@ session with no memory of it can carry on. Read this whole file, then
 
 ## 1. Project overview
 
-**Retake** is an AI video editor built for the 8x Playmakers trial. It
+**Retake** is an AI video editor, my own portfolio project. It
 **fixes and polishes recordings people already have** (talks, screen
 recordings, to-camera takes) rather than creating video from scratch. You
 upload a take and clean it up, by typing what you want or by editing by
@@ -522,10 +523,28 @@ for more" clicked and tone skipped. Its replies are fixtures
 
 ---
 
-## 3zzzf. A solo project: simpler CI, nothing 8x-specific (2026-10-18)
+## 3zzzg. Trial leftovers removed; README for the portfolio (2026-11-02)
 
-Retake is now the owner's own portfolio project, in their own repo
-(`origin`: `AlishbaSaboor/Retake-AI-Video-Editor`), not an 8x one.
+- `.claude-logs/` deleted from the repo and `.claude/` (skills, commands,
+  settings) untracked; both are in `.gitignore`. The secret scanner no
+  longer special-cases transcripts, and `.prettierignore` (which only
+  listed them) is gone.
+- References to the old organisation, its other repos, its dashboard and
+  the project template removed from the rule docs, code comments, schema
+  comments and `.env.example`. Template-only sections ("Removing auth",
+  "Removing it" for AI tracking) deleted, since Retake uses both.
+- `CLAUDE.md` cut to the standing rules, plus: no `Co-Authored-By`,
+  `Claude-Session` or "Generated with Claude Code" lines.
+- README rewritten: what Retake does, the stack, how to run it, the live
+  link.
+- Lint, typecheck, format, unit tests and build kept.
+
+---
+
+## 3zzzf. A solo project: simpler CI (2026-10-18)
+
+Retake became my own portfolio project, in my own repo
+(`origin`: `AlishbaSaboor/Retake-AI-Video-Editor`).
 
 - **`ci.yml`** (every push to `main` and every pull request): `check` (lint,
   typecheck, Prettier, `check:env`, `check:secrets`, unit tests) and
@@ -538,11 +557,10 @@ Retake is now the owner's own portfolio project, in their own repo
   checks (replay, run-once SQL, drift, RLS); it no longer writes or commits
   one, so it needs no GitHub App or `MIGRATIONS_TOKEN`
   (`docs/rules/migrations.md`).
-- **Removed as 8x-specific:** `claude-code-review.yml` (the 8x MOAD review,
-  `CLAUDE_CODE_OAUTH_TOKEN`), `scripts/check-standards.mjs`, its test and
-  `docs/STANDARDS.md` (the checklist every 8x repo carries), and the rule
-  to commit a session log with every feature. The logs already committed
-  stay; committing new ones is optional.
+- **Removed as trial-only:** `claude-code-review.yml` (an AI review bot
+  needing `CLAUDE_CODE_OAUTH_TOKEN`), `scripts/check-standards.mjs`, its
+  test and `docs/STANDARDS.md` (an organisation-wide checklist), and the
+  rule to commit a session log with every feature.
 - **Unit tests:** 699 to 656, all passing (the 43 removed, one of them
   skipped on Windows, were `check-standards`' own self-tests; no app test
   changed).
@@ -850,14 +868,14 @@ Local branch `local/architecture`, not pushed (GitHub CI is blocked by billing).
 ## 3zzv. CI blocked by GitHub billing; main checked locally (2026-10-14)
 
 - **What happened:** on `32bf00e` (the #60 merge), CI run
-  [38473323154](https://github.com/8xplays/t1-alishbasaboor/actions/runs/38473323154)
+  38473323154 (in the trial's old repository)
   failed every job within 3 seconds, with no runner and no step run. Each job
   carries GitHub's message: "The job was not started because recent account
   payments have failed or your spending limit needs to be increased. Please
   check the 'Billing & plans' section in your settings". **Not a code
   failure:** the code never ran.
 - **The same code passed:** #60's own run,
-  [38471244261](https://github.com/8xplays/t1-alishbasaboor/actions/runs/38471244261)
+  38471244261
   on `df13989`, passed every job (check, build, migrations, ai-models,
   db-tests, e2e 1 to 4 with no flaky test, commits). `32bf00e` has the same
   tree as `df13989` (`2ff51ec`).
@@ -1208,7 +1226,7 @@ true; "no way to read contact messages" was partly wrong: Prisma Studio
 worked, there just wasn't a purpose-built way).
 
 - **No admin seat from an email domain.** `STAFF_DOMAIN_ROLE` gave any
-  `@8x.social` sign-up the lowest admin seat, and sign-up doesn't confirm
+  sign-up from one email domain the lowest admin seat, and sign-up doesn't confirm
   the address. Now empty: seats are granted by hand.
 - **An output cap per Gemini feature** (`GEMINI_MAX_OUTPUT_TOKENS` in
   `src/server/ai/google.ts`): 1,024 for a typed command, highlights and the
@@ -1239,7 +1257,7 @@ worked, there just wasn't a purpose-built way).
   couldn't see it).
 - **Tests:** 22 new (unit 708 to 730) and one new e2e (a cut-off plan's
   message). Two existing tests changed with the owner's approval (the
-  `8x.social` seat tests now assert no seat) and one existing fake gained
+  email-domain seat tests now assert no seat) and one existing fake gained
   `$transaction` (no assertion changed). Each of 17 fixes undone on purpose
   made a named test fail.
 
@@ -1272,7 +1290,7 @@ does, except what an AI failure shows a person.
   recording too), the $4.58 figure's source, Deepgram outside the lint
   rule, and a new "Scope: local-first, not deployed" section listing what
   a hosted launch would need and why each is out of scope (`ai_usage` keeps
-  no user id on purpose: it's MOAD's contract). DESIGN.md rewritten from
+  no user id on purpose: its columns are a fixed contract). DESIGN.md rewritten from
   the template's starter text to the real tokens, radii, type and
   components, with "tokens, not literal values" stated as an aim the code
   doesn't meet yet (395 arbitrary values in `.tsx`). README's AI-key line
@@ -1414,8 +1432,8 @@ word-level timing of the transcript, especially filler words ("um", "uh").**
   - a model-placed cut (no better timing, and costs more)
 - The rule is to prefer leaving a filler in over damaging speech.
 
-**Local Supabase in Docker, local-only on purpose.** The trial runs
-locally, and the user explicitly did not want a hosted Supabase account.
+**Local Supabase in Docker for development.** Production runs on Vercel
+with a hosted Supabase project (section 3zzze).
 
 - `pnpm dlx supabase start` runs Postgres and Auth in Docker Desktop.
 - Studio, the Data API, realtime, storage, edge functions and analytics are
@@ -1423,7 +1441,6 @@ locally, and the user explicitly did not want a hosted Supabase account.
 - Prisma connects directly; RLS is on with no policies (template rule).
 - `.env.local` (gitignored) holds the local keys plus `GEMINI`/`DEEPGRAM`
   API keys.
-- The `dev-onboarding` skill was updated for this local setup.
 
 **Cost tracking.**
 
@@ -1432,11 +1449,8 @@ locally, and the user explicitly did not want a hosted Supabase account.
   (`src/server/lib/ai-usage/`).
 - Models must be registered in `OPENROUTER_SLUGS`/`models.ts`, or the code
   doesn't compile (`TrackedModel`).
-- MOAD (the org's dashboard) reads `ai_usage` directly and read-only over
-  the Supabase Management API. The column contract in
-  `prisma/schema/ai-usage.prisma` is therefore a cross-repo API: don't
-  change it casually.
-- Run the `ai-usage-check` skill on any branch touching AI calls.
+- Spend is queried from `ai_usage` with plain SQL; keep the columns in
+  `prisma/schema/ai-usage.prisma` stable.
 
 **Export: in-browser real-time re-recording** (`export-video.ts`).
 
@@ -4185,7 +4199,7 @@ could spend without limit.
   confirmation is off: that is the exposure before a public deploy.
 - **The table:** `ai_allowances` (new; `user_id`, `day` as a date,
   `kind`, `used`; primary key on the first three). No foreign key to
-  `users`. Not `ai_usage`, which is MOAD's. Additive: CI writes the
+  `users`. Not `ai_usage`, which records spend. Additive: CI writes the
   `CREATE TABLE` migration, then a hand-written migration enables RLS with
   no policies (as `contact_messages`: `d9f4788`, then `4152f73`), so the
   first CI run's `check:rls` is red by design.
@@ -5015,22 +5029,6 @@ Not changed.
   crash with `EPIPE` and every page returns 500. Start it with the longest
   timeout, or restart it when that happens.
 
-### 4e. How the session-log script behaves (by design)
-
-`~/.claude/extract-log.py` is the trial's standard script; don't modify
-it. Each run it:
-
-- overwrites the whole log file, so header stats are rewritten every time
-- keeps every prompt but only the **final** reply to each prompt, so an
-  earlier reply to the same prompt is replaced
-- logs whichever transcript was modified most recently, so the first
-  message of a new session can rewrite the previous session's log
-
-Rewritten stats and a replaced earlier reply are expected. After a session
-switch, run it by hand so the current session's log exists. Never hand-edit
-a log; if a log from a **different** session shows deletions, show the user
-and wait for their decision.
-
 ### 4f. Export length under memory pressure: measured 2026-10-03, not fixed, user warned
 
 **Yes, real exports can come out the wrong length,** and only under memory
@@ -5160,11 +5158,10 @@ Not yet queued by the user:
   passes; stop and ask if anything fails or is destructive** (user's rule,
   2026-10-03, also in `CLAUDE.md`). One commit per finished piece of work
   (e.g. all of undo/redo), not per step.
-- **Code once per finished feature** (Conventional Commits). Committing
-  the session log is no longer required (2026-10-18, section 3zzzf); if one
-  is committed, refresh it with the script (section 4e) and run
-  `node scripts/check-secrets.mjs --all` first.
-  - End commit messages with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- **Code once per finished feature** (Conventional Commits). Session logs
+  and `.claude/` are never committed (both gitignored).
+  - Never add `Co-Authored-By`, `Claude-Session` or "Generated with Claude
+    Code" lines to commits or pull requests.
   - Git author is "Alishba Saboor".
 - **After each push, check that commit's GitHub Actions run and wait for
   it** (user's rule, 2026-10-04, also in `CLAUDE.md`). If it fails, read the

@@ -23,7 +23,7 @@ dist/
 prisma/generated/
 
 # supabase CLI local runtime (only used for local Postgres/auth emulation,
-# never a schema source — see .claude/rules/migrations.md)
+# never a schema source — see docs/rules/migrations.md)
 supabase/.branches/
 supabase/.temp/
 
@@ -46,7 +46,7 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 
-# Python caches (from the skill-creator skill's scripts)
+# Python caches
 __pycache__/
 *.pyc
 
@@ -57,3 +57,7 @@ __pycache__/
 /playwright/.cache/
 # e2e's saved sign-in (e2e/auth.setup.ts)
 /e2e/.auth/
+
+# Claude Code: local session logs, skills and settings, never committed
+.claude/
+.claude-logs/

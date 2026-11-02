@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 // Fails if any process.env.X reference in src/ isn't declared in both
 // .env.example and src/lib/env.ts's Zod schema — keeps the two from
-// drifting apart as the project grows (8x-marketing shipped a real
-// undeclared-env-var bug that its own security audit flagged and never
-// fixed; this check exists so that doesn't happen here).
+// drifting apart as the project grows.
 
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, extname } from 'node:path'

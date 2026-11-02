@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { LogFields } from './logger'
 
-const STORAGE_KEY = Symbol.for('8x.logger.context')
+const STORAGE_KEY = Symbol.for('retake.logger.context')
 
 // Pinned to the realm (via a global Symbol) rather than to this module, so a
 // `runId` set once at the top of a request survives even if the module graph

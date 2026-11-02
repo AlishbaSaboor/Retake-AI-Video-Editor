@@ -104,14 +104,14 @@ test('leaves version strings, file paths and plain URLs unmangled', () => {
 	assert.deepEqual(
 		redact({
 			pinned: 'next@16.3.0',
-			scoped: '@8x/email-marketing@1.2.3',
+			scoped: '@example/email-marketing@1.2.3',
 			windows: 'C:\\Users\\dev\\app@2.0\\bin',
 			posix: '/var/log/app@2/out.log',
 			url: 'https://store-apps.test/top-free-apps?region=us&limit=100'
 		}),
 		{
 			pinned: 'next@16.3.0',
-			scoped: '@8x/email-marketing@1.2.3',
+			scoped: '@example/email-marketing@1.2.3',
 			windows: 'C:\\Users\\dev\\app@2.0\\bin',
 			posix: '/var/log/app@2/out.log',
 			url: 'https://store-apps.test/top-free-apps?region=us&limit=100'

@@ -5,12 +5,11 @@ That file is the only place an icon provider (lucide, phosphor, heroicons,
 ...) is imported, and `no-restricted-imports` in `eslint.config.mjs` fails
 the build if anything else imports one directly.
 
-The template ships with **Phosphor** (`@phosphor-icons/react`), imported
+Retake uses **Phosphor** (`@phosphor-icons/react`), imported
 from its `/ssr` entry — the root entry's icons read defaults from a React
 context, which makes them Client Components without saying so, and a Server
-Component rendering one fails at request time. `template-setup` asks
-whether this project wants a different provider and swaps it there; after
-setup, treat the answer as settled and don't reopen it per component.
+Component rendering one fails at request time. Treat the provider as
+settled and don't reopen it per component.
 
 ## Why a wrapper and not just importing the provider
 

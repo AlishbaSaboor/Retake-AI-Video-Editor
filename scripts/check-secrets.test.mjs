@@ -79,7 +79,7 @@ test('does not fire the assignment rule on non-credential keys or ordinary code'
 	assert.equal(flags('GITHUB_SHA=9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1908'), false)
 	// A per-request HMAC signature is derived, not a reusable credential.
 	assert.equal(
-		flags('x-moad-signature: 1788517056488.VMLQiJtI7kwwhrrbYRRB5ipRyaPsjHIgLLzYzSgFWQQ'),
+		flags('x-webhook-signature: 1788517056488.VMLQiJtI7kwwhrrbYRRB5ipRyaPsjHIgLLzYzSgFWQQ'),
 		false
 	)
 	// Ordinary source: a schema declaration and a property reference.

@@ -3,7 +3,7 @@
 // counted in one statement before any provider is called
 // (src/server/lib/ai-allowance.ts), so simultaneous requests can't pass the
 // ceiling. A call whose provider fails or times out is given back. Kept
-// apart from ai_usage, which records spend and is read by MOAD.
+// apart from ai_usage, which records spend.
 model AiAllowance {
 	/// The Supabase auth user's id (users.id); no foreign key, so a user
 	/// without a users row is still counted.

@@ -28,9 +28,8 @@ const nextConfig: NextConfig = {
 	},
 	// Top-level as of Next.js 16, not under `experimental`. Strictest
 	// setting: any Compiler bailout fails the build instead of silently
-	// skipping optimization for that component. Matches 8x-core and
-	// 8x-brands — catch Compiler-incompatible code at build time, not as a
-	// silent perf regression in prod.
+	// skipping optimization for that component — catch Compiler-incompatible
+	// code at build time, not as a silent perf regression in prod.
 	reactCompiler: {
 		panicThreshold: 'all_errors'
 	},

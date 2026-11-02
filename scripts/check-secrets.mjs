@@ -6,13 +6,11 @@
 // scripts/check-commit-message.mjs backs both the commit-msg hook and its CI
 // job. Edit the rules here, not in either caller.
 //
-// The risk this exists for: an agent session transcript is committed verbatim
-// to .claude-logs/ or .codex-logs/ (see docs/rules/secrets.md), and a real
-// DATABASE_URL, Supabase secret key or bearer token that scrolled past in the
-// session rides along into git history. `.env*` files are gitignored so the
-// files themselves can't be committed; a transcript that quotes their values
-// is the hole this closes. It also catches a hardcoded key that lands in
-// source anywhere else in the tree.
+// The risk this exists for: a real DATABASE_URL, Supabase secret key or
+// bearer token pasted into a tracked file (source, a doc, a test fixture)
+// rides along into git history. `.env*` files are gitignored so the files
+// themselves can't be committed; a file that quotes their values is the hole
+// this closes.
 //
 // This is the commit-time cousin of src/server/lib/logger/redact.ts, which
 // scrubs the same shapes out of structured log fields at runtime. They stay
@@ -274,27 +272,24 @@ function looksLikeSecretValue(value) {
 
 const RULES = [
 	{
-		// A kilobyte-plus base64 run in a transcript is a file, not a value. The
-		// 2026-09 audit found an entire Android signing keystore inlined in an EAS
-		// build error; a signing identity cannot be rotated, so this is the most
-		// expensive shape to miss. Threshold is high enough to ignore an inline
-		// icon or a scraped page's assets.
+		// A kilobyte-plus base64 run is a file, not a value: an inlined keystore,
+		// certificate or key file. A signing identity cannot be rotated, so this
+		// is the most expensive shape to miss. Threshold is high enough to ignore
+		// an inline icon or a scraped page's assets.
 		id: 'large-base64-blob',
 		description: 'a large base64 blob (an inlined keystore, certificate or key file)',
 		regex: /\b[A-Za-z0-9+/]{1000,}={0,2}/g
 	},
 	{
-		// A PostHog project/personal key. `phc_` ships to the browser, but a
-		// transcript quoting one usually quotes `phx_`/the personal token beside
-		// it, and the audit of 2026-09 found both shapes in .claude-logs.
+		// A PostHog project/personal key. `phc_` ships to the browser, but text
+		// quoting one usually quotes `phx_`/the personal token beside it.
 		id: 'posthog-key',
 		description: 'a PostHog API key',
 		regex: /\bph[cx]_[A-Za-z0-9]{30,}\b/g,
 		validate: (secret) => !isPlaceholderValue(secret)
 	},
 	{
-		// RapidAPI keys are a hex blob with a literal `jsn` in the middle. Four
-		// of them sat in .claude-logs for nine months before the 2026-09 audit.
+		// RapidAPI keys are a hex blob with a literal `jsn` in the middle.
 		id: 'rapidapi-key',
 		description: 'a RapidAPI key',
 		regex: /\b[0-9a-f]{20,60}jsn[0-9a-f]{8,}\b/g
@@ -521,10 +516,7 @@ export function run({ mode, paths = [] }) {
 	const findings = []
 	for (const [path, text] of collect(mode, paths)) {
 		if (text == null || isSkipped(path, allowlist)) continue
-		// Session transcripts are routinely over 1MB and are exactly where a
-		// credential lands, so the generated-bundle size cap does not apply to them.
-		const isTranscript = /(^|\/)\.(claude|codex)-logs\//.test(path)
-		if ((!isTranscript && text.length > MAX_BYTES) || isProbablyBinary(text)) continue
+		if (text.length > MAX_BYTES || isProbablyBinary(text)) continue
 		for (const finding of scanText(text)) findings.push({ path, ...finding })
 	}
 	return findings
@@ -559,9 +551,9 @@ function main() {
 		console.error(`      ${finding.description} — ${finding.preview}`)
 	}
 	console.error(
-		'\nRemove or redact the value (a session transcript should never carry a live\n' +
-			'credential — see docs/rules/secrets.md). If this is genuinely not a secret,\n' +
-			'add `allowlist secret` in a comment on the line, or a glob to .secretsallow.\n'
+		'\nRemove or redact the value (see docs/rules/secrets.md). If this is genuinely\n' +
+			'not a secret, add `allowlist secret` in a comment on the line, or a glob to\n' +
+			'.secretsallow.\n'
 	)
 	process.exit(1)
 }

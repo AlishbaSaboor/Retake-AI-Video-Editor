@@ -20,9 +20,8 @@ Select, Tabs, ...); don't pre-build a component nobody's using yet.
   portal rendering, live-region ARIA announcements, and keyboard handling
   are easy to get subtly wrong by hand. `Label` and the toast system are
   built on `@radix-ui/react-label`/`@radix-ui/react-toast`; `Button`'s
-  `asChild` prop uses `@radix-ui/react-slot`. This matches the org's own
-  convention — `8x-marketing` and the org's shadcn-based repos both build
-  on Radix the same way, not a template-specific choice.
+  `asChild` prop uses `@radix-ui/react-slot`, the same base shadcn/ui builds
+  on.
 - **No `forwardRef`** — React 19 accepts `ref` as a plain prop on function
   components, and `React.ComponentProps<'button'>` (etc.) already includes
   it. If you're writing a new primitive and reach for `forwardRef`, stop —

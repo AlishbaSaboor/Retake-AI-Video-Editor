@@ -2,13 +2,8 @@
 // Generates the missing Prisma migration by diffing the schema against a
 // database that has every already-committed migration replayed onto it —
 // the diff between "replayed history" and "current schema" IS the missing
-// migration. Ported from 8x-core's proven pattern; see
-// docs/rules/migrations.md for the full policy this script enforces (never
-// hand-write a migration, one sanctioned exception below). Note: the
-// parent org-level `.claude/rules/migrations.md` (if this repo is opened
-// alongside other 8x repos) describes the Supabase-CLI migration workflow
-// used elsewhere in the org — it does NOT apply here; docs/rules/migrations.md
-// supersedes it for this repo.
+// migration. See docs/rules/migrations.md for the full policy this script
+// enforces (never hand-write a migration, one sanctioned exception below).
 //
 // Usage:
 //   node scripts/generate-migration.mjs --name <branch-derived-name> --db-url <url>
@@ -95,7 +90,7 @@ function main() {
 			`Refusing to auto-generate this migration — it contains a destructive pattern (${destructive}):\n\n${diff}\n\n` +
 				'This usually means prisma migrate diff cannot tell a rename from a drop+add, or a NOT NULL/type change ' +
 				'would fail against existing rows. Hand-write data-preserving SQL (and a backfill if needed) in a new ' +
-				'migration created with `prisma migrate dev --create-only`, per .claude/rules/migrations.md.'
+				'migration created with `prisma migrate dev --create-only`, per docs/rules/migrations.md.'
 		)
 		process.exit(2)
 	}

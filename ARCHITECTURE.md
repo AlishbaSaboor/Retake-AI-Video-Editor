@@ -177,7 +177,7 @@ and treated as no reply. Each call writes one row to `ai_usage`, priced at
 the time of the call (an unknown price is stored as null, never zero). A
 failed write costs the row, never the call.
 _Trade-off:_ every new model or provider must be registered before it can
-be called. `ai_usage` is read by another system (MOAD), so its columns are
+be called. `ai_usage`'s columns are a contract for spend queries, so they are
 not changed casually. The caps come from the real replies in `ai_usage`
 (360 calls to 2026-10-12): 8,192 is 1.5 times the largest plan seen (5,483
 tokens, thinking included), not a proven bound, since neither the reply's
@@ -325,15 +325,15 @@ local Supabase in Docker (`supabase/config.toml`).
 
 **Known limits of the hosted setup:**
 
-| Needed for a hosted launch                                         | Why                                                                                                                                   | Why not here                                                            |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `maxDuration` on the long actions                                  | A plan may take up to 60 s (`PLAN_TIMEOUT_MS`); Vercel's default with Fluid compute is 300 s, but a project without it may be shorter | Not set, so the plan's own limit applies                                |
-| A spend ceiling across all accounts                                | The daily allowance caps each account, not how many there are                                                                         | One person runs it with their own keys                                  |
-| Email confirmation or a captcha at sign-up                         | Confirmation is off (the app signs a new account straight in), so accounts are free to create                                         | The daily allowance caps what each one spends                           |
-| Sign-in rate limits per visitor                                    | Sign-in runs as a server action, so Supabase's per-IP limits see the server's address                                                 | One person signs in                                                     |
-| Migrations applied to the hosted database, before the app's deploy | No workflow applies them to the hosted database; they're applied by hand (`docs/rules/deployment.md`)                                 | One project, one owner                                                  |
-| Orphaned take uploads cleaned up                                   | A long take uploaded but never transcribed (the tab closed in between) stays in the `take-audio` bucket                               | Rare and small; no scheduled job yet                                    |
-| A user id on `ai_usage`                                            | Spend can't be traced to an account (`prisma/schema/ai-usage.prisma`)                                                                 | `ai_usage` is a contract with the MOAD dashboard and isn't changed here |
+| Needed for a hosted launch                                         | Why                                                                                                                                   | Why not here                                           |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `maxDuration` on the long actions                                  | A plan may take up to 60 s (`PLAN_TIMEOUT_MS`); Vercel's default with Fluid compute is 300 s, but a project without it may be shorter | Not set, so the plan's own limit applies               |
+| A spend ceiling across all accounts                                | The daily allowance caps each account, not how many there are                                                                         | One person runs it with their own keys                 |
+| Email confirmation or a captcha at sign-up                         | Confirmation is off (the app signs a new account straight in), so accounts are free to create                                         | The daily allowance caps what each one spends          |
+| Sign-in rate limits per visitor                                    | Sign-in runs as a server action, so Supabase's per-IP limits see the server's address                                                 | One person signs in                                    |
+| Migrations applied to the hosted database, before the app's deploy | No workflow applies them to the hosted database; they're applied by hand (`docs/rules/deployment.md`)                                 | One project, one owner                                 |
+| Orphaned take uploads cleaned up                                   | A long take uploaded but never transcribed (the tab closed in between) stays in the `take-audio` bucket                               | Rare and small; no scheduled job yet                   |
+| A user id on `ai_usage`                                            | Spend can't be traced to an account (`prisma/schema/ai-usage.prisma`)                                                                 | `ai_usage`'s columns are kept stable for spend queries |
 
 ## What I'd do next
 

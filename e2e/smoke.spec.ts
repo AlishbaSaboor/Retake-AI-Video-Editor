@@ -1,8 +1,7 @@
 import { test, expect } from '@playwright/test'
 
-// Delete this once the project has real flows — it exists only to prove
-// the App Router + i18n + Tailwind wiring actually works, and to give
-// .claude/skills/e2e-review something real to run against a fresh clone.
+// The quickest end-to-end check: the App Router, i18n and Tailwind wiring
+// work on a fresh clone.
 test('root serves the default locale unprefixed and renders', async ({ page }) => {
 	const response = await page.goto('/')
 	expect(new URL(response?.url() ?? '').pathname).toBe('/')

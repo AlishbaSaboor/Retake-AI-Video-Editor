@@ -3,7 +3,7 @@ import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTypescript from 'eslint-config-next/typescript'
 
 // `**`, not `*` — a single star doesn't cross a `/`, so '@phosphor-icons/*'
-// would miss the very path this template itself imports
+// would miss the very path this repo itself imports
 // ('@phosphor-icons/react/ssr').
 const ICON_PROVIDER_IMPORTS = {
 	group: [

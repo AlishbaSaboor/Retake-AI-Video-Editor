@@ -113,23 +113,20 @@ anyone. No-ops entirely until `SLACK_ALERT_WEBHOOK_URL` is set (create an
 convention as Sentry/PostHog. Fire-and-forget and never throws, same as
 every other observability call in this file.
 
-This posts every occurrence with no de-duplication — fine at a template's
-starting scale, but a hot error loop will flood the channel until nobody
+This posts every occurrence with no de-duplication — fine at Retake's
+current scale, but a hot error loop will flood the channel until nobody
 reads it. If that happens, extend `notifyUnexpectedError` in
 `src/lib/notifications/slack.ts` with a fingerprinted digest (track
 last-alerted-at per `error.name`, only post on first occurrence and again
-after a cooldown) rather than adding a second, uncoordinated alert path —
-`8x-payout`'s `lib/observability/alerts.ts` is the org's reference
-implementation of that pattern if this project needs it. Swapping the
+after a cooldown) rather than adding a second, uncoordinated alert path. Swapping the
 destination entirely (Discord, PagerDuty, Teams) means changing
 `postToSlack`'s body only — `captureError` and everything upstream of it
 doesn't know or care what `notifyUnexpectedError` actually does.
 
 `captureClientError` does **not** trigger a Slack alert — a webhook URL is
 a secret and can't safely ship in the client bundle. If client-side errors
-need to reach Slack too, the org's own pattern (legacy `8x`,
-`app/error.tsx`) is to `POST` to a dedicated internal API route from the
-error boundary, which then calls `captureError` server-side; that's the
+need to reach Slack too, the pattern is to `POST` to a dedicated internal
+API route from the error boundary, which then calls `captureError` server-side; that's the
 extension point if this project needs it, not a reason to move the webhook
 URL to `NEXT_PUBLIC_*`.
 
@@ -138,9 +135,7 @@ URL to `NEXT_PUBLIC_*`.
 An expected failure happening is not new information for an engineer — it's
 confirmation the guard rail works. Reserve Sentry for what nobody predicted;
 otherwise it fills with noise until nobody reads it, which is worse than
-under-reporting. `8x-payout` and `8x-brands` independently converged on the
-same split in production; the legacy `8x` app additionally shares one
-`error_category` taxonomy between its Sentry and PostHog reporting so both
-tools describe failures the same way — worth adopting here too once this
-project has enough real error categories for a taxonomy to be more than one
+under-reporting. Sharing one `error_category` taxonomy between Sentry and
+PostHog, so both describe failures the same way, is worth adopting once
+there are enough real error categories for a taxonomy to be more than one
 entry.

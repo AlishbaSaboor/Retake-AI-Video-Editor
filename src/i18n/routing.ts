@@ -17,5 +17,5 @@ export const routing = defineRouting({
 // Locale-aware Link/router/redirect — components that need navigation MUST
 // import these instead of next/navigation, or locale switching breaks in
 // production (client components resolve routes without the locale prefix
-// otherwise). This bit 8x-marketing in production.
+// otherwise).
 export const { Link, redirect, usePathname, useRouter, getPathname } = createNavigation(routing)

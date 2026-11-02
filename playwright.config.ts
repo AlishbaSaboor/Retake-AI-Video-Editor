@@ -32,10 +32,8 @@ export default defineConfig({
 			dependencies: ['setup']
 		}
 	],
-	// Boots the app itself for local runs; CI (and any review skill running
-	// against an already-live URL via E2E_BASE_URL) should skip this by
-	// setting E2E_BASE_URL and leaving webServer unused — see
-	// .claude/skills/e2e-review/SKILL.md.
+	// Boots the app itself for local runs; a run against an already-live URL
+	// sets E2E_BASE_URL and leaves webServer unused.
 	webServer: process.env.E2E_BASE_URL
 		? undefined
 		: {

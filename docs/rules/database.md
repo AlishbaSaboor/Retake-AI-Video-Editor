@@ -8,10 +8,10 @@ this project also uses Supabase for auth, storage, or realtime, that's fine
 `$queryRaw` is allowed only where Prisma genuinely cannot express the query,
 called out explicitly in the PR description.
 
-This is a hard rule, not a style preference: the org's legacy 8x repo
-shipped 147 direct Postgres RPC call sites that TypeScript couldn't see,
-and a dropped column silently broke one of them in production. A typed ORM
-with zero stored procedures structurally removes that failure class.
+This is a hard rule, not a style preference: direct Postgres RPC call sites
+are invisible to TypeScript, so a dropped column can silently break one in
+production. A typed ORM with zero stored procedures structurally removes
+that failure class.
 
 Enforced by `eslint.config.mjs`'s `no-restricted-imports`, the same shape as
 the icon and AI-SDK rules: `@prisma/client` may be imported as a value only

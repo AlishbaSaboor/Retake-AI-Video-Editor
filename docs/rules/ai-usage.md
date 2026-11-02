@@ -4,27 +4,20 @@ Every AI provider call this app makes goes through `trackAiCall` from
 `@/server/lib/ai-usage/sink`. Never call a provider SDK directly from
 feature code. One row per call lands in `ai_usage`, priced at write time.
 
-Nothing in this app reads that table. MOAD, the cross-project spend
-dashboard, queries it directly and read-only through the Supabase Management
-API, the same path used for DB access and provisioning. So there is no
-endpoint here, no API key, and no credential in either direction.
+Nothing in the app's UI reads that table; it's there to answer "what did the
+AI cost, per feature and per model" with plain SQL against the database. So
+there is no endpoint and no extra credential for it.
 
-That makes the column contract in `prisma/schema/ai-usage.prisma` a
-cross-repo API. Every project stores the same units in the same shape, and
-renaming or re-basing a column breaks the dashboard even though nothing in
-this repo imports it. Talk to whoever runs MOAD before changing one.
-
-If this project makes no AI calls, delete the whole thing rather than
-leaving it dormant — see "Removing it" at the bottom. An empty table nobody
-writes to is worse than no table, because MOAD reports it as a project
-sitting at zero spend instead of a project that opted out.
+Treat the columns in `prisma/schema/ai-usage.prisma` as a contract: the
+units (micro-USD, token counts) and shapes below are what any spend query
+relies on, so don't rename or re-base one casually.
 
 ## Two layers, and feature code only sees one
 
 **`src/server/ai/<provider>.ts` owns the SDK.** It is the only file allowed
 to import a provider package, and the only file that calls `trackAiCall`.
-`src/server/ai/google.ts` is the reference pattern for this layer (the
-template's `anthropic.ts`, adapted — Retake calls Google only): read it
+`src/server/ai/google.ts` is the reference pattern for this layer (Retake calls
+Google only): read it
 before adding a provider, copy its shape as well as its file, and keep it
 around even before an SDK is installed, so the next person setting one up
 gets a working example instead of this paragraph.
@@ -67,8 +60,8 @@ different questions, `generate` answers none.
 
 **`meta`** follows the analytics property rule (`docs/rules/analytics.md`
 rule 5): ids, enums and booleans only. No prompt text, no completion text,
-nothing a human typed. MOAD reads this table with raw SQL, so that rule is
-the only thing keeping the column safe to share.
+nothing a human typed. The table is read with raw SQL, so that rule is the
+only thing keeping the column safe to share.
 
 **Streaming** records usage when the stream finishes, not when it starts.
 `streamMessage` in the example module shows the pattern: hand the stream to
@@ -115,21 +108,21 @@ which is `keyof typeof OPENROUTER_SLUGS`. A call site naming a model nobody
 mapped does not compile. This is the cheapest of the three and catches the
 common case: someone shipped a new AI call and forgot the map.
 
-**At `pnpm check:ai-models`, in its own CI job.** The direction TypeScript
+**At `pnpm check:ai-models`, in the manual `ai-models` job.** The direction TypeScript
 cannot see: a slug that was right when it was written and has since been
 retired upstream. That is how a mapping rots with nobody touching the code.
 The script exits 0 when OpenRouter is unreachable, so a blip upstream turns
-one square red on its own rather than every PR in every repo.
+its own job red rather than every run.
 
-**On the dashboard, which is the one that actually works.** An unmapped
-model is recorded with `cost_micro_usd` **NULL, never 0**, so MOAD counts
-what it could not price:
+**In the data, which is the one that actually works.** An unmapped
+model is recorded with `cost_micro_usd` **NULL, never 0**, so a spend query
+can count what it could not price:
 
 ```sql
 select model, count(*) from ai_usage where cost_micro_usd is null group by model;
 ```
 
-Sentry alerts get muted within a week. A dashboard row saying 3,412 calls are
+Sentry alerts get muted within a week. A query result saying 3,412 calls are
 missing from the total does not. This is the one guarantee the reader has to
 honour: `sum(coalesce(cost_micro_usd, 0))` turns "we don't know" into "$0"
 and reintroduces the exact silent undercount the NULL exists to prevent. A
@@ -140,13 +133,13 @@ zero sums cleanly and under-reports forever; a NULL is visible.
 **Cost is computed at write time, not read time.** Pricing at query time
 would mean last quarter's reported spend silently changes when a model gets
 cheaper. The row stores what the call cost when it was made. It also means
-MOAD's read is a plain `SUM` that never depends on OpenRouter being up.
+a spend query is a plain `SUM` that never depends on OpenRouter being up.
 
 **The `model` column stores the OpenRouter slug, not the provider's model
 id.** The provider's id is what comes back on the response, and it varies:
 call a floating alias and you get `claude-haiku-4.5`, call the dated one and
 you get `claude-haiku-4-5-20251001`, same model either way. Stored raw, one
-model would show up as two rows in a cross-repo total. `persist()` in
+model would show up as two rows in a total. `persist()` in
 `sink.ts` translates through `openRouterSlug` on the way in, without the
 `:batch` suffix, since `service_tier` already carries the tier. An unmapped
 model falls back to the raw provider id, which is exactly the set of rows
@@ -165,47 +158,10 @@ calls that cost the most.
 
 **Money is stored in micro-USD as a `BigInt`.** Millionths of a dollar, as
 an integer, so sums are exact and no float ever touches a money total. The
-one division to dollars happens in the reader, at the very end. This is also
-the cross-repo units contract: every project stores micro-USD, because one
-repo logging cents and another dollars is 100x wrong with nothing to catch
-it.
+one division to dollars happens in the reader, at the very end.
 
 **Tracking never breaks the call it tracks.** A failed row costs a line in a
 spend report; a failed AI call costs a user their feature. `createAiTracker`
 swallows everything on the recording path, including a bug in a caller's own
 `extract`. There is a test for exactly this in `ai-usage.test.mts`; if you
 refactor the tracker, that test is the one that matters.
-
-## Removing it
-
-For a project that makes no AI calls, delete:
-
-- `prisma/schema/ai-usage.prisma`
-- `src/server/lib/ai-usage/` and `src/server/ai/`
-- `AI_SDK_IMPORTS` and the `src/server/ai/**` block in `eslint.config.mjs`
-- `scripts/check-ai-models.mjs`, the `check:ai-models` script in
-  `package.json`, and the `ai-models` job in `.github/workflows/ci.yml`
-
-Tell whoever runs MOAD, too — a table that stops existing reads to a direct
-SQL reader as a broken project, not as one that opted out.
-
-**This file stays, and so does its bullet in `AGENTS.md`.** It is the only
-thing that survives the deletion, and it has to, for two reasons. It is the
-reference an agent reads on the day this project does add an AI call — every
-trap above (the cached-token disagreement, NULL-never-0, micro-USD, the
-explicit slug map) is knowledge that is expensive to re-derive and easy to
-get plausibly wrong.
-
-What does change is the top of this file. Replace the first paragraph with a
-note saying where the project stands, so nobody goes looking for a table
-that isn't there:
-
-> **This project does not track AI spend.** There is no `ai_usage` table and
-> no `src/server/lib/ai-usage/`. Everything below describes the system that
-> gets wired up on the day this project makes its first AI call — run
-> `/ai-usage-setup` then, and read this file before writing the call.
-
-Re-adding later is the same skill. It restores the implementation from
-`8x-web-template` rather than rebuilding it, so a project that opted out at
-setup and changes its mind ends up with the same code as one that never
-stripped.
